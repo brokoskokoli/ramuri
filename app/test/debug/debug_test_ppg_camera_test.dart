@@ -181,4 +181,112 @@ void main() {
       isTrue,
     );
   });
+
+  group('Kamerawahl (FR-0220)', () {
+    test('cameras() liefert Standard, physische und Kamera ohne Blitz in dieser Reihenfolge', () async {
+      final list = await DebugTestPpgCamera().cameras();
+      expect(
+        [for (final c in list) c.ref],
+        [
+          const PpgCameraRef('0'),
+          const PpgCameraRef('0', '2'),
+          const PpgCameraRef('1'),
+        ],
+      );
+      expect([for (final c in list) c.isDefault], [true, false, false]);
+      expect([for (final c in list) c.usable], [true, true, false]);
+      expect(list[2].unusable, PpgCameraUnusable.noFlash);
+    });
+
+    test('ohne Rückkamera ist die Liste leer', () async {
+      final cam = DebugTestPpgCamera(scenario: DebugPpgScenario.noCamera);
+      expect(await cam.cameras(), isEmpty);
+    });
+
+    test('ohne Angabe startet die Standardkamera', () async {
+      final cam = DebugTestPpgCamera(speed: 100000);
+      final events = await cam.start().toList();
+      expect(
+        (events.first as PpgCameraStarted).camera,
+        const PpgCameraRef('0'),
+      );
+      expect(cam.startedCameras, [const PpgCameraRef('0')]);
+    });
+
+    test(
+      'Szenario je Kamera: zweite Kamera guter Puls, Standard schwach',
+      () async {
+        final cam = DebugTestPpgCamera(
+          scenario: DebugPpgScenario.weakSignal,
+          speed: 100000,
+        );
+        expect(
+          cam.scenarioOf(const PpgCameraRef('0', '2')),
+          DebugPpgScenario.goodPulse,
+        );
+        final second = await cam
+            .start(camera: const PpgCameraRef('0', '2'))
+            .toList();
+        expect(
+          (second.first as PpgCameraStarted).camera,
+          const PpgCameraRef('0', '2'),
+        );
+        expect(evaluatePpg(_frames(second)).hasResult, isTrue);
+        final first = await cam.start(camera: const PpgCameraRef('0')).toList();
+        expect(evaluatePpg(_frames(first)).hasResult, isFalse);
+        expect(cam.startedCameras, [
+          const PpgCameraRef('0', '2'),
+          const PpgCameraRef('0'),
+        ]);
+      },
+    );
+
+    test('setScenario gilt nur für die angegebene Kamera', () async {
+      final cam = DebugTestPpgCamera(speed: 100000);
+      cam.setScenario(const PpgCameraRef('0', '2'), DebugPpgScenario.busy);
+      expect(cam.scenario, DebugPpgScenario.goodPulse);
+      expect(
+        cam.scenarioOf(const PpgCameraRef('0')),
+        DebugPpgScenario.goodPulse,
+      );
+      final events = await cam
+          .start(camera: const PpgCameraRef('0', '2'))
+          .toList();
+      expect(events, hasLength(1));
+      expect(
+        (events.single as PpgCameraStopped).reason,
+        PpgCameraStopReason.busy,
+      );
+      cam.setScenario(const PpgCameraRef('0'), DebugPpgScenario.weakSignal);
+      expect(cam.scenario, DebugPpgScenario.weakSignal);
+    });
+
+    test(
+      'Kamera ohne Blitz endet mit noFlash, ohne andere Kamera und Torch',
+      () async {
+        final cam = DebugTestPpgCamera(speed: 100000);
+        final events = await cam
+            .start(camera: const PpgCameraRef('1'))
+            .toList();
+        expect(events, hasLength(1));
+        expect(
+          (events.single as PpgCameraStopped).reason,
+          PpgCameraStopReason.noFlash,
+        );
+        expect(cam.startedCameras, isEmpty);
+        expect(cam.torchOn, isFalse);
+      },
+    );
+
+    test('unbekannte Kamera endet mit noCamera, ohne andere Kamera', () async {
+      final cam = DebugTestPpgCamera(speed: 100000);
+      final events = await cam.start(camera: const PpgCameraRef('7')).toList();
+      expect(events, hasLength(1));
+      expect(
+        (events.single as PpgCameraStopped).reason,
+        PpgCameraStopReason.noCamera,
+      );
+      expect(cam.startedCameras, isEmpty);
+    });
+  });
 }

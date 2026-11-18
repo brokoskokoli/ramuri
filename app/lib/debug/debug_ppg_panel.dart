@@ -4,10 +4,13 @@ import 'debug_test_ppg_camera.dart';
 
 /// Wähler für das Szenario der Fake-Kamera (WP27, nur Debug-Einstiegspunkt
 /// `main_debug.dart`): ein kleiner Knopf am rechten Rand, aufgeklappt eine
-/// Liste der Szenarien plus Zeitraffer. Für E2E per UI Automator: die
-/// `Semantics.identifier` sind `debug_ppg_toggle`, `debug_ppg_<szenario>`
-/// (z. B. `debug_ppg_goodPulse`) und `debug_ppg_speed`; die Texte beginnen mit
-/// „PPG“. Kein Code der Release-Einstiegsdatei importiert diese Datei.
+/// Liste der Szenarien plus Zeitraffer. Die Szenarien gelten je Kamera der
+/// Debug-Quelle ([debugPpgCameras], FR-0220): oben wählt man die Kamera, deren
+/// Szenario die Liste zeigt und setzt (Vorgabe: Standardkamera). Für E2E per UI
+/// Automator: die `Semantics.identifier` sind `debug_ppg_toggle`,
+/// `debug_ppg_camera_<n>` (n = Stelle in [debugPpgCameras], 0 = Standardkamera),
+/// `debug_ppg_<szenario>` (z. B. `debug_ppg_goodPulse`) und `debug_ppg_speed`;
+/// die Texte beginnen mit „PPG“. Kein Code der Release-Einstiegsdatei importiert diese Datei.
 ///
 /// Zugeklappt belegt das Feld einen festen Streifen von [collapsedWidth] am
 /// rechten Rand; der Inhalt wird um genau diese Breite schmaler gelegt, damit
@@ -29,12 +32,16 @@ class DebugPpgPanel extends StatefulWidget {
 class _DebugPpgPanelState extends State<DebugPpgPanel> {
   bool _open = false;
 
+  /// Kamera, deren Szenario die Liste zeigt.
+  int _camera = 0;
+
   /// Zeitraffer: 60 s Messung in 2 s. Echtzeit ist die Vorgabe.
   static const double fastSpeed = 30;
 
   @override
   Widget build(BuildContext context) {
     final cam = widget.camera;
+    final ref = debugPpgCameras[_camera].ref;
     return Stack(
       textDirection: TextDirection.ltr,
       children: [
@@ -76,12 +83,19 @@ class _DebugPpgPanelState extends State<DebugPpgPanel> {
                       onTap: () => setState(() => _open = !_open),
                     ),
                     if (_open) ...[
+                      for (var i = 0; i < debugPpgCameras.length; i++)
+                        _Tile(
+                          id: 'debug_ppg_camera_$i',
+                          label: 'PPG Kamera ${debugPpgCameras[i].ref.key}',
+                          selected: _camera == i,
+                          onTap: () => setState(() => _camera = i),
+                        ),
                       for (final s in DebugPpgScenario.values)
                         _Tile(
                           id: 'debug_ppg_${s.name}',
                           label: 'PPG ${s.name}',
-                          selected: cam.scenario == s,
-                          onTap: () => setState(() => cam.scenario = s),
+                          selected: cam.scenarioOf(ref) == s,
+                          onTap: () => setState(() => cam.setScenario(ref, s)),
                         ),
                       _Tile(
                         id: 'debug_ppg_speed',

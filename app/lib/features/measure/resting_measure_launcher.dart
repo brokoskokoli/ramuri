@@ -126,6 +126,15 @@ class _RestingMeasureHostState extends State<RestingMeasureHost> {
       clock: widget.clock,
       signal: SystemRestingSignal(_soundOn),
       evaluate: widget.evaluate,
+      // Kamera nach FR-0220 (gleiche Regel wie die Morgenmessung).
+      cameraChoice: () => choosePpgCamera(
+        camera: widget.camera,
+        developerMode: SettingsDeveloperModeStore(
+          widget.settings,
+          widget.clock,
+        ).read,
+        choice: SettingsPpgCameraChoiceStore(widget.settings, widget.clock),
+      ),
     );
   }
 

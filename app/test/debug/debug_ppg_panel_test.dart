@@ -135,4 +135,37 @@ void main() {
     await tester.pump();
     expect(find.text('PPG Zeitraffer an'), findsOneWidget);
   });
+
+  testWidgets('Kachel einer Kamera setzt das Szenario nur für diese Kamera', (
+    tester,
+  ) async {
+    final cam = DebugTestPpgCamera();
+    await tester.pumpWidget(
+      DebugPpgPanel(
+        camera: cam,
+        child: const MaterialApp(home: SizedBox()),
+      ),
+    );
+    await tester.tap(find.text('PPG'));
+    await tester.pump();
+    expect(find.text('PPG Kamera 0'), findsOneWidget);
+    expect(find.text('PPG Kamera 0/2'), findsOneWidget);
+    expect(find.text('PPG Kamera 1'), findsOneWidget);
+    // Vorgabe: Standardkamera.
+    await tester.tap(find.text('PPG weakSignal'));
+    await tester.pump();
+    expect(cam.scenario, DebugPpgScenario.weakSignal);
+    expect(
+      cam.scenarioOf(const PpgCameraRef('0', '2')),
+      DebugPpgScenario.goodPulse,
+    );
+
+    await tester.tap(find.text('PPG Kamera 0/2'));
+    await tester.pump();
+    await tester.tap(find.text('PPG busy'));
+    await tester.pump();
+    expect(cam.scenarioOf(const PpgCameraRef('0', '2')), DebugPpgScenario.busy);
+    expect(cam.scenario, DebugPpgScenario.weakSignal);
+    expect(cam.scenarioOf(const PpgCameraRef('1')), DebugPpgScenario.goodPulse);
+  });
 }

@@ -25,7 +25,8 @@ import io.flutter.plugin.common.MethodChannel
 
 /**
  * Kamera für das Kamera-PPG (ADR-0011): Rückkamera mit Blitz über Camera2 direkt (keine neue
- * Abhängigkeit), YUV 320×240, höchste feste Bildrate (60 vor 30), Torch, Belichtungs- und
+ * Abhängigkeit) – die Standardkamera oder die von Dart angegebene (FR-0220, auch eine physische
+ * Kamera einer logischen Mehrfachkamera, Liste über die Methode "cameras") –, YUV 320×240, höchste feste Bildrate (60 vor 30), Torch, Belichtungs- und
  * Weißabgleichsperre nach 2,5 s, Sensor-Zeitstempel. Je Bild geht nur die Statistik an Dart
  * (PpgFrameStats), das Bild wird sofort geschlossen. Keine Bilder und keine Werte in Logs oder auf Platte.
  *
@@ -46,6 +47,43 @@ object PpgCamera {
             c.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK &&
                 (!withFlash || c.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true)
         }
+
+    /** Eigenschaften einer Camera2-ID für die Kamerawahl; null, wenn sie nicht lesbar sind. */
+    private fun props(manager: CameraManager, id: String): PpgCameraProps? = try {
+        val c = manager.getCameraCharacteristics(id)
+        val multi = c.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+            ?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) == true
+        PpgCameraProps(
+            id = id,
+            back = c.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK,
+            flash = c.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true,
+            logicalMulti = multi,
+            physicalIds = if (multi) c.physicalCameraIds.toList() else emptyList(),
+            focalLengths = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.toList().orEmpty(),
+            fpsRanges = c.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+                ?.map { it.lower to it.upper }.orEmpty(),
+            yuvSizes = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                ?.getOutputSizes(ImageFormat.YUV_420_888)?.map { it.width to it.height }.orEmpty(),
+        )
+    } catch (_: Exception) {
+        null
+    }
+
+    /** Rückkameras samt physischen Kameras (FR-0220, PpgCameraLogic.listCameras). Braucht kein Kamera-Recht. */
+    private fun cameraEntries(manager: CameraManager): List<PpgCameraEntry> {
+        val cache = HashMap<String, PpgCameraProps?>()
+        return PpgCameraLogic.listCameras(manager.cameraIdList.toList()) { id ->
+            cache.getOrPut(id) { props(manager, id) }
+        }
+    }
+
+    /** Dart: PpgCamera.cameras. Fehler ergeben eine leere Liste; nichts davon ins Log. */
+    fun cameras(context: Context): List<Map<String, Any?>> = try {
+        val manager = context.getSystemService(CameraManager::class.java)
+        if (manager == null) emptyList() else cameraEntries(manager).map { it.toMap() }
+    } catch (_: Exception) {
+        emptyList()
+    }
 
     /** Dart: PpgCameraAvailability. Fragt nichts an. */
     fun availability(context: Context): String {
@@ -68,6 +106,7 @@ object PpgCamera {
         MethodChannel(messenger, METHOD_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "availability" -> result.success(availability(context))
+                "cameras" -> result.success(cameras(context))
                 "stop" -> {
                     current?.controller?.stop()
                     result.success(null)
@@ -86,7 +125,14 @@ object PpgCamera {
     private class Handler(private val context: Context) : EventChannel.StreamHandler {
         override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
             current?.controller?.stop()
-            val session = Session(context, events)
+            // Argument von PpgCamera.start in Dart: null = Standardkamera, sonst die angegebene Kamera.
+            val args = arguments as? Map<*, *>
+            val session = Session(
+                context,
+                events,
+                args?.get("cameraId") as? String,
+                args?.get("physicalCameraId") as? String,
+            )
             current = session
             session.open()
         }
@@ -96,7 +142,12 @@ object PpgCamera {
         }
     }
 
-    private class Session(private val context: Context, events: EventChannel.EventSink) : PpgHardware {
+    private class Session(
+        private val context: Context,
+        events: EventChannel.EventSink,
+        private val requestedId: String?,
+        private val requestedPhysicalId: String?,
+    ) : PpgHardware {
         private val main = android.os.Handler(Looper.getMainLooper())
         private val thread = HandlerThread("ppg-camera").also { it.start() }
         private val handler = android.os.Handler(thread.looper)
@@ -130,6 +181,7 @@ object PpgCamera {
         private var request: CaptureRequest.Builder? = null
         private var fps = 0
         private var timestampSource: String? = null
+        private var opened: PpgCameraEntry? = null
 
         // Letzte Angaben der Kamera (Kamerathread schreibt, onImage liest ebenfalls dort). Nur Zahlen, nie ins Log.
         private var capture = PpgCaptureInfo()
@@ -155,9 +207,17 @@ object PpgCamera {
             }
             try {
                 val manager = context.getSystemService(CameraManager::class.java)
-                val id = backCameraId(manager, true) ?: return controller.abort("no_flash")
-                val chars = manager.getCameraCharacteristics(id)
-                timestampSource = PpgCaptureInfo.sourceName(chars.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE))
+                // Genau die angegebene Kamera, ohne Angabe die Standardkamera; nie eine andere.
+                val pick = PpgCameraLogic.pick(cameraEntries(manager), requestedId, requestedPhysicalId)
+                pick.reason?.let { return controller.abort(it) }
+                val target = pick.entry ?: return controller.abort("error")
+                opened = target
+                val id = target.cameraId
+                // Bildrate und Größe aus der Kamera, die die Bilder liefert (physische Kamera, wenn angegeben).
+                val chars = manager.getCameraCharacteristics(target.physicalCameraId ?: id)
+                timestampSource = PpgCaptureInfo.sourceName(
+                    manager.getCameraCharacteristics(id).get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE),
+                )
                 fps = PpgCameraLogic.chooseFps(
                     chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
                         ?.map { it.lower to it.upper }.orEmpty(),
@@ -196,10 +256,15 @@ object PpgCamera {
                 threadGuard.openSettled()
                 try {
                     val surface = reader!!.surface
+                    // Physische Kamera: Bilder dieses Objektivs über die logische Kamera; Taschenlampe,
+                    // Belichtungs- und Weißabgleichsperre wie bisher über deren Anfrage. Kann die Kamera
+                    // den Ausgang nicht liefern, endet die Aufnahme über onConfigureFailed mit "error".
+                    val output = OutputConfiguration(surface)
+                    opened?.physicalCameraId?.let { output.setPhysicalCameraId(it) }
                     d.createCaptureSession(
                         SessionConfiguration(
                             SessionConfiguration.SESSION_REGULAR,
-                            listOf(OutputConfiguration(surface)),
+                            listOf(output),
                             { handler.post(it) },
                             sessionCallback,
                         ),
@@ -245,7 +310,8 @@ object PpgCamera {
                     b.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
                     request = b
                     s.setRepeatingRequest(b.build(), captureCallback, handler)
-                    controller.started(fps)
+                    val o = opened!!
+                    controller.started(fps, o.cameraId, o.physicalCameraId)
                 } catch (e: Throwable) {
                     controller.abort(PpgCameraLogic.fromException(e))
                 }

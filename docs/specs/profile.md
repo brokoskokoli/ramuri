@@ -4,7 +4,7 @@ title: Nutzerprofil und persönliche Einstellungen
 status: Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0001, FR-0002, FR-0003, FR-0004, FR-0005, FR-0006, FR-0214, FR-0217]
+related_requirements: [FR-0001, FR-0002, FR-0003, FR-0004, FR-0005, FR-0006, FR-0214, FR-0217, FR-0220]
 ---
 
 # Nutzerprofil und persönliche Einstellungen
@@ -104,7 +104,7 @@ Die Näherung besitzt eine erhebliche individuelle Streuung. Der Nutzer kann den
 ### FR-0214 — Ruhepuls mit der Handykamera messen
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-003 (Maintainer 2026-11-09)
-- **Verwandt:** FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073, DEC-0074
+- **Verwandt:** FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073, DEC-0074, FR-0220
 
 Im Profil und bei der Einrichtung kann der Nutzer seinen Ruhepuls messen lassen, statt ihn einzutragen: Finger auf Rückkamera und Blitz, die App erkennt die Schläge im Kamerabild (Photoplethysmografie). Vor der Messung empfiehlt sie eine Ruhephase mit beruhigender Anleitung; wer schon entspannt ist, misst sofort.
 
@@ -123,7 +123,7 @@ Im Profil und bei der Einrichtung kann der Nutzer seinen Ruhepuls messen lassen,
 ### FR-0217 — Entwicklermodus
 - **Status:** Approved | **Phase:** 3
 - **Quelle:** SRC-003 (Maintainer 2026-11-13, K61/K62)
-- **Verwandt:** FR-0215, FR-0213, FR-0021, FR-0216, SEC-0009, DEC-0074
+- **Verwandt:** FR-0215, FR-0213, FR-0021, FR-0216, SEC-0009, DEC-0074, FR-0220
 
 Unter Einstellungen → Über schaltet 10-maliges Tippen auf die Versionsnummer den Entwicklermodus ein; er lässt sich dort wieder ausschalten. Er dient der Validierung der Kamera-Morgenmessung (FR-0215) gegen einen Brustgurt und gilt auch in der Release-Version. Bis die Validierung bestanden ist, ist die Morgenmessung nur im Entwicklermodus nutzbar (K62 Punkt 1). **Abweichung von der Validierungssperre in K-1 (Entscheidung des Maintainers, K61, K62 Punkt 6):** Im Entwicklermodus gelten Ruhepuls und RMSSD der Morgenmessung vollständig als gültige Werte, als wäre die Validierung bestanden. Ohne Entwicklermodus gilt die Sperre unverändert.
 
@@ -137,6 +137,24 @@ Unter Einstellungen → Über schaltet 10-maliges Tippen auf die Versionsnummer 
 - [ ] Die Qualitätsgrenze je Messung (PAR-160K) gilt auch im Entwicklermodus: unbrauchbare Messungen, auch mit einem Ruhepuls außerhalb PAR-017, zählen nirgends; ohne Entwicklermodus werden sie verworfen, im Entwicklermodus mit Stufe „unbrauchbar“ und Grund, aber ohne Puls gespeichert.
 - [ ] Ist bei der Morgenmessung ein Brustgurt mit RR-Intervallen verbunden, speichert die App im Entwicklermodus dessen RR parallel zur Messung (K61 Punkt 3); ohne Entwicklermodus nicht.
 - [ ] Die Messpaare Kamera/Gurt lassen sich nur im Entwicklermodus als unverschlüsselte CSV teilen, mit Warnhinweis vor dem Teilen wie bei der Zusatzmetriken-CSV (K62 Punkt 4, K57). Die App zeigt keine Gurt-RMSSD und keine Differenzen.
+
+### FR-0220 — Kamera für die Kamera-Messung
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-003 (Maintainer 2026-11-18)
+- **Verwandt:** FR-0214, FR-0215, FR-0217, ADR-0011
+
+Die Kamera-Messung (FR-0214, FR-0215) nutzt eine Rückkamera mit Blitz. Hat das Handy mehrere Rückkameras (auch als einzelne Objektive einer Mehrfachkamera), gilt: Im Entwicklermodus (FR-0217) lässt sich unter Über → Entwickler eine Kamera wählen; sie gilt für Ruhepuls- und Morgenmessung. Sonst gilt das Ergebnis der Kamerasuche, wenn eine stattgefunden hat, sonst die Standardkamera (die erste Rückkamera mit Blitz). Ohne Entwicklermodus gilt die Wahl von Hand nicht, bleibt aber gespeichert. Ist die gewählte Kamera nicht mehr vorhanden oder nicht nutzbar, gilt die nächste Stufe; startet die Kamera nicht, endet die Messung mit Grund wie bisher, ohne Wechsel der Kamera. Wahl und Suchergebnis sind Einstellungen des Geräts: nicht im Archiv, „Alles löschen“ setzt sie zurück.
+
+**Umsetzung:** Die Karte „Kamera für die Pulsmessung“ im Abschnitt „Entwickler“ der Seite „Über“ zeigt „Standard“ (löscht die Wahl von Hand) und jede Rückkamera als „Kamera <Kennung>“ bzw. „Kamera <Kennung>/<physische Kennung>“ mit Brennweite; die Standardkamera ist als „Standard“ markiert. Nicht nutzbare Kameras (ohne Blitz, ohne feste Bildrate) sind sichtbar, aber nicht wählbar, mit Grund. Ist die gespeicherte Wahl nicht mehr in der Liste, steht dort ein Hinweis, dass die Standardkamera gilt; ohne Rückkamera „Keine Rückkamera“. Die Liste braucht kein Kamera-Recht. Kennungen, Brennweiten und die Liste stehen in keinem Log. Technik der Kamerawahl: ADR-0011, Nachtrag 2026-11-18.
+
+**Akzeptanzkriterien:**
+- [ ] Die Kameraliste nennt jede Rückkamera und bei einer logischen Mehrfachkamera ihre physischen Kameras, sortiert (Standardkamera zuerst), mit „nutzbar“ nach Blitz und fester Bildrate; ohne Rückkamera ist sie leer.
+- [ ] Der Start mit einer angegebenen Kamera öffnet genau diese und meldet sie; ohne Angabe die Standardkamera wie bisher; eine unbekannte oder unbrauchbare Kamera endet mit Grund, ohne andere Kamera und ohne Absturz.
+- [ ] Welche Kamera gilt: Entwicklermodus an mit gültiger Wahl von Hand → diese; Entwicklermodus aus mit gespeicherter Wahl → Ergebnis der Suche bzw. Standard; Wahl von Hand nicht mehr vorhanden oder nicht nutzbar → Suche bzw. Standard; Ergebnis der Suche vorhanden → dieses; nichts gespeichert → Standard.
+- [ ] Ruhepuls- und Morgenmessung starten die geltende Kamera; nach Ausschalten des Entwicklermodus wieder die Standardkamera.
+- [ ] Seite „Über“ im Entwicklermodus: Liste der Kameras, nicht wählbare mit Grund, die Wahl bleibt nach Neustart der App, „Standard“ löscht sie, Hinweis bei verschwundener Kamera; ohne Entwicklermodus keine Karte.
+- [ ] Wahl und Suchergebnis kommen nicht ins Archiv und werden von „Alles löschen“ zurückgesetzt.
+- [ ] Ohne Entwicklermodus und ohne Suchergebnis verhält sich die Messung wie vor dieser Anforderung.
 
 ## Randfälle und Fehlerverhalten
 - Weder Alter noch maximale Herzfrequenz bekannt: Abhängige Funktionen sind nicht verfügbar, die App bittet um die Eingabe (OQ-0012).

@@ -223,6 +223,7 @@ class RestingMeasureController extends ChangeNotifier {
     PpgEvaluate? evaluate,
     this.autoTick = true,
     this.searchWindow = false,
+    this.cameraChoice,
     PpgBestEvaluate? evaluateBest,
     PpgRecordingCheckRun? check,
   }) : _evaluate = evaluate ?? _evaluateInIsolate,
@@ -230,6 +231,15 @@ class RestingMeasureController extends ChangeNotifier {
        _check = check ?? _checkInIsolate;
 
   final PpgCamera camera;
+
+  /// Welche Kamera die Messung startet (FR-0220, [choosePpgCamera]); `null` als
+  /// Ergebnis oder ohne Angabe: die Standardkamera ([PpgCamera.start] ohne Angabe).
+  final Future<PpgCameraRef?> Function()? cameraChoice;
+
+  /// Die Kamera, die zuletzt gestartet wurde ([PpgCameraStarted.camera]); `null`
+  /// vor dem Start.
+  PpgCameraRef? get startedCamera => _startedCamera;
+  PpgCameraRef? _startedCamera;
 
   /// Speichert den übernommenen Ruhepuls; für die Neuberechnung der Zonen die
   /// Fassung mit Benachrichtigung der Neuberechnung übergeben (wie das Profil).
@@ -533,6 +543,20 @@ class RestingMeasureController extends ChangeNotifier {
       await _fail(run, _causeOfAvailability(a));
       return;
     }
+    PpgCameraRef? chosen;
+    final choice = cameraChoice;
+    if (choice != null) {
+      try {
+        chosen = await choice();
+      } catch (_) {
+        chosen = null; // Rückfall auf die Standardkamera (FR-0220).
+      }
+      if (run != _run) return;
+      if (!_foreground) {
+        await _fail(run, RestingStopCause.background);
+        return;
+      }
+    }
     _phase = RestingMeasurePhase.measuring;
     _notify();
     // Die Startfrist läuft ab dem Abonnieren, auch wenn „gestartet“ ausbleibt.
@@ -545,12 +569,14 @@ class RestingMeasureController extends ChangeNotifier {
         (_) => checkFrameGap(),
       );
     }
-    _sub = camera.start().listen(
-      (e) => _onEvent(run, e),
-      onError: (Object _) =>
-          unawaited(_fail(run, RestingStopCause.cameraError)),
-      onDone: () => _onStreamDone(run),
-    );
+    _sub = camera
+        .start(camera: chosen)
+        .listen(
+          (e) => _onEvent(run, e),
+          onError: (Object _) =>
+              unawaited(_fail(run, RestingStopCause.cameraError)),
+          onDone: () => _onStreamDone(run),
+        );
   }
 
   /// Der Kamerastrom endete von selbst. Mit Fenstersuche und Bildern bis mindestens zum frühesten
@@ -571,6 +597,7 @@ class RestingMeasureController extends ChangeNotifier {
     _lastCheckAt = null;
     _subscribedAt = null;
     _cameraStarted = false;
+    _startedCamera = null;
     _lastImageT = null;
     _details = null;
     _elapsed = 0;
@@ -596,8 +623,9 @@ class RestingMeasureController extends ChangeNotifier {
       return;
     }
     switch (e) {
-      case PpgCameraStarted():
+      case PpgCameraStarted(camera: final c):
         _cameraStarted = true;
+        _startedCamera = c;
         _lastImageAt = clock.monotonic();
       case PpgCameraExposureLocked():
         break;

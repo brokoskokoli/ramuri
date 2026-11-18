@@ -80,6 +80,52 @@ void main() {
     expect(await cam.requestPermission(), PpgCameraAvailability.available);
     expect(cam.permissionRequests, 1);
   });
+
+  group('Kamerawahl', () {
+    const second = PpgCameraRef('2', '4');
+    FakePpgCamera cam() => FakePpgCamera()
+      ..cameraList = const [
+        PpgCameraInfo(ref: PpgCameraRef('0'), isDefault: true),
+        PpgCameraInfo(ref: second),
+        PpgCameraInfo(
+          ref: PpgCameraRef('3'),
+          unusable: PpgCameraUnusable.frameRate,
+        ),
+      ];
+
+    test('ohne Angabe: Standardkamera, started nennt sie', () async {
+      final c = cam();
+      final events = <PpgCameraEvent>[];
+      c.start().listen(events.add);
+      await pumpEvents();
+      expect(
+        (events.single as PpgCameraStarted).camera,
+        const PpgCameraRef('0'),
+      );
+      expect(c.startedWith, [null]);
+    });
+
+    test('angegebene Kamera: genau diese', () async {
+      final c = cam();
+      final events = <PpgCameraEvent>[];
+      c.start(camera: second).listen(events.add);
+      await pumpEvents();
+      expect((events.single as PpgCameraStarted).camera, second);
+      expect(c.torchOn, isTrue);
+    });
+
+    test('unbekannte oder unbrauchbare Kamera: Grund, keine andere', () async {
+      for (final (ref, reason) in [
+        (const PpgCameraRef('9'), PpgCameraStopReason.noCamera),
+        (const PpgCameraRef('3'), PpgCameraStopReason.frameRate),
+      ]) {
+        final c = cam();
+        final events = await c.start(camera: ref).toList();
+        expect((events.single as PpgCameraStopped).reason, reason);
+        expect(c.torchOn, isFalse);
+      }
+    });
+  });
 }
 
 Future<void> pumpEvents() => Future<void>.delayed(Duration.zero);

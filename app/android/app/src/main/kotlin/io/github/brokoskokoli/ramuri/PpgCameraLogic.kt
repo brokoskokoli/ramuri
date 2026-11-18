@@ -41,6 +41,82 @@ object PpgCameraLogic {
             ?: sizes.maxByOrNull { it.first * it.second }
     }
 
+    /**
+     * Rückkameras für die Kamerawahl (FR-0220) aus [ids] (Reihenfolge von `cameraIdList`) und den
+     * Eigenschaften je ID ([props], `null` = nicht lesbar). Aufgeführt wird jede Rückkamera und, bei
+     * einer logischen Mehrfachkamera, jede ihrer physischen Kameras mit deren eigenen Eigenschaften.
+     * Standardkamera ist wie bisher die erste Rückkamera mit Blitz. Reihenfolge: Standardkamera zuerst,
+     * dann nach Kamera-ID, dann physischer ID (die Kamera selbst vor ihren physischen); IDs aus Ziffern
+     * nach Zahlenwert.
+     */
+    fun listCameras(ids: List<String>, props: (String) -> PpgCameraProps?): List<PpgCameraEntry> {
+        val back = ids.mapNotNull { id -> props(id)?.takeIf { it.back } }
+        val defaultId = back.firstOrNull { it.flash }?.id
+        val out = mutableListOf<PpgCameraEntry>()
+        for (c in back) {
+            out += entry(c.id, null, c, torch = c.flash, isDefault = c.id == defaultId)
+            if (!c.logicalMulti) continue
+            for (p in c.physicalIds.distinct()) {
+                // Die Taschenlampe schaltet die Anfrage der logischen Kamera: zählt deren Blitz.
+                out += entry(c.id, p, props(p), torch = c.flash, isDefault = false)
+            }
+        }
+        return out.sortedWith(
+            compareByDescending<PpgCameraEntry> { it.isDefault }
+                .thenComparator { a, b -> compareIds(a.cameraId, b.cameraId) }
+                .thenComparator { a, b ->
+                    when {
+                        a.physicalCameraId == b.physicalCameraId -> 0
+                        a.physicalCameraId == null -> -1
+                        b.physicalCameraId == null -> 1
+                        else -> compareIds(a.physicalCameraId, b.physicalCameraId)
+                    }
+                },
+        )
+    }
+
+    private fun entry(id: String, physical: String?, p: PpgCameraProps?, torch: Boolean, isDefault: Boolean) =
+        PpgCameraEntry(
+            cameraId = id,
+            physicalCameraId = physical,
+            focalLength = p?.focalLengths?.filter { it > 0f }?.minOrNull(),
+            isDefault = isDefault,
+            reason = when {
+                p == null -> "error"
+                !torch -> "no_flash"
+                chooseFps(p.fpsRanges) == null -> "frame_rate"
+                chooseSize(p.yuvSizes) == null -> "error"
+                else -> null
+            },
+        )
+
+    /** IDs aus Ziffern nach Zahlenwert („2“ vor „10“), sonst als Text; Ziffern vor Text. */
+    fun compareIds(a: String, b: String): Int {
+        val x = a.toBigIntegerOrNull()
+        val y = b.toBigIntegerOrNull()
+        return when {
+            x != null && y != null -> x.compareTo(y).takeIf { it != 0 } ?: a.compareTo(b)
+            x != null -> -1
+            y != null -> 1
+            else -> a.compareTo(b)
+        }
+    }
+
+    /**
+     * Welche Kamera eine Aufnahme öffnet: ohne Angabe ([cameraId] `null`) die Standardkamera, sonst
+     * genau die angegebene. Nie eine andere: unbekannt → Grund "no_camera" (ohne Angabe: "no_flash"
+     * wie bisher, wenn keine Rückkamera Blitz hat), nicht nutzbar → ihr Grund.
+     */
+    fun pick(entries: List<PpgCameraEntry>, cameraId: String?, physicalCameraId: String?): PpgCameraPick {
+        val e = if (cameraId == null) {
+            entries.firstOrNull { it.isDefault } ?: return PpgCameraPick(null, "no_flash")
+        } else {
+            entries.firstOrNull { it.cameraId == cameraId && it.physicalCameraId == physicalCameraId }
+                ?: return PpgCameraPick(null, "no_camera")
+        }
+        return PpgCameraPick(e, e.reason)
+    }
+
     /** CameraDevice.StateCallback.onError. */
     fun fromDeviceError(code: Int): String = when (code) {
         CameraDevice.StateCallback.ERROR_CAMERA_IN_USE, CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE -> "busy"
@@ -62,6 +138,51 @@ object PpgCameraLogic {
         else -> "error"
     }
 }
+
+/** Eigenschaften einer Camera2-ID, soweit die Kamerawahl sie braucht (ohne Android-Objekte). */
+data class PpgCameraProps(
+    val id: String,
+    /** LENS_FACING_BACK. */
+    val back: Boolean,
+    /** FLASH_INFO_AVAILABLE. */
+    val flash: Boolean,
+    /** Fähigkeit LOGICAL_MULTI_CAMERA. */
+    val logicalMulti: Boolean = false,
+    /** getPhysicalCameraIds. */
+    val physicalIds: List<String> = emptyList(),
+    /** LENS_INFO_AVAILABLE_FOCAL_LENGTHS in mm. */
+    val focalLengths: List<Float> = emptyList(),
+    /** CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES als (untere, obere) Grenze. */
+    val fpsRanges: List<Pair<Int, Int>> = emptyList(),
+    /** Ausgabegrößen für YUV_420_888. */
+    val yuvSizes: List<Pair<Int, Int>> = emptyList(),
+)
+
+/**
+ * Eintrag der Kameraliste (Dart: PpgCameraInfo). [reason] ist `null`, wenn die Kamera nutzbar ist,
+ * sonst "no_flash", "frame_rate" oder "error" (wie die Abbruchgründe beim Start).
+ */
+data class PpgCameraEntry(
+    val cameraId: String,
+    val physicalCameraId: String?,
+    val focalLength: Float?,
+    val isDefault: Boolean,
+    val reason: String?,
+) {
+    val usable: Boolean get() = reason == null
+
+    fun toMap(): Map<String, Any?> = mapOf(
+        "cameraId" to cameraId,
+        "physicalCameraId" to physicalCameraId,
+        "focalLength" to focalLength?.toDouble(),
+        "isDefault" to isDefault,
+        "usable" to usable,
+        "reason" to reason,
+    )
+}
+
+/** Ergebnis von [PpgCameraLogic.pick]: die zu öffnende Kamera oder der Grund des Abbruchs. */
+data class PpgCameraPick(val entry: PpgCameraEntry?, val reason: String?)
 
 /**
  * Kamera-Angaben aus dem letzten CaptureResult (Belichtung, ISO, Rolling-Shutter-Versatz,
@@ -177,10 +298,13 @@ class PpgController(private val hw: PpgHardware, private val sink: PpgSink) {
     private var saturatedSum = 0.0
     private var sinceLock = 0
 
+    /** Kamera läuft; meldet Bildrate und die tatsächlich geöffnete Kamera. */
     @Synchronized
-    fun started(fps: Int) {
+    fun started(fps: Int, cameraId: String, physicalCameraId: String? = null) {
         if (finished) return
-        sink.event(mapOf("type" to "started", "fps" to fps))
+        val m = mutableMapOf<String, Any>("type" to "started", "fps" to fps, "cameraId" to cameraId)
+        physicalCameraId?.let { m["physicalCameraId"] = it }
+        sink.event(m)
     }
 
     @Synchronized

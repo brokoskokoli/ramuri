@@ -142,6 +142,15 @@ abstract final class SettingKeys {
   /// nicht im Archiv (Vertrag 4.3); „Alles löschen“ leert die Tabelle und setzt ihn zurück.
   static const String developerMode = 'developer.mode';
 
+  /// Kamera der Kamera-Messung, von Hand gewählt im Entwicklermodus (FR-0220):
+  /// `<cameraId>` bzw. `<cameraId>/<physicalCameraId>`; fehlt der Eintrag oder ist er
+  /// leer, keine Wahl. Gerätezustand, nicht im Archiv; „Alles löschen“ setzt ihn zurück.
+  static const String ppgCameraManual = 'ppg.camera_manual';
+
+  /// Kamera der Kamera-Messung als Ergebnis der Kamerasuche (FR-0220), Form und
+  /// Behandlung wie [ppgCameraManual].
+  static const String ppgCameraAuto = 'ppg.camera_auto';
+
   /// Morgenfenster der Morgenmessung (PAR-160K) als `H-H` in ganzen Stunden Ortszeit, etwa
   /// `4-11`; fehlt der Eintrag oder ist er ungültig, gilt 4-11. Nutzereinstellung, kommt ins Archiv.
   static const String morningWindow = 'morning.window';

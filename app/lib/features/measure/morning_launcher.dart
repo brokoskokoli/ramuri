@@ -95,6 +95,15 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
         widget.settings,
         widget.clock,
       ).read,
+      // Kamera nach FR-0220 (gleiche Regel wie der Ruhepuls).
+      cameraChoice: () => choosePpgCamera(
+        camera: widget.camera,
+        developerMode: SettingsDeveloperModeStore(
+          widget.settings,
+          widget.clock,
+        ).read,
+        choice: SettingsPpgCameraChoiceStore(widget.settings, widget.clock),
+      ),
       autoTick: widget.autoTick,
       validationState: widget.validationState,
       marksFor: morningMarksReader(

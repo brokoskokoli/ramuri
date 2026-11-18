@@ -305,7 +305,10 @@ class _NoPpgCamera implements PpgCamera {
   Future<PpgCameraAvailability> requestPermission() => availability();
 
   @override
-  Stream<PpgCameraEvent> start() =>
+  Future<List<PpgCameraInfo>> cameras() async => const [];
+
+  @override
+  Stream<PpgCameraEvent> start({PpgCameraRef? camera}) =>
       Stream.value(const PpgCameraStopped(PpgCameraStopReason.noCamera));
 
   @override

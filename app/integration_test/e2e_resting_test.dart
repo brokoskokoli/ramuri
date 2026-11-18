@@ -4,7 +4,10 @@
 // ersetzt; im Messablauf gibt es keine Einwilligung (nur die Karte kennt eine,
 // MapConsent), die App fragt nur das Kamera-Recht ueber den Kamera-Port.
 // Szenario guter Puls: Ergebnis uebernehmen -> Ruhepuls im gespeicherten
-// Profil. Szenario noFinger: kein Wert, nichts gespeichert. Synthetische Werte,
+// Profil. Szenario noFinger: kein Wert, nichts gespeichert. Kamerawahl
+// (FR-0220): Entwicklermodus an, auf Ueber die zweite Debug-Kamera waehlen;
+// die Standardkamera spielt schwaches Signal, die zweite guten Puls, also
+// belegt ein Ergebnis die zweite Kamera. Synthetische Werte,
 // Ausgabe nur Zaehler. Laeuft in der Sammlung (all_test.dart).
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +27,28 @@ Future<void> _openMeasure(WidgetTester t, World w) async {
   await waitFor(t, () => has('measure_start'), 'Messung bereit');
   await tapKey(t, 'measure_mode_now');
   await tapKey(t, 'measure_start');
+}
+
+/// Entwicklermodus ueber zehn Tipps auf die Version (falls noch aus) und auf
+/// Ueber die Kamera [camera] waehlen; danach zurueck zur Uebersicht.
+Future<void> _chooseCamera(WidgetTester t, String camera) async {
+  await tapKey(t, 'home_overview');
+  await tapKey(t, 'overview_about');
+  await waitFor(t, () => has('about_version'), 'Ueber');
+  if (!has('about_dev_badge')) {
+    for (var i = 0; i < 10; i++) {
+      await t.tap(find.byKey(const Key('about_version')));
+      await pumpFor(t, const Duration(milliseconds: 120));
+    }
+  }
+  await waitFor(t, () => has('about_dev_badge'), 'Entwicklermodus an');
+  await waitFor(
+    t,
+    () => has('about_ppg_camera_$camera'),
+    'Kamera $camera auf Ueber',
+  );
+  await tapKey(t, 'about_ppg_camera_$camera');
+  await back(t);
 }
 
 Future<int?> _resting(WidgetTester t, StorageSession s) async =>
@@ -107,5 +132,62 @@ void main() {
     await waitFor(t, () => !has('measure_start'), 'Messung geschlossen');
     expect(await _resting(t, s), prior, reason: 'nichts uebernommen');
     expect(cam.torchOn, isFalse, reason: 'Kamera wieder frei');
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  testWidgets('Kamerawahl: zweite Kamera auf Ueber gewaehlt, Messung mit ihr', (
+    t,
+  ) async {
+    final cam = DebugTestPpgCamera(
+      speed: 30,
+      scenario: DebugPpgScenario.weakSignal,
+    );
+    const second = PpgCameraRef('0', '2');
+    expect(cam.scenarioOf(second), DebugPpgScenario.goodPulse);
+    final w = buildWorld(camera: cam);
+    await startApp(t, w);
+    await setupIfShown(t);
+    final s = await session(t, w);
+    final choice = SettingsPpgCameraChoiceStore(s.settings, w.deps.clock);
+    final mode = SettingsDeveloperModeStore(s.settings, w.deps.clock);
+    final wasOn = await t.runAsync(mode.read);
+    try {
+      await _chooseCamera(t, '0/2');
+      expect(await t.runAsync(choice.readManual), second);
+      await tapKey(t, 'home_profile');
+      await waitFor(
+        t,
+        () => has('profile_resting_measure'),
+        'Profil mit Messung',
+      );
+      await tapKey(t, 'profile_resting_measure');
+      await waitFor(t, () => has('measure_start'), 'Messung bereit');
+      await tapKey(t, 'measure_mode_now');
+      await tapKey(t, 'measure_start');
+      await waitFor(
+        t,
+        () =>
+            has('measure_adopt') ||
+            has('measure_retry') ||
+            has('measure_reason'),
+        'Ergebnis der Messung',
+        timeout: const Duration(seconds: 60),
+      );
+      log('RESTING camera started=${cam.startedCameras.length}');
+      expect(cam.startedCameras, [second], reason: 'nur die gewaehlte Kamera');
+      expect(
+        has('measure_adopt'),
+        isTrue,
+        reason: 'zweite Kamera (guter Puls) liefert einen Wert',
+      );
+      await tapKey(t, 'measure_discard');
+      await waitFor(t, () => !has('measure_start'), 'Messung geschlossen');
+      expect(cam.torchOn, isFalse, reason: 'Kamera wieder frei');
+    } finally {
+      // Die Sammlung teilt den Speicher: Wahl und Modus zuruecksetzen.
+      await t.runAsync(() async {
+        await choice.setManual(null);
+        await mode.set(wasOn ?? false);
+      });
+    }
   }, timeout: const Timeout(Duration(minutes: 3)));
 }
