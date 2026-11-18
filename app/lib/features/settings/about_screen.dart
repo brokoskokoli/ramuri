@@ -5,6 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../reminders/reminder_controller.dart';
 import 'morning_pairs_section.dart';
+import 'ppg_camera_section.dart';
 
 /// Tipps auf die Versionsnummer bis zum Entwicklermodus (FR-0217).
 const int developerModeTaps = 10;
@@ -22,6 +23,8 @@ class AboutScreen extends StatefulWidget {
     required this.appVersion,
     this.morning,
     this.clock,
+    this.ppgCamera,
+    this.cameraChoice,
   });
 
   final DeveloperModeStore developerMode;
@@ -29,6 +32,11 @@ class AboutScreen extends StatefulWidget {
   /// Morgenmessungen für „Messpaare“ im Abschnitt Entwickler (WP33 E); ohne
   /// Speicher entfällt der Teil.
   final MorningStore? morning;
+
+  /// Kamera und gespeicherte Kamerawahl für „Kamera für die Pulsmessung“
+  /// (FR-0220); fehlt eines, entfällt die Karte.
+  final PpgCamera? ppgCamera;
+  final PpgCameraChoiceStore? cameraChoice;
 
   /// Zeitquelle für den Dateinamen des Exports; ohne Angabe die Systemzeit.
   final DateTime Function()? clock;
@@ -185,6 +193,17 @@ class _AboutScreenState extends State<AboutScreen> {
                 onChanged: _off,
               ),
             ),
+            if (widget.ppgCamera != null && widget.cameraChoice != null) ...[
+              const SizedBox(height: 8),
+              RamuriCard(
+                key: const Key('about_ppg_camera_card'),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: PpgCameraSection(
+                  camera: widget.ppgCamera!,
+                  choice: widget.cameraChoice!,
+                ),
+              ),
+            ],
             if (widget.morning != null) ...[
               const SizedBox(height: 8),
               RamuriCard(

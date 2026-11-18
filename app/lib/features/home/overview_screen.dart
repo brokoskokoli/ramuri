@@ -6,6 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../profile/profile_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../measure/morning_belt.dart';
+import '../measure/resting_measure_launcher.dart';
 import '../sensors/sensor_manager.dart';
 import '../sensors/sensors_screen.dart';
 import '../settings/about_screen.dart';
@@ -165,6 +166,11 @@ class _OverviewScreenState extends State<OverviewScreen> {
                       clock,
                     ),
                     appVersion: appVersion,
+                    ppgCamera: PpgCameraScope.maybeOf(context),
+                    cameraChoice: SettingsPpgCameraChoiceStore(
+                      session.settings,
+                      clock,
+                    ),
                     morning: session is MorningStorage
                         ? (session as MorningStorage).morning
                         : null,
