@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../reminders/reminder_controller.dart';
-import 'morning_pairs_section.dart';
-import 'ppg_camera_section.dart';
+import 'developer_settings_screen.dart';
 
 /// Tipps auf die Versionsnummer bis zum Entwicklermodus (FR-0217).
 const int developerModeTaps = 10;
@@ -14,8 +12,9 @@ const int developerModeTaps = 10;
 const int developerModeCounterFrom = 7;
 
 /// Seite „Über“ (FR-0217): Name, Version, Lizenzen. 10 Tipps auf die Version
-/// schalten den Entwicklermodus ein (Zähler ab dem 7.); im Abschnitt Entwickler
-/// schaltet ein Schalter ihn aus. Die Zählung gilt nur für diese Seite.
+/// schalten den Entwicklermodus ein (Zähler ab dem 7.); dann führt ein Verweis
+/// zu den Entwicklereinstellungen ([DeveloperSettingsScreen]), wo ein Schalter
+/// ihn wieder ausschaltet. Die Zählung gilt nur für diese Seite.
 class AboutScreen extends StatefulWidget {
   const AboutScreen({
     super.key,
@@ -29,16 +28,12 @@ class AboutScreen extends StatefulWidget {
 
   final DeveloperModeStore developerMode;
 
-  /// Morgenmessungen für „Messpaare“ im Abschnitt Entwickler (WP33 E); ohne
-  /// Speicher entfällt der Teil.
+  /// Weitergereicht an die Entwicklereinstellungen (Messpaare, Kamerawahl).
   final MorningStore? morning;
 
-  /// Kamera und gespeicherte Kamerawahl für „Kamera für die Pulsmessung“
-  /// (FR-0220); fehlt eines, entfällt die Karte.
   final PpgCamera? ppgCamera;
   final PpgCameraChoiceStore? cameraChoice;
 
-  /// Zeitquelle für den Dateinamen des Exports; ohne Angabe die Systemzeit.
   final DateTime Function()? clock;
 
   /// Liefert die Versionsangabe; `null` = unbekannt.
@@ -84,20 +79,24 @@ class _AboutScreenState extends State<AboutScreen> {
     });
   }
 
-  Future<void> _off(bool value) async {
-    if (value) return;
-    final reminders = ReminderScope.read(context);
-    await widget.developerMode.set(false);
-    // Ohne Erreichbarkeit der Morgenmessung gilt keine Morgen-Erinnerung mehr
-    // (WP33 Teil D): eine geplante wird sofort gestrichen.
-    try {
-      await reminders?.syncMorning();
-    } on Object {
-      // Die nächste Synchronisierung holt es nach.
-    }
-    if (!mounted) return;
+  /// Öffnet die Entwicklereinstellungen; danach gilt der Modus, der dort
+  /// gespeichert ist (dort ausgeschaltet → Hinweis weg, Zählung neu).
+  Future<void> _openDeveloperSettings() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => DeveloperSettingsScreen(
+          developerMode: widget.developerMode,
+          morning: widget.morning,
+          clock: widget.clock,
+          ppgCamera: widget.ppgCamera,
+          cameraChoice: widget.cameraChoice,
+        ),
+      ),
+    );
+    final on = await widget.developerMode.read();
+    if (!mounted || on == _on) return;
     setState(() {
-      _on = false;
+      _on = on;
       _taps = 0;
     });
   }
@@ -175,45 +174,17 @@ class _AboutScreenState extends State<AboutScreen> {
             ),
           ),
           if (_on) ...[
-            const SizedBox(height: 20),
-            SectionHeading(l10n.devSection),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             RamuriCard(
-              key: const Key('about_dev_section'),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: SwitchListTile(
-                key: const Key('about_dev_switch'),
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.devSwitchTitle),
-                subtitle: Text(
-                  l10n.devSwitchBody,
-                  style: theme.bodySmall!.copyWith(color: c.textMuted),
-                ),
-                value: _on,
-                onChanged: _off,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: ListTile(
+                key: const Key('about_dev_link'),
+                leading: const Icon(Icons.developer_mode_outlined),
+                title: Text(l10n.devSettingsOpen),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _openDeveloperSettings,
               ),
             ),
-            if (widget.ppgCamera != null && widget.cameraChoice != null) ...[
-              const SizedBox(height: 8),
-              RamuriCard(
-                key: const Key('about_ppg_camera_card'),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: PpgCameraSection(
-                  camera: widget.ppgCamera!,
-                  choice: widget.cameraChoice!,
-                ),
-              ),
-            ],
-            if (widget.morning != null) ...[
-              const SizedBox(height: 8),
-              RamuriCard(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: MorningPairsSection(
-                  store: widget.morning!,
-                  clock: widget.clock,
-                ),
-              ),
-            ],
           ],
           if (toast != null) ...[
             const SizedBox(height: 16),

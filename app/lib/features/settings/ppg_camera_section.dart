@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 
-/// Karte „Kamera für die Pulsmessung“ im Abschnitt Entwickler der Seite „Über“
+/// Karte „Kamera für die Pulsmessung“ auf den Entwicklereinstellungen
 /// (FR-0220, nur Entwicklermodus): „Standard“ löscht die Wahl von Hand, darunter
 /// je Rückkamera aus [PpgCamera.cameras] ein Eintrag. Nicht nutzbare Kameras sind
 /// sichtbar, aber nicht wählbar, mit Grund. Die Liste braucht kein Kamera-Recht.
