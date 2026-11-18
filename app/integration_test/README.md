@@ -9,7 +9,7 @@ Läuft auf GitHub im Workflow `e2e` (je API 31 und 36, zwei Shards) über `tool/
 | Plan anlegen, anpassen, neu berechnen, Warnsignal | `e2e_plan_test.dart` | `sammlung` / sammlung |
 | Archiv-Export und Reimport (ohne Dateidialog) | `e2e_archive_test.dart` | `sammlung` / sammlung |
 | Laufband | `e2e_treadmill_test.dart` | `sammlung` / sammlung |
-| Kamera-Ruhepuls (Fake-Kamera, guter Puls und kein Finger) | `e2e_resting_test.dart` | `sammlung` / sammlung |
+| Kamera-Ruhepuls (Fake-Kamera, guter Puls und kein Finger; Kamerawahl auf „Über“ im Entwicklermodus, FR-0220) | `e2e_resting_test.dart` | `sammlung` / sammlung |
 | Morgenmessung (Entwicklermodus, K67/K68, Gurtzeile, Ruhephase überspringen, Haltungsmarke, Fake-Kamera, Gurt-RR, Messpaare) | `e2e_morning_test.dart` | `sammlung` / sammlung |
 | Health-Connect-Import (Debug-Quelle: Rechte, Abruf, Verlauf, Übernehmen, Widerruf mit Löschfrage, Installieren); echter Dialog nur lokal mit `--dart-define=HC_REAL=true` | `e2e_health_test.dart` | `sammlung` / sammlung |
 | Wiederanlauf eines laufenden Laufs nach Prozessende | `e2e_recover_test.dart` | `recover-a`, `recover-b` / stufen |
