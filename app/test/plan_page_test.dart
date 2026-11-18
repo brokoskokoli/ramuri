@@ -220,13 +220,15 @@ PlanViewState _state({
 
 void main() {
   group('Navigation (FR-0208)', () {
-    testWidgets('vier Bereiche, Plan an zweiter Stelle', (tester) async {
+    testWidgets('fünf Bereiche, Plan an zweiter Stelle, Profil rechts', (
+      tester,
+    ) async {
       await started(tester);
       final labels = tester
           .widgetList<NavigationDestination>(find.byType(NavigationDestination))
           .map((d) => d.label)
           .toList();
-      expect(labels, ['Heute', 'Plan', 'Verlauf', 'Fortschritt']);
+      expect(labels, ['Heute', 'Plan', 'Verlauf', 'Fortschritt', 'Profil']);
       await tester.tap(key('home_plan'));
       await tester.pumpAndSettle();
       expect(key('plan_empty'), findsOneWidget);
@@ -237,14 +239,15 @@ void main() {
       expect(key('home_screen'), findsOneWidget);
     });
 
-    testWidgets('englisch: Today, Plan, History, Progress', (tester) async {
+    testWidgets('englisch: Today, Plan, History, Progress, Profile', (
+      tester,
+    ) async {
       await started(tester, locale: 'en');
       final labels = tester
           .widgetList<NavigationDestination>(find.byType(NavigationDestination))
           .map((d) => d.label)
           .toList();
-      expect(labels[1], 'Plan');
-      expect(labels, hasLength(4));
+      expect(labels, ['Today', 'Plan', 'History', 'Progress', 'Profile']);
     });
 
     testWidgets('Wochenschritt: vorige Woche und zurück; vor der ersten '
