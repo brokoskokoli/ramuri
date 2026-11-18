@@ -339,7 +339,7 @@ void main() {
       expect(m.quality, PpgQuality.good);
       expect(m.windowStartS, 30);
       expect(m.windowEndS, 90);
-      expect(m.methodVersion, 2);
+      expect(m.methodVersion, ppgMethodVersion);
       // Punkt 9 (Review 1): das Endergebnis wertet genau die Bilder aus, auf
       // denen die letzte Prüfung „gut“ bestätigt hat.
       expect(r.evaluated.single.length, r.checkSizes.last);
