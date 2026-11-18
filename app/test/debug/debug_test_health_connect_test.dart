@@ -165,4 +165,70 @@ void main() {
       expect(await store.count(HealthDataKind.exercise), 1);
     });
   }
+
+  // Kurz nach Mitternacht UTC: kein Satz der Debug-Quelle liegt nach "jetzt", und HRV, Ruhepuls und VO2max der
+  // Nacht davor sind schon vollständig da (bei den alten Versätzen fehlten sie bis 01:30 bzw. 02:00 UTC).
+  for (final at in [
+    DateTime.utc(2026, 11, 15),
+    DateTime.utc(2026, 11, 15, 0, 30),
+    DateTime.utc(2026, 11, 15, 1, 59),
+  ]) {
+    test('kein Zeitstempel der Debug-Quelle nach $at', () async {
+      final hc = DebugTestHealthConnect(now: () => at);
+      await hc.requestPermissions(HealthDataKind.values.toSet());
+      for (final k in HealthDataKind.values) {
+        // Lesefenster bewusst über "jetzt" hinaus: die Quelle selbst darf nichts Späteres liefern.
+        final page = await hc.readPage(
+          kind: k,
+          from: at.subtract(const Duration(days: 30)),
+          to: at.add(const Duration(days: 2)),
+        );
+        expect(page.records, isNotEmpty, reason: k.key);
+        for (final r in page.records) {
+          final times = [
+            r.start,
+            r.end,
+            for (final st in r.stages) ...[st.start, st.end],
+            for (final hr in r.samples) hr.time,
+          ];
+          for (final x in times) {
+            expect(x.isAfter(at), isFalse, reason: '${r.id}: $x nach $at');
+          }
+        }
+      }
+    });
+
+    test(
+      'HRV, Ruhepuls und VO2max der Debug-Quelle um $at vollständig',
+      () async {
+        final hc = DebugTestHealthConnect(now: () => at);
+        await hc.requestPermissions(HealthDataKind.values.toSet());
+        final clock = FakeClock(at);
+        final consents = ConsentService(_Consents(), clock);
+        for (final k in HealthDataKind.values) {
+          await consents.grant(healthSourceKey(k));
+        }
+        final db = AppDatabase(NativeDatabase.memory());
+        addTearDown(db.close);
+        final store = DriftHealthStore(db);
+        final r = await HealthImportService(
+          port: hc,
+          store: store,
+          consents: consents,
+          clock: clock,
+        ).run(HealthImportTrigger.manual);
+        expect(r.status, HealthImportStatus.done);
+        // HRV: 3 Nächte × 3 Werte in der Schlafphase + Rückfallwerte der zwei Nächte davor (der von heute liegt
+        // erst um 06:50 UTC); je Nacht zwei ungültige verworfen.
+        expect(await store.count(HealthDataKind.hrvRmssd), 11);
+        expect(r.kinds[HealthDataKind.hrvRmssd]!.rejected, 6);
+        // Ruhepuls: ein gültiger Wert je Tag, der ungültige je Tag verworfen.
+        expect(await store.count(HealthDataKind.restingHeartRate), 3);
+        expect(r.kinds[HealthDataKind.restingHeartRate]!.rejected, 3);
+        expect(await store.count(HealthDataKind.vo2Max), 1);
+        // Die Nacht vor heute endet erst um 06:30 UTC und fehlt noch.
+        expect(await store.count(HealthDataKind.sleep), 4);
+      },
+    );
+  }
 }
