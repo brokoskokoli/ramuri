@@ -119,7 +119,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0108 | Faktoren der erweiterten Training Readiness | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0108--faktoren-der-erweiterten-training-readiness) | FR-0022, SEC-0001 |
 | FR-0109 | Wert von 0 bis 100 mit Einordnung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0109--wert-von-0-bis-100-mit-einordnung) | OQ-0006, OQ-0059, DEC-0074 |
 | FR-0110 | Vorläufige Gewichtung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0110--vorläufige-gewichtung) | NFR-0002, NFR-0003, NFR-0004, OQ-0020, OQ-0029, OQ-0057, OQ-0059 |
-| FR-0111 | Fehlende Faktoren gelten nicht als normal | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0111--fehlende-faktoren-gelten-nicht-als-normal) | ACC-11, OQ-0029, OQ-0059 |
+| FR-0111 | Fehlende Faktoren gelten nicht als normal | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0111--fehlende-faktoren-gelten-nicht-als-normal) | ACC-11, OQ-0029, OQ-0059, PAR-164K |
 | FR-0112 | Persönlicher Referenzzeitraum | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0112--persönlicher-referenzzeitraum) | ACC-11, OQ-0006 |
 | FR-0113 | Robuste Abweichungsbewertung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0113--robuste-abweichungsbewertung) | OQ-0059, DEC-0074 |
 | FR-0114 | Keine künstlich präzise Abweichung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0114--keine-künstlich-präzise-abweichung) | OQ-0006 |
