@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test der Versionsrechnung von tool/build_signed.sh (WP30), ohne Build. Aufruf: bash tool/build_signed_test.sh
+# Test der Versionsrechnung von tool/build_signed.sh (WP30, Tags und Nightly), ohne Build. Aufruf: bash tool/build_signed_test.sh
 set -u
 cd "$(dirname "$0")/.." || exit 1
 fail=0
@@ -30,4 +30,55 @@ prev=0
 for v in v0.1.0-rc1 v0.1.0-rc98 v0.1.0 v0.1.1-rc1 v0.1.1 v0.2.0-rc1 v0.99.99 v1.0.0-rc1 v1.0.0; do
   c=$(code "$v"); [ "$c" -gt "$prev" ] && ok "$v ($c) > $prev" || nok "$v ($c) nicht über $prev"; prev=$c
 done
+# Unbekannte Optionen und überzählige Argumente werden abgelehnt.
+for args in "--foo" "--nightly --foo" "--nightly v0.1.0" "--print-version --foo" "--print-version --nightly --foo" "--print-version --nightly v0.1.0" "--print-version"; do
+  # shellcheck disable=SC2086 # Wortzerlegung gewollt
+  if ./tool/build_signed.sh $args >/dev/null 2>&1; then nok "'$args' wurde nicht abgelehnt"; else ok "'$args' abgelehnt"; fi
+done
+
+# --- Nightly: Version aus einem temporären Git-Repo mit einer Kopie des Skripts ---
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/ramuri-nightly-test.XXXXXX") || exit 1
+trap 'rm -rf "$tmp"' EXIT
+g() { git -C "$tmp/r" -c user.name=Test -c user.email=test@example.invalid -c commit.gpgsign=false -c tag.gpgsign=false "$@"; }
+# commit <Datum mit Zone>: leerer Commit mit fester Autor- und Commit-Zeit
+commit() { GIT_AUTHOR_DATE=$1 GIT_COMMITTER_DATE=$1 g commit -q --allow-empty -m "c $1"; }
+nightly() { (cd "$tmp/r" && ./tool/build_signed.sh --print-version --nightly 2>&1); }
+expect_nightly() { # <beschreibung> <erwartete Ausgabe> [TZ]
+  out=$(if [ -n "${3:-}" ]; then TZ=$3 nightly; else nightly; fi) && [ "$out" = "$2" ] && ok "Nightly $1 -> $2" || nok "Nightly $1: erwartet '$2', erhalten '$out'"
+}
+sha7() { g rev-parse HEAD | cut -c1-7; }
+mkdir -p "$tmp/r/tool" && git init -q "$tmp/r" && cp tool/build_signed.sh "$tmp/r/tool/" || exit 1
+
+# Ohne Commit: Fehler statt Version.
+if nightly >/dev/null; then nok "Nightly ohne Commit nicht abgelehnt"; else ok "Nightly ohne Commit abgelehnt"; fi
+
+# Ohne passenden Tag (nur nightly und foo): Basis 0.0.0, Code 1.
+commit "2026-11-10T12:00:00+00:00"
+g tag nightly; g tag foo
+expect_nightly "ohne passenden Tag" "0.0.0-nightly.20261110+$(sha7) 1"
+
+# Tag v0.1.0-rc1 und ein Commit danach (23:30 UTC am 18.11., mit Zone +14:00 aufgezeichnet).
+# Ein näherer Tag, den version_aus_tag nicht annimmt (v1.2), zählt nicht.
+commit "2026-11-11T12:00:00+00:00"
+g tag v0.1.0-rc1
+commit "2026-11-19T13:30:00+14:00"
+g tag v1.2
+exp="0.1.0-rc1-nightly.20261118+$(sha7) 10001"
+expect_nightly "nach v0.1.0-rc1" "$exp"
+expect_nightly "TZ=Pacific/Kiritimati" "$exp" Pacific/Kiritimati
+expect_nightly "TZ=America/Los_Angeles" "$exp" America/Los_Angeles
+
+# Ein Tag, der nicht Vorfahre von HEAD ist, zählt nicht.
+main=$(g rev-parse HEAD)
+g checkout -q --detach
+commit "2026-11-12T12:00:00+00:00"
+g tag v5.0.0
+g checkout -q "$main"
+expect_nightly "Tag v5.0.0 auf Nebenzweig" "$exp"
+
+# Tag v1.2.3 und ein Commit danach: Code 1020399.
+g tag v1.2.3
+commit "2026-11-20T00:00:00+00:00"
+expect_nightly "nach v1.2.3" "1.2.3-nightly.20261120+$(sha7) 1020399"
+
 [ $fail -eq 0 ] && echo "ALLE GRÜN" || { echo "ROT"; exit 1; }
