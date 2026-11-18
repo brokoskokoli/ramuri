@@ -10,6 +10,17 @@ import 'package:flutter/foundation.dart';
 /// danach wieder in [idle].
 enum RecalculationPhase { idle, running, failed, declineFailed }
 
+/// Warum die App ohne Nachfrage von Banister auf Edwards umgestellt hat
+/// (FR-0197: ohne Läufe mit Werten ist nichts neu zu rechnen). Die Seite
+/// weist darauf hin.
+enum EdwardsSwitchReason {
+  /// Der Ruhepuls fehlt (Profil gespeichert).
+  restingHeartRate,
+
+  /// Die Koeffizienten-Angabe wurde entfernt.
+  coefficients,
+}
+
 /// Hält das Angebot einer Neuberechnung und den Ablauf für die Oberfläche
 /// (FR-0006, FR-0058, OQ-0031, OQ-0053). Alles Rechnen und Speichern liegt im
 /// [RecalculationService] aus `core`; hier steht nur der Zustand.
@@ -53,6 +64,33 @@ class RecalculationController extends ChangeNotifier {
   RecalculationOffer? get offer => _offer;
   RecalculationPhase get phase => _phase;
   RecalculationResult? get result => _result;
+
+  EdwardsSwitchReason? _edwardsSwitch;
+
+  /// Holt den Grund einer stillen Umstellung von Banister auf Edwards seit
+  /// dem letzten Abholen ab (einmal, danach `null`), damit die Seite darauf
+  /// hinweist. Die Wahl des Nutzers über [requestLoadProfile] zählt nicht.
+  EdwardsSwitchReason? takeEdwardsSwitch() {
+    final r = _edwardsSwitch;
+    _edwardsSwitch = null;
+    return r;
+  }
+
+  /// Führt [action] aus und merkt sich [reason], wenn das aktive Profil
+  /// dabei von Banister auf Edwards gewechselt ist.
+  Future<T> _watchEdwardsSwitch<T>(
+    EdwardsSwitchReason reason,
+    Future<T> Function() action,
+  ) async {
+    final store = service.session.settings;
+    final before = await LoadSettings.activeProfile(store);
+    final result = await action();
+    if (before == LoadProfile.banister &&
+        await LoadSettings.activeProfile(store) == LoadProfile.edwards) {
+      _edwardsSwitch = reason;
+    }
+    return result;
+  }
 
   /// Solange gerechnet wird, darf nichts anderes die Werte ändern oder die
   /// Seite verlassen werden (Sperre).
@@ -146,7 +184,10 @@ class RecalculationController extends ChangeNotifier {
   /// die Rückmeldung der Seite zu spät.
   Future<void> profileChanged(ProfileRecord before, ProfileRecord after) async {
     try {
-      final offer = await service.profileChanged(before: before, after: after);
+      final offer = await _watchEdwardsSwitch(
+        EdwardsSwitchReason.restingHeartRate,
+        () => service.profileChanged(before: before, after: after),
+      );
       if (offer != null) _onOffer(offer);
     } on Object {
       // Das Profil ist gespeichert; ein Angebot gibt es dann eben nicht.
@@ -163,15 +204,28 @@ class RecalculationController extends ChangeNotifier {
   /// Ändert die Koeffizienten-Angabe (`null` entfernt sie). Bei aktivem
   /// Banister als Angebot, sonst sofort (siehe
   /// [RecalculationService.requestLoadCoefficients]).
+  /// Stellt das Entfernen ohne Läufe mit Werten sofort auf Edwards um, steht
+  /// das danach in [takeEdwardsSwitch].
   Future<void> requestLoadCoefficients(LoadCoefficients? value) =>
-      _requestChange(() => service.requestLoadCoefficients(value));
+      _requestChange(
+        () => _watchEdwardsSwitch(
+          EdwardsSwitchReason.coefficients,
+          () => service.requestLoadCoefficients(value),
+        ),
+      );
 
   /// Nach einer Änderung von Ruhepuls oder HFmax (siehe
   /// [RecalculationService.loadBasisChanged]); Fehler verhindern nichts am
-  /// bereits gespeicherten Profil.
+  /// bereits gespeicherten Profil. Eine Umstellung auf Edwards ohne Läufe mit
+  /// Werten steht danach in [takeEdwardsSwitch].
   Future<void> loadBasisChanged() async {
     try {
-      await _requestChange(service.loadBasisChanged);
+      await _requestChange(
+        () => _watchEdwardsSwitch(
+          EdwardsSwitchReason.restingHeartRate,
+          service.loadBasisChanged,
+        ),
+      );
     } on Object {
       // Das Profil ist gespeichert; ein Angebot gibt es dann eben nicht.
     }

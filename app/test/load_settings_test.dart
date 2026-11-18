@@ -479,6 +479,121 @@ void main() {
     });
   });
 
+  group(
+    'Banister ohne Läufe: Umstellung auf Edwards mit Hinweis (FR-0197)',
+    () {
+      const resting =
+          'Belastungsprofil auf Edwards umgestellt: Für Banister fehlt der '
+          'Ruhepuls.';
+      const coefficients =
+          'Belastungsprofil auf Edwards umgestellt: Für Banister fehlt die '
+          'Koeffizienten-Angabe.';
+
+      /// Banister ohne Läufe wählen (gilt sofort), dann ins Profil.
+      Future<Device> banisterWithoutRuns(WidgetTester tester) async {
+        final d = await _start(
+          tester,
+          coefficients: LoadCoefficients.male,
+          runs: false,
+        );
+        await _openSettings(tester);
+        await _tap(tester, 'load_profile_banister');
+        expect(await _active(d), LoadProfile.banister);
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        await _openProfile(tester);
+        return d;
+      }
+
+      testWidgets('Ruhepuls entfernt: Edwards aktiv, Hinweis, kein Angebot', (
+        tester,
+      ) async {
+        final d = await banisterWithoutRuns(tester);
+        await tester.enterText(find.byKey(const Key('profile_resting')), '');
+        await _tap(tester, 'profile_save');
+        expect(find.textContaining(resting), findsOneWidget);
+        expect(find.textContaining('Profil gespeichert.'), findsOneWidget);
+        expect(await _active(d), LoadProfile.edwards);
+        expect(await LoadSettings.pendingProfile(d.session.settings), isNull);
+        final service = RecalculationService(
+          session: d.session,
+          clock: d.clock,
+          calculation: ValueCalculationService(
+            session: d.session,
+            clock: d.clock,
+          ),
+        );
+        expect(await service.pendingOffer(), isNull);
+      });
+
+      testWidgets('andere Profiländerung: Banister bleibt, kein Hinweis', (
+        tester,
+      ) async {
+        final d = await banisterWithoutRuns(tester);
+        await tester.enterText(find.byKey(const Key('profile_weight')), '70');
+        await _tap(tester, 'profile_save');
+        expect(find.text('Profil gespeichert.'), findsOneWidget);
+        expect(find.textContaining('auf Edwards umgestellt'), findsNothing);
+        expect(await _active(d), LoadProfile.banister);
+      });
+
+      testWidgets('Edwards aktiv, Ruhepuls entfernt: kein Hinweis', (
+        tester,
+      ) async {
+        final d = await _start(
+          tester,
+          coefficients: LoadCoefficients.male,
+          runs: false,
+        );
+        await _openProfile(tester);
+        await tester.enterText(find.byKey(const Key('profile_resting')), '');
+        await _tap(tester, 'profile_save');
+        expect(find.text('Profil gespeichert.'), findsOneWidget);
+        expect(find.textContaining('auf Edwards umgestellt'), findsNothing);
+        expect(await _active(d), LoadProfile.edwards);
+      });
+
+      testWidgets('Koeffizienten entfernt: Edwards aktiv, Hinweis', (
+        tester,
+      ) async {
+        final d = await banisterWithoutRuns(tester);
+        await _tap(tester, 'profile_coef_none');
+        await _tap(tester, 'profile_save');
+        expect(find.textContaining(coefficients), findsOneWidget);
+        expect(await _active(d), LoadProfile.edwards);
+        expect(await LoadSettings.coefficients(d.session.settings), isNull);
+        // Abgeholt: das nächste Speichern meldet nichts mehr.
+        await tester.pump(const Duration(seconds: 10));
+        await tester.pumpAndSettle();
+        await _tap(tester, 'profile_save');
+        expect(find.textContaining('auf Edwards umgestellt'), findsNothing);
+      });
+
+      testWidgets('englisch: Hinweis übersetzt', (tester) async {
+        await _start(
+          tester,
+          locale: const Locale('en'),
+          coefficients: LoadCoefficients.male,
+          runs: false,
+        );
+        await _openSettings(tester);
+        await _tap(tester, 'load_profile_banister');
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        await _openProfile(tester);
+        await tester.enterText(find.byKey(const Key('profile_resting')), '');
+        await _tap(tester, 'profile_save');
+        expect(
+          find.textContaining(
+            'Load profile switched to Edwards: Banister needs the resting '
+            'heart rate.',
+          ),
+          findsOneWidget,
+        );
+      });
+    },
+  );
+
   group('Karte Belastung lädt neu', () {
     test(
       'jede Änderung der Belastungseinstellungen meldet eine Datenänderung',
