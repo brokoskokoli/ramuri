@@ -28,6 +28,8 @@ void main() {
   final calls = <String>[];
   StreamController<Object?>? sink;
   var cancelled = 0;
+  Object? listenArgs = 'nie';
+  Object? cameraList;
   // Nachbildung von Kotlin: torchOn wie in der Hardware, onCancel schaltet aus.
   var torchOn = false;
 
@@ -36,10 +38,13 @@ void main() {
     afterRequest = 'available';
     calls.clear();
     cancelled = 0;
+    listenArgs = 'nie';
+    cameraList = null;
     torchOn = false;
     messenger.setMockMethodCallHandler(method, (call) async {
       calls.add('ppg:${call.method}');
       if (call.method == 'availability') return availability;
+      if (call.method == 'cameras') return cameraList;
       if (call.method == 'stop') torchOn = false;
       return null;
     });
@@ -51,6 +56,7 @@ void main() {
       events,
       MockStreamHandler.inline(
         onListen: (arguments, e) {
+          listenArgs = arguments;
           torchOn = true;
           sink = StreamController<Object?>(sync: true)
             ..stream.listen(
@@ -122,16 +128,142 @@ void main() {
     final sub = MethodChannelPpgCamera().start().listen(out.add);
     await pumpEventQueue();
     sink!
-      ..add({'type': 'started', 'fps': 60})
+      ..add({'type': 'started', 'fps': 60, 'cameraId': '0'})
       ..add(_frame(0.5))
       ..add({'type': 'locked'});
     await pumpEventQueue();
     expect((out[0] as PpgCameraStarted).fps, 60);
+    expect((out[0] as PpgCameraStarted).camera, const PpgCameraRef('0'));
     final f = (out[1] as PpgCameraFrame).frame;
     expect(f.t, 0.5);
     expect(f.r16, hasLength(16));
     expect(out[2], isA<PpgCameraExposureLocked>());
     await sub.cancel();
+  });
+
+  test('Kameraliste aus Kotlin, ohne Rechteanfrage', () async {
+    cameraList = [
+      {
+        'cameraId': '0',
+        'physicalCameraId': null,
+        'focalLength': 4.25,
+        'isDefault': true,
+        'usable': true,
+      },
+      {
+        'cameraId': '0',
+        'physicalCameraId': '3',
+        'focalLength': null,
+        'isDefault': false,
+        'usable': false,
+        'reason': 'no_flash',
+      },
+      {
+        'cameraId': '1',
+        'physicalCameraId': null,
+        'focalLength': 2.0,
+        'isDefault': false,
+        'usable': false,
+        'reason': 'frame_rate',
+      },
+      {'cameraId': '2', 'isDefault': false, 'usable': false, 'reason': 'error'},
+      // Unpassend: entfällt.
+      {'cameraId': '', 'isDefault': false, 'usable': true},
+      {'cameraId': '5', 'isDefault': false},
+      {
+        'cameraId': '5',
+        'physicalCameraId': 7,
+        'isDefault': false,
+        'usable': true,
+      },
+      'Text',
+    ];
+    final list = await MethodChannelPpgCamera().cameras();
+    expect(calls, ['ppg:cameras']);
+    expect(list.map((c) => c.ref).toList(), const [
+      PpgCameraRef('0'),
+      PpgCameraRef('0', '3'),
+      PpgCameraRef('1'),
+      PpgCameraRef('2'),
+    ]);
+    expect(list[0].focalLengthMm, 4.25);
+    expect(list[0].isDefault, isTrue);
+    expect(list[0].usable, isTrue);
+    expect(list[1].focalLengthMm, isNull);
+    expect(list[1].unusable, PpgCameraUnusable.noFlash);
+    expect(list[2].unusable, PpgCameraUnusable.frameRate);
+    expect(list[3].unusable, PpgCameraUnusable.other);
+  });
+
+  test(
+    'Kameraliste ohne Plattform oder bei Fehler: leer, kein Fehler',
+    () async {
+      messenger.setMockMethodCallHandler(method, null);
+      expect(await MethodChannelPpgCamera().cameras(), isEmpty);
+      messenger.setMockMethodCallHandler(
+        method,
+        (call) async => throw PlatformException(code: 'error'),
+      );
+      expect(await MethodChannelPpgCamera().cameras(), isEmpty);
+    },
+  );
+
+  test('ohne Angabe startet die Standardkamera (kein Argument)', () async {
+    final sub = MethodChannelPpgCamera().start().listen((_) {});
+    await pumpEventQueue();
+    expect(listenArgs, isNull);
+    await sub.cancel();
+  });
+
+  test(
+    'angegebene Kamera geht an Kotlin, started nennt die geöffnete',
+    () async {
+      final out = <PpgCameraEvent>[];
+      final sub = MethodChannelPpgCamera()
+          .start(camera: const PpgCameraRef('0', '3'))
+          .listen(out.add);
+      await pumpEventQueue();
+      expect(listenArgs, {'cameraId': '0', 'physicalCameraId': '3'});
+      sink!.add({
+        'type': 'started',
+        'fps': 30,
+        'cameraId': '0',
+        'physicalCameraId': '3',
+      });
+      await pumpEventQueue();
+      expect(
+        (out.single as PpgCameraStarted).camera,
+        const PpgCameraRef('0', '3'),
+      );
+      await sub.cancel();
+    },
+  );
+
+  test('unbekannte oder unbrauchbare Kamera: Strom endet mit Grund', () async {
+    for (final (code, reason) in [
+      ('no_camera', PpgCameraStopReason.noCamera),
+      ('no_flash', PpgCameraStopReason.noFlash),
+      ('frame_rate', PpgCameraStopReason.frameRate),
+      ('error', PpgCameraStopReason.error),
+    ]) {
+      final out = <PpgCameraEvent>[];
+      var done = false;
+      MethodChannelPpgCamera()
+          .start(camera: const PpgCameraRef('9'))
+          .listen(out.add, onDone: () => done = true);
+      await pumpEventQueue();
+      sink!.add({'type': 'stopped', 'reason': code});
+      await pumpEventQueue();
+      expect((out.single as PpgCameraStopped).reason, reason, reason: code);
+      expect(done, isTrue);
+    }
+  });
+
+  test('started ohne Kamera ist unpassend und entfällt', () {
+    expect(
+      MethodChannelPpgCamera.parse({'type': 'started', 'fps': 60}),
+      isNull,
+    );
   });
 
   test('Kamera-Angaben kommen an, Fehlendes und Unpassendes bleibt null', () {
