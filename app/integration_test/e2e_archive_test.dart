@@ -51,11 +51,13 @@ Future<String> _snapshot(WidgetTester t, StorageSession s) async {
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets('Archiv exportieren, Daten loeschen, wieder einlesen', (t) async {
+    step('ARCHIVE start');
     final w = buildWorld();
     await startApp(t, w);
     await setupIfShown(t);
     var s = await session(t, w);
 
+    step('ARCHIVE daten_anlegen');
     // Eigene, erkennbare Daten zusaetzlich zu dem, was frueher Tests anlegten.
     await t.runAsync(() async {
       await s.profile.save(
@@ -81,6 +83,7 @@ void main() {
     log('ARCHIVE runs=$runsBefore');
     expect(before, contains('manual 2025-01-02'));
 
+    step('ARCHIVE export');
     // Export: echte Archivdatei im Exportordner.
     final export = w.deps.archiveExport!(s);
     final file = (await t.runAsync(() => export(password: _password)))!;
@@ -89,6 +92,7 @@ void main() {
     final size = (await t.runAsync(() => File(path!).length()))!;
     expect(size, greaterThan(0), reason: 'Archivdatei nicht leer');
 
+    step('ARCHIVE loeschen');
     // Alles loeschen; der Speicher ist danach leer.
     await t.runAsync(() => s.deleteAll());
     final emptied = await _snapshot(t, s);
@@ -101,6 +105,7 @@ void main() {
       reason: 'nach dem Loeschen ist die App leer',
     );
 
+    step('ARCHIVE reimport');
     // Reimport ueber den App-Dienst (ohne Dateidialog).
     final restore = (await t.runAsync(
       () => w.deps.archiveRestore!(s, <T>(a) => a()),
@@ -121,6 +126,7 @@ void main() {
       reason: 'Laufzahl wie vor dem Export',
     );
 
+    step('ARCHIVE falsches_passwort');
     // Falsches Passwort: das Archiv bleibt unlesbar, nichts aendert sich.
     // (runAsync reicht Fehler nicht weiter, darum faengt der Test sie selbst.)
     final again = (await t.runAsync(

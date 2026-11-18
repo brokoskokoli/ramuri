@@ -19,31 +19,38 @@ void main() {
   testWidgets(
     'Wiederanlauf nach Prozessende $phase',
     (t) async {
+      step('RECOVER start');
       final w = buildWorld();
       await startApp(t, w);
       if (phase == 'a') {
         await setupIfShown(t);
+        step('RECOVER_A lauf_start');
         await connect(t, ['fake-gurt-1'], 'fake-gurt-1');
         await startRun(t);
         await pumpFor(t, const Duration(seconds: 14));
+        step('RECOVER_A lauf_pruefen');
         final runs = await countRuns(t, w);
         log('RECOVER_A runs=${runs.length} pos=${runs.first.positions}');
         expect(runs.first.state, isNot(RunState.finished));
         expect(runs.first.positions, greaterThan(3));
         expect(runs.first.heartRates, greaterThan(3));
+        step('RECOVER_A prozessende');
         log('NEED_KILL');
         await pumpFor(t, const Duration(seconds: 60));
         fail('Prozess lebt nach NEED_KILL noch');
       } else {
+        step('RECOVER_B dialog');
         await waitFor(t, () => has('recover_dialog'), 'Wiederanlauf-Dialog');
         final before = await countRuns(t, w);
         log('RECOVER_B runs=${before.length} state=${before.first.state}');
         expect(before.length, 1, reason: 'der eine Lauf aus Stufe a');
         expect(before.first.state, isNot(RunState.finished));
         expect(before.first.positions, greaterThan(3));
+        step('RECOVER_B fortsetzen');
         await tapKey(t, 'recover_resume');
         await waitFor(t, () => has('run_time'), 'Laufseite nach Fortsetzen');
         await pumpFor(t, const Duration(seconds: 8));
+        step('RECOVER_B lauf_beenden');
         await finishRun(t);
         await pumpFor(t, const Duration(seconds: 2));
         final after = await countRunsFinished(t, w);

@@ -319,6 +319,7 @@ void main() {
     t,
   ) async {
     final w = buildWorld();
+    step('READINESS S0 start');
     final clock = w.deps.clock;
     await startApp(t, w);
     await setupIfShown(t);
@@ -337,6 +338,7 @@ void main() {
     expect(s0.warning, isFalse, reason: 'S0 kein Warnsignal');
     expect(s0.morning, 0, reason: 'S0 keine Morgenmessung');
 
+    step('READINESS S1 basisstufe');
     // 1) Basisstufe: Warnsignal als Ausloeser, nichts sonst.
     await t.runAsync(() => _warning(s, d, on: true));
     await _heute(t, w);
@@ -354,6 +356,7 @@ void main() {
     await tapDialog(t, 'home_recovery_basis_close');
     log('S1 ok');
 
+    step('READINESS S2 morgenmessungen');
     // 2) Entwicklermodus aus, Morgenmessungen gespeichert: weiter Basis.
     await t.runAsync(() async {
       await _dev(s, clock, false);
@@ -366,6 +369,7 @@ void main() {
     expect(has('readiness_basis_note'), isTrue);
     log('S2 ok');
 
+    step('READINESS S3 erweiterte_stufe');
     // 3) Entwicklermodus an: erweiterte Stufe, Warnsignal zuerst.
     await t.runAsync(() => _dev(s, clock, true));
     await _state(t, s, clock, 'S3');
@@ -381,6 +385,7 @@ void main() {
       'S3 karte stage=${txt('readiness_stage')} title=${txt('readiness_title')} text=${txt('readiness_text')} warnung=${txt('home_recovery_text')}',
     );
     await shot(t, 's3_heute');
+    step('READINESS S3 detail');
     await tapKey(t, 'readiness_where_from');
     await waitFor(t, () => has('readiness_detail'), 'Detailseite');
     await pumpFor(t, const Duration(milliseconds: 500));
@@ -395,6 +400,7 @@ void main() {
     );
     expect(dWarn, isTrue, reason: 'S3 Warnung auf der Detailseite');
     await shot(t, 's3_detail');
+    step('READINESS S3 verlauf');
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf');
     await pumpFor(t, const Duration(milliseconds: 500));
@@ -421,6 +427,7 @@ void main() {
     await back(t);
     await waitFor(t, () => has('readiness_card'), 'Heute');
 
+    step('READINESS S3 warnsignal_aufheben');
     // Kein Flackern: Warnsignal aufheben (Erinnerungskarte, setState mit _busy).
     final lift = find.byKey(const Key('home_warning_lift'));
     log('S3 erinnerung=${has('home_warning_reminder')}');
@@ -453,6 +460,7 @@ void main() {
     );
     log('S3 ok');
 
+    step('READINESS S4 basis_wieder');
     // 4) Entwicklermodus wieder aus: Basis (Warnsignal wieder als Ausloeser).
     await t.runAsync(() async {
       await _dev(s, clock, false);
@@ -465,6 +473,7 @@ void main() {
     expect(has('readiness_basis_note'), isTrue);
     log('S4 ok');
 
+    step('READINESS S5 health_connect');
     // 5) Health Connect: Einwilligung, Reihen mit Luecke, ohne Warnsignal.
     await t.runAsync(() async {
       await _warning(s, d, on: false);
@@ -507,6 +516,7 @@ void main() {
           hittable(t, find.byKey(const Key('readiness_where_from'))),
       'Erholungskarte bedienbar',
     );
+    step('READINESS S5 detail');
     await tapKey(t, 'readiness_where_from');
     await waitFor(t, () => has('readiness_detail'), 'Detailseite HC');
     await pumpFor(t, const Duration(milliseconds: 500));
@@ -525,6 +535,7 @@ void main() {
     );
     _expectSleep(t, 'S5', counts: true);
     await shot(t, 's5_detail');
+    step('READINESS S5 verlauf');
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf HC');
     await pumpFor(t, const Duration(milliseconds: 500));
@@ -564,15 +575,18 @@ void main() {
     await back(t);
     log('S5 ok');
 
+    step('READINESS S6 beide_quellen');
     // 6) beide Quellen: getrennte Reihen.
     await t.runAsync(() => _dev(s, clock, true));
     await _state(t, s, clock, 'S6');
     await _heute(t, w, questions: 3);
+    step('READINESS S6 detail');
     await tapKey(t, 'readiness_where_from');
     await waitFor(t, () => has('readiness_detail'), 'Detailseite beide');
     log('S6 detail text=${txt('readiness_detail_text')}');
     log('S6 detail reasons=${_list('readiness_detail_reason_')}');
     log('S6 detail facts=${_list('readiness_detail_fact_')}');
+    step('READINESS S6 verlauf');
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf beide');
     await pumpFor(t, const Duration(milliseconds: 500));
@@ -596,12 +610,19 @@ void main() {
     await back(t);
     log('S6 ok');
 
+    step('READINESS S7 ortstag');
     // 7) Ortstag: feste Uhr 23:40 und 00:20 Ortszeit (Systemzeitzone des Emulators).
     for (final (label, days, h, m) in [
       ('vor_mitternacht', 0, 23, 40),
       ('nach_mitternacht', 1, 0, 20),
     ]) {
       final fake = _FixedClock(_at(d, days, h, m));
+      // Marke je Fall als Literal (step nimmt keine gebildeten Namen).
+      if (days == 0) {
+        step('READINESS S7 vor_mitternacht');
+      } else {
+        step('READINESS S7 nach_mitternacht');
+      }
       final w2 = buildWorld(clock: fake);
       await startApp(t, w2);
       await _onHome(t, questions: 3);
@@ -627,12 +648,14 @@ void main() {
       log(
         'S7 $label detail facts=${_list('readiness_detail_fact_')} reasons=${_list('readiness_detail_reason_')}',
       );
+      step('READINESS S7 schlaf_pruefen');
       // PAR-164: die Sitzung bis 06:00 des Tages d zaehlt bis Mitternacht;
       // nach Mitternacht ohne neue Sitzung fehlt der Schlaf der letzten Nacht.
       _expectSleep(t, 'S7 $label', counts: days == 0);
       await tapKey(t, 'readiness_detail_series_link');
       await waitFor(t, () => has('readiness_history'), 'Verlauf $label');
       await pumpFor(t, const Duration(milliseconds: 500));
+      step('READINESS S7 verlauf');
       final keys7 = _seriesKeys();
       log('S7 $label reihen=${keys7.join(',')}');
       expect(keys7.length, 4, reason: 'S7 $label vier Reihen (HC, Kamera)');
