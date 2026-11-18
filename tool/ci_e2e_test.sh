@@ -1,6 +1,7 @@
 #!/bin/sh
 # Test fuer tool/ci_e2e.sh mit Attrappen fuer adb und flutter (kein Emulator): Shard-Zuordnung,
-# unbekannte Namen, Mindeststufen, Waechter ueber all_test.dart, Rot einer Stufe, NEED_KILL, kein E2E_ im Log.
+# unbekannte Namen, Mindeststufen, Waechter ueber all_test.dart, Rot einer Stufe, NEED_KILL, kein E2E_ im Log,
+# letzte Schrittmarke vor dem Fehler.
 # Aufruf: sh tool/ci_e2e_test.sh
 script=$(cd "$(dirname "$0")" && pwd)/ci_e2e.sh
 tmp=$(mktemp -d) || exit 1
@@ -27,12 +28,13 @@ echo "E2E_WERT=geheim123"
 [ -z "${FAKE_E:-}" ] || echo "00:01 +0 -1: Archiv [E]"
 [ -z "${FAKE_SLEEP:-}" ] || sleep 6
 case "$*" in *PHASE=write* | *PHASE=a*) [ -n "${FAKE_NOKILL:-}" ] || { echo "E2E_X NEED_KILL"; sleep 3; } ;; esac
+[ -z "${FAKE_STEPS:-}" ] || { echo "PUB_00 SCHRITT A1 start"; echo "PUB_01 SCHRITT A1 rot"; echo "00:02 +0 -1: A [E]"; echo "PUB_02 SCHRITT B1 start"; }
 [ -z "${FAKE_FAIL:-}" ] || { echo "PUB_01 M2 form_error key=planFormErrorStand"; i=0; while [ $i -lt 60 ]; do echo "zeile $i"; i=$((i + 1)); done; echo "Expected: x"; exit 1; }
 exit 0
 X
 chmod +x "$tmp/bin/adb" "$tmp/bin/flutter"
 export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" FAKE_SHOTS="$tmp/shots" ANDROID_SERIAL=emulator-5554
-unset E2E_SHARD E2E_STUFEN FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP
+unset E2E_SHARD E2E_STUFEN FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP FAKE_STEPS
 fails=0
 # run <Name> <rc> <Aufrufe-der-Testdateien (Anzahl)> [VAR=Wert ...]
 run() {
@@ -70,6 +72,12 @@ grep -q 'E2E_\|geheim123' "$tmp/stdout" && { echo "FAIL E2E_-Zeile in der Ausgab
 grep -rq 'E2E_\|geheim123' "$tmp/out" && { echo "FAIL E2E_-Zeile im Artefakt"; fails=$((fails + 1)); } || echo "OK   keine E2E_-Zeile im Artefakt"
 grep -q 'PUB_01 M2 form_error key=planFormErrorStand' "$tmp/stdout" && echo "OK   PUB_-Zeile (Marker ohne Werte) im Log trotz langer Ausgabe" || { echo "FAIL PUB_-Zeile fehlt im Log"; fails=$((fails + 1)); }
 [ -f "$tmp/out/test-output-sammlung.txt" ] || { echo "FAIL kein Testlog im Artefakt"; fails=$((fails + 1)); }
+# Letzte Schrittmarke vor dem ersten [E] im Fehlerabschnitt, nicht die eines spaeteren Tests der Sammlung.
+run "Stufe rot mit Schrittmarken"              1 1 E2E_SHARD=sammlung FAKE_FAIL=1 FAKE_STEPS=1
+grep -q 'PUB_00 SCHRITT A1 start' "$tmp/stdout" && echo "OK   Schrittmarke im Log" || { echo "FAIL Schrittmarke fehlt im Log"; fails=$((fails + 1)); }
+sed -n '/^--- Fehlermeldung Stufe sammlung ---$/,$p' "$tmp/stdout" | grep -qx 'letzter Schritt vor dem Fehler: PUB_01 SCHRITT A1 rot' && echo "OK   letzter Schritt vor dem Fehler im Fehlerabschnitt" || { echo "FAIL letzter Schritt vor dem Fehler fehlt"; fails=$((fails + 1)); }
+run "Stufe rot ohne Schrittmarken"             1 1 E2E_SHARD=sammlung FAKE_FAIL=1
+grep -qx 'letzter Schritt vor dem Fehler: keiner' "$tmp/stdout" && echo "OK   ohne Marke: keiner" || { echo "FAIL ohne Marke: Meldung fehlt"; fails=$((fails + 1)); }
 run "Prozessende ohne NEED_KILL -> Exit 1"     1 1 E2E_STUFEN=storage-a FAKE_NOKILL=1
 # Foto: laeuft die Stufe weiter, kommen Fotos; nach dem ersten "[E]" kein neues mehr.
 : > "$tmp/shots"; run "Foto: ohne Fehler laufend aktualisiert" 0 1 E2E_SHARD=sammlung FAKE_SLEEP=1
