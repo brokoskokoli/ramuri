@@ -669,6 +669,32 @@ void main() {
       expect(service.basisChanged, 2);
     });
 
+    testWidgets('eine ältere, nicht abgeholte Umstellung erscheint nicht im '
+        'nächsten Speichern', (tester) async {
+      // Echte Futures (Speicher): außerhalb der Test-Uhr ausführen.
+      await tester.runAsync(() async {
+        await LoadSettings.writeCoefficients(
+          session.settings,
+          LoadCoefficients.male,
+          at: clock.now(),
+        );
+        await controller.requestLoadProfile(LoadProfile.banister);
+        // Umstellung außerhalb der Seite, Hinweis nie abgeholt.
+        await controller.requestLoadCoefficients(null);
+      });
+      expect(
+        await tester.runAsync(
+          () => LoadSettings.activeProfile(session.settings),
+        ),
+        LoadProfile.edwards,
+      );
+      await pumpProfile(tester);
+      await tester.enterText(find.byKey(const Key('profile_weight')), '70');
+      await _tapAndWait(tester, 'profile_save');
+      expect(find.text('Profil gespeichert.'), findsOneWidget);
+      expect(find.textContaining('auf Edwards umgestellt'), findsNothing);
+    });
+
     testWidgets('nicht bei Änderung anderer Felder', (tester) async {
       await pumpProfile(tester);
       await tester.enterText(find.byKey(const Key('profile_weight')), '70');
