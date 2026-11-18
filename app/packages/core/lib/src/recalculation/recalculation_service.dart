@@ -243,7 +243,8 @@ class RecalculationService {
   /// anwendbar, gibt es keinen stillen Wechsel der Skala: Die App bietet den
   /// Rückweg auf Edwards an (Ursache [RecalculationCause.loadProfile]); lehnt
   /// der Nutzer ab, bleibt Banister gewählt und der TRIMP neuer Läufe steht
-  /// als nicht verfügbar, gespeicherte Werte bleiben. Ist Banister weiter
+  /// als nicht verfügbar, gespeicherte Werte bleiben. Ohne Läufe mit Werten
+  /// gilt Edwards sofort, ohne Angebot. Ist Banister weiter
   /// anwendbar, aber mit anderen Konstanten gerechnet, erkennt [checkVersions]
   /// die Abweichung.
   Future<RecalculationOffer?> loadBasisChanged() async =>
@@ -330,7 +331,9 @@ class RecalculationService {
   }
 
   /// Bietet den Rückweg auf Edwards an, wenn Banister aktiv und nicht mehr
-  /// anwendbar ist; sonst `null`.
+  /// anwendbar ist; sonst `null`. Gibt es keine Läufe mit Werten, ist nichts
+  /// neu zu rechnen: Dann gilt Edwards sofort, ohne Angebot (FR-0197); die
+  /// Oberfläche weist auf die Umstellung hin.
   Future<RecalculationOffer?> _offerLoadRevert() async {
     final active = await LoadSettings.activeProfile(session.settings);
     if (active == LoadProfile.banister) {
@@ -342,7 +345,14 @@ class RecalculationService {
           at: clock.now(),
         );
         final offer = await _offer(RecalculationCause.loadProfile);
-        if (offer == null) await _dropLoadChoice();
+        if (offer == null) {
+          await LoadSettings.writeActiveProfile(
+            session.settings,
+            LoadProfile.edwards,
+            at: clock.now(),
+          );
+          await _dropLoadChoice();
+        }
         return offer;
       }
     }

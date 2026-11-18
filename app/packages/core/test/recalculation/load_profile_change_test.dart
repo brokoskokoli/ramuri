@@ -536,6 +536,67 @@ void main() {
     });
   });
 
+  group('Banister aktiv ohne Läufe mit Werten, Angaben fallen weg', () {
+    late RecalcWorld fresh;
+    const noRest = ProfileRecord(maxHeartRateBpm: 190);
+
+    Future<LoadProfile> freshActive() =>
+        LoadSettings.activeProfile(fresh.session.settings);
+
+    setUp(() async {
+      fresh = await RecalcWorld.create();
+      await LoadSettings.writeCoefficients(
+        fresh.session.settings,
+        LoadCoefficients.male,
+        at: fresh.clock.now(),
+      );
+      // Ohne Läufe gilt die Wahl sofort.
+      expect(
+        await fresh.recalc().requestLoadProfile(LoadProfile.banister),
+        isNull,
+      );
+      expect(await freshActive(), LoadProfile.banister);
+    });
+
+    test('Ruhepuls fällt weg, loadBasisChanged: sofort Edwards, keine offene '
+        'Wahl, kein Angebot', () async {
+      await fresh.session.profile.save(noRest);
+      final s = fresh.recalc();
+      expect(await s.loadBasisChanged(), isNull);
+      expect(await freshActive(), LoadProfile.edwards);
+      expect(await LoadSettings.pendingProfile(fresh.session.settings), isNull);
+      expect(await s.pendingOffer(), isNull);
+      // Die Koeffizienten-Angabe bleibt, nur das Profil wechselt.
+      expect(
+        await LoadSettings.coefficients(fresh.session.settings),
+        LoadCoefficients.male,
+      );
+    });
+
+    test('Ruhepuls fällt weg, profileChanged: sofort Edwards, kein '
+        'Angebot', () async {
+      await fresh.session.profile.save(noRest);
+      final s = fresh.recalc();
+      expect(await s.profileChanged(before: profile190, after: noRest), isNull);
+      expect(await freshActive(), LoadProfile.edwards);
+      expect(await LoadSettings.pendingProfile(fresh.session.settings), isNull);
+      expect(await s.pendingOffer(), isNull);
+    });
+
+    test('Ruhepuls bleibt (andere Profiländerung): Banister bleibt', () async {
+      await fresh.session.profile.save(profile180);
+      final s = fresh.recalc();
+      expect(
+        await s.profileChanged(before: profile190, after: profile180),
+        isNull,
+      );
+      expect(await s.loadBasisChanged(), isNull);
+      expect(await freshActive(), LoadProfile.banister);
+      expect(await LoadSettings.pendingProfile(fresh.session.settings), isNull);
+      expect(await s.pendingOffer(), isNull);
+    });
+  });
+
   group('Läufe mit TRIMP, aber ohne Laufwert (VO2max)', () {
     /// Ein Lauf, der nur einen TRIMP trägt (etwa älterer Bestand): der TRIMP
     /// eines berechneten Laufs, ohne VO2max-Wert.
