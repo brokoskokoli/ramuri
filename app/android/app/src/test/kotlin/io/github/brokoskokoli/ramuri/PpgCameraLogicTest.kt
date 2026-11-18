@@ -19,6 +19,144 @@ class PpgCameraLogicTest {
         assertEquals("available", PpgCameraLogic.decide(true, true, true))
     }
 
+    // --- Kameraliste (FR-0220) ---
+
+    private val good = listOf(30 to 30, 60 to 60)
+    private val yuv = listOf(320 to 240, 640 to 480)
+
+    private fun cam(
+        id: String,
+        back: Boolean = true,
+        flash: Boolean = true,
+        physical: List<String> = emptyList(),
+        focal: List<Float> = listOf(4.2f),
+        fps: List<Pair<Int, Int>> = good,
+        sizes: List<Pair<Int, Int>> = yuv,
+    ) = PpgCameraProps(id, back, flash, physical.isNotEmpty(), physical, focal, fps, sizes)
+
+    private fun list(vararg cams: PpgCameraProps, extra: Map<String, PpgCameraProps> = emptyMap()): List<PpgCameraEntry> {
+        val all = cams.associateBy { it.id } + extra
+        return PpgCameraLogic.listCameras(cams.map { it.id }, { all[it] })
+    }
+
+    private fun keys(l: List<PpgCameraEntry>) = l.map { e -> e.physicalCameraId?.let { "${e.cameraId}/$it" } ?: e.cameraId }
+
+    @Test fun logicalMultiCameraListsItsThreePhysicalCameras() {
+        val phys = mapOf(
+            "4" to cam("4", flash = false, focal = listOf(6.0f, 5.5f)),
+            "3" to cam("3", flash = false, focal = listOf(2.2f)),
+            "5" to cam("5", flash = false, fps = listOf(15 to 30)),
+        )
+        val l = list(cam("0", physical = listOf("4", "3", "5"), focal = listOf(4.7f)), cam("1", back = false), extra = phys)
+        assertEquals(listOf("0", "0/3", "0/4", "0/5"), keys(l))
+        assertTrue(l[0].isDefault)
+        assertFalse(l.drop(1).any { it.isDefault })
+        // Physische Kameras: eigene Eigenschaften, Taschenlampe über die logische Kamera.
+        assertEquals(2.2f, l[1].focalLength)
+        assertEquals(5.5f, l[2].focalLength)
+        assertNull(l[1].reason)
+        assertNull(l[2].reason)
+        assertEquals("frame_rate", l[3].reason)
+        assertFalse(l[3].usable)
+    }
+
+    @Test fun physicalCamerasOfALogicalCameraWithoutFlashAreNotUsable() {
+        val l = list(
+            cam("0"),
+            cam("2", flash = false, physical = listOf("6")),
+            extra = mapOf("6" to cam("6", flash = true)),
+        )
+        assertEquals(listOf("0", "2", "2/6"), keys(l))
+        assertEquals("no_flash", l[1].reason)
+        assertEquals("no_flash", l[2].reason)
+    }
+
+    @Test fun cameraWithoutFlashIsListedButNotUsable() {
+        val l = list(cam("0", flash = false), cam("1"))
+        // Standard ist die erste Rückkamera mit Blitz (wie bisher), sie steht zuerst.
+        assertEquals(listOf("1", "0"), keys(l))
+        assertTrue(l[0].isDefault)
+        assertTrue(l[0].usable)
+        assertEquals("no_flash", l[1].reason)
+        assertFalse(l[1].isDefault)
+    }
+
+    @Test fun cameraWithoutFixedFrameRateIsNotUsable() {
+        val l = list(cam("0"), cam("1", fps = listOf(15 to 30, 30 to 60)))
+        assertEquals("frame_rate", l[1].reason)
+        assertNull(l[0].reason)
+    }
+
+    @Test fun cameraWithoutYuvSizeOrUnreadablePropertiesIsAnError() {
+        val l = list(cam("0"), cam("1", sizes = emptyList()), cam("2", physical = listOf("9")))
+        assertEquals(listOf("0", "1", "2", "2/9"), keys(l))
+        assertEquals("error", l[1].reason)
+        assertNull(l[2].reason)
+        // Physische Kamera ohne lesbare Eigenschaften.
+        assertEquals("error", l[3].reason)
+        assertNull(l[3].focalLength)
+    }
+
+    @Test fun noBackCameraGivesAnEmptyList() {
+        assertTrue(list(cam("0", back = false), cam("1", back = false)).isEmpty())
+        assertTrue(PpgCameraLogic.listCameras(emptyList(), { null }).isEmpty())
+        // Nicht lesbare Kamera-ID zählt nicht als Rückkamera.
+        assertTrue(PpgCameraLogic.listCameras(listOf("0"), { null }).isEmpty())
+    }
+
+    @Test fun sortingDefaultFirstThenNumericIdsThenPhysical() {
+        val l = list(cam("10"), cam("2", physical = listOf("11", "3")), cam("1", flash = false), cam("x"),
+            extra = mapOf("11" to cam("11"), "3" to cam("3")))
+        assertEquals(listOf("10", "1", "2", "2/3", "2/11", "x"), keys(l))
+        assertTrue(l[0].isDefault)
+        assertEquals(-1, Integer.signum(PpgCameraLogic.compareIds("2", "10")))
+        assertEquals(1, Integer.signum(PpgCameraLogic.compareIds("a", "10")))
+    }
+
+    @Test fun focalLengthUnknownIsNull() {
+        val l = list(cam("0", focal = emptyList()))
+        assertNull(l[0].focalLength)
+        assertNull(l[0].toMap()["focalLength"])
+        assertEquals(true, l[0].toMap()["usable"])
+    }
+
+    // --- Kamera für den Start ---
+
+    @Test fun pickWithoutArgumentIsTheDefaultCamera() {
+        val l = list(cam("0", flash = false), cam("1"))
+        val p = PpgCameraLogic.pick(l, null, null)
+        assertEquals("1", p.entry?.cameraId)
+        assertNull(p.reason)
+        // Keine Rückkamera mit Blitz: wie bisher "no_flash".
+        assertEquals("no_flash", PpgCameraLogic.pick(list(cam("0", flash = false)), null, null).reason)
+        // Standardkamera ohne Bildrate: wie bisher "frame_rate".
+        assertEquals("frame_rate", PpgCameraLogic.pick(list(cam("0", fps = listOf(15 to 30))), null, null).reason)
+    }
+
+    @Test fun pickOpensExactlyTheGivenCameraOrNone() {
+        val l = list(cam("0", physical = listOf("3")), cam("1", flash = false), extra = mapOf("3" to cam("3", flash = false)))
+        assertEquals(PpgCameraPick(l[1], null), PpgCameraLogic.pick(l, "0", "3"))
+        assertEquals("0", PpgCameraLogic.pick(l, "0", null).entry?.cameraId)
+        assertNull(PpgCameraLogic.pick(l, "0", null).entry?.physicalCameraId)
+        // Unbekannt: kein Wechsel auf eine andere Kamera.
+        assertEquals(PpgCameraPick(null, "no_camera"), PpgCameraLogic.pick(l, "9", null))
+        assertEquals(PpgCameraPick(null, "no_camera"), PpgCameraLogic.pick(l, "0", "9"))
+        assertEquals(PpgCameraPick(null, "no_camera"), PpgCameraLogic.pick(l, "3", null))
+        // Nicht nutzbar: ihr Grund.
+        assertEquals("no_flash", PpgCameraLogic.pick(l, "1", null).reason)
+    }
+
+    @Test fun startedReportsTheOpenedCamera() {
+        val log = mutableListOf<String>()
+        val sink = Sink(log)
+        val c = PpgController(Hw(log), sink)
+        c.started(30, "0", "3")
+        assertEquals(mapOf("type" to "started", "fps" to 30, "cameraId" to "0", "physicalCameraId" to "3"), sink.events.single())
+        val sink2 = Sink(log)
+        PpgController(Hw(log), sink2).started(60, "1")
+        assertEquals(mapOf("type" to "started", "fps" to 60, "cameraId" to "1"), sink2.events.single())
+    }
+
     // --- Bildrate und Größe ---
 
     @Test fun fpsPrefersSixtyOverThirty() {
@@ -146,7 +284,7 @@ class PpgCameraLogicTest {
         val log = mutableListOf<String>()
         val sink = Sink(log)
         val c = PpgController(Hw(log), sink)
-        c.started(60)
+        c.started(60, "0")
         c.abort("background")
         assertEquals(
             listOf("event:started", "event:stopped", "torchOff", "closeSession", "closeDevice", "end"),
@@ -163,7 +301,7 @@ class PpgCameraLogicTest {
         c.abort("busy")
         val n = log.size
         c.frame(ns(5.0), stats)
-        c.started(30)
+        c.started(30, "0")
         c.abort("error")
         c.stop()
         assertEquals(n, log.size)
