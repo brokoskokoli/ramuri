@@ -23,17 +23,18 @@ final _now = DateTime.utc(2026, 11, 11, 12);
 final _mon = DateTime.utc(2026, 11, 9);
 DateTime _d(int n) => _mon.add(Duration(days: n));
 
-TrainingGoal _goal({double capMinutes = 240}) => TrainingGoal(
-  type: GoalType.distance,
-  distance: GoalDistance.tenKilometers,
-  targetDate: DateTime.utc(2027, 3, 14),
-  runDays: const {1, 2, 4, 6},
-  maxSessionSeconds: 7200,
-  weeklyCapSeconds: capMinutes * 60,
-  createdAt: DateTime.utc(2026, 11, 1),
-  canRun30: ContinuousRun30.yes,
-  hardSessionEnabled: false,
-);
+TrainingGoal _goal({double capMinutes = 240, DateTime? targetDate}) =>
+    TrainingGoal(
+      type: GoalType.distance,
+      distance: GoalDistance.tenKilometers,
+      targetDate: targetDate ?? DateTime.utc(2027, 3, 14),
+      runDays: const {1, 2, 4, 6},
+      maxSessionSeconds: 7200,
+      weeklyCapSeconds: capMinutes * 60,
+      createdAt: DateTime.utc(2026, 11, 1),
+      canRun30: ContinuousRun30.yes,
+      hardSessionEnabled: false,
+    );
 
 PlanUnit _u(int day, PlanUnitKind kind, int minutes) => PlanUnit(
   day: _d(day),
@@ -159,10 +160,11 @@ Future<(StorageSession, FakeClock)> _seed({
   double capMinutes = 240,
   List<PlanUnit> extra = const [],
   Map<int, int?> freeRuns = const {},
+  DateTime? targetDate,
 }) async {
   final session = await FakeStorage().open(_key);
   final clock = FakeClock(_now);
-  final goal = _goal(capMinutes: capMinutes);
+  final goal = _goal(capMinutes: capMinutes, targetDate: targetDate);
   await (session as GoalStorage).goals.save(goal, today: _d(0));
   final plans = (session as PlanStorage).plans;
   final inputs = PlanInputs(
@@ -272,11 +274,16 @@ Future<void> _pump(
 }
 
 /// Einheit am Tag [from] antippen, „Verschieben“, im Datumsfeld Tag [to]
-/// (November) wählen und bestätigen: der Bestätigungsdialog ist offen.
+/// (November) wählen und bestätigen: der Bestätigungsdialog ist offen. Liegt
+/// [from] in der Folgewoche und ist sie nicht sichtbar, blättert er vor.
 Future<void> _startMove(WidgetTester tester, int from, int to) async {
-  await tester.tap(
-    key('calendar_day_2026-11-${(9 + from).toString().padLeft(2, '0')}'),
-  );
+  final dayKey =
+      'calendar_day_2026-11-${(9 + from).toString().padLeft(2, '0')}';
+  if (from >= 7 && find.byKey(Key(dayKey)).evaluate().isEmpty) {
+    await tester.tap(key('calendar_next'));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(key(dayKey));
   await tester.pumpAndSettle();
   await tester.tap(key('calendar_move'));
   await tester.pumpAndSettle();
@@ -491,6 +498,71 @@ void main() {
       await tester.pumpAndSettle();
       final moved = (await (session as PlanStorage).plans.unitOn(_d(6)))!;
       expect(moved.kind, PlanUnitKind.long);
+    });
+  });
+
+  group('FR-0177: Hinweis bei Reduktion oder Zieltag', () {
+    for (final (locale, reduction, goalDay) in [
+      (
+        'de',
+        'Der neue Tag liegt in der Reduktion vor deinem Ziel. Dort ist '
+            'weniger Belastung vorgesehen.',
+        'Der neue Tag ist dein Zieltag.',
+      ),
+      (
+        'en',
+        'The new day falls in the taper before your goal. Less load is '
+            'planned there.',
+        'The new day is your goal day.',
+      ),
+    ]) {
+      testWidgets('Hinweis sichtbar, Bestätigen bleibt möglich ($locale)', (
+        tester,
+      ) async {
+        // 10 km am So 22.11.: die Woche ab Mo 16.11. ist die Reduktion
+        // (PAR-199).
+        final (session, clock) = await _seed(targetDate: _d(13));
+        final plans = (session as PlanStorage).plans;
+        await _pump(tester, session, clock, locale: locale);
+
+        // Mo 16. -> Fr 13.: Aufbau, kein Hinweis.
+        await _startMove(tester, 8, 4);
+        expect(key('calendar_move_reduction'), findsNothing);
+        expect(key('calendar_move_goal_day'), findsNothing);
+        await tester.tap(key('calendar_move_cancel'));
+        await tester.pumpAndSettle();
+
+        // Mo 16. -> So 22.: Zieltag.
+        await _startMove(tester, 8, 13);
+        expect(key('calendar_move_goal_day'), findsOneWidget);
+        expect(find.text(goalDay), findsOneWidget);
+        expect(key('calendar_move_reduction'), findsNothing);
+        await tester.tap(key('calendar_move_cancel'));
+        await tester.pumpAndSettle();
+
+        // Mo 16. -> Mi 18.: Reduktion; bestätigen verschiebt.
+        await _startMove(tester, 8, 9);
+        expect(key('calendar_move_reduction'), findsOneWidget);
+        expect(find.text(reduction), findsOneWidget);
+        expect(key('calendar_move_goal_day'), findsNothing);
+        final confirm = tester.widget<FilledButton>(
+          key('calendar_move_confirm'),
+        );
+        expect(confirm.onPressed, isNotNull);
+        await tester.tap(key('calendar_move_confirm'));
+        await tester.pumpAndSettle();
+        expect(await plans.unitOn(_d(8)), isNull);
+        expect((await plans.unitOn(_d(9)))!.kind, PlanUnitKind.easy);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('Ziel weit entfernt: kein Hinweis', (tester) async {
+      final (session, clock) = await _seed();
+      await _pump(tester, session, clock);
+      await _startMove(tester, 8, 9);
+      expect(key('calendar_move_reduction'), findsNothing);
+      expect(key('calendar_move_goal_day'), findsNothing);
     });
   });
 

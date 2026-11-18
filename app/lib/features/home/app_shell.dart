@@ -6,6 +6,7 @@ import '../history/history_screen.dart';
 import '../history/history_view_state.dart';
 import '../plan/plan_page_view_state.dart';
 import '../plan/plan_screen.dart';
+import '../readiness/readiness_today.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/run_ports.dart';
 import '../sensors/sensor_manager.dart';
@@ -101,6 +102,14 @@ class _AppShellState extends State<AppShell> {
           session: widget.session,
           clock: widget.clock,
           viewState: _planState,
+          readinessToday: (day) async {
+            final r = await loadReadinessToday(
+              session: widget.session,
+              clock: widget.clock,
+              recalculation: widget.recalculation.service,
+            );
+            return r == null ? null : PlanReadinessDay.of(day, r.result);
+          },
           onStartUnit: (context, unit) => RunStarter(
             session: widget.session,
             clock: widget.clock,

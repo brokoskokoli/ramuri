@@ -80,6 +80,8 @@ final _planSettings = <String, String>{
   WarningSettingKeys.pauseAnswer: 'no:2026-11-27',
   WarningSettingKeys.hintBlockedUntil: '2026-12-04',
   WarningSettingKeys.planChangeSeen: '2',
+  // Schalter Plananpassung an Erholung (FR-0216).
+  planAdaptationKey: 'adaptive',
 };
 
 /// Technische Merker der Planung: gehören nicht ins Archiv.

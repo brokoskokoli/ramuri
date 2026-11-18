@@ -15,8 +15,10 @@ const String planMethod = 'weekly-time-course';
 /// Vorschlag „Woche wiederholen“ in der Geh-Lauf-Phase (PAR-140). 5:
 /// Automatische Auslöser geben die gehaltenen Tage an die Rechnung
 /// (`generatePlan(heldDays:)`); die Wochenzeit bleibt nach bestätigter
-/// Verschiebung und absolviertem Lauf erhalten.
-const int planMethodVersion = 5;
+/// Verschiebung und absolviertem Lauf erhalten. 6: Lockerung nach PAR-173
+/// bei „adaptiv“ (FR-0216, `applyRecoveryEase`); eine gelockerte Einheit vor
+/// heute zählt als harte Einheit ihrer Woche (`generatePlan(easedHardDays:)`).
+const int planMethodVersion = 6;
 
 /// Stand der Parameter (ADR-0010 Punkt 1: `parameter_version`). Steigt, wenn
 /// sich ein Wert in [PlanParameters] ändert.

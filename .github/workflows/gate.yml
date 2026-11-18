@@ -26,4 +26,32 @@ jobs:
         with:
           flutter-version-file: app/pubspec.yaml
           cache: true
+      # NDK vor dem ersten Gradle-Build fest installieren (Version aus der Flutter-Version, bis zu zwei
+      # Wiederholungen); sonst lädt Gradle es im Build nach, und ein beschädigter Download bricht ab.
+      - name: Android-NDK installieren
+        if: hashFiles('app/pubspec.yaml') != ''
+        run: bash tool/ci_ndk.sh
+      # Die Build-Hooks von sqlite3 laden SQLite3MultipleCiphers zur Bauzeit (ADR-0003). Ihr gemeinsames
+      # Ausgabeverzeichnis wird zwischengespeichert; der Hook prüft vorhandene Dateien weiter per SHA-256
+      # und lädt nur bei Abweichung neu.
+      - name: sqlite3mc-Cache laden
+        if: hashFiles('app/pubspec.yaml') != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: app/.dart_tool/hooks_runner/shared/sqlite3
+          key: sqlite3mc-gate-${{ hashFiles('app/pubspec.lock') }}
+          restore-keys: sqlite3mc-gate-${{ hashFiles('app/pubspec.lock') }}-
+      - name: sqlite3mc vor dem Build
+        if: hashFiles('app/pubspec.yaml') != ''
+        run: find app/.dart_tool/hooks_runner/shared/sqlite3 -type f -printf '%TY-%Tm-%Td %TT %s %P\n' 2>/dev/null || echo "kein sqlite3mc im Cache"
       - run: sh tool/gate.sh
+      # Gespeichert wird nur ein neuer Inhalt (Schlüssel mit Hash der Dateien); unverändert = Treffer, kein Upload.
+      - name: sqlite3mc nach dem Build
+        if: always() && hashFiles('app/.dart_tool/hooks_runner/shared/sqlite3/**') != ''
+        run: find app/.dart_tool/hooks_runner/shared/sqlite3 -type f -printf '%TY-%Tm-%Td %TT %s %P\n'
+      - name: sqlite3mc-Cache speichern
+        if: always() && hashFiles('app/.dart_tool/hooks_runner/shared/sqlite3/**') != ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: app/.dart_tool/hooks_runner/shared/sqlite3
+          key: sqlite3mc-gate-${{ hashFiles('app/pubspec.lock') }}-${{ hashFiles('app/.dart_tool/hooks_runner/shared/sqlite3/**') }}
