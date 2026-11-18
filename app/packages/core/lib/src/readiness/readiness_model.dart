@@ -1,13 +1,15 @@
 import '../health/health_processing.dart';
 import '../health/health_types.dart';
 import '../load/training_load.dart' show LoadDay;
+import '../morning/morning_logic.dart' show MorningWindow;
 import '../morning/morning_logic.dart' show sleepBandHours;
 import '../morning/morning_marks.dart' show MorningRmssdMark;
-import '../../ports/storage_morning.dart' show SleepBand;
+import '../../ports/storage_morning.dart' show MorningMeasurement, SleepBand;
 import '../subjective/subjective_limits.dart' show checkWellbeing;
 import 'readiness_deviation.dart';
 import 'readiness_explanation.dart';
 import 'readiness_level.dart';
+import 'readiness_missing.dart';
 import 'readiness_parameters.dart';
 import 'readiness_precedence.dart';
 import 'readiness_release.dart';
@@ -50,6 +52,10 @@ class ReadinessInputs {
     this.tsbPercent,
     this.wellbeing,
     this.processing = const HealthProcessing(),
+    this.morningMeasurements = const [],
+    this.morningWindow = MorningWindow.standard,
+    this.loadRequested = true,
+    this.loadDay,
   });
 
   /// Ortstag als UTC-Datum.
@@ -88,6 +94,20 @@ class ReadinessInputs {
 
   final ReadinessWellbeing? wellbeing;
   final HealthProcessing processing;
+
+  /// Alle gespeicherten Morgenmessungen, nur für die Gründe fehlender Faktoren
+  /// ([readinessMissingReasons]); die Werte kommen über [cameraDeviations].
+  final Iterable<MorningMeasurement> morningMeasurements;
+
+  /// Morgenfenster für den Grund „außerhalb des Zeitfensters“ (PAR-160K).
+  final MorningWindow morningWindow;
+
+  /// Die Belastung wurde berechnet (erweiterte Stufe); nur für den Grund.
+  final bool loadRequested;
+
+  /// Letzter Tag des Belastungsverlaufs, nur für den Grund, wenn
+  /// [tsbPercent] fehlt.
+  final LoadDay? loadDay;
 }
 
 ReadinessBand readinessBandOf(int value) {
@@ -295,6 +315,20 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
     for (final id in [ReadinessFactorId.hrv, ReadinessFactorId.sleep])
       if (!has(id)) id,
   ];
+  final w0 = input.wellbeing;
+  final missingReasons = readinessMissingReasons(
+    missing: missing,
+    today: input.today,
+    release: input.release,
+    hrvHealthConnect: input.hrvHealthConnect,
+    restingHrHealthConnect: input.restingHrHealthConnect,
+    cameraDeviations: cams,
+    morningMeasurements: input.morningMeasurements,
+    window: input.morningWindow,
+    loadRequested: input.loadRequested,
+    loadDay: input.loadDay,
+    wellbeing: w0 == null ? null : (level: w0.level, day: w0.day),
+  );
   final fresh =
       _fresh(input.hrvHealthConnect) ||
       _fresh(input.restingHrHealthConnect) ||
@@ -336,6 +370,7 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
         hasNumber: hasNumber,
         capped: capped,
       ),
+      missingReasons: Map.unmodifiable(missingReasons),
     );
   }
 
