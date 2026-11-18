@@ -7,7 +7,8 @@ const String testHealthConnectMarker = 'RUNAPP-DEBUG-TEST-HEALTH-9c3e71';
 
 /// Fake von Health Connect für Debug-Build und E2E (WP32): synthetische Datensätze, keine echten Daten.
 ///
-/// Inhalt (alle relativ zu [now], also immer im 30-Tage-Fenster):
+/// Inhalt (alle relativ zu [now], also immer im 30-Tage-Fenster, und nie nach [now]: wie in Health Connect gibt
+/// es keinen Satz, der erst in der Zukunft endet; die Nacht vor heute erscheint also erst nach dem Aufwachen):
 /// - Schlaf: `debug.app.a` (mit Phasen) und `debug.app.b` (ohne Phasen) schreiben je drei Nächte;
 /// - HRV: beide Apps mit Werten in der Schlafphase, `debug.app.b` zusätzlich ein Wert außerhalb der Schlafphase
 ///   (nur im 60-min-Rückfall) und Werte außerhalb 1 bis 200 ms (werden verworfen);
@@ -73,8 +74,16 @@ class DebugTestHealthConnect implements HealthConnectPort {
     return HealthPage(records.toList(), null);
   }
 
+  /// Alle Sätze der Art, die bis [now] (einschließlich) enden.
   List<HealthRecord> _records(HealthDataKind kind) {
     final t = now().toUtc();
+    return [
+      for (final r in _allRecords(kind, t))
+        if (!r.end.isAfter(t)) r,
+    ];
+  }
+
+  List<HealthRecord> _allRecords(HealthDataKind kind, DateTime t) {
     final day = DateTime.utc(t.year, t.month, t.day);
     // Nacht n endet um 06:30 UTC des Tages (heute minus n), Dauer 7,5 h.
     DateTime wake(int n) => day
@@ -123,15 +132,19 @@ class DebugTestHealthConnect implements HealthConnectPort {
             ),
           );
         case HealthDataKind.hrvRmssd:
+          // Die Nacht beginnt um 23:00 UTC des Vortags: alle Werte in der Schlafphase bis 00:00 UTC, damit sie
+          // auch kurz nach Mitternacht schon vorliegen (bei 30/120/210 min lagen zwei davon bis 02:00 UTC in der
+          // Zukunft).
           for (final (i, v) in [42.0, 48.0, 51.0].indexed) {
             out.add(
-              _value(kind, 'full', n, i, 'debug.app.a', start, v, 30 + i * 90),
+              _value(kind, 'full', n, i, 'debug.app.a', start, v, 15 + i * 15),
             );
           }
-          // Nur diese App: ein Wert außerhalb der Schlafphase (Rückfall) und zwei ungültige.
+          // Nur diese App: ein Wert außerhalb der Schlafphase (Rückfall, liegt nach dem Aufwachen und fehlt daher
+          // bis 06:50 UTC) und zwei ungültige.
           out.add(_value(kind, 'bare', n, 0, 'debug.app.b', end, 38, 20));
-          out.add(_value(kind, 'bare', n, 1, 'debug.app.b', start, 0.5, 60));
-          out.add(_value(kind, 'bare', n, 2, 'debug.app.b', start, 250, 120));
+          out.add(_value(kind, 'bare', n, 1, 'debug.app.b', start, 0.5, 50));
+          out.add(_value(kind, 'bare', n, 2, 'debug.app.b', start, 250, 55));
         case HealthDataKind.restingHeartRate:
           out.add(
             _value(
@@ -142,7 +155,8 @@ class DebugTestHealthConnect implements HealthConnectPort {
               'debug.app.a',
               day.subtract(Duration(days: n)),
               54.0 + n,
-              60,
+              // 00:00 UTC wie VO2max: nie hinter "jetzt" (bei 60 bzw. 90 min fehlte der Wert bis 01:30 UTC).
+              0,
             ),
           );
           out.add(
@@ -154,7 +168,7 @@ class DebugTestHealthConnect implements HealthConnectPort {
               'debug.app.b',
               day.subtract(Duration(days: n)),
               20,
-              90,
+              0,
             ),
           );
         case HealthDataKind.vo2Max:
