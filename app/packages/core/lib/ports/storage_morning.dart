@@ -47,6 +47,9 @@ enum MorningUnusableReason {
   someDisturbances,
   timingNoise,
 
+  /// Nur Namensgleichheit mit [PpgQualityReason]: macht nie „unbrauchbar“ (PAR-230).
+  fewConsistentBeats,
+
   /// Ruhepuls außerhalb PAR-017 (30 bis 120 bpm).
   restingHrOutOfRange;
 

@@ -66,7 +66,16 @@ List<String> comparePpgSet(PpgAnalysisSet got, Map<String, dynamic> ref) {
       'eingeschränkt' => PpgQuality.limited,
       _ => PpgQuality.unusable,
     };
-    if (rated.quality != expected) out.add('$c Bewertung weicht ab');
+    // Version 3 (PAR-230): Die Referenz kennt die HRV-Auswahl nicht. Die Stufe muss gleich sein,
+    // außer die Messung ist nur wegen zu weniger einiger Schläge „eingeschränkt“ statt „gut“.
+    final onlyFewConsistent =
+        rated.quality == PpgQuality.limited &&
+        expected == PpgQuality.good &&
+        rated.reasons.length == 1 &&
+        rated.reasons.single == PpgQualityReason.fewConsistentBeats;
+    if (rated.quality != expected && !onlyFewConsistent) {
+      out.add('$c Bewertung weicht ab');
+    }
     final ms = (r['methods'] as List).cast<Map<String, dynamic>>();
     if (ms.length != g.methods.length) {
       out.add('$c Zahl der Verfahren weicht ab');

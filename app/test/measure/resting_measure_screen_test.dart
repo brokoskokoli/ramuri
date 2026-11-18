@@ -466,7 +466,43 @@ void main() {
         expect(text('eingeschränkt'), findsOneWidget);
         expect(find.textContaining('zeitweise schwach'), findsOneWidget);
         expect(find.textContaining('Bisher im Profil'), findsNothing);
+        expect(
+          find.byKey(const Key('measure_result_few_consistent')),
+          findsNothing,
+        );
       });
+
+      for (final (lang, value, quality, reason) in [
+        (
+          'de',
+          '58',
+          'eingeschränkt',
+          'Zu wenige eindeutige Schläge für die Variabilität.',
+        ),
+        ('en', '58', 'limited', 'Too few clear beats for variability.'),
+      ]) {
+        testWidgets('eingeschränkt wegen zu weniger einiger Schläge (PAR-230), '
+            '$lang: Puls und Grund', (tester) async {
+          final r = await Rig.make();
+          r.script.last = const PpgMeasurement(
+            quality: PpgQuality.limited,
+            reasons: [PpgQualityReason.fewConsistentBeats],
+            bpm: 58.4,
+          );
+          await r.show(tester, dark: dark, lang: lang);
+          await r.measure(tester, 67);
+          expect(text(value), findsOneWidget);
+          expect(text(quality), findsOneWidget);
+          expect(
+            tester
+                .widget<Text>(
+                  find.byKey(const Key('measure_result_few_consistent')),
+                )
+                .data,
+            reason,
+          );
+        });
+      }
 
       testWidgets('Verwerfen speichert nichts', (tester) async {
         final r = await Rig.make(

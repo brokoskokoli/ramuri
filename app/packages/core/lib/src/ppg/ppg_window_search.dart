@@ -78,15 +78,21 @@ PpgWindow _windowAt(double start) => PpgWindow(
 PpgMeasurement _unusable(PpgQualityReason reason) =>
     PpgMeasurement(quality: PpgQuality.unusable, reasons: [reason]);
 
-int _rank(PpgQuality q) => switch (q) {
+/// Rang einer Bewertung für Wahl, Bestätigung und Abbruch der Suche. Die Fensterwahl bleibt wie
+/// vor PAR-230: Ist ein Fenster nur wegen zu weniger einiger Schläge „eingeschränkt“
+/// ([PpgQualityReason.fewConsistentBeats] als einziger Grund), zählt es hier wie „gut“.
+int _rank(PpgMeasurement m) => switch (m.quality) {
   PpgQuality.good => 0,
+  PpgQuality.limited
+      when m.reasons.length == 1 &&
+          m.reasons.single == PpgQualityReason.fewConsistentBeats =>
+    0,
   PpgQuality.limited => 1,
   PpgQuality.unusable => 2,
 };
 
 int _compare(_Candidate a, _Candidate b) {
-  final byQuality = _rank(a.measurement.quality)
-      .compareTo(_rank(b.measurement.quality));
+  final byQuality = _rank(a.measurement).compareTo(_rank(b.measurement));
   if (byQuality != 0) return byQuality;
   final byFraction = b.fraction.compareTo(a.fraction);
   if (byFraction != 0) return byFraction;
@@ -287,6 +293,7 @@ PpgChannelResult _windowChannel(
   final ends = <double>[];
   final ibi = <double>[];
   final valid = <bool>[];
+  final hrvValid = <bool>[];
   if (hasBeats) {
     for (var k = k0; k <= k1; k++) {
       times.add(beats[k] - shift);
@@ -295,6 +302,7 @@ PpgChannelResult _windowChannel(
       ends.add(m.ibiEnd[i] - shift);
       ibi.add(m.ibiMs[i] / 1000);
       valid.add(m.valid[i]);
+      hrvValid.add(i < c.hrvValid.length && c.hrvValid[i]);
     }
   }
   final total = PpgAnalyzer.stats(
@@ -304,6 +312,17 @@ PpgChannelResult _windowChannel(
     valid,
     0.0,
     ppgSearchWindowSeconds + eps,
+  );
+  // HRV-Auswahl (PAR-230) aus der Gesamtanalyse: Uneinigkeit je Schlag mit dem Median über die
+  // Nachbarn der ganzen Aufnahme (Näherung wie die Ausreißerprüfung).
+  final hrv = PpgAnalyzer.stats(
+    times,
+    ends,
+    ibi,
+    valid,
+    0.0,
+    ppgSearchWindowSeconds + eps,
+    hrvValid: hrvValid,
   );
   // Zeitrauschen wie in `analyzeChannel`, nur über die Schläge im Fenster.
   var noise = double.nan;
@@ -355,6 +374,8 @@ PpgChannelResult _windowChannel(
     meanFps: c.meanFps,
     frameJitterMs: c.frameJitterMs,
     timingNoiseMs: noise,
+    hrv: hrv,
+    hrvValid: hrvValid,
   );
 }
 
@@ -402,7 +423,7 @@ typedef PpgWindowEvaluator = PpgMeasurement Function(
   ({_Candidate candidate, PpgMeasurement measurement})? best;
   var tries = 0;
   for (final c in ranked) {
-    if (goodOnly && c.measurement.quality != PpgQuality.good) break;
+    if (goodOnly && _rank(c.measurement) != 0) break;
     if (tries++ == 3) break;
     final m = evaluate(frames, window: _windowAt(c.start));
     final cand = _Candidate(c.start, m);
@@ -411,7 +432,7 @@ typedef PpgWindowEvaluator = PpgMeasurement Function(
             0) {
       best = (candidate: c, measurement: m);
     }
-    if (_rank(m.quality) <= _rank(c.measurement.quality)) break;
+    if (_rank(m) <= _rank(c.measurement)) break;
   }
   return best;
 }
@@ -463,7 +484,7 @@ PpgRecordingCheck checkPpgRecording(
     goodOnly: true,
     evaluate: evaluate,
   );
-  final reached = v != null && v.measurement.quality == PpgQuality.good;
+  final reached = v != null && _rank(v.measurement) == 0;
   return PpgRecordingCheck(
     goodWindowReached: reached,
     goodStretchSeconds: scan.goodStretch,

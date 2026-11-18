@@ -284,7 +284,14 @@ void main() {
               to: 100,
             );
             final r = evaluatePpgBestWindow(fr);
-            final fixedGood = evaluatePpg(fr).quality == PpgQuality.good;
+            // Die Fensterwahl bleibt wie vor PAR-230: „eingeschränkt“ nur wegen zu weniger einiger
+            // Schläge zählt für Wahl und Abbruch wie „gut“.
+            final fixed = evaluatePpg(fr);
+            final fixedGood =
+                fixed.quality == PpgQuality.good ||
+                (fixed.reasons.length == 1 &&
+                    fixed.reasons.single ==
+                        PpgQualityReason.fewConsistentBeats);
             final why = 'Rauschen $noise, Seed $seed';
             if (!fixedGood) {
               expect(
@@ -354,6 +361,77 @@ void main() {
       expect(m.validIntervals, greaterThan(40));
       expect(m.rmssdMs, isNotNull);
       expect(m.rmssdMs!.isFinite, isTrue);
+    });
+  });
+
+  group('Fensterwahl mit HRV-Auswahl (PAR-230)', () {
+    test('Signal ohne uneinige Schläge: dasselbe Fenster wie Version 2, deterministisch', () {
+      final fr = frames(good(), to: 100);
+      final a = evaluatePpgBestWindow(fr);
+      final b = evaluatePpgBestWindow(fr);
+      // Gutes Signal ab Start: Version 2 wählt das früheste Fenster (5 s).
+      expect(a.windowStartSeconds, 5.0);
+      expect(a.measurement.quality, PpgQuality.good);
+      expect(b.windowStartSeconds, a.windowStartSeconds);
+      expect(b.measurement.rmssdMs, a.measurement.rmssdMs);
+      expect(
+        b.measurement.intervalsMs.map((v) => v.isNaN ? -1.0 : v),
+        a.measurement.intervalsMs.map((v) => v.isNaN ? -1.0 : v),
+      );
+      // Ohne uneinige Schläge ist die Auswahl = gültige Intervalle (wie Version 2).
+      final w = PpgWindow(
+        filterStart: 3.0,
+        start: a.windowStartSeconds!,
+        end: a.windowEndSeconds!,
+        dataEnd: a.windowEndSeconds! + 1.5,
+      );
+      final set = PpgAnalyzer.analyze(
+        [for (final f in fr) f.t],
+        [
+          PpgSeries('Rot', [for (final f in fr) f.r]),
+          PpgSeries('Grün', [for (final f in fr) f.g]),
+        ],
+        const [],
+        w,
+      );
+      expect(
+        PpgAnalyzer.inconsistentBeats(set.best.beatOffsetsMs).contains(true),
+        isFalse,
+      );
+      expect(set.best.hrvValid, set.best.main.valid);
+      expect(
+        a.measurement.intervalsMs.where((v) => !v.isNaN).length,
+        a.measurement.validIntervals,
+      );
+    });
+
+    test('nur wegen zu weniger einiger Schläge eingeschränkt: Wahl und Abbruch wie „gut“', () {
+      final fr = frames(good(), to: 100);
+      final starts = <double>[];
+      PpgMeasurement fewConsistent(
+        List<PpgFrame> f, {
+        required PpgWindow window,
+      }) {
+        starts.add(window.start);
+        return const PpgMeasurement(
+          quality: PpgQuality.limited,
+          reasons: [PpgQualityReason.fewConsistentBeats],
+          bpm: 60,
+          validIntervals: 60,
+          intervals: 60,
+        );
+      }
+
+      final chk = checkPpgRecording(fr, evaluate: fewConsistent);
+      expect(chk.goodWindowReached, isTrue);
+      expect(starts, hasLength(1), reason: 'keine weiteren Kandidaten');
+      expect(chk.confirmed!.windowStartSeconds, 5.0);
+      expect(chk.confirmed!.measurement.quality, PpgQuality.limited);
+      starts.clear();
+      final r = evaluatePpgBestWindow(fr, evaluate: fewConsistent);
+      expect(starts, [5.0]);
+      expect(r.windowStartSeconds, 5.0);
+      expect(r.measurement.reasons, [PpgQualityReason.fewConsistentBeats]);
     });
   });
 

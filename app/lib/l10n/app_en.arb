@@ -1149,6 +1149,8 @@
   "@measureQualityLimited": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
   "measureResultLimitedNote": "The signal was weak at times. The value is usable, but less certain than usual.",
   "@measureResultLimitedNote": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
+  "measureFewConsistentBeats": "Too few clear beats for variability.",
+  "@measureFewConsistentBeats": {"description": "Grund der Stufe eingeschränkt bei Ruhepuls- und Morgenmessung (PAR-230): nach dem Verwerfen uneinig bestimmter Schläge bleibt kein RMSSD"},
   "measureResultPosture": "Posture",
   "@measureResultPosture": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
   "measureResultTime": "Time",

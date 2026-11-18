@@ -61,6 +61,10 @@ enum PpgQualityReason {
 
   /// Zeitrauschen über 25 ms oder nicht schätzbar: Puls ok, HRV unsicher.
   timingNoise,
+
+  /// Nach dem Verwerfen uneinig bestimmter Schläge bleiben weniger als [ppgMinHrvDiffs]
+  /// Differenzen für die Variabilität (PAR-230): Puls ok, kein RMSSD.
+  fewConsistentBeats,
 }
 
 /// Ergebnis einer Messung. Bei [PpgQuality.unusable] gibt es weder Puls noch RMSSD.
@@ -99,8 +103,9 @@ class PpgMeasurement {
   final String? channel;
   final double? meanFps;
 
-  /// Alle Schlagabstände (ms) des Messfensters in zeitlicher Reihenfolge, ungültige als NaN (WP33,
-  /// wird gespeichert). Puls = Mittel der gültigen, RMSSD aus Differenzen zweier gültiger Nachbarn.
+  /// Alle Schlagabstände (ms) des Messfensters in zeitlicher Reihenfolge (WP33, wird gespeichert).
+  /// Ab Version 3 nur die der HRV-Auswahl (PAR-230), alle übrigen als NaN; RMSSD aus Differenzen
+  /// zweier benachbarter Werte. [validIntervals] und [bpm] zählen dagegen alle gültigen Intervalle.
   /// Leer bei „unbrauchbar“.
   final List<double> intervalsMs;
 
@@ -213,11 +218,15 @@ PpgMeasurement ratePpg(PpgChannelResult r) {
     if (r.quality < ppgUnusableQuality) PpgQualityReason.weakSignal,
     if (frac < ppgUnusableValidFraction) PpgQualityReason.tooManyDisturbances,
   ];
+  // PAR-230: ohne genug Differenzen der HRV-Auswahl höchstens „eingeschränkt“; Puls, Anteil
+  // gültiger Intervalle und die übrigen Grenzen bleiben vor dem Filter.
+  final hrv = r.hrv;
   final limitedReasons = [
     if (r.quality < ppgLimitedQuality) PpgQualityReason.lowSignalQuality,
     if (frac < ppgLimitedValidFraction) PpgQualityReason.someDisturbances,
     if (!(r.timingNoiseMs <= ppgLimitedTimingNoiseMs))
       PpgQualityReason.timingNoise,
+    if (hrv.diffs < ppgMinHrvDiffs) PpgQualityReason.fewConsistentBeats,
   ];
   final unusable = unusableReasons.isNotEmpty;
   final quality = unusable
@@ -229,7 +238,7 @@ PpgMeasurement ratePpg(PpgChannelResult r) {
     reasons: unusable ? unusableReasons : limitedReasons,
     bpm: unusable ? null : _finite(m.bpm),
     // PAR-160K: RMSSD nur bei „gut“ (fail closed, der Verwender muss nichts filtern).
-    rmssdMs: quality == PpgQuality.good ? _finite(m.rmssdMs) : null,
+    rmssdMs: quality == PpgQuality.good ? _finite(hrv.rmssdMs) : null,
     signalQuality: r.quality,
     timingNoiseMs: _finite(r.timingNoiseMs),
     validIntervals: m.validIbis,
@@ -238,14 +247,17 @@ PpgMeasurement ratePpg(PpgChannelResult r) {
     channel: r.channel,
     meanFps: _finite(r.meanFps),
     // Wie `PpgAnalyzer.stats` für das Gesamtfenster (Ausgabe, keine neue Rechnung): alle Intervalle in
-    // Reihenfolge, ungültige als NaN, damit die Nachbarschaft für RMSSD erhalten bleibt. Schlagzeiten
-    // sind relativ zum Fensterbeginn, die obere Grenze `dur + 1e-9` schließt dort alle ein.
+    // Reihenfolge, außerhalb der HRV-Auswahl (PAR-230) als NaN, damit die Nachbarschaft für RMSSD
+    // erhalten bleibt. Schlagzeiten sind relativ zum Fensterbeginn, die obere Grenze `dur + 1e-9`
+    // schließt dort alle ein.
     intervalsMs: unusable
         ? const []
         : List.unmodifiable([
             for (var i = 0; i < main.ibiEnd.length; i++)
               if (main.ibiEnd[i] >= 0.0)
-                main.valid[i] ? main.ibiMs[i] : double.nan,
+                main.valid[i] && i < r.hrvValid.length && r.hrvValid[i]
+                    ? main.ibiMs[i]
+                    : double.nan,
           ]),
   );
 }
