@@ -87,8 +87,11 @@ Der Nutzer bestätigt Änderungen, bevor bestehende Kalendereinträge verändert
 
 Wenn der Nutzer einen Termin verschiebt, prüft die App: Abstand zu intensiven Einheiten, verbleibende Trainingszeit, Belastung der betreffenden Woche und verfügbare Alternativtage.
 
+**Festlegung (SRC-003, Maintainer 2026-11-15, OQ-0080):** „Verbleibende Trainingszeit“ heißt die Zeit bis zum Ziel: Fällt der neue Tag in die Reduktion oder auf den Zieltag, zeigt die App einen Hinweis; verschieben bleibt möglich. Reduktion sind die Wochen der Phase Reduktion vor dem Zieltermin (PAR-199); ohne Zieldatum (offenes Ziel) gibt es keinen Hinweis.
+
 **Akzeptanzkriterien:**
 - [ ] Das Verschieben einer intensiven Einheit direkt neben eine andere wird als Konflikt erkannt.
+- [ ] Eine Verschiebung in die Reduktion oder auf den Zieltag zeigt einen Hinweis ohne Sperre.
 
 ### FR-0178 — Alternativen bei Konflikten
 - **Status:** Approved | **Phase:** 2
