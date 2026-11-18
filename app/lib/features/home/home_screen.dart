@@ -22,6 +22,8 @@ import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
 import 'data_changes.dart';
 import '../readiness/readiness_card.dart';
+import '../readiness/readiness_detail_screen.dart' show ReadinessActions;
+import '../measure/resting_measure_launcher.dart' show PpgCameraScope;
 import '../readiness/readiness_service.dart';
 import '../readiness/readiness_today.dart';
 import 'home_recovery.dart';
@@ -229,6 +231,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     recalculation: widget.recalculation.service,
   );
 
+  /// Wege zum Nachholen auf der Detailseite der Erholung (FR-0111): die
+  /// Morgenmessung über ihren vorhandenen Einstieg (nur mit Kamera) und die
+  /// Schlafangabe an der Morgenmessung (PAR-164K). Danach laden Karte und
+  /// Morgenkarte neu.
+  ReadinessActions _readinessActions(BuildContext context) {
+    final session = widget.session;
+    final camera = PpgCameraScope.maybeOf(context) != null;
+    return ReadinessActions(
+      reload: _loadReadiness,
+      startMorning: camera && session is MorningStorage
+          ? (context) => openMorningMeasurement(
+              context,
+              session: session,
+              clock: widget.clock,
+              belt: MorningBelt.of(
+                widget.sensors,
+                session.settings,
+                widget.clock,
+              ),
+            )
+          : null,
+      saveSleep: session is MorningStorage
+          ? (id, band) =>
+                (session as MorningStorage).morning.setSleepBand(id, band)
+          : null,
+      changed: () {
+        if (!mounted) return;
+        setState(() {
+          _morningEpoch++;
+          _renewCards(readiness: true);
+        });
+      },
+    );
+  }
+
   void _reloadHints() {
     if (!mounted) return;
     setState(() {
@@ -371,7 +408,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
     final children = <Widget>[
       if (card != null && (warning || !extended)) hintCard(!extended),
-      if (extended) ReadinessCard(snapshot: readiness, warning: warning),
+      if (extended)
+        ReadinessCard(
+          snapshot: readiness,
+          warning: warning,
+          actions: _readinessActions(context),
+        ),
       if (card != null && !warning && extended) hintCard(false),
       if (pause != null)
         PauseQuestionCard(

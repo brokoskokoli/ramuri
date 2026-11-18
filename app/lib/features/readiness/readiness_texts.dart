@@ -43,15 +43,112 @@ String readinessSourceName(AppLocalizations l, ReadinessFactorSource s) =>
       ReadinessFactorSource.runRating => l.readinessSourceSelfReport,
     };
 
-/// Warum ein Faktor fehlt (Detailseite, PAR-170).
-String readinessMissingText(AppLocalizations l, ReadinessFactorId id) =>
-    switch (id) {
-      ReadinessFactorId.hrv ||
-      ReadinessFactorId.restingHeartRate => l.readinessMissingValue,
-      ReadinessFactorId.sleep => l.readinessMissingSleep,
-      ReadinessFactorId.load => l.readinessMissingLoad,
-      ReadinessFactorId.wellbeing => l.readinessMissingWellbeing,
-    };
+/// Warum ein Faktor fehlt (Detailseite und Karte, FR-0111): der Grund mit der
+/// fehlenden Menge, bei späteren Messungen desselben Tages mit dem Hinweis,
+/// dass sie nicht zählen.
+String readinessMissingReasonText(
+  AppLocalizations l,
+  ReadinessMissingReason r,
+) {
+  final count = r.count ?? 0;
+  final required = r.required ?? 0;
+  final text = switch (r.code) {
+    ReadinessMissingCode.noMeasurement => l.readinessMissingNoMeasurement,
+    ReadinessMissingCode.noMeasurementToday =>
+      l.readinessMissingNoMeasurementToday,
+    ReadinessMissingCode.cameraOutsideWindow => l.readinessMissingOutsideWindow(
+      r.windowStartHour ?? 0,
+      r.windowEndHour ?? 0,
+    ),
+    ReadinessMissingCode.cameraQualityLimited =>
+      l.readinessMissingQualityLimited,
+    ReadinessMissingCode.cameraQualityUnusable =>
+      l.readinessMissingQualityUnusable,
+    ReadinessMissingCode.cameraValueInvalid => l.readinessMissingValueInvalid,
+    ReadinessMissingCode.cameraNotReleased => l.readinessMissingNotReleased,
+    ReadinessMissingCode.tooFewInWindow => l.readinessMissingTooFewInWindow(
+      count,
+      required,
+    ),
+    ReadinessMissingCode.tooFewReference => l.readinessMissingTooFewReference(
+      count,
+      required,
+      r.remaining ?? 0,
+    ),
+    ReadinessMissingCode.madTooSmall => l.readinessMissingMadTooSmall,
+    ReadinessMissingCode.sleepNoEntry => l.readinessMissingSleepNoEntry,
+    ReadinessMissingCode.sleepNoHealthConnect =>
+      l.readinessMissingSleepNoHealthConnect,
+    ReadinessMissingCode.loadOnlyExtended => l.readinessMissingLoadOnlyExtended,
+    ReadinessMissingCode.loadNoHistory => l.readinessMissingLoadNoHistory,
+    ReadinessMissingCode.loadHistoryShort => l.readinessMissingLoadHistoryShort(
+      required,
+    ),
+    ReadinessMissingCode.loadMissingUnits => l.readinessMissingLoadMissingUnits(
+      required,
+      count,
+    ),
+    ReadinessMissingCode.loadNoCommitment => l.readinessMissingLoadNoCommitment,
+    ReadinessMissingCode.loadNoMean => l.readinessMissingLoadNoMean(required),
+    ReadinessMissingCode.wellbeingNone => l.readinessMissingWellbeingNone,
+    ReadinessMissingCode.wellbeingTooOld => l.readinessMissingWellbeingTooOld(
+      count,
+      required,
+    ),
+  };
+  return r.laterIgnored ? '$text ${l.readinessMissingLaterIgnored}' : text;
+}
+
+/// Grund eines fehlenden Faktors; ohne berechneten Grund der allgemeine Satz.
+String readinessMissingText(
+  AppLocalizations l,
+  ReadinessResult result,
+  ReadinessFactorId id,
+) => switch (result.missingReasons[id]) {
+  final r? => readinessMissingReasonText(l, r),
+  null => switch (id) {
+    ReadinessFactorId.hrv ||
+    ReadinessFactorId.restingHeartRate => l.readinessMissingValue,
+    ReadinessFactorId.sleep => l.readinessMissingSleep,
+    ReadinessFactorId.load => l.readinessMissingLoad,
+    ReadinessFactorId.wellbeing => l.readinessMissingWellbeing,
+  },
+};
+
+/// Stufengründe, die sagen, warum die HRV fehlt (PAR-147).
+const Set<ReadinessLevelReasonCode> _hrvMissingCodes = {
+  ReadinessLevelReasonCode.hrvNoSeries,
+  ReadinessLevelReasonCode.hrvNoValueToday,
+  ReadinessLevelReasonCode.hrvTooFewInWindow,
+  ReadinessLevelReasonCode.hrvTooFewReference,
+  ReadinessLevelReasonCode.hrvMadTooSmall,
+  ReadinessLevelReasonCode.hrvCameraLocked,
+};
+
+/// Die Stufengründe als Sätze (Karte und Detailseite). Fehlt die HRV, steht an
+/// der Stelle ihrer Gründe genau einmal derselbe Grund wie in der Liste
+/// „Fehlende Faktoren“ (FR-0111), mit dem Faktornamen davor; Karte und
+/// Detailseite sagen so dasselbe.
+List<String> readinessLevelReasonTexts(AppLocalizations l, ReadinessResult r) {
+  final hrv = r.missingReasons[ReadinessFactorId.hrv];
+  final out = <String>[];
+  var hrvDone = false;
+  for (final reason in r.levelReasons) {
+    if (hrv != null && _hrvMissingCodes.contains(reason.code)) {
+      if (hrvDone) continue;
+      hrvDone = true;
+      out.add(
+        l.readinessMissingOnCard(
+          readinessFactorName(l, ReadinessFactorId.hrv),
+          readinessMissingReasonText(l, hrv),
+        ),
+      );
+    } else {
+      out.add(readinessReasonText(l, reason));
+    }
+  }
+  return out;
+}
 
 /// Ein Grund der Stufe als Satz (PAR-159).
 String readinessReasonText(AppLocalizations l, ReadinessLevelReason r) {
@@ -218,14 +315,17 @@ String readinessCardText(AppLocalizations l, ReadinessResult r) {
       };
       return tail.isEmpty ? level : '$level $tail';
     case ReadinessState.limited:
+      // Der Grund nennt die Sperre samt „geht in keine Zahl ein“ nur in der
+      // Stufenformulierung; steht dort der Grund der fehlenden HRV, trägt die
+      // Tatsache den vollen Hinweis selbst (PAR-171K).
       final lockNamed =
           r.levelReasons.isNotEmpty &&
-          r.levelReasons.first.code == ReadinessLevelReasonCode.hrvCameraLocked;
+          r.levelReasons.first.code ==
+              ReadinessLevelReasonCode.hrvCameraLocked &&
+          r.missingReasons[ReadinessFactorId.hrv] == null;
+      final reasons = readinessLevelReasonTexts(l, r);
       return [
-        if (r.levelReasons.isNotEmpty)
-          readinessReasonText(l, r.levelReasons.first)
-        else
-          l.readinessLimitedNeed,
+        if (reasons.isNotEmpty) reasons.first else l.readinessLimitedNeed,
         for (final f in [...r.facts.take(2), ...r.markedFacts])
           _factWithMark(
             l,

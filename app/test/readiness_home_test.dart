@@ -406,8 +406,8 @@ void main() {
           _text('readiness_text'),
           startsWith(
             de
-                ? 'Heute fehlt der HRV-Wert der letzten Nacht.'
-                : 'Today there is no HRV value from last night.',
+                ? 'HRV (RMSSD): Heute noch keine Messung.'
+                : 'HRV (RMSSD): No measurement today yet.',
           ),
         );
         // Die Tatsachen stehen auf der Karte (PAR-171K), nicht nur der Grund.
