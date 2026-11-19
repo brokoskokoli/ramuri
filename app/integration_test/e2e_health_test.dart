@@ -24,11 +24,6 @@ import 'support/e2e_support.dart';
 const _real = bool.fromEnvironment('HC_REAL');
 
 /// Marker fuer das Bildschirmfoto des Hosts; die Seite bleibt kurz stehen.
-Future<void> shot(WidgetTester t, String name) async {
-  log('SHOT $name');
-  await pumpFor(t, const Duration(milliseconds: 2500));
-}
-
 AppDependencies _deps(HealthConnectPort? hc) => AppDependencies.create(
   heartRateSensor: DebugTestSensor(const SystemClock()),
   healthConnect: hc,
@@ -168,7 +163,7 @@ void main() {
     for (final k in HealthDataKind.values) {
       expect(_on(k.key), isFalse, reason: 'Schalter ${k.key} anfangs aus');
     }
-    await shot(t, 'health_page_initial');
+    await shot(t, 'health_page_initial', pause: true);
     await tapKey(t, 'health_switch_exercise');
     await tapKey(t, 'health_switch_vo2_max');
     expect(_on('exercise') && _on('vo2_max'), isTrue);
@@ -186,7 +181,7 @@ void main() {
       () => find.byType(SnackBar).evaluate().isNotEmpty,
       'Rueckmeldung nach Abruf',
     );
-    await shot(t, 'health_page_after_fetch');
+    await shot(t, 'health_page_after_fetch', pause: true);
     final after = await _counts(t, store);
     log('HC1 nachher ${_fmt(after)}');
     expect(after[HealthDataKind.exercise], 1);
@@ -228,7 +223,7 @@ void main() {
       contains('debug.app.a'),
     );
     expect(has('health_exercise_taken_debug-exercise-0'), isFalse);
-    await shot(t, 'history_imported');
+    await shot(t, 'history_imported', pause: true);
     step('HC2 fortschritt');
     await tapKey(t, 'home_statistics');
     await waitFor(t, () => has('health_vo2_card'), 'VO2max-Vergleichskarte');
@@ -238,7 +233,7 @@ void main() {
     expect(has('health_vo2_row_debug.app.b'), isFalse);
     await t.ensureVisible(find.byKey(const Key('health_vo2_card')));
     await pumpFor(t, const Duration(milliseconds: 300));
-    await shot(t, 'progress_vo2_comparison');
+    await shot(t, 'progress_vo2_comparison', pause: true);
     log('HC2 Quelle im Verlauf und Vergleichskarte sichtbar');
   });
 
@@ -265,7 +260,7 @@ void main() {
       isTrue,
       reason: 'Puls nicht eingewilligt',
     );
-    await shot(t, 'exercise_detail');
+    await shot(t, 'exercise_detail', pause: true);
     expect(
       await _loadUnits(t, d),
       units0,
@@ -301,7 +296,7 @@ void main() {
       isFalse,
       reason: 'zweites Uebernehmen nicht moeglich',
     );
-    await shot(t, 'exercise_detail_taken');
+    await shot(t, 'exercise_detail_taken', pause: true);
     final manual1 = (await t.runAsync(() => session.manualTrainings.list()))!
         .length;
     final units1 = await _loadUnits(t, d);
@@ -335,7 +330,7 @@ void main() {
     // Abbrechen: schaltet wieder ein, nichts geloescht.
     await tapKey(t, 'health_switch_vo2_max');
     await waitFor(t, () => has('health_delete_dialog'), 'Loeschfrage');
-    await shot(t, 'delete_dialog');
+    await shot(t, 'delete_dialog', pause: true);
     await tapDialog(t, 'health_delete_cancel');
     await waitFor(t, () => !has('health_delete_dialog'), 'Dialog zu');
     expect(_on('vo2_max'), isTrue, reason: 'Abbrechen schaltet wieder ein');
@@ -354,7 +349,7 @@ void main() {
     expect(after[HealthDataKind.exercise], before[HealthDataKind.exercise]);
     expect(_on('exercise'), isTrue);
     expect(_on('vo2_max'), isFalse);
-    await shot(t, 'health_page_after_delete');
+    await shot(t, 'health_page_after_delete', pause: true);
     step('HC4 fortschritt');
     // Die Uebernahme als Training bleibt (eigene Daten), Vergleichskarte weg.
     await back(t);
@@ -392,7 +387,7 @@ void main() {
     await _openHealth(t);
     expect(has('health_unavailable_install'), isTrue);
     expect(has('health_install'), isTrue);
-    await shot(t, 'unavailable_install');
+    await shot(t, 'unavailable_install', pause: true);
     step('HC6 installieren');
     await tapKey(t, 'health_install');
     await pumpFor(t, const Duration(milliseconds: 500));
@@ -435,14 +430,14 @@ void _realScenario() {
       log(
         'HC6 echter Adapter: install=${has('health_unavailable_install')} unsupported=${has('health_unavailable_unsupported')}',
       );
-      await shot(t, 'real_unavailable');
+      await shot(t, 'real_unavailable', pause: true);
       if (has('health_install')) {
         await tapKey(t, 'health_install');
         await pumpFor(t, const Duration(seconds: 3));
         log(
           'HC6 Installieren getippt, App noch da: ${has('health_without') || has('health_install')}',
         );
-        await shot(t, 'real_unavailable_after_install');
+        await shot(t, 'real_unavailable_after_install', pause: true);
       }
       if (has('health_without')) await tapKey(t, 'health_without');
       for (var i = 0; i < 4 && !has('home_today'); i++) {
@@ -458,7 +453,7 @@ void _realScenario() {
     }
     step('HC5 dialog');
     await tapKey(t, 'health_switch_sleep');
-    await shot(t, 'real_before_dialog');
+    await shot(t, 'real_before_dialog', pause: true);
     final seen = <AppLifecycleState>[];
     final observer = _Lifecycle(seen);
     WidgetsBinding.instance.addObserver(observer);
@@ -488,11 +483,11 @@ void _realScenario() {
       isTrue,
       reason: 'ohne Daten nichts gespeichert',
     );
-    await shot(t, 'real_after_dialog');
+    await shot(t, 'real_after_dialog', pause: true);
     await tapKey(t, 'health_fetch');
     await pumpFor(t, const Duration(seconds: 3));
     expect(has('health_main'), isTrue);
-    await shot(t, 'real_after_fetch');
+    await shot(t, 'real_after_fetch', pause: true);
     log('HC5 Abruf ohne Recht ohne Absturz');
   });
 }

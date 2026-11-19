@@ -14,11 +14,6 @@ import 'support/e2e_support.dart';
 
 const _mode = String.fromEnvironment('HC_MODE', defaultValue: 'cancel');
 
-Future<void> shot(WidgetTester t, String name) async {
-  log('SHOT $name');
-  await pumpFor(t, const Duration(milliseconds: 2500));
-}
-
 bool _on(String kind) =>
     (find.byKey(Key('health_switch_$kind')).evaluate().first.widget
             as SwitchListTile)
@@ -63,7 +58,7 @@ void main() {
       await tapKey(t, 'health_switch_resting_heart_rate');
     }
     log('HCA vor Dialog Schalter ${_states()} fehlt-Text=${_missingText()}');
-    await shot(t, 'before_dialog');
+    await shot(t, 'before_dialog', pause: true);
     step('HCA dialog');
     final seen = <AppLifecycleState>[];
     final obs = _Obs(seen);
@@ -84,7 +79,7 @@ void main() {
     log('HCA nach Dialog Schalter ${_states()} fehlt-Text=${_missingText()}');
     expect(has('health_main'), isTrue);
     expect(find.byType(ErrorWidget), findsNothing);
-    await shot(t, 'after_dialog');
+    await shot(t, 'after_dialog', pause: true);
     step('HCA abrufen');
     await tapKey(t, 'health_fetch');
     await pumpFor(t, const Duration(seconds: 4));
@@ -98,7 +93,7 @@ void main() {
     );
     expect(has('health_main'), isTrue);
     expect(find.byType(ErrorWidget), findsNothing);
-    await shot(t, 'after_fetch');
+    await shot(t, 'after_fetch', pause: true);
     log('HCA Ende');
   });
 }
