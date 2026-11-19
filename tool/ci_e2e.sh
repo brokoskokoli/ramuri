@@ -63,7 +63,7 @@ shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness"
 alle_stufen="$shard_sammlung $shard_stufen"
 # Zeitlimit je Stufe in s, fuer die gesamte Laufzeit von flutter test (Build, Install, Tests).
 # Herleitung: das Doppelte der laengsten gemessenen Dauer (Zeilen "STUFE ... dauer=") aus sechs gruenen Laeufen
-# des Workflows e2e auf main, je API 31 und 36 (Messtabelle im PR, der diese Grenzen einfuehrt), aufgerundet auf volle Minuten,
+# des Workflows e2e auf main, je API 31 und 36 (Messtabelle in PR #69), aufgerundet auf volle Minuten,
 # mindestens 5 min. Gemessene Hoechstwerte: sammlung 733 s, treadmill-plan 376 s, storage-a 319 s,
 # storage-b 43 s, recover-a 73 s, recover-b 57 s, m2-flow 101 s, readiness 106 s.
 # Waechst eine Stufe deutlich, hier neu messen und nachziehen.
