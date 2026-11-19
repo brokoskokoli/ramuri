@@ -20,6 +20,10 @@ class _Restore {
   final List<Object> errors = [];
   StorageSession? result;
 
+  /// Das Archiv hat ein Passwort: der Versuch mit dem leeren Passwort scheitert
+  /// wie beim echten Leser (vor [errors]); nicht in [calls].
+  bool protected = true;
+
   Future<ArchiveRestoreRunner> factory(
     StorageSession session,
     SerializeAction serialize,
@@ -30,6 +34,11 @@ class _Restore {
         bool resetConfirmed = false,
         ArchiveCancel? cancel,
       }) => serialize(() async {
+        if (protected && password.isEmpty) {
+          throw const ArchiveImportException(
+            ArchiveImportFailure.wrongPasswordOrDamaged,
+          );
+        }
         calls.add((password: password, reset: resetConfirmed));
         if (errors.isNotEmpty) throw errors.removeAt(0);
         return result!;
@@ -369,19 +378,21 @@ void main() {
     );
     restore.result = await _archived(setupDone: true);
     d.fileHandoff.nextPick = const FilePickResult.completed(_path);
+    // Archiv ohne Passwort: schon der erste Versuch (leeres Passwort) wartet
+    // hinter serialize.
+    restore.protected = false;
     await _tap(tester, 'setup_restore');
-    await _tap(tester, 'archive_import_confirm');
-    await tester.enterText(
-      find.byKey(const Key('archive_import_password')),
-      _pw,
-    );
-    await tester.tap(find.byKey(const Key('archive_import_password_ok')));
+    await tester.tap(find.byKey(const Key('archive_import_confirm')));
     await tester.pump();
     await tester.pump();
     expect(restore.calls, isEmpty);
     hold.complete();
     await tester.pumpAndSettle();
-    expect(restore.calls, hasLength(1));
+    expect(
+      find.byKey(const Key('archive_import_password_dialog')),
+      findsNothing,
+    );
+    expect(restore.calls.single.password, '');
     expect(find.byKey(const Key('home_start_run')), findsOneWidget);
     await d.stop(tester);
   });
