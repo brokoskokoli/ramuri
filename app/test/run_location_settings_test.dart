@@ -105,6 +105,29 @@ void main() {
     expect(key('run_block_location_settings'), findsNothing);
   });
 
+  testWidgets('Nur ungefährer Standort: kein Knopf zu den Einstellungen', (
+    tester,
+  ) async {
+    final d = Device()..locationAccess.current = LocationAccess.approximateOnly;
+    await openStart(d, tester);
+    expect(key('run_block_approximateOnly'), findsOneWidget);
+    expect(key('run_block_location_settings'), findsNothing);
+    // Hauptknopf bleibt die Rechteabfrage.
+    expect(tester.widget(key('run_block_ask')), isA<FilledButton>());
+    expect(tester.widget(key('run_block_recheck')), isA<TextButton>());
+  });
+
+  testWidgets('Stand nicht prüfbar: kein Knopf, Erneut prüfen bleibt Haupt', (
+    tester,
+  ) async {
+    final d = Device()..locationAccess.fail = true;
+    await openStart(d, tester);
+    expect(key('run_block_unknown'), findsOneWidget);
+    expect(key('run_block_location_settings'), findsNothing);
+    expect(key('run_block_ask'), findsNothing);
+    expect(tester.widget(key('run_block_recheck')), isA<FilledButton>());
+  });
+
   testWidgets('Englisch: Open location settings', (tester) async {
     final d = Device()..locationAccess.gps = false;
     await openStart(d, tester, locale: 'en');
