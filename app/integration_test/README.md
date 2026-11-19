@@ -7,7 +7,7 @@ Läuft auf GitHub im Workflow `e2e` (je API 31 und 36, zwei Shards) über `tool/
 | Neuberechnung (recalc) | `e2e_recalc_test.dart` | `sammlung` / Shard sammlung |
 | Lauf aufzeichnen | `e2e_run_test.dart` | `sammlung` / sammlung |
 | Plan anlegen, anpassen, neu berechnen, Warnsignal | `e2e_plan_test.dart` | `sammlung` / sammlung |
-| Archiv-Export und Reimport (ohne Dateidialog) | `e2e_archive_test.dart` | `sammlung` / sammlung |
+| Archiv-Export und Reimport mit und ohne Passwort (ohne Dateidialog) | `e2e_archive_test.dart` | `sammlung` / sammlung |
 | Laufband | `e2e_treadmill_test.dart` | `sammlung` / sammlung |
 | Laufband: geführte Einheit aus dem Plan in Echtzeit (~5 min Abschnitt), Bandwerte, Abschnittswechsel, „Aus dem Plan“, Einheit erledigt (`--dart-define=TREADMILL_PLAN=true`, frischer Speicher ohne Ziel) | `e2e_treadmill_test.dart` | `treadmill-plan` / sammlung |
 | Kamera-Ruhepuls (Fake-Kamera, guter Puls und kein Finger; Kamerawahl in den Entwicklereinstellungen, FR-0220) | `e2e_resting_test.dart` | `sammlung` / sammlung |
