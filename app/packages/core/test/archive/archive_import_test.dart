@@ -165,7 +165,9 @@ class _Case {
     }
     expect(error, isA<ArchiveImportException>(), reason: 'kein Fehler');
     expect((error! as ArchiveImportException).failure, failure);
-    expect(error.toString(), isNot(contains(password)));
+    if (password.isNotEmpty) {
+      expect(error.toString(), isNot(contains(password)));
+    }
     expect(sink.commits, commits, reason: 'commit trotz Fehler');
     expect(sink.aborts, 1);
     expect(sink.calls.first, 'begin');
@@ -242,6 +244,46 @@ void main() {
   });
 
   group('Rundgang Export -> Leser', () {
+    test('ohne Passwort: Export und Reimport mit leerem Passwort, alle '
+        'Abschnitte gleich (SEC-0011, FR-0198)', () async {
+      final db = _fullDb(rowsPer: 2, schema: archiveSchemaVersion);
+      final handoff = FakeFileHandoff()..directory = dir.path;
+      final file = await ArchiveExporter(
+        source: FakeArchiveSource(db),
+        handoff: handoff,
+        clock: FakeClock(DateTime.utc(2026, 11, 18, 12)),
+        cipherFactory: _fakeCipher,
+      ).export(password: '');
+      final bytes = File(file.path!).readAsBytesSync();
+      // Gleiches Format wie mit Passwort (Kopf mit Salz, kein Formatwechsel).
+      expect(bytes.sublist(0, 8), ArchiveHeader.magic);
+      expect(ArchiveHeader.parse(bytes).format, ArchiveHeader.formatVersion);
+
+      await c.run(bytes, password: '');
+      expect(c.sink.rows, db);
+      expect(c.sink.commits, 1);
+
+      // Ein anderes Passwort öffnet das Archiv ohne Passwort nicht.
+      c.sink = FakeArchiveSink();
+      await c.rejects(
+        bytes,
+        ArchiveImportFailure.wrongPasswordOrDamaged,
+        password: _password,
+      );
+    });
+
+    test(
+      'Archiv mit Passwort: leeres Passwort scheitert am ersten Stück',
+      () async {
+        final bytes = await _archive(valid());
+        await c.rejects(
+          bytes,
+          ArchiveImportFailure.wrongPasswordOrDamaged,
+          password: '',
+        );
+      },
+    );
+
     test('alle Zeilen gleich, commit genau einmal am Ende', () async {
       // Der Schreiber erzeugt das neueste Schema (mit `runs.mode`).
       final db = _fullDb(rowsPer: 3, schema: archiveSchemaVersion);
