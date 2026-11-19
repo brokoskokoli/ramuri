@@ -1,7 +1,7 @@
 #!/bin/sh
 # Test fuer tool/ci_e2e.sh mit Attrappen fuer adb und flutter (kein Emulator): Shard-Zuordnung,
 # unbekannte Namen, Mindeststufen, Waechter ueber all_test.dart, Rot einer Stufe, NEED_KILL, kein E2E_ im Log,
-# letzte Schrittmarke vor dem Fehler.
+# letzte Schrittmarke vor dem Fehler, Bildschirmfotos bei SHOT-Marken (E2E_SHOTS=1).
 # Aufruf: sh tool/ci_e2e_test.sh
 script=$(cd "$(dirname "$0")" && pwd)/ci_e2e.sh
 tmp=$(mktemp -d) || exit 1
@@ -15,8 +15,8 @@ cat > "$tmp/bin/adb" <<'X'
 #!/bin/sh
 case "$*" in
   *"dumpsys package"*) echo 'android.permission.ACCESS_FINE_LOCATION: granted=true' ;;
-  *"dumpsys window"*) echo 'mCurrentFocus=Window{x u0 io.github.brokoskokoli.ramuri/.MainActivity}' ;;
-  *screencap*) echo x >> "$FAKE_SHOTS" ;;
+  *"dumpsys window"*) [ -n "${FAKE_NOFOCUS:-}" ] || echo 'mCurrentFocus=Window{x u0 io.github.brokoskokoli.ramuri/.MainActivity}' ;;
+  *screencap*) echo x >> "$FAKE_SHOTS"; echo PNG ;;
 esac
 exit 0
 X
@@ -28,6 +28,9 @@ echo "$*" >> "$FAKE_ARGS"
 echo "E2E_WERT=geheim123"
 [ -z "${FAKE_E:-}" ] || echo "00:01 +0 -1: Archiv [E]"
 [ -z "${FAKE_SLEEP:-}" ] || sleep 6
+# SHOT-Marken wie shot() in e2e_support.dart: Zeile E2E_, danach steht der Test (hier 1 s).
+[ -z "${FAKE_SHOT_LINES:-}" ] || for n in s1_hell 'Gross' '../boese' 'a b' s1-dunkel_2; do
+  echo "E2E_12:00:00.000 SHOT $n"; sleep 1; done
 case "$*" in *PHASE=write* | *PHASE=a*) [ -n "${FAKE_NOKILL:-}" ] || { echo "E2E_X NEED_KILL"; sleep 3; } ;; esac
 [ -z "${FAKE_STEPS:-}" ] || { echo "PUB_00 SCHRITT A1 start"; echo "PUB_01 SCHRITT A1 rot"; echo "00:02 +0 -1: A [E]"; echo "PUB_02 SCHRITT B1 start"; }
 [ -z "${FAKE_FAIL:-}" ] || { echo "PUB_01 M2 form_error key=planFormErrorStand"; i=0; while [ $i -lt 60 ]; do echo "zeile $i"; i=$((i + 1)); done; echo "Expected: x"; exit 1; }
@@ -35,7 +38,7 @@ exit 0
 X
 chmod +x "$tmp/bin/adb" "$tmp/bin/flutter"
 export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" FAKE_SHOTS="$tmp/shots" FAKE_ARGS="$tmp/args" ANDROID_SERIAL=emulator-5554
-unset E2E_SHARD E2E_STUFEN FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP FAKE_STEPS
+unset E2E_SHARD E2E_STUFEN E2E_SHOTS FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP FAKE_STEPS FAKE_SHOT_LINES FAKE_NOFOCUS
 fails=0
 # run <Name> <rc> <Aufrufe-der-Testdateien (Anzahl)> [VAR=Wert ...]
 run() {
@@ -89,6 +92,22 @@ run "Prozessende ohne NEED_KILL -> Exit 1"     1 1 E2E_STUFEN=storage-a FAKE_NOK
 [ "$(wc -l < "$tmp/shots" | tr -d ' ')" -ge 2 ] || { echo "FAIL Foto: keine laufenden Fotos"; fails=$((fails + 1)); }
 : > "$tmp/shots"; run "Foto: nach [E] eingefroren" 1 1 E2E_STUFEN=sammlung FAKE_SLEEP=1 FAKE_E=1 FAKE_FAIL=1
 [ "$(wc -l < "$tmp/shots" | tr -d ' ')" -le 1 ] || { echo "FAIL Foto: nach [E] weitere Fotos"; fails=$((fails + 1)); }
+# Bildschirmfotos (E2E_SHOTS=1): je gueltige SHOT-Zeile genau ein screencap mit <stufe>-<name>.png, ungueltige Namen
+# (Grossbuchstaben, Pfad, Leerzeichen) ohne Foto. FAKE_NOFOCUS: kein laufendes Fehlerfoto, jedes screencap ist ein SHOT-Foto.
+: > "$tmp/shots"; run "Fotos: Schalter an, zwei Stufen" 0 2 "E2E_STUFEN=sammlung readiness" E2E_SHOTS=1 FAKE_SHOT_LINES=1 FAKE_NOFOCUS=1
+[ "$(grep -c -- '--dart-define=E2E_SHOTS=true' "$FAKE_ARGS")" -eq 2 ] && echo "OK   Fotos: E2E_SHOTS an jede Stufe" || { echo "FAIL Fotos: E2E_SHOTS nicht an jede Stufe"; fails=$((fails + 1)); }
+[ "$(wc -l < "$tmp/shots" | tr -d ' ')" -eq 4 ] && echo "OK   Fotos: je gueltige SHOT-Zeile ein screencap" || { echo "FAIL Fotos: $(wc -l < "$tmp/shots" | tr -d ' ') screencap statt 4"; fails=$((fails + 1)); }
+want="readiness-s1-dunkel_2.png readiness-s1_hell.png sammlung-s1-dunkel_2.png sammlung-s1_hell.png"
+got=$(cd "$tmp/out/shots" 2>/dev/null && ls | tr '\n' ' ' | sed 's/ $//')
+[ "$got" = "$want" ] && echo "OK   Fotos: Dateinamen <stufe>-<name>.png, ungueltige verworfen" || { echo "FAIL Fotos: Dateien '$got' statt '$want'"; fails=$((fails + 1)); }
+[ "$(cat "$tmp/out/shots/sammlung-s1_hell.png" 2>/dev/null)" = PNG ] || { echo "FAIL Fotos: Inhalt nicht von screencap"; fails=$((fails + 1)); }
+[ "$(grep -c 'SHOT-Marke verworfen' "$tmp/stdout")" -eq 6 ] || { echo "FAIL Fotos: Meldung fuer verworfene Namen fehlt"; fails=$((fails + 1)); }
+grep -qx 'FOTOS Stufe sammlung: 2' "$tmp/stdout" || { echo "FAIL Fotos: Anzahl je Stufe fehlt"; fails=$((fails + 1)); }
+grep -v 'SHOT-Marke verworfen' "$tmp/stdout" | grep -q 'SHOT \|boese' && { echo "FAIL Fotos: SHOT-Zeile im Log"; fails=$((fails + 1)); }
+: > "$tmp/shots"; run "Fotos: ohne Schalter" 0 2 "E2E_STUFEN=sammlung readiness" FAKE_SHOT_LINES=1 FAKE_NOFOCUS=1
+grep -q 'E2E_SHOTS' "$FAKE_ARGS" && { echo "FAIL ohne Schalter: E2E_SHOTS weitergereicht"; fails=$((fails + 1)); } || echo "OK   ohne Schalter kein E2E_SHOTS"
+[ -s "$tmp/shots" ] || [ -e "$tmp/out/shots" ] && { echo "FAIL ohne Schalter: Fotos"; fails=$((fails + 1)); } || echo "OK   ohne Schalter kein Foto"
+run "Fotos: Schalter mit anderem Wert -> Fehler" 1 0 E2E_STUFEN=sammlung E2E_SHOTS=ja
 # Waechter: Testdatei, die weder eingebunden noch Stufe ist, auch als Kommentar.
 : > app/integration_test/e2e_neu_test.dart
 run "Waechter: nicht eingebundene Datei"       1 0 E2E_STUFEN=sammlung
