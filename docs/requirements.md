@@ -191,7 +191,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0180 | Erklärungsarten | functional | Approved | 2 | [explanations](specs/explanations.md#fr-0180--erklärungsarten) | FR-0170, OQ-0011, OQ-0039 |
 | FR-0181 | Erklärungen beruhen auf tatsächlichen Daten | functional | Approved | 2 | [explanations](specs/explanations.md#fr-0181--erklärungen-beruhen-auf-tatsächlichen-daten) | FR-0059 |
 | FR-0182 | Dateiexport als GPX, TCX und FIT | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0182--dateiexport-als-gpx-tcx-und-fit) | CON-0010, ACC-13, OQ-0032, OQ-0066 |
-| FR-0183 | Exportinhalte | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0183--exportinhalte) | — |
+| FR-0183 | Exportinhalte | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0183--exportinhalte) | FR-0202 |
 | FR-0184 | Zusatzmetriken separat exportierbar | functional | Approved | 2 | [export-sync](specs/export-sync.md#fr-0184--zusatzmetriken-separat-exportierbar) | OQ-0032 |
 | FR-0185 | Strava-Konto einmalig verknüpfen | functional | Draft | Zurückgestellt (OQ-0049) | [export-sync](specs/export-sync.md#fr-0185--strava-konto-einmalig-verknüpfen) | SEC-0003, SEC-0008, OQ-0024, OQ-0049 |
 | FR-0186 | Manueller Upload einzelner Läufe | functional | Draft | Zurückgestellt (OQ-0049) | [export-sync](specs/export-sync.md#fr-0186--manueller-upload-einzelner-läufe) | SEC-0008, OQ-0049 |
