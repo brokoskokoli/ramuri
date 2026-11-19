@@ -57,6 +57,27 @@ Future<List<StoredRun>> _finished(StorageSession s) async => [
 ];
 
 void main() {
+  test('Läufe ohne Puls: Schätzung trägt hasHeartRate false, ohne eigene '
+      'Abfrage (FR-0057)', () async {
+    final w = await RecalcWorld.create();
+    await w.seedFourRunsCalculated();
+    final counting = _CountingValues(w.session.values);
+    final session = FaultySession(
+      w.session,
+      rawData: w.session.rawData,
+      values: counting,
+    );
+    final runs = await _finished(w.session);
+    final without = runs.first.id;
+    final o = await FitnessOverviewService(session: session)
+        .load(runs, runsWithoutHeartRate: {without});
+    expect(counting.reads, 0);
+    expect(counting.bulkReads, 1);
+    for (final e in o.runEstimates) {
+      expect(e.hasHeartRate, e.runId != without, reason: '${e.runId}');
+    }
+  });
+
   test(
     'vier berechnete Läufe: Schätzungen, Tageswerte, gebündelt gelesen',
     () async {

@@ -1,7 +1,8 @@
 #!/bin/sh
 # Test fuer tool/ci_e2e.sh mit Attrappen fuer adb und flutter (kein Emulator): Shard-Zuordnung,
 # unbekannte Namen, Mindeststufen, Waechter ueber all_test.dart, Rot einer Stufe, NEED_KILL, kein E2E_ im Log,
-# letzte Schrittmarke vor dem Fehler, Bildschirmfotos bei SHOT-Marken (E2E_SHOTS=1).
+# letzte Schrittmarke vor dem Fehler, Bildschirmfotos bei SHOT-Marken (E2E_SHOTS=1), Zeitlimit je Stufe
+# (E2E_STUFE_LIMIT_S, haengende Attrappe).
 # Aufruf: sh tool/ci_e2e_test.sh
 script=$(cd "$(dirname "$0")" && pwd)/ci_e2e.sh
 tmp=$(mktemp -d) || exit 1
@@ -17,6 +18,7 @@ case "$*" in
   *"dumpsys package"*) echo 'android.permission.ACCESS_FINE_LOCATION: granted=true' ;;
   *"dumpsys window"*) [ -n "${FAKE_NOFOCUS:-}" ] || echo 'mCurrentFocus=Window{x u0 io.github.brokoskokoli.ramuri/.MainActivity}' ;;
   *screencap*) echo x >> "$FAKE_SHOTS"; echo PNG ;;
+  *"am force-stop"*) echo x >> "$FAKE_STOPS" ;;
 esac
 exit 0
 X
@@ -34,17 +36,24 @@ echo "E2E_WERT=geheim123"
 case "$*" in *PHASE=write* | *PHASE=a*) [ -n "${FAKE_NOKILL:-}" ] || { echo "E2E_X NEED_KILL"; sleep 3; } ;; esac
 [ -z "${FAKE_STEPS:-}" ] || { echo "PUB_00 SCHRITT A1 start"; echo "PUB_01 SCHRITT A1 rot"; echo "00:02 +0 -1: A [E]"; echo "PUB_02 SCHRITT B1 start"; }
 [ -z "${FAKE_FAIL:-}" ] || { echo "PUB_01 M2 form_error key=planFormErrorStand"; i=0; while [ $i -lt 60 ]; do echo "zeile $i"; i=$((i + 1)); done; echo "Expected: x"; exit 1; }
+# Haengen (Aufruf enthaelt $FAKE_HANG): Kindprozess sleep, beide PIDs in $FAKE_PIDS; endet sonst nach 40 s gruen.
+case "${FAKE_HANG:+$*}" in *"${FAKE_HANG:-}"*) [ -z "${FAKE_HANG:-}" ] || {
+  echo "$$" >> "$FAKE_PIDS"; sleep 40 & echo "$!" >> "$FAKE_PIDS"; wait; } ;; esac
 exit 0
 X
 chmod +x "$tmp/bin/adb" "$tmp/bin/flutter"
-export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" FAKE_SHOTS="$tmp/shots" FAKE_ARGS="$tmp/args" ANDROID_SERIAL=emulator-5554
-unset E2E_SHARD E2E_STUFEN E2E_SHOTS FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP FAKE_STEPS FAKE_SHOT_LINES FAKE_NOFOCUS
+export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" FAKE_SHOTS="$tmp/shots" FAKE_ARGS="$tmp/args" FAKE_STOPS="$tmp/stops" \
+  FAKE_PIDS="$tmp/pids" ANDROID_SERIAL=emulator-5554
+unset E2E_SHARD E2E_STUFEN E2E_SHOTS E2E_STUFE_LIMIT_S FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP FAKE_STEPS FAKE_SHOT_LINES \
+  FAKE_NOFOCUS FAKE_HANG
 fails=0
 # run <Name> <rc> <Aufrufe-der-Testdateien (Anzahl)> [VAR=Wert ...]
 run() {
   name=$1 want_rc=$2 want_calls=$3; shift 3
-  : > "$FAKE_LOG"; : > "$FAKE_ARGS"; rm -rf "$tmp/out"
+  : > "$FAKE_LOG"; : > "$FAKE_ARGS"; : > "$FAKE_STOPS"; : > "$FAKE_PIDS"; rm -rf "$tmp/out"
+  t_start=$(date +%s)
   env "$@" sh "$script" "$tmp/out" > "$tmp/stdout" 2>&1; rc=$?
+  dauer=$(($(date +%s) - t_start))
   calls=$(wc -l < "$FAKE_LOG" | tr -d ' ')
   if [ "$rc" -eq "$want_rc" ] && [ "$calls" -eq "$want_calls" ]; then echo "OK   $name"; else
     echo "FAIL $name (rc=$rc erwartet $want_rc, Stufen $calls erwartet $want_calls)"; fails=$((fails + 1)); fi
@@ -108,6 +117,44 @@ grep -v 'SHOT-Marke verworfen' "$tmp/stdout" | grep -q 'SHOT \|boese' && { echo 
 grep -q 'E2E_SHOTS' "$FAKE_ARGS" && { echo "FAIL ohne Schalter: E2E_SHOTS weitergereicht"; fails=$((fails + 1)); } || echo "OK   ohne Schalter kein E2E_SHOTS"
 [ -s "$tmp/shots" ] || [ -e "$tmp/out/shots" ] && { echo "FAIL ohne Schalter: Fotos"; fails=$((fails + 1)); } || echo "OK   ohne Schalter kein Foto"
 run "Fotos: Schalter mit anderem Wert -> Fehler" 1 0 E2E_STUFEN=sammlung E2E_SHOTS=ja
+# Zeitlimit je Stufe: haengende Attrappe (FAKE_HANG = Teil des Aufrufs), Grenze 3 s.
+# zeitlimit_ok <stufe>: Meldung, Ende nach weniger als 30 s, kein Attrappen-Prozess mehr, kein E2E_ in Ausgabe und Artefakt.
+zeitlimit_ok() {
+  grep -q "^Zeitlimit in Stufe $1 nach [0-9]* s$" "$tmp/stdout" || { echo "FAIL Zeitlimit $1: Meldung fehlt"; fails=$((fails + 1)); }
+  [ "$dauer" -lt 30 ] || { echo "FAIL Zeitlimit $1: Skript lief $dauer s"; fails=$((fails + 1)); }
+  [ -s "$FAKE_PIDS" ] || { echo "FAIL Zeitlimit $1: Attrappe hing nicht"; fails=$((fails + 1)); }
+  for p in $(cat "$FAKE_PIDS"); do kill -0 "$p" 2>/dev/null && { echo "FAIL Zeitlimit $1: Attrappen-Prozess $p laeuft noch"; fails=$((fails + 1)); kill -9 "$p"; }; done
+  grep -q 'E2E_\|geheim123' "$tmp/stdout" && { echo "FAIL Zeitlimit $1: E2E_-Zeile in der Ausgabe"; fails=$((fails + 1)); }
+  grep -rq 'E2E_\|geheim123' "$tmp/out" && { echo "FAIL Zeitlimit $1: E2E_-Zeile im Artefakt"; fails=$((fails + 1)); }
+  [ -f "$tmp/out/test-output-$1.txt" ] || { echo "FAIL Zeitlimit $1: kein Testlog im Artefakt"; fails=$((fails + 1)); }
+}
+run "Zeitlimit: sammlung haengt -> Exit 1"     1 1 E2E_STUFEN=sammlung E2E_STUFE_LIMIT_S=3 FAKE_HANG=all_test
+zeitlimit_ok sammlung
+grep -q '^STUFE sammlung rc=1 ' "$tmp/stdout" || { echo "FAIL Zeitlimit: STUFE-Zeile mit rc=1 fehlt"; fails=$((fails + 1)); }
+[ -f "$tmp/out/screen-sammlung.png" ] || { echo "FAIL Zeitlimit: letztes Foto fehlt"; fails=$((fails + 1)); }
+[ -f "$tmp/out/logcat-filtered.txt" ] || { echo "FAIL Zeitlimit: Logcat fehlt"; fails=$((fails + 1)); }
+[ "$(wc -l < "$FAKE_STOPS" | tr -d ' ')" -eq 1 ] || { echo "FAIL Zeitlimit: kein am force-stop"; fails=$((fails + 1)); }
+run "Zeitlimit: Kill-Stufe ohne NEED_KILL haengt" 1 1 E2E_STUFEN=recover-a E2E_STUFE_LIMIT_S=3 FAKE_NOKILL=1 FAKE_HANG=PHASE=a
+zeitlimit_ok recover-a
+run "Zeitlimit: haengt nach NEED_KILL -> Exit 1" 1 1 E2E_STUFEN=recover-a E2E_STUFE_LIMIT_S=3 FAKE_HANG=PHASE=a
+zeitlimit_ok recover-a
+grep -q '^STUFE recover-a rc=1 ' "$tmp/stdout" || { echo "FAIL Zeitlimit nach NEED_KILL: STUFE-Zeile mit rc=1 fehlt"; fails=$((fails + 1)); }
+run "Zeitlimit: Folgestufe laeuft weiter"      1 2 "E2E_STUFEN=recover-a recover-b" E2E_STUFE_LIMIT_S=3 FAKE_HANG=PHASE=a
+zeitlimit_ok recover-a
+grep -q '^STUFE recover-b rc=0 ' "$tmp/stdout" || { echo "FAIL Zeitlimit: recover-b nicht gruen gelaufen"; fails=$((fails + 1)); }
+run "Zeitlimit: Wert abc -> Fehler"            1 0 E2E_STUFEN=sammlung E2E_STUFE_LIMIT_S=abc
+grep -q 'E2E_STUFE_LIMIT_S keine positive ganze Zahl' "$tmp/stdout" || { echo "FAIL Zeitlimit abc: Meldung fehlt"; fails=$((fails + 1)); }
+run "Zeitlimit: Wert 0 -> Fehler"              1 0 E2E_STUFEN=sammlung E2E_STUFE_LIMIT_S=0
+run "Zeitlimit: Wert -5 -> Fehler"             1 0 E2E_STUFEN=sammlung E2E_STUFE_LIMIT_S=-5
+[ -s "$FAKE_ARGS" ] && { echo "FAIL Zeitlimit: flutter trotz ungueltigem Wert aufgerufen"; fails=$((fails + 1)); }
+run "Zeitlimit: grosse Grenze, Stufe gruen"    0 1 E2E_STUFEN=recover-a E2E_STUFE_LIMIT_S=600
+grep -q 'Zeitlimit in Stufe' "$tmp/stdout" && { echo "FAIL Zeitlimit: Meldung ohne Ueberschreitung"; fails=$((fails + 1)); }
+# Waechter: eine Stufe im Shard ohne Zeitlimit in grenze_s ist ein Fehler vor dem ersten Lauf.
+sed 's|^shard_sammlung="sammlung |&neu |; s|^\[ "\$ran" -gt 0 \]|stufe neu 0 integration_test/e2e_a_test.dart\n&|' "$script" > "$tmp/ci_e2e_neu.sh"
+script="$tmp/ci_e2e_neu.sh"
+run "Stufe ohne Zeitlimit -> Fehler vor dem Lauf" 1 0 X=1
+grep -q 'Stufe neu hat kein Zeitlimit' "$tmp/stdout" || { echo "FAIL Waechter Zeitlimit: Meldung fehlt"; fails=$((fails + 1)); }
+script=$script_orig
 # Waechter: Testdatei, die weder eingebunden noch Stufe ist, auch als Kommentar.
 : > app/integration_test/e2e_neu_test.dart
 run "Waechter: nicht eingebundene Datei"       1 0 E2E_STUFEN=sammlung

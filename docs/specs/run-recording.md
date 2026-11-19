@@ -244,13 +244,17 @@ Bei GPS-Verlust laufen Zeit und Puls weiter. Die Lücke wird markiert, und die S
 
 ### FR-0195 — Start nur mit Standortberechtigung
 - **Status:** Approved | **Phase:** 1
-- **Quelle:** SRC-003 (OQ-0021)
+- **Quelle:** SRC-003 (OQ-0021); SRC-003 (Maintainer 2026-11-15)
 - **Verwandt:** OQ-0021, OQ-0064
 
 Ohne Standortberechtigung startet kein GPS-Lauf. Läufe ohne GPS gibt es in Phase 1 nicht; ein Laufbandmodus folgt in Phase 2 (FR-0196).
 
+**Festlegungen (Maintainer 2026-11-15):**
+- Ist der Standort ausgeschaltet, bietet die Seite „Lauf vorbereiten“ an, die Standort-Einstellungen des Systems zu öffnen, und prüft nach der Rückkehr erneut. Die Erklärung des Grunds bleibt stehen; ein neues Recht braucht das nicht.
+
 **Akzeptanzkriterien:**
 - [ ] Ohne Berechtigung startet kein Lauf, und die App erklärt den Grund.
+- [ ] Bei ausgeschaltetem Standort öffnet ein Knopf die Standort-Einstellungen des Systems; nach der Rückkehr mit eingeschaltetem Standort ist die Sperre aufgehoben.
 
 ### FR-0202 — Schrittfrequenz aus dem Smartphone
 - **Status:** Approved | **Phase:** 1
@@ -259,6 +263,8 @@ Ohne Standortberechtigung startet kein GPS-Lauf. Läufe ohne GPS gibt es in Phas
 
 In Phase 1 liefert der Schrittsensor des Smartphones die Schrittfrequenz. Die App fragt dafür eine eigene Berechtigung an; ohne sie funktioniert die Aufzeichnung weiter.
 
+Die Schritte werden als Rohdaten `raw_steps` gespeichert ([Datenmodell](../architecture/data-model.md)) und exportiert (FR-0183).
+
 **Akzeptanzkriterien:**
 - [ ] Mit Berechtigung wird die Schrittfrequenz live angezeigt.
 - [ ] Ohne Berechtigung ist sie als nicht verfügbar ausgewiesen, und der Lauf wird normal aufgezeichnet.
@@ -266,13 +272,13 @@ In Phase 1 liefert der Schrittsensor des Smartphones die Schrittfrequenz. Die Ap
 ### FR-0204 — Karte der Route
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §4.3, Z. 168–180; §5.1, Z. 197; SRC-003 (OQ-0074)
-- **Verwandt:** FR-0027, FR-0037, FR-0040, FR-0041, FR-0056, SEC-0002, SEC-0007, SEC-0008, SEC-0009, OQ-0074, OQ-0075, ADR-0009
+- **Verwandt:** FR-0027, FR-0037, FR-0040, FR-0041, FR-0056, FR-0193, SEC-0002, SEC-0007, SEC-0008, SEC-0009, OQ-0074, OQ-0075, ADR-0009
 
 Die App zeigt die gelaufene Route auf einer Karte: während des Laufs auf einer eigenen Seite des Lauf-Bildschirms, in der Zusammenfassung und in der Detailansicht eines Laufs sowie als Miniatur je Lauf in der Trainingshistorie. Kartenmaterial kommt aus dem Netz vom Anbieter nach ADR-0009, nur nach ausdrücklicher Einwilligung, die der Nutzer jederzeit widerrufen kann. Ohne Einwilligung, ohne Netz oder bei Fehlern zeigt die App dieselbe Route ohne Kartenhintergrund.
 
 **Festlegungen (OQ-0074):**
 - Lauf-Bildschirm: Die Werte bleiben die erste Seite, die Karte ist per Wischen erreichbar. Sie folgt der aktuellen Position und zeigt die bisherige Strecke. Gezeichnet wird nur, solange die Seite sichtbar und der Bildschirm an ist. Die Aufzeichnung hängt nicht von der Karte ab.
-- Einheitliche Darstellung in allen Ansichten: Strecke als Linie, Start und Ende markiert, Pausen und GPS-Lücken als Unterbrechung der Linie, nie als gerade Verbindung (FR-0056). Gezeichnet werden die gespeicherten Positionen, die die Vorverarbeitung akzeptiert hat.
+- Einheitliche Darstellung in allen Ansichten: Strecke als Linie, Start und Ende markiert, Pausen, Ausfälle nach Absturz und GPS-Lücken als Unterbrechung der Linie, nie als gerade Verbindung (FR-0056). Gezeichnet werden die gespeicherten Positionen, die die Vorverarbeitung akzeptiert hat.
 - Miniatur: kleine, nicht bedienbare Karte mit der Route, mit Einwilligung auf Kartenhintergrund, sonst nur die Linie.
 - Anfragen an den Anbieter enthalten nur die Koordinaten der Kacheln, keine Kennung, keine Lauf- oder Gesundheitsdaten und keine Cookies.
 - Geladene Kacheln und Miniaturen werden nur verschlüsselt gespeichert (SEC-0009), mit fester Größengrenze. Sie gehören nicht in Archiv und Dateiexport. Nach dem Widerruf fragt die App, ob sie gelöscht werden sollen (SEC-0007); „Alles löschen“ löscht sie.
@@ -283,7 +289,7 @@ Die App zeigt die gelaufene Route auf einer Karte: während des Laufs auf einer 
 **Akzeptanzkriterien:**
 - [ ] Lauf-Bildschirm, Zusammenfassung, Detailansicht und Historie zeigen die Route, mit Einwilligung auf Kartenmaterial, ohne Einwilligung als Linie.
 - [ ] SEC-0008: Ohne Einwilligung zeigt ein Netzwerkmitschnitt keine Verbindung; nach dem Widerruf keine neue.
-- [ ] Pausen und GPS-Lücken erscheinen nicht als gerade Verbindung.
+- [ ] Pausen, Ausfälle nach Absturz und GPS-Lücken erscheinen nicht als gerade Verbindung.
 - [ ] Kacheln und Miniaturen liegen nicht im Klartext auf dem Datenträger.
 - [ ] Die Aufzeichnung läuft unverändert, wenn die Karte nicht lädt oder die Seite gewechselt wird.
 - [ ] Die Quellenangabe ist auf jeder Karte mit Kartenhintergrund sichtbar.

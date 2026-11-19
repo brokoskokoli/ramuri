@@ -15,8 +15,20 @@ class _Consents implements ConsentStore {
       data[k] = s;
 }
 
+Future<DebugTestHealthConnect> _granted(DateTime at) async {
+  final hc = DebugTestHealthConnect(now: () => at);
+  await hc.requestPermissions(HealthDataKind.values.toSet());
+  return hc;
+}
+
+List<SleepSession> _sessions(HealthPage page) => [
+  for (final r in page.records) sleepSessionOf(r),
+];
+
+// Alle Zeiten in Ortszeit (Zeitzone des Systems): Die Tests gelten in jeder Zeitzone, z. B. unter
+// TZ=UTC, TZ=America/Los_Angeles und TZ=Pacific/Kiritimati.
 void main() {
-  final now = DateTime.utc(2026, 11, 14, 9);
+  final now = DateTime(2026, 11, 14, 9);
 
   test('ohne Recht: Lesen wirft permissionMissing', () async {
     final hc = DebugTestHealthConnect(now: () => now);
@@ -61,12 +73,8 @@ void main() {
       final sessions = [
         for (final s in store.records(HealthDataKind.sleep)) sleepSessionOf(s),
       ];
-      // Die Debug-Quelle legt das Aufwachen auf 06:30 UTC; Ortstag hier UTC.
-      final main = p.mainSleep(
-        sessions,
-        now,
-        dayStart: DateTime.utc(2026, 11, 14),
-      )!;
+      // Die Debug-Quelle legt das Aufwachen auf 06:30 Ortszeit; Ortstag ist der des Systems.
+      final main = p.mainSleep(sessions, now)!;
       expect(main.origin, 'debug.app.a');
       final samples = [
         for (final v in store.records(HealthDataKind.hrvRmssd))
@@ -112,11 +120,11 @@ void main() {
     },
   );
 
-  // Der HRV-Wert 20 min nach dem Ende der Nacht (06:30 UTC) liegt vor 06:50 UTC in der Zukunft
+  // Der HRV-Wert 20 min nach dem Ende der Nacht (06:30 Ortszeit) liegt vor 06:50 in der Zukunft
   // und wird nicht gelesen: kein Fehler, aber 11 statt 12 gespeicherte Werte (E2E-Befund WP32).
   for (final (at, expected) in [
-    (DateTime.utc(2026, 11, 14, 5, 21), 11),
-    (DateTime.utc(2026, 11, 14, 9), 12),
+    (DateTime(2026, 11, 14, 5, 21), 11),
+    (DateTime(2026, 11, 14, 9), 12),
   ]) {
     test('HRV-Werte der Debug-Quelle um $at: $expected', () async {
       final hc = DebugTestHealthConnect(now: () => at);
@@ -137,12 +145,12 @@ void main() {
     });
   }
 
-  // VO2max und Training der Debug-Quelle liegen nie in der Zukunft: um 00:04 UTC lag der Wert bei
-  // 02:00 UTC hinter "jetzt" und wurde nicht gelesen (E2E-Lauf 43655339912, Health Connect 1/2).
+  // VO2max und Training der Debug-Quelle liegen nie in der Zukunft: um 00:04 lag der Wert bei
+  // 02:00 hinter "jetzt" und wurde nicht gelesen (E2E-Lauf 43655339912, Health Connect 1/2).
   for (final at in [
-    DateTime.utc(2026, 11, 15, 0, 4),
-    DateTime.utc(2026, 11, 15, 1, 59),
-    DateTime.utc(2026, 11, 14, 9),
+    DateTime(2026, 11, 15, 0, 4),
+    DateTime(2026, 11, 15, 1, 59),
+    DateTime(2026, 11, 14, 9),
   ]) {
     test('VO2max und Training der Debug-Quelle um $at je 1 Wert', () async {
       final hc = DebugTestHealthConnect(now: () => at);
@@ -166,12 +174,14 @@ void main() {
     });
   }
 
-  // Kurz nach Mitternacht UTC: kein Satz der Debug-Quelle liegt nach "jetzt", und HRV, Ruhepuls und VO2max der
-  // Nacht davor sind schon vollständig da (bei den alten Versätzen fehlten sie bis 01:30 bzw. 02:00 UTC).
+  // Kurz nach Mitternacht und vor dem Aufwachen (Ortszeit): kein Satz der Debug-Quelle liegt nach "jetzt", und
+  // HRV, Ruhepuls und VO2max der Nacht davor sind schon vollständig da (bei den alten Versätzen fehlten sie bis
+  // 01:30 bzw. 02:00).
   for (final at in [
-    DateTime.utc(2026, 11, 15),
-    DateTime.utc(2026, 11, 15, 0, 30),
-    DateTime.utc(2026, 11, 15, 1, 59),
+    DateTime(2026, 11, 15),
+    DateTime(2026, 11, 15, 0, 30),
+    DateTime(2026, 11, 15, 1, 59),
+    DateTime(2026, 11, 15, 5),
   ]) {
     test('kein Zeitstempel der Debug-Quelle nach $at', () async {
       final hc = DebugTestHealthConnect(now: () => at);
@@ -219,16 +229,93 @@ void main() {
         ).run(HealthImportTrigger.manual);
         expect(r.status, HealthImportStatus.done);
         // HRV: 3 Nächte × 3 Werte in der Schlafphase + Rückfallwerte der zwei Nächte davor (der von heute liegt
-        // erst um 06:50 UTC); je Nacht zwei ungültige verworfen.
+        // erst um 06:50 Ortszeit); je Nacht zwei ungültige verworfen.
         expect(await store.count(HealthDataKind.hrvRmssd), 11);
         expect(r.kinds[HealthDataKind.hrvRmssd]!.rejected, 6);
         // Ruhepuls: ein gültiger Wert je Tag, der ungültige je Tag verworfen.
         expect(await store.count(HealthDataKind.restingHeartRate), 3);
         expect(r.kinds[HealthDataKind.restingHeartRate]!.rejected, 3);
         expect(await store.count(HealthDataKind.vo2Max), 1);
-        // Die Nacht vor heute endet erst um 06:30 UTC und fehlt noch.
+        // Die Nacht vor heute endet erst um 06:30 Ortszeit und fehlt noch.
         expect(await store.count(HealthDataKind.sleep), 4);
       },
     );
   }
+
+  // PAR-164: Die Nacht der Debug-Quelle endet um 06:30 Ortszeit des heutigen Ortstags und zählt damit in jeder
+  // Zeitzone heute als Hauptschlafphase (vorher 06:30 UTC: westlich von UTC am Vorabend).
+  for (final at in [
+    DateTime(2026, 11, 14, 9),
+    // Erster Tag nach der Umstellung auf Sommerzeit (in Zeitzonen mit Sommerzeit, z. B. USA).
+    DateTime(2026, 3, 8, 9),
+    DateTime(2026, 3, 9, 9),
+  ]) {
+    test(
+      'Nacht 0 endet um 06:30 Ortszeit am $at und ist Hauptschlafphase',
+      () async {
+        final hc = await _granted(at);
+        final page = await hc.readPage(
+          kind: HealthDataKind.sleep,
+          from: at.subtract(const Duration(days: 30)),
+          to: at,
+        );
+        final n0 = page.records.singleWhere(
+          (r) => r.id == 'debug-sleep-full-0',
+        );
+        final end = n0.end.toLocal();
+        expect((end.year, end.month, end.day), (at.year, at.month, at.day));
+        expect((end.hour, end.minute), (6, 30));
+        // Auch die Nächte davor enden um 06:30 Ortszeit des jeweiligen Vortags.
+        for (final n in [1, 2]) {
+          final e = page.records
+              .singleWhere((r) => r.id == 'debug-sleep-full-$n')
+              .end
+              .toLocal();
+          expect((e.year, e.month, e.day), (at.year, at.month, at.day - n));
+          expect((e.hour, e.minute), (6, 30));
+        }
+        final main = const HealthProcessing().mainSleep(_sessions(page), at);
+        expect(main, isNotNull);
+        expect(main!.origin, 'debug.app.a');
+        expect(main.end, n0.end);
+      },
+    );
+  }
+
+  test('vor dem Aufwachen (05:00 Ortszeit): Nacht 0 fehlt, keine heutige Hauptschlafphase', () async {
+    final at = DateTime(2026, 11, 14, 5);
+    final hc = await _granted(at);
+    final page = await hc.readPage(
+      kind: HealthDataKind.sleep,
+      from: at.subtract(const Duration(days: 30)),
+      to: at.add(const Duration(days: 2)),
+    );
+    expect(
+      page.records.map((r) => r.id),
+      isNot(contains('debug-sleep-full-0')),
+    );
+    expect(
+      page.records.map((r) => r.id),
+      isNot(contains('debug-sleep-bare-0')),
+    );
+    for (final r in page.records) {
+      expect(r.end.isAfter(at), isFalse, reason: r.id);
+    }
+    expect(const HealthProcessing().mainSleep(_sessions(page), at), isNull);
+    for (final k in [
+      HealthDataKind.hrvRmssd,
+      HealthDataKind.restingHeartRate,
+      HealthDataKind.vo2Max,
+    ]) {
+      final values = await hc.readPage(
+        kind: k,
+        from: at.subtract(const Duration(days: 30)),
+        to: at.add(const Duration(days: 2)),
+      );
+      expect(values.records, isNotEmpty, reason: k.key);
+      for (final r in values.records) {
+        expect(r.start.isAfter(at), isFalse, reason: r.id);
+      }
+    }
+  });
 }

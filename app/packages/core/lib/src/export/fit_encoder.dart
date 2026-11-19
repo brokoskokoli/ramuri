@@ -67,6 +67,11 @@ const List<_Field> _beltRecordFields = [
   (5, _uint32), // distance (scale 100, m)
   (6, _uint16), // speed (scale 1000, m/s)
 ];
+
+/// Feld `cadence` (rpm; beim Laufen Doppelschritte je Minute). Nur in der
+/// `record`-Definition, wenn der Lauf eine Schrittfrequenz hat; Läufe ohne
+/// Schritte bleiben byte-gleich.
+const _Field _cadenceField = (4, _uint8);
 const List<_Field> _lapFields = [
   (254, _uint16), // message_index
   (253, _uint32), // timestamp
@@ -163,6 +168,14 @@ Uint8List encodeFit(ExportRun run) {
       w.message(_eventMsg, _eventFields, [_time(t), _eventTimer, type]);
 
   final segments = _mergeSeconds(run);
+  final withCadence = segments.any(
+    (s) => s.$2.any((p) => _cadence(p.cadenceStepsPerMinute) != null),
+  );
+  final recordFields = [..._recordFields, if (withCadence) _cadenceField];
+  final beltRecordFields = [
+    ..._beltRecordFields,
+    if (withCadence) _cadenceField,
+  ];
   if (segments.isEmpty) {
     item(0, () => event(run.startedAt, _eventTypeStart));
     item(0, () => event(run.startedAt, _eventTypeStopAll));
@@ -176,7 +189,7 @@ Uint8List encodeFit(ExportRun run) {
       item(
         run.lapIndexAt(p.time),
         () => run.isTreadmill
-            ? w.message(_recordMsg, _beltRecordFields, [
+            ? w.message(_recordMsg, beltRecordFields, [
                 _time(p.time),
                 _heartRate(p.heartRateBpm),
                 p.distanceMeters == null
@@ -185,13 +198,15 @@ Uint8List encodeFit(ExportRun run) {
                 p.speedMetersPerSecond == null
                     ? null
                     : _speed(p.speedMetersPerSecond!),
+                if (withCadence) _cadence(p.cadenceStepsPerMinute),
               ])
-            : w.message(_recordMsg, _recordFields, [
+            : w.message(_recordMsg, recordFields, [
                 _time(p.time),
                 p.position == null ? null : _semicircles(p.position!.latitude),
                 p.position == null ? null : _semicircles(p.position!.longitude),
                 _altitude(p.altitudeMeters),
                 _heartRate(p.heartRateBpm),
+                if (withCadence) _cadence(p.cadenceStepsPerMinute),
               ]),
       );
     }
@@ -280,6 +295,8 @@ List<(ExportSegment, List<ExportPoint>)> _mergeSeconds(ExportRun run) {
           distanceMeters: first.distanceMeters ?? p.distanceMeters,
           speedMetersPerSecond:
               first.speedMetersPerSecond ?? p.speedMetersPerSecond,
+          cadenceStepsPerMinute:
+              first.cadenceStepsPerMinute ?? p.cadenceStepsPerMinute,
         );
       }
     }
@@ -323,6 +340,10 @@ int? _altitude(double? meters) {
 
 /// Puls 1…254; 255 ist der Invalid-Wert von `uint8` und fehlt.
 int? _heartRate(int? bpm) => bpm == null || bpm < 1 || bpm > 254 ? null : bpm;
+
+/// Schrittfrequenz als FIT-`cadence`: Doppelschritte je Minute (Schritte / 2),
+/// gerundet; 0…254, sonst fehlt der Wert (255 ist der Invalid-Wert).
+int? _cadence(double? stepsPerMinute) => exportStrideCadence(stepsPerMinute);
 
 /// Geschwindigkeit in mm/s; außerhalb von uint16 (< 65,535 m/s) fehlt sie.
 int? _speed(double metersPerSecond) {

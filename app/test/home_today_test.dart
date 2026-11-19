@@ -12,6 +12,7 @@ import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_texts.dart';
 import 'package:running_app/l10n/app_localizations.dart';
+import 'package:running_app/ui/ramuri_card.dart';
 import 'package:running_app/features/run/run_flow_screen.dart';
 
 import 'app_harness.dart';
@@ -894,4 +895,109 @@ void main() {
       }
     }
   }
+
+  _headerLinesMain();
+}
+
+/// Alle Einheiten ab heute in der Reduktion vor dem Wettkampf, Woche 12:
+/// längster Text der Kopfzeile „Heute geplant“.
+Future<void> _reductionWeek12(StorageSession s) => _rewritePlan(
+  s,
+  unit: (u) => PlanUnit(
+    day: u.day,
+    kind: u.kind,
+    phase: PlanPhase.reduction,
+    weekIndex: 11,
+    minutes: u.minutes,
+    segments: u.segments,
+  ),
+);
+
+/// Gerenderter Absatz des Texts mit Schlüssel [k].
+RenderParagraph _paragraph(WidgetTester tester, String k) =>
+    tester.renderObject<RenderParagraph>(
+      find.descendant(of: key(k), matching: find.byType(RichText)),
+    );
+
+/// Rechteck der Karte, in der der Text mit Schlüssel [k] steht.
+Rect _cardOf(WidgetTester tester, String k) => tester.getRect(
+  find.ancestor(of: key(k), matching: find.byType(RamuriCard)).first,
+);
+
+void _headerLinesMain() {
+  // Kopfzeilen „Heute geplant“ und „Wochenziel“ (FR-0209, FR-0205, FR-0148):
+  // passt der rechte Teil nicht neben den Titel, steht er vollständig darunter.
+  for (final scale in [1.3, 2.0]) {
+    for (final locale in ['de', 'en']) {
+      testWidgets('Kopfzeilen bei 360 dp, Schrift $scale ($locale): '
+          'kein Überlauf, nichts abgeschnitten', (tester) async {
+        await loadManrope(tester);
+        final d = Device();
+        final s = await _preopen(d, days: {1, 3, 5});
+        await _reductionWeek12(s);
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await d.start(tester, Locale(locale));
+        tester.view.physicalSize = const Size(360, 2400);
+        await tester.pumpAndSettle();
+        final tag = '$scale, $locale';
+        expect(tester.takeException(), isNull, reason: tag);
+        final week = tester.widget<Text>(key('home_today_week')).data!;
+        expect(week, contains('12'), reason: tag);
+        expect(
+          week,
+          contains(locale == 'de' ? 'Reduktion vor Wettkampf' : 'Taper'),
+          reason: tag,
+        );
+        expect(
+          tester.widget<Text>(key('home_week_goal_time')).data,
+          startsWith('0 '),
+          reason: tag,
+        );
+        for (final k in ['home_today_week', 'home_week_goal_time']) {
+          final card = _cardOf(tester, k);
+          final r = tester.getRect(key(k));
+          expect(r.right, lessThanOrEqualTo(card.right + 0.01), reason: k);
+          expect(r.left, greaterThanOrEqualTo(card.left - 0.01), reason: k);
+          expect(_paragraph(tester, k).didExceedMaxLines, isFalse, reason: k);
+        }
+        if (scale == 2.0) {
+          expect(
+            tester.getRect(key('home_today_week')).top,
+            greaterThanOrEqualTo(
+              tester.getRect(key('home_today_title')).bottom - 0.01,
+            ),
+            reason: tag,
+          );
+        }
+      });
+    }
+  }
+
+  testWidgets('Kopfzeilen bei 411 dp, Schrift 1,0 (de): Titel und Wert in '
+      'einer Zeile, Wert rechtsbündig', (tester) async {
+    await loadManrope(tester);
+    final d = Device();
+    await _preopen(d, days: {1, 3, 5});
+    await d.start(tester, const Locale('de'));
+    tester.view.physicalSize = const Size(411, 2400);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    for (final (title, value) in [
+      ('home_today_title', 'home_today_week'),
+      ('home_week_goal_title', 'home_week_goal_time'),
+    ]) {
+      final t = tester.getRect(key(title));
+      final v = tester.getRect(key(value));
+      final card = _cardOf(tester, value);
+      expect(t.center.dy, closeTo(v.center.dy, 0.01), reason: value);
+      expect(v.left, greaterThan(t.right), reason: value);
+      // Rechtsbündig: rechter Rand des Werts am rechten Innenrand der Karte.
+      expect(
+        card.right - v.right,
+        closeTo(t.left - card.left, 0.01),
+        reason: value,
+      );
+    }
+  });
 }

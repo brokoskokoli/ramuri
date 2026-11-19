@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -61,6 +62,17 @@ class HomeScreen extends StatefulWidget {
   final Clock clock;
   final RecalculationController recalculation;
   final DataChanges changes;
+
+  /// Nur für Tests: umhüllt das Ergebnis jedes Ladelaufs der Erholung;
+  /// [call] zählt die Läufe einer Seite ab 1. Gerechnet wird mit dem Stand
+  /// beim Start des Laufs, der Haken kann nur die Übergabe des Ergebnisses
+  /// verzögern (Reihenfolge der Läufe prüfen). In Release-Builds ohne Wirkung.
+  @visibleForTesting
+  static Future<ReadinessSnapshot?> Function(
+    int call,
+    Future<ReadinessSnapshot?> load,
+  )?
+  debugWrapReadiness;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -225,11 +237,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     widget.clock,
   ).catchError((Object _) => const HomeHints());
 
-  Future<ReadinessSnapshot?> _loadReadiness() => loadReadinessToday(
-    session: widget.session,
-    clock: widget.clock,
-    recalculation: widget.recalculation.service,
-  );
+  /// Gezählte Ladeläufe der Erholung (nur für [HomeScreen.debugWrapReadiness]).
+  int _readinessCalls = 0;
+
+  Future<ReadinessSnapshot?> _loadReadiness() {
+    final load = loadReadinessToday(
+      session: widget.session,
+      clock: widget.clock,
+      recalculation: widget.recalculation.service,
+    );
+    final wrap = HomeScreen.debugWrapReadiness;
+    if (kReleaseMode || wrap == null) return load;
+    return wrap(++_readinessCalls, load);
+  }
 
   /// Wege zum Nachholen auf der Detailseite der Erholung (FR-0111): die
   /// Morgenmessung über ihren vorhandenen Einstieg (nur mit Kamera) und die
@@ -790,24 +810,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      l.planTodayTitle,
-                      style: t.labelMedium?.copyWith(color: c.textMuted),
-                    ),
-                  ),
-                  if (unit != null)
-                    Text(
-                      l.planUnitWeekPhase(
-                        unit.weekIndex + 1,
-                        planPhaseFull(l, unit.phase),
+              _headerLine(
+                Text(
+                  l.planTodayTitle,
+                  key: const Key('home_today_title'),
+                  style: t.labelMedium?.copyWith(color: c.textMuted),
+                ),
+                unit == null
+                    ? null
+                    : Text(
+                        l.planUnitWeekPhase(
+                          unit.weekIndex + 1,
+                          planPhaseFull(l, unit.phase),
+                        ),
+                        key: const Key('home_today_week'),
+                        style: t.labelMedium?.copyWith(color: c.textMuted),
                       ),
-                      key: const Key('home_today_week'),
-                      style: t.labelMedium?.copyWith(color: c.textMuted),
-                    ),
-                ],
               ),
               const SizedBox(height: 10),
               ...lines,
@@ -832,6 +850,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Kopfzeile aus [title] links und [value] rechtsbündig (FR-0205): passen
+  /// beide nicht in eine Zeile, steht [value] linksbündig darunter und darf
+  /// selbst umbrechen – kein Überlauf, nichts abgeschnitten.
+  static Widget _headerLine(Widget title, Widget? value) => SizedBox(
+    width: double.infinity,
+    child: Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 2,
+      children: [title, ?value],
+    ),
+  );
+
   /// Wochenziel als Zeit (FR-0148): gelaufene Zeit dieser Woche gegen die
   /// Wochenzeit des Plans, Kilometer nur als „ca.“. `null` ohne Plan.
   Widget? _weekGoal(BuildContext context, AppLocalizations l, Duration done) {
@@ -854,18 +886,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       key: const Key('home_week_goal'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(child: Text(l.planWeekGoal, style: t.labelMedium)),
-            Text(
-              l.planWeekGoalProgress(
-                planDurationText(l, doneMinutes),
-                planDurationText(l, target),
-              ),
-              key: const Key('home_week_goal_time'),
-              style: t.labelMedium,
+        _headerLine(
+          Text(
+            l.planWeekGoal,
+            key: const Key('home_week_goal_title'),
+            style: t.labelMedium,
+          ),
+          Text(
+            l.planWeekGoalProgress(
+              planDurationText(l, doneMinutes),
+              planDurationText(l, target),
             ),
-          ],
+            key: const Key('home_week_goal_time'),
+            style: t.labelMedium,
+          ),
         ),
         if (approx != null)
           Text(
