@@ -131,6 +131,37 @@ void main() {
     await expectFullRecalculation(w);
   });
 
+  test('gelungen, gescheitert, gelungen: der zweite gelungene rechnet die '
+      'Tage ab dem gescheiterten mit, jeder Tag höchstens einmal', () async {
+    final w = await RecalcWorld.create();
+    final open10 = await w.seedRun(DateTime.utc(2030, 2, 10, 8), speed: 2.7);
+    final failing = await w.seedRun(DateTime.utc(2030, 2, 14, 8));
+    final done16 = await w.seedRun(DateTime.utc(2030, 2, 16, 8), speed: 3.0);
+    final open18 = await w.seedRun(DateTime.utc(2030, 2, 18, 8), speed: 2.9);
+    final done20 = await w.seedRun(DateTime.utc(2030, 2, 20, 8), speed: 3.1);
+    w.clock.set(recalcNow);
+    await w.calc().calculateAfterRun(done16);
+    await w.calc().calculateAfterRun(done20);
+
+    final probe = counting(w)..values.failRun = failing;
+    await expectLater(
+      w.calc(over: probe.session).completePendingCalculations(),
+      throwsA(isA<StorageException>()),
+    );
+
+    for (final id in [open10, open18]) {
+      expect(await runVo2Pairs(w.session, id), hasLength(1));
+    }
+    expect(await runVo2Pairs(w.session, failing), isEmpty);
+    expect(
+      probe.values.dayWrites.values.every((n) => n == 1),
+      isTrue,
+      reason: '${probe.values.dayWrites}',
+    );
+    expect((await longTermOf(w, '2030-02-16')).current.measurementCount, 2);
+    await expectFullRecalculation(w);
+  });
+
   test('gerade beendeter Lauf ohne spätere Tageswerte: nur sein Tag wird '
       'gerechnet', () async {
     final w = await RecalcWorld.create();
