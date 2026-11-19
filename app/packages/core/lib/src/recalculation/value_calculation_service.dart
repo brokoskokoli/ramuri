@@ -143,7 +143,23 @@ class ValueCalculationService {
   /// Versuch ist möglich. Ein Lauf, der schon Werte hat, ist `rejected` (ein
   /// Original wird nie ersetzt). Eine abweichende Parameterversion wirft
   /// [ArgumentError].
-  Future<RunCalculationResult> calculateAfterRun(int runId) async {
+  ///
+  /// Spätere Tage (ADR-0004, FR-0078): Liegen nach dem Tag des Laufs Tage mit
+  /// einem Lauf mit Laufwert (der Lauf wird nachträglich gerechnet), werden
+  /// deren Tageswerte in derselben Transaktion mit dem neuen Laufwert neu
+  /// gerechnet, wie bei [refreshAfterDelete]: vorhandene im `current`
+  /// getauscht (das `original` bleibt, FR-0058), fehlende angelegt. Ohne
+  /// solche Tage (gerade beendeter Lauf) entsteht keine weitere Rechnung.
+  Future<RunCalculationResult> calculateAfterRun(int runId) =>
+      _calculateAfterRun(runId);
+
+  /// [calculateAfterRun]; [refreshDay] wählt die übrigen Tage, deren
+  /// Tageswerte mitgerechnet werden (ohne Angabe: alle nach dem Tag des
+  /// Laufs). Der Tag des Laufs selbst wird immer gerechnet.
+  Future<RunCalculationResult> _calculateAfterRun(
+    int runId, {
+    bool Function(String day, String runDay)? refreshDay,
+  }) async {
     final now = clock.now();
     final run = await session.runs.get(runId);
     if (run == null) throw const StorageException(StorageFailure.notFound);
@@ -172,6 +188,23 @@ class ValueCalculationService {
     );
     final plan = _DayPlan();
     await plan.add(session, day, values.all);
+    final select = refreshDay ?? (d, runDay) => d.compareTo(runDay) > 0;
+    final later = <String>{
+      for (final r in runs)
+        if (runValues.containsKey(r.id) && dayOfRun(r) != day) dayOfRun(r),
+    }.where((d) => select(d, day)).toList()..sort();
+    for (final d in later) {
+      final dayValues = await _dayValues(
+        asOf: _asOf(d, runs, now),
+        computedAt: now,
+        runValues: runValues,
+        fallback: profile,
+        analysisOf: (r, basis) async =>
+            cache[r.id] ??= await _analyzer(basis)
+                .analyze(session, r, calculatedAt: now),
+      );
+      await plan.add(session, d, dayValues.all);
+    }
     // Zonenzeiten und TRIMP mit den Zonengrenzen und der Basis zum Laufende;
     // Zonenzeiten werden nie neu gerechnet (L11), TRIMP nur bei geänderter
     // Basis im current (FR-0006).
@@ -288,6 +321,13 @@ class ValueCalculationService {
   /// ([retryUncomputable]) oder der Stand der Berechnung sich ändert. Gelingt
   /// die Berechnung oder fehlt der Lauf, wird sein Zähler entfernt. Scheitert
   /// nur das Zählen, wird der Lauf beim nächsten Start erneut versucht.
+  ///
+  /// Spätere Tage: Die Läufe werden in der Reihenfolge ihres Endes gerechnet;
+  /// jeder rechnet die späteren Tageswerte ([calculateAfterRun]) nur bis vor
+  /// den Tag des nächsten Laufs, jeder Tag wird so höchstens einmal neu
+  /// gerechnet. Scheitert ein Lauf nach einem gelungenen, rechnet der nächste
+  /// gelungene die Tage ab dem Tag des gescheiterten mit; scheitern die
+  /// letzten, werden diese Tage am Ende in einem Schritt neu gerechnet.
   Future<void> completePendingCalculations() async {
     Object? failure;
     final marked = await _pendingCalculations();
@@ -317,26 +357,67 @@ class ValueCalculationService {
     } on Object {
       // Ohne Zähler wird jeder offene Lauf versucht.
     }
-    for (final id in ({...marked, ...open}).toList()..sort()) {
-      if (open.contains(id) && (counts[id] ?? 0) >= uncomputableAfterFailures) {
-        continue;
-      }
+    // Zu rechnen sind die offenen Läufe unter der Grenze der Fehlversuche, in
+    // der Reihenfolge ihres Endes: Jeder Lauf rechnet die späteren Tage nur
+    // bis vor den Tag des nächsten (der rechnet sie ohnehin), so wird jeder
+    // spätere Tag höchstens einmal neu gerechnet.
+    final byId = {for (final r in finished) r.id: r};
+    final toCalculate = [
+      for (final id in open)
+        if ((counts[id] ?? 0) < uncomputableAfterFailures) byId[id]!,
+    ]..sort(_byEnd);
+    // Tag, ab dem (einschließlich) Tageswerte nach einem gescheiterten Lauf
+    // noch einen früher gerechneten Laufwert brauchen.
+    String? staleFrom;
+    var changed = false;
+    final computed = <int>{};
+    for (var i = 0; i < toCalculate.length; i++) {
+      final id = toCalculate[i].id;
+      final next = i + 1 < toCalculate.length
+          ? dayOfRun(toCalculate[i + 1])
+          : null;
+      final from = staleFrom;
       try {
-        if (open.contains(id)) {
-          try {
-            await calculateAfterRun(id);
-          } on Object {
-            await _recordFailure(counter, id);
-            rethrow;
-          }
-          if (counts.containsKey(id)) await _forget(counter, id);
+        try {
+          await _calculateAfterRun(
+            id,
+            refreshDay: (d, runDay) =>
+                (d.compareTo(runDay) > 0 ||
+                    (from != null && d.compareTo(from) >= 0)) &&
+                (next == null || d.compareTo(next) < 0),
+          );
+        } on Object {
+          await _recordFailure(counter, id);
+          rethrow;
         }
-        if (marked.contains(id) && !unread.contains(id)) await _unmark(id);
+        changed = true;
+        computed.add(id);
+        staleFrom = null;
+        if (counts.containsKey(id)) await _forget(counter, id);
+      } on Object catch (e) {
+        if (changed) staleFrom ??= dayOfRun(toCalculate[i]);
+        failure ??= e;
+      }
+    }
+    if (staleFrom != null) {
+      try {
+        await _refreshDays(from: staleFrom);
       } on Object catch (e) {
         failure ??= e;
       }
     }
+    // Gemerkte Läufe austragen, außer sie sind noch offen oder nicht gelesen.
+    for (final id in marked.toList()..sort()) {
+      if (unread.contains(id)) continue;
+      if (open.contains(id) && !computed.contains(id)) continue;
+      await _unmark(id);
+    }
     if (failure != null) throw failure;
+  }
+
+  static int _byEnd(StoredRun a, StoredRun b) {
+    final c = a.endedAt!.compareTo(b.endedAt!);
+    return c != 0 ? c : a.id.compareTo(b.id);
   }
 
   Future<void> _recordFailure(CalculationFailures counter, int runId) async {
@@ -429,7 +510,11 @@ class ValueCalculationService {
   /// Wird das Neuanlegen unterbrochen, fehlen Tageswerte ohne Grund. Darum
   /// setzt der Aufrufer vor dem Löschen [markRefreshPending]; [completePendingRefresh]
   /// legt die Werte neu an (auch beim nächsten Start) und entfernt den Merker.
-  Future<void> refreshAfterDelete() async {
+  Future<void> refreshAfterDelete() => _refreshDays();
+
+  /// Rechnet die Tageswerte aller Tage mit einem Lauf mit Laufwert neu, ab dem
+  /// Tag [from] (einschließlich; ohne Angabe alle), in EINER Transaktion.
+  Future<void> _refreshDays({String? from}) async {
     final now = clock.now();
     final runs = await _finishedRuns();
     final runValues = <int, ComputedValue>{};
@@ -443,7 +528,9 @@ class ValueCalculationService {
     final plan = _DayPlan();
     final days = <String>{
       for (final r in runs)
-        if (runValues.containsKey(r.id)) dayOfRun(r),
+        if (runValues.containsKey(r.id) &&
+            (from == null || dayOfRun(r).compareTo(from) >= 0))
+          dayOfRun(r),
     };
     for (final day in days.toList()..sort()) {
       final values = await _dayValues(
@@ -459,6 +546,16 @@ class ValueCalculationService {
     }
     await session.values.writeAll(create: plan.create, swap: plan.swap);
   }
+
+  /// Die Tage, deren gespeicherte Tageswerte [buildSnapshot] neu rechnet: alle
+  /// Tage mit einem beendeten Lauf. Ein Tageswert an einem anderen Tag wird
+  /// bei einer Neuberechnung nicht getauscht.
+  Future<Set<String>> recalculableDays() async =>
+      _daysWithRun(await _finishedRuns());
+
+  static Set<String> _daysWithRun(List<StoredRun> runs) => {
+    for (final r in runs) dayOfRun(r),
+  };
 
   /// Rechnet alle Läufe mit gespeichertem Laufwert und deren Tageswerte mit
   /// der aktuellen Profilbasis neu, ohne etwas zu speichern (Zwischenstand der
@@ -515,7 +612,7 @@ class ValueCalculationService {
       ];
     }
     final dayOwners = <ValueOwner, List<ComputedValue>>{};
-    final days = <String>{for (final r in runs) dayOfRun(r)};
+    final days = _daysWithRun(runs);
     for (final day in days.toList()..sort()) {
       final existing = {
         for (final p in await session.values.read(ValueOwner.day(day)))

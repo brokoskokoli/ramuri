@@ -9,6 +9,7 @@ import 'package:running_app/debug/debug_test_sensor.dart';
 import 'package:running_app/system_clock.dart';
 import 'package:core/core.dart';
 import 'package:running_app/features/storage/storage_start.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 
 import 'support/e2e_support.dart';
 
@@ -23,9 +24,15 @@ String _states() => HealthDataKind.values
     .map((k) => '${k.key}=${_on(k.key) ? 1 : 0}')
     .join(' ');
 
-bool _missingText() =>
-    find.textContaining('noch nicht alles freigegeben').evaluate().isNotEmpty ||
-    find.textContaining('not everything').evaluate().isNotEmpty;
+// Hinweis aus der Übersetzung der App, nicht fest eingetragen: so gilt die
+// Prüfung in jeder Emulatorsprache.
+bool _missingText(WidgetTester t) => find
+    .textContaining(
+      AppLocalizations.of(t.element(find.byKey(const Key('health_main'))))
+          .healthRightsMissing,
+    )
+    .evaluate()
+    .isNotEmpty;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -57,7 +64,7 @@ void main() {
     if (!_on('resting_heart_rate')) {
       await tapKey(t, 'health_switch_resting_heart_rate');
     }
-    log('HCA vor Dialog Schalter ${_states()} fehlt-Text=${_missingText()}');
+    log('HCA vor Dialog Schalter ${_states()} fehlt-Text=${_missingText(t)}');
     await shot(t, 'before_dialog', pause: true);
     step('HCA dialog');
     final seen = <AppLifecycleState>[];
@@ -76,7 +83,7 @@ void main() {
     await pumpFor(t, const Duration(seconds: 2));
     WidgetsBinding.instance.removeObserver(obs);
     log('HCA Lebenszyklus ${seen.map((e) => e.name).toList()}');
-    log('HCA nach Dialog Schalter ${_states()} fehlt-Text=${_missingText()}');
+    log('HCA nach Dialog Schalter ${_states()} fehlt-Text=${_missingText(t)}');
     expect(has('health_main'), isTrue);
     expect(find.byType(ErrorWidget), findsNothing);
     await shot(t, 'after_dialog', pause: true);

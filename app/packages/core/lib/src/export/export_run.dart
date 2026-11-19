@@ -3,6 +3,7 @@ import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
 import '../preprocessing/geo.dart';
 import '../recording/belt_track.dart';
+import '../recording/cadence_estimator.dart';
 import '../preprocessing/measurement.dart';
 import '../../ports/file_handoff.dart';
 
@@ -25,6 +26,7 @@ class ExportPoint {
     this.heartRateBpm,
     this.distanceMeters,
     this.speedMetersPerSecond,
+    this.cadenceStepsPerMinute,
   });
 
   final DateTime time;
@@ -38,6 +40,31 @@ class ExportPoint {
 
   /// Nur Bandläufe: eingestellte Geschwindigkeit in m/s.
   final double? speedMetersPerSecond;
+
+  /// Schrittfrequenz (Schritte je Minute) aus dem gespeicherten Zähler
+  /// `raw_steps` zu diesem Zeitstempel ([exportCadenceMethod]).
+  final double? cadenceStepsPerMinute;
+}
+
+/// Methode der exportierten Schrittfrequenz (NFR-0001): Zuwachs des
+/// Schrittzählers `raw_steps` je Minute zwischen dem Wert des Punkts und dem
+/// frühesten Wert desselben Abschnitts, der höchstens [exportCadenceWindow]
+/// davor liegt. Ohne solchen Vorgänger, bei gleicher Zeit oder fallendem
+/// Zähler fehlt der Wert (nie 0, keine Interpolation).
+const String exportCadenceMethod = 'steps-counter-window';
+const int exportCadenceMethodVersion = 1;
+
+/// Fenster der exportierten Schrittfrequenz: dasselbe wie in der Anzeige
+/// ([CadenceEstimator.defaultWindow]).
+const Duration exportCadenceWindow = CadenceEstimator.defaultWindow;
+
+/// Schrittfrequenz in der Einheit von FIT `cadence` und TCX `RunCadence`:
+/// Doppelschritte je Minute (Schritte je Minute / 2), gerundet. Außerhalb
+/// 0…254 (Wertebereich beider Formate) und ohne endlichen Wert `null`.
+int? exportStrideCadence(double? stepsPerMinute) {
+  if (stepsPerMinute == null || !stepsPerMinute.isFinite) return null;
+  final v = (stepsPerMinute / 2).round();
+  return v < 0 || v > 254 ? null : v;
 }
 
 /// Zusammenhängender Abschnitt zwischen zwei Pausen bzw. Unterbrechungen
@@ -283,6 +310,32 @@ ExportRun buildExportRun({
     (b, h) => b.heartRate = h.bpm,
   );
 
+  // Schrittfrequenz aus dem Zähler (FR-0183, FR-0202): je Abschnitt in
+  // Zeitfolge, gerechnet vor dem Abrunden der Zeit.
+  final stepRows = <List<RawSteps>>[for (final _ in bounds) []];
+  for (final row in raw.steps) {
+    final v = row.value;
+    if (v.state != MeasurementState.present) continue;
+    final seg = segmentOf(v.time.microsecondsSinceEpoch);
+    if (seg != null) stepRows[seg].add(v);
+  }
+  final windowUs = exportCadenceWindow.inMicroseconds;
+  for (var i = 0; i < bounds.length; i++) {
+    final rows = stepRows[i]..sort((a, b) => a.time.compareTo(b.time));
+    var from = 0;
+    for (var k = 0; k < rows.length; k++) {
+      final us = rows[k].time.microsecondsSinceEpoch;
+      while (us - rows[from].time.microsecondsSinceEpoch > windowUs) {
+        from++;
+      }
+      final dt = us - rows[from].time.microsecondsSinceEpoch;
+      final dn = rows[k].count - rows[from].count;
+      if (from >= k || dt <= 0 || dn < 0) continue;
+      final b = builders[i].putIfAbsent(floor(us), _PointBuilder.new);
+      b.cadence ??= dn * 60 * Duration.microsecondsPerSecond / dt;
+    }
+  }
+
   // Bandlauf: je volle Sekunde ab Abschnittsbeginn und am Abschnittsende ein
   // Punkt; jeder Punkt (auch ein Pulspunkt) trägt Strecke und Geschwindigkeit
   // aus den Bandeinstellungen.
@@ -359,6 +412,7 @@ class _PointBuilder {
   int? heartRate;
   double? distance;
   double? speed;
+  double? cadence;
 
   void setBelt(BeltTrack belt, DateTime t) {
     distance = belt.metersAt(t);
@@ -374,6 +428,7 @@ class _PointBuilder {
     heartRateBpm: heartRate,
     distanceMeters: distance,
     speedMetersPerSecond: speed,
+    cadenceStepsPerMinute: cadence,
   );
 }
 

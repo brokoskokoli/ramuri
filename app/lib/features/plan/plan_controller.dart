@@ -320,17 +320,25 @@ class PlanController extends ChangeNotifier {
       final warned = await warning.read() != null;
       final held = warningHeldFromSummary(last.summary) != null;
       if (warned != held) {
-        // Banner bzw. Erinnerung zuerst zeigen, nicht erst nach der Rechnung.
-        await _load();
-        await _recalculate(
-          PlanTrigger.feedback,
-          goal,
-          last,
-          reason: warned ? planReasonWarning : planReasonWarningLifted,
-          // Die Heilung ist keine Wochenprüfung: der Prüftag bleibt, damit
-          // eine fällige Bewertung der Vorwoche beim nächsten Öffnen läuft.
-          markChecked: false,
-        );
+        // Banner bzw. Erinnerung zuerst zeigen, nicht erst nach der Rechnung;
+        // unter gespeichertem Signal mit Fortschrittsanzeige wie nach dem
+        // Melden, bis die Rechnung endet (auch wenn sie scheitert). Das
+        // anschließende Laden in [open] blendet sie aus.
+        _warningRecalculating = warned;
+        try {
+          await _load();
+          await _recalculate(
+            PlanTrigger.feedback,
+            goal,
+            last,
+            reason: warned ? planReasonWarning : planReasonWarningLifted,
+            // Die Heilung ist keine Wochenprüfung: der Prüftag bleibt, damit
+            // eine fällige Bewertung der Vorwoche beim nächsten Öffnen läuft.
+            markChecked: false,
+          );
+        } finally {
+          _warningRecalculating = false;
+        }
         return;
       }
     }
@@ -961,7 +969,8 @@ class PlanController extends ChangeNotifier {
         return result;
       });
 
-  /// Läuft nach dem Melden noch die Neuberechnung ([reportWarning])?
+  /// Läuft unter Warnsignal noch die Neuberechnung: nach dem Melden
+  /// ([reportWarning]) oder beim Nachholen der Ruhetag-Fassung in [open]?
   bool get warningRecalculating => _warningRecalculating;
   bool _warningRecalculating = false;
 

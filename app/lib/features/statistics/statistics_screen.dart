@@ -147,8 +147,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       clock: widget.clock,
       offload: OffloadScope.of(context),
     ).load();
-    final fitness = await FitnessOverviewService(session: widget.session)
-        .load([for (final o in overviews) o.run]);
+    final fitness = await FitnessOverviewService(session: widget.session).load(
+      [for (final o in overviews) o.run],
+      runsWithoutHeartRate: {
+        for (final o in overviews)
+          if (o.averageHeartRateBpm == null) o.run.id,
+      },
+    );
     return _Data(overviews, fitness);
   }
 
@@ -388,6 +393,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 today: DateTime.parse('${_today}T00:00:00Z'),
               ),
               LoadCard(
+                currentYear: year,
                 session: widget.session,
                 clock: widget.clock,
                 recalculation: widget.recalculation,
