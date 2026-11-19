@@ -7,6 +7,7 @@ import '../../ui/ramuri_type.dart';
 import '../../ui/section_heading.dart';
 import '../settings/unit_format.dart';
 import '../statistics/fitness_section.dart' show reasonText;
+import '../summary/run_summary_body.dart' show isProfileBasisReason;
 import 'quality_text.dart';
 
 /// Schlüssel für die Quellen eines Laufs (SEC-0005); kein gespeicherter Wert.
@@ -255,17 +256,30 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
         ),
       );
     }
+    final hasHeartRateSource = data.sources.any(
+      (s) => s.kind == ExplainedSourceKind.heartRateDevice,
+    );
     if (value.value == null) {
       final reason = value.unavailableReason;
+      // Laufwert ohne Pulsquelle: Ein Grund aus der Profilbasis heißt dann
+      // „kein Puls“ (FR-0057); der Profilhinweis unten bleibt (FR-0055).
+      final noHeartRateInRun =
+          widget.runId != null &&
+          !hasHeartRateSource &&
+          reason != null &&
+          isProfileBasisReason(reason);
       out
         ..add(Heading(l10n.explReasonHeading))
         ..add(
           Text(
-            reason == null ? l10n.runUnavailable : reasonText(l10n, reason),
+            reason == null
+                ? l10n.runUnavailable
+                : reasonText(l10n, reason, hasHeartRate: !noHeartRateInRun),
             key: const Key('expl_reason'),
           ),
         );
-      if (reason == UnavailableReason.noHeartRate ||
+      if (noHeartRateInRun ||
+          reason == UnavailableReason.noHeartRate ||
           reason == UnavailableReason.insufficientCoverage) {
         out.add(Text(l10n.explNeedsHeartRate, key: const Key('expl_needs_hr')));
       }
@@ -294,9 +308,7 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
     if (widget.runId != null) {
       out.add(
         Text(
-          data.sources.any((s) => s.kind == ExplainedSourceKind.heartRateDevice)
-              ? l10n.explDataBasisGpsHr
-              : l10n.explDataBasisGps,
+          hasHeartRateSource ? l10n.explDataBasisGpsHr : l10n.explDataBasisGps,
           key: const Key('expl_data_basis'),
         ),
       );

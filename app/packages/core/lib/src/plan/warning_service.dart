@@ -46,41 +46,30 @@ class WarningService {
         warningReminderDue(reportedOn: w.reportedOn, today: today);
   }
 
-  /// Meldet das Warnsignal und schreibt die Ruhetag-Fassung. Besteht schon
-  /// eines, bleibt es mit Tag, Quelle und Lauf unverändert und es entsteht
-  /// keine weitere Fassung (idempotent); der Plan wird trotzdem geprüft, ein
-  /// früher gescheiterter Schreibversuch holt sich so nach. [today] ist der
-  /// Ortstag. Scheitert das Schreiben des Plans, nimmt der Dienst die eben
-  /// gesetzte Zeile zurück und wirft den Fehler weiter: Warnsignal und Plan
-  /// gelten beide oder keines. Ein schon früher gesetztes Warnsignal bleibt.
-  /// Die Plan-Seite nutzt stattdessen [mark] und [recalculateReported].
+  /// Meldet das Warnsignal und schreibt die Ruhetag-Fassung: [mark], dann
+  /// [recalculateReported]. Besteht schon eines, bleibt es mit Tag, Quelle
+  /// und Lauf unverändert und es entsteht keine weitere Fassung (idempotent);
+  /// der Plan wird trotzdem geprüft, ein früher gescheiterter Schreibversuch
+  /// holt sich so nach. [today] ist der Ortstag. Scheitert das Schreiben des
+  /// Plans, bleibt das Signal gespeichert und der Fehler geht an den
+  /// Aufrufer; die nächste Neuberechnung (z. B. beim Öffnen der Plan-Seite)
+  /// stellt die Ruhetag-Fassung her.
   Future<PlanRecalculation> report({
     required WarningSource source,
     required DateTime today,
     required DateTime now,
     int? runId,
   }) async {
-    final created = await mark(source: source, today: today, runId: runId);
-    try {
-      return await recalculateReported(today: today, now: now);
-    } catch (_) {
-      if (created) {
-        try {
-          await warning.lift();
-        } catch (_) {
-          // Der ursprüngliche Fehler zählt; die nächste Neuberechnung legt
-          // die gesetzte Zeile über den Plan.
-        }
-      }
-      rethrow;
-    }
+    await mark(source: source, today: today, runId: runId);
+    return recalculateReported(today: today, now: now);
   }
 
   /// Erster Schritt des Meldens: setzt das Warnsignal, falls noch keines
   /// besteht (Tag, Quelle und Lauf eines bestehenden bleiben). `true`, wenn
   /// es neu gesetzt wurde. Die Ruhetag-Fassung schreibt erst
   /// [recalculateReported]; bis dahin passt der Plan nicht zum Signal, das
-  /// nächste Öffnen der Plan-Seite stellt ihn sonst her.
+  /// nächste Öffnen der Plan-Seite stellt ihn sonst her. Scheitert schon das
+  /// Speichern, besteht kein neues Signal und der Fehler geht an den Aufrufer.
   Future<bool> mark({
     required WarningSource source,
     required DateTime today,
@@ -94,8 +83,9 @@ class WarningService {
   }
 
   /// Zweiter Schritt des Meldens: schreibt die Ruhetag-Fassung zum gesetzten
-  /// Warnsignal. Scheitert das, bleibt das Signal gesetzt und der Fehler geht
-  /// an den Aufrufer.
+  /// Warnsignal (auch ein schon länger bestehendes: ein früher gescheiterter
+  /// Schreibversuch holt sich so nach). Scheitert das, bleibt das Signal
+  /// gesetzt und der Fehler geht an den Aufrufer.
   Future<PlanRecalculation> recalculateReported({
     required DateTime today,
     required DateTime now,

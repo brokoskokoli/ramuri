@@ -73,6 +73,7 @@ Future<void> _pump(
   String locale = 'de',
   double scale = 1,
   PlanController? controller,
+  bool settle = true,
 }) async {
   tester.view.physicalSize = const Size(411, 2400);
   tester.view.devicePixelRatio = 1;
@@ -100,7 +101,8 @@ Future<void> _pump(
       ),
     ),
   );
-  await _settle(tester);
+  // Ohne Abwarten der Animationen, solange eine Fortschrittsanzeige läuft.
+  settle ? await _settle(tester) : await _pumpFew(tester);
 }
 
 Future<void> _settle(WidgetTester tester) async {
@@ -264,6 +266,49 @@ void main() {
 
       // Das nächste Öffnen holt die Ruhetag-Fassung nach.
       await _pump(tester, session, clock);
+      expect(key('plan_warning_banner'), findsOneWidget);
+      final h = (await tester.runAsync(plans.history))!;
+      expect(h, hasLength(versions + 1));
+      expect(h.last.reason, 'warning');
+    });
+
+    testWidgets('Öffnen holt die Ruhetag-Fassung nach: Banner mit '
+        'Fortschrittsanzeige, bis die Rechnung endet', (tester) async {
+      final (session, clock) =
+          await tester.runAsync(_withPlan) as (StorageSession, FakeClock);
+      final plans = (session as PlanStorage).plans;
+      final store = (session as WarningStorage).warning;
+      final versions = (await tester.runAsync(plans.history))!.length;
+      // Signal gespeichert, Ruhetag-Fassung fehlt (Neuberechnung nach dem
+      // Melden gescheitert).
+      await tester.runAsync(
+        () => store.set(
+          WarningSignal(reportedOn: _today, source: WarningSource.manual),
+        ),
+      );
+      final gate = Completer<List<RunFigures>>();
+      final controller = _controller(
+        session,
+        clock,
+        loadRuns: () => gate.future,
+      );
+      await _pump(
+        tester,
+        session,
+        clock,
+        controller: controller,
+        settle: false,
+      );
+
+      expect(gate.isCompleted, isFalse);
+      expect(controller.warningRecalculating, isTrue);
+      expect(key('plan_warning_banner'), findsOneWidget);
+      expect(key('plan_warning_progress'), findsOneWidget);
+      expect((await tester.runAsync(plans.history))!, hasLength(versions));
+
+      gate.complete(const []);
+      await _settle(tester);
+      expect(key('plan_warning_progress'), findsNothing);
       expect(key('plan_warning_banner'), findsOneWidget);
       final h = (await tester.runAsync(plans.history))!;
       expect(h, hasLength(versions + 1));

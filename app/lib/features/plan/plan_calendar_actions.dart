@@ -307,6 +307,8 @@ extension _PlanCalendarActions on _PlanCalendarState {
         .subtract(const Duration(days: 7));
     final to = _mondayOf(a.isBefore(b) ? b : a).add(const Duration(days: 13));
     final data = await _read(from, to);
+    // Reduktion wie im Wochenverlauf: frühestens nach der Geh-Lauf-Abfolge.
+    final course = await widget.controller.courseWeeks();
     return checkPlanMove(
       units: data.units,
       unit: u,
@@ -320,6 +322,8 @@ extension _PlanCalendarActions on _PlanCalendarState {
       runDays: goal.runDays,
       targetDate: goal.targetDate,
       distance: goal.distance,
+      anchor: course?.anchor,
+      walkRunWeeks: course?.walkRunWeeks ?? 0,
       parameters: widget.controller.parameters,
     );
   }
