@@ -867,7 +867,16 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
                     onPressed: _busy
                         ? null
                         : () {
-                            _set(() => _date = offer);
+                            // Das Angebot ist UTC-Mitternacht; übernommen
+                            // wird sein Tag als lokaler Kalendertag wie bei
+                            // der Wahl im Kalender.
+                            _set(
+                              () => _date = DateTime(
+                                offer.year,
+                                offer.month,
+                                offer.day,
+                              ),
+                            );
                             _assess();
                           },
                     child: Text(

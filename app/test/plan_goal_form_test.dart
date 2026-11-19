@@ -735,7 +735,9 @@ void main() {
   });
 
   testWidgets('Einschätzung „knapp“ mit Angebot eines Datums; Übernehmen '
-      'setzt das Datum und schätzt neu ein', (tester) async {
+      'setzt das Datum, schätzt neu ein und speichert den angebotenen Tag', (
+    tester,
+  ) async {
     final clock = FakeClock(_now);
     final session = await _withPlan(
       _goal(target: DateTime(2026, 11, 25)),
@@ -773,6 +775,17 @@ void main() {
           .widget<Text>(find.byKey(const Key('plan_form_assessment_main')))
           .data,
       de.planAssessFits,
+    );
+    // Gespeichert wird der angebotene Tag als lokaler Kalendertag, so wie
+    // ihn auch die Wahl im Kalender liefert (FR-0136); als UTC-Mitternacht
+    // läge er westlich von UTC auf dem Vortag.
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
+    final saved = (await (session as GoalStorage).goals.goal())!.targetDate!;
+    expect(saved, DateTime(offer.year, offer.month, offer.day));
+    expect(saved.isUtc, isFalse);
+    expect(
+      (saved.year, saved.month, saved.day),
+      (offer.year, offer.month, offer.day),
     );
   });
 
