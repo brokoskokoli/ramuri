@@ -225,6 +225,30 @@ void main() {
     });
 
     test(
+      'Pulshinweis im alten Abschnitt gegeben: im neuen genau einmal wieder',
+      () {
+        final s2 = [
+          seg(PlanSegmentKind.easy, 10, max: 140),
+          seg(PlanSegmentKind.easy, 10, max: 140),
+        ];
+        final a = GuidanceAnnouncer(segments: s2);
+        // Durchgehend über der Grenze: Hinweis bei 210 s, Sprung bei 300 s.
+        final sim = Sim(a)..play(0, 300, bpm: (_) => 150);
+        expect(sim.of(GuidanceEventKind.heartRateAbove).map((x) => x.$1), [
+          210,
+        ]);
+        a.skip(s(300));
+        sim.play(301, 900, bpm: (_) => 150);
+        // Neuer Abschnitt ab 300 s: Fenster ab 480 s, plus 30 s über der
+        // Grenze; ohne Rückkehr in den Bereich danach nicht noch einmal.
+        expect(sim.of(GuidanceEventKind.heartRateAbove).map((x) => x.$1), [
+          210,
+          510,
+        ]);
+      },
+    );
+
+    test(
       'Rückgängig: keine erneute Ansage, Abschnitt läuft nach Zeit weiter',
       () {
         final a = GuidanceAnnouncer(segments: segs);
