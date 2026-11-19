@@ -201,6 +201,21 @@ void main() {
       );
     });
 
+    test('spätere Messung eines anderen Geräts: kein Zusatz „spätere zählen '
+        'nicht“', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, hour: 6, quality: PpgQuality.limited, hr: 56),
+        // Eigene Reihe, zählt dort; ohne HRV (eingeschränkt), damit der
+        // Grund weiter aus der ersten Messung des Tages kommt.
+        _m(_today, hour: 7, quality: PpgQuality.limited, hr: 57, model: 'M2'),
+      ]);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(ReadinessMissingCode.cameraQualityLimited),
+      );
+    });
+
     test('2 Werte in 7 Tagen: 2 von 3', () {
       final r = _run([_m(_back(3)), _m(_today)]);
       expect(
