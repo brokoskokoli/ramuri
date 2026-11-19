@@ -80,6 +80,11 @@ Future<void> _checkAndSave(WidgetTester t) async {
   await waitFor(t, () => has('plan_form_save'), 'Speichern-Knopf');
   expect(has('plan_form_assessment'), isTrue);
   await tapKey(t, 'plan_form_save');
+  await waitFor(
+    t,
+    () => has('plan_form_care') || has('plan_goal_saved'),
+    'Rueckfrage plan_form_care oder Meldung plan_goal_saved',
+  );
   if (has('plan_form_care')) {
     await tapDialog(t, 'plan_form_care_confirm');
   }

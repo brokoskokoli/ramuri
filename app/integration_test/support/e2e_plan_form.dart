@@ -122,6 +122,11 @@ Future<void> checkAndSaveGoal(WidgetTester t, String prefix) async {
   expect(has('plan_form_error'), isFalse, reason: 'Formular meldet Fehler');
   await waitFor(t, () => has('plan_form_save'), 'Speichern-Knopf');
   await tapKey(t, 'plan_form_save');
+  await waitFor(
+    t,
+    () => has('plan_form_care') || has('plan_goal_saved'),
+    'Rueckfrage plan_form_care oder Meldung plan_goal_saved',
+  );
   if (has('plan_form_care')) {
     await tapDialog(t, 'plan_form_care_confirm');
   }

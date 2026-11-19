@@ -54,6 +54,11 @@ void main() {
       await restart(t, debug);
       await tapKey(t, 'home_overview');
       await tapKey(t, 'home_settings');
+      await waitFor(
+        t,
+        () => !has('home_settings'),
+        'Einstellungen offen (home_settings verdeckt)',
+      );
       await t.scrollUntilVisible(
         find.byKey(const Key('settings_health')),
         300,
@@ -154,6 +159,11 @@ void main() {
         await restart(t, debug);
         await tapKey(t, 'home_overview');
         await tapKey(t, 'home_settings');
+        await waitFor(
+          t,
+          () => !has('home_settings'),
+          'Einstellungen offen (home_settings verdeckt)',
+        );
         await t.scrollUntilVisible(
           find.byKey(const Key('settings_health')),
           300,
