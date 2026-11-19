@@ -734,13 +734,20 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            l.planFormRegulatorRelaxed,
-            style: text.bodySmall?.copyWith(color: c.textLabel),
+          // Flexible: bei großer Schrift umbrechen statt überlaufen.
+          Flexible(
+            child: Text(
+              l.planFormRegulatorRelaxed,
+              style: text.bodySmall?.copyWith(color: c.textLabel),
+            ),
           ),
-          Text(
-            l.planFormRegulatorDemanding,
-            style: text.bodySmall?.copyWith(color: c.textLabel),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              l.planFormRegulatorDemanding,
+              textAlign: TextAlign.end,
+              style: text.bodySmall?.copyWith(color: c.textLabel),
+            ),
           ),
         ],
       ),

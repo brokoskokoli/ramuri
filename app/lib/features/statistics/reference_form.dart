@@ -168,7 +168,10 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
     );
     setState(() {
       _preset = null;
-      _distance.text = value.toStringAsFixed(2);
+      final text = value.toStringAsFixed(2);
+      _distance.text = widget.formatter.languageCode == 'de'
+          ? text.replaceAll('.', ',')
+          : text;
       _hours.text = '${total ~/ 3600}';
       _minutes.text = '${total % 3600 ~/ 60}';
       _seconds.text = '${total % 60}';
