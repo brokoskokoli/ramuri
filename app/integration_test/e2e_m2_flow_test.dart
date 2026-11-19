@@ -278,15 +278,7 @@ void main() {
           DateTime.utc(d0.year, d0.month, d0.day + 8),
         ),
       ))!;
-      // Dauer des ersten Abschnitts der heutigen Einheit: daraus folgt die Frist des Abschnittswechsels.
-      var firstSegmentSeconds = 300;
       for (final u in near) {
-        if (u.day.year == d0.year &&
-            u.day.month == d0.month &&
-            u.day.day == d0.day &&
-            u.segments.isNotEmpty) {
-          firstSegmentSeconds = u.segments.first.durationSeconds;
-        }
         log(
           'M2 unit day=${u.day.toIso8601String().substring(0, 10)} kind=${u.kind.name} min=${u.minutes} seg=${u.segments.length}',
         );
@@ -317,22 +309,37 @@ void main() {
       log('M2 guided_started run_time_built=${has('run_time')}');
 
       step('M2 abschnittswechsel');
-      // Abschnittswechsel abwarten (Echtzeit, die Einheit beginnt mit Aufwaermen/Lauf-Gehen).
+      // Abschnitt überspringen (FR-0218) statt auf den Wechsel nach Zeit zu
+      // warten: erst überspringen und „Rückgängig“ (der Abschnitt ist wieder
+      // da), dann überspringen und den Wechsel prüfen.
       final first = txt('guided_section');
-      final dl = DateTime.now().add(
-        Duration(seconds: firstSegmentSeconds + 120),
+      await _tapVisible(t, 'guided_skip');
+      await waitFor(
+        t,
+        () => txt('guided_section') != first,
+        'Wechsel nach Ueberspringen',
       );
-      while (txt('guided_section') == first) {
-        if (DateTime.now().isAfter(dl)) {
-          fail('kein Abschnittswechsel in ${firstSegmentSeconds + 120} s');
-        }
-        expect(
-          has('map_consent_dialog'),
-          isFalse,
-          reason: 'Karten-Frage im Lauf',
-        );
-        await pumpFor(t, const Duration(seconds: 1));
-      }
+      await waitFor(t, () => has('guided_skip_undo'), 'Hinweis Rueckgaengig');
+      await _tapVisible(t, 'guided_skip_undo');
+      await waitFor(
+        t,
+        () => txt('guided_section') == first,
+        'Abschnitt nach Rueckgaengig',
+      );
+      log('M2 skip_undone');
+      // Der Hinweis des ersten Sprungs ist weg, bevor erneut gesprungen wird.
+      await waitFor(t, () => !has('guided_skip_undo'), 'Hinweis zu');
+      await _tapVisible(t, 'guided_skip');
+      await waitFor(
+        t,
+        () => txt('guided_section') != first,
+        'Wechsel nach Ueberspringen',
+      );
+      expect(
+        has('map_consent_dialog'),
+        isFalse,
+        reason: 'Karten-Frage im Lauf',
+      );
       log('M2 section_changed');
 
       step('M2 beenden');

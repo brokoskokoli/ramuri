@@ -13,7 +13,7 @@ Läuft auf GitHub im Workflow `e2e` (je API 31 und 36, zwei Shards) über `tool/
 | Morgenmessung (Entwicklermodus, K67/K68, Gurtzeile, Ruhephase überspringen, Haltungsmarke, Fake-Kamera, Gurt-RR, Messpaare und Ausschalten in den Entwicklereinstellungen) | `e2e_morning_test.dart` | `sammlung` / sammlung |
 | Health-Connect-Import (Debug-Quelle: Rechte, Abruf, Verlauf, Übernehmen, Widerruf mit Löschfrage, Installieren); echter Dialog nur lokal mit `--dart-define=HC_REAL=true` | `e2e_health_test.dart` | `sammlung` / sammlung |
 | Wiederanlauf eines laufenden Laufs nach Prozessende | `e2e_recover_test.dart` | `recover-a`, `recover-b` / stufen |
-| Plan, geführte Einheit in Echtzeit (~5,5 min), „Aus dem Plan“, Rückmeldung, Zieländerung, Planverlauf; Karten-Frage nur in der Zusammenfassung | `e2e_m2_flow_test.dart` | `m2-flow` / stufen |
+| Plan, geführte Einheit mit „Abschnitt überspringen“ und „Rückgängig“ (FR-0218), „Aus dem Plan“, Rückmeldung, Zieländerung, Planverlauf; Karten-Frage nur in der Zusammenfassung | `e2e_m2_flow_test.dart` | `m2-flow` / stufen |
 | Erholung (WP34): Basis, Kamera, Health Connect, Verlauf, Ortstag, Schlaf als Faktor mit fester Uhr (PAR-164: zählt bis Mitternacht, danach Grund „Schlaf fehlt“), Karten flackern beim Aufheben nicht (frische Installation, Stufe wegen der gesetzten Daten) | `e2e_readiness_test.dart` | `readiness` / stufen |
 | Speicher nach Prozessende (Schreiben, Lesen) | `e2e_storage_test.dart` | `storage-a`, `storage-b` / stufen |
 
