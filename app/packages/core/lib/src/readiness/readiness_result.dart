@@ -4,6 +4,7 @@ import '../morning/morning_marks.dart' show MorningRmssdMark;
 import 'readiness_deviation.dart' show ReadinessSource;
 import 'readiness_explanation.dart' show ReadinessExplanation;
 import 'readiness_level.dart' show ReadinessLevel, ReadinessLevelReason;
+import 'readiness_missing.dart' show ReadinessMissingReason;
 import 'readiness_parameters.dart';
 
 /// Die fünf Faktoren des Gesamtwerts (FR-0110).
@@ -183,6 +184,7 @@ class ReadinessResult {
     required this.level,
     required this.levelReasons,
     required this.explanation,
+    this.missingReasons = const {},
   });
 
   final String method = readinessMethod;
@@ -228,6 +230,9 @@ class ReadinessResult {
 
   /// Erklärung nach PAR-172 und PAR-170 als strukturierte Bausteine.
   final ReadinessExplanation explanation;
+
+  /// Grund je fehlendem Faktor aus [missing] mit Wegen zum Nachholen (FR-0111).
+  final Map<ReadinessFactorId, ReadinessMissingReason> missingReasons;
 
   /// Mit Zahl, aber ohne alle Faktoren: als eingeschränkt erkennbar (FR-0111).
   bool get restricted => state == ReadinessState.number && missing.isNotEmpty;

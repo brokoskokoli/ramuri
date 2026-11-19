@@ -193,6 +193,7 @@ export 'src/reminders/morning_reminder.dart';
 export 'src/readiness/readiness_deviation.dart';
 export 'src/readiness/readiness_explanation.dart';
 export 'src/readiness/readiness_level.dart';
+export 'src/readiness/readiness_missing.dart';
 export 'src/readiness/readiness_model.dart';
 export 'src/readiness/readiness_parameters.dart';
 export 'src/readiness/readiness_precedence.dart';

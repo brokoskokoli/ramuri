@@ -406,8 +406,8 @@ void main() {
           _text('readiness_text'),
           startsWith(
             de
-                ? 'Heute fehlt der HRV-Wert der letzten Nacht.'
-                : 'Today there is no HRV value from last night.',
+                ? 'HRV (RMSSD): Heute noch keine Messung.'
+                : 'HRV (RMSSD): No measurement today yet.',
           ),
         );
         // Die Tatsachen stehen auf der Karte (PAR-171K), nicht nur der Grund.
@@ -931,6 +931,115 @@ void main() {
       // Der Hinweis steht einmal (Karte der Morgenmessung, WP33).
       expect(find.text('Entwicklermodus aktiv'), findsOneWidget);
       expect(_key('readiness_value'), findsOneWidget);
+    });
+
+    // Wege zum Nachholen über die App-Verdrahtung (FR-0111, PAR-164K): die
+    // Karte auf „Heute“ reicht die Aktionen an die Detailseite weiter, die
+    // Schlafangabe landet an der heutigen Morgenmessung, und die Karte lädt
+    // danach neu.
+    Future<void> openDetail(WidgetTester tester) async {
+      await tester.ensureVisible(_key('readiness_where_from'));
+      await tester.tap(_key('readiness_where_from'));
+      await tester.pumpAndSettle();
+      expect(_key('readiness_detail'), findsOneWidget);
+    }
+
+    Future<void> tapKey(WidgetTester tester, String k) async {
+      await tester.ensureVisible(_key(k));
+      await tester.pumpAndSettle();
+      await tester.tap(_key(k));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Heute → Detailseite: „Schlaf angeben“ speichert an der '
+        'Morgenmessung, Karte lädt neu', (tester) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await SettingsDeveloperModeStore(s.settings, d.clock).set(true);
+      await _seedCamera(s);
+      await _start(tester, d);
+      expect(_key('readiness_card'), findsOneWidget);
+
+      await openDetail(tester);
+      expect(_key('readiness_detail_missing_sleep'), findsOneWidget);
+      expect(_key('readiness_detail_enter_sleep'), findsOneWidget);
+      await tapKey(tester, 'readiness_detail_enter_sleep');
+      expect(_key('readiness_sleep_sheet'), findsOneWidget);
+      await tapKey(tester, 'readiness_sleep_from7to8');
+      await tapKey(tester, 'readiness_sleep_done');
+      await tester.runAsync(() async {});
+      await tester.pumpAndSettle();
+
+      // Gespeichert an der heutigen (einzigen) Morgenmessung des Ortstags.
+      final stored = (await tester.runAsync(
+        (s as MorningStorage).morning.list,
+      ))!;
+      final today = stored.singleWhere(
+        (e) => e.value.measuredAt == _cam(28).measuredAt,
+      );
+      expect(today.value.sleepBand, SleepBand.from7to8);
+      expect(stored.where((e) => e.value.sleepBand != null), hasLength(1));
+
+      // Zurück auf „Heute“: die Karte hat neu geladen, ihre Detailseite zeigt
+      // Schlaf als Selbstangabe statt als fehlend.
+      Navigator.of(tester.element(_key('readiness_detail'))).pop();
+      await tester.pumpAndSettle();
+      expect(_key('readiness_detail'), findsNothing);
+      await openDetail(tester);
+      expect(_key('readiness_detail_missing_sleep'), findsNothing);
+      expect(_key('readiness_detail_factor_sleep'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: _key('readiness_detail_factor_sleep'),
+          matching: find.text(
+            readinessSourceName(
+              AppLocalizationsDe(),
+              ReadinessFactorSource.selfReport,
+            ),
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(_key('readiness_detail_change_sleep'), findsOneWidget);
+    });
+
+    testWidgets('Heute → Detailseite ohne heutige Messung: „Morgenmessung '
+        'starten“ steht da', (tester) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await SettingsDeveloperModeStore(s.settings, d.clock).set(true);
+      for (var i = 0; i < 28; i++) {
+        await (s as MorningStorage).morning.add(_cam(i));
+      }
+      await _start(tester, d);
+      await openDetail(tester);
+      expect(_key('readiness_detail_missing_hrv'), findsOneWidget);
+      expect(_key('readiness_detail_start_morning_hrv'), findsOneWidget);
+      expect(_key('readiness_detail_enter_sleep'), findsNothing);
+    });
+
+    testWidgets('Heute → Detailseite ohne Entwicklermodus (Sperre, K62): '
+        'kein „Schlaf angeben“, kein „Morgenmessung starten“', (tester) async {
+      final d = Device();
+      final s = await _preopen(d);
+      // Zahl aus Health Connect ohne Schlaf; heutige Morgenmessung gespeichert,
+      // vor der Freigabe aber gesperrt.
+      await _seedHealth(s, sleepDays: 0);
+      await _grant(s, _allKinds);
+      await _seedCamera(s);
+      await _start(tester, d);
+      expect(_key('readiness_card'), findsOneWidget);
+      await openDetail(tester);
+      expect(_key('readiness_detail_missing_sleep'), findsOneWidget);
+      expect(_key('readiness_detail_enter_sleep'), findsNothing);
+      expect(_key('readiness_detail_change_sleep'), findsNothing);
+      expect(
+        find.descendant(
+          of: _key('readiness_detail_missing'),
+          matching: find.byType(TextButton),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('Entwicklermodus ohne Gesundheitsdaten: keine Zahl', (

@@ -22,7 +22,11 @@ class ReadinessCard extends StatelessWidget {
     required this.snapshot,
     this.onWhereFrom,
     this.warning = false,
+    this.actions = const ReadinessActions(),
   });
+
+  /// Wege zum Nachholen auf der Detailseite (FR-0111).
+  final ReadinessActions actions;
 
   /// Warnsignal aktiv (FR-0203): die Detailseite nennt es vor der Einschätzung.
   final bool warning;
@@ -116,6 +120,7 @@ class ReadinessCard extends StatelessWidget {
                     builder: (_) => ReadinessDetailScreen(
                       snapshot: snapshot,
                       warning: warning,
+                      actions: actions,
                     ),
                   ),
                 ),

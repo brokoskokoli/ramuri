@@ -6,7 +6,33 @@ import '../../ui/ui.dart';
 import 'readiness_card.dart' show ReadinessRing;
 import 'readiness_history_screen.dart';
 import 'readiness_service.dart';
+import 'readiness_sleep_entry.dart';
 import 'readiness_texts.dart';
+
+/// Wege zum Nachholen fehlender Faktoren auf der Detailseite (FR-0111). Fehlt
+/// ein Weg (`null`), gibt es seinen Knopf nicht.
+class ReadinessActions {
+  const ReadinessActions({
+    this.reload,
+    this.startMorning,
+    this.saveSleep,
+    this.changed,
+  });
+
+  /// Rechnet die Einschätzung neu (nach einer Messung oder Angabe).
+  final Future<ReadinessSnapshot?> Function()? reload;
+
+  /// Öffnet den vorhandenen Einstieg der Morgenmessung; nur, wenn sie
+  /// erreichbar ist (Kamera vorhanden).
+  final Future<void> Function(BuildContext context)? startMorning;
+
+  /// Setzt `sleepBand` der Morgenmessung [measurementId] (PAR-164K) über
+  /// denselben Speicherweg wie die Morgenmessung; `null` löscht die Angabe.
+  final Future<void> Function(int measurementId, SleepBand? band)? saveSleep;
+
+  /// Nach einer Änderung: die Karte auf „Heute“ neu laden.
+  final VoidCallback? changed;
+}
 
 /// Detailseite „Erholung“ (WP34 Teil D2, Design
 /// `design/screens/readiness/Detail.dc.html`): Zahl oder eingeschränkte
@@ -15,11 +41,12 @@ import 'readiness_texts.dart';
 /// Faktoren, markierte Tatsachen (PAR-171K) und das Modell `readiness v1`.
 /// Beschreibt Daten, stellt keine Diagnose; der Entwicklermodus kennzeichnet
 /// nichts (K62 Punkt 6), nur der unauffällige Hinweis steht da.
-class ReadinessDetailScreen extends StatelessWidget {
+class ReadinessDetailScreen extends StatefulWidget {
   const ReadinessDetailScreen({
     super.key,
     required this.snapshot,
     this.warning = false,
+    this.actions = const ReadinessActions(),
   });
 
   final ReadinessSnapshot snapshot;
@@ -27,10 +54,55 @@ class ReadinessDetailScreen extends StatelessWidget {
   /// Warnsignal aktiv (FR-0203): der feste Hinweis steht vor der Einschätzung.
   final bool warning;
 
+  /// Wege zum Nachholen (Morgenmessung, Schlafangabe) und Neuberechnung.
+  final ReadinessActions actions;
+
+  @override
+  State<ReadinessDetailScreen> createState() => _ReadinessDetailScreenState();
+}
+
+class _ReadinessDetailScreenState extends State<ReadinessDetailScreen> {
+  late ReadinessSnapshot _snapshot = widget.snapshot;
+
+  Future<void> _refresh() async {
+    widget.actions.changed?.call();
+    final next = await widget.actions.reload?.call();
+    if (!mounted || next == null) return;
+    setState(() => _snapshot = next);
+  }
+
+  Future<void> _startMorning() async {
+    final start = widget.actions.startMorning;
+    if (start == null) return;
+    await start(context);
+    if (mounted) await _refresh();
+  }
+
+  Future<void> _enterSleep() async {
+    final save = widget.actions.saveSleep;
+    final entry = _snapshot.sleepEntry;
+    if (save == null || entry == null) return;
+    await showReadinessSleepSheet(
+      context,
+      initial: entry.band,
+      save: (band) => save(entry.measurementId, band),
+    );
+    if (mounted) await _refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final snapshot = _snapshot;
+    final warning = widget.warning;
     final r = snapshot.result;
+    final canEnterSleep =
+        widget.actions.saveSleep != null && snapshot.sleepEntry != null;
+    final sleepSelfReport = r.factors.any(
+      (f) =>
+          f.id == ReadinessFactorId.sleep &&
+          f.source == ReadinessFactorSource.selfReport,
+    );
     // Eingeschränkt: die ersten zwei Tatsachen und die markierten stehen schon
     // im Text oben (readinessCardText), unten nur die weiteren, nichts doppelt.
     final tatsachen = r.state == ReadinessState.limited
@@ -68,13 +140,13 @@ class ReadinessDetailScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleSmall
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
-                  for (var i = 0; i < r.levelReasons.length; i++)
+                  for (final (i, text) in readinessLevelReasonTexts(
+                    l,
+                    r,
+                  ).indexed)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        readinessReasonText(l, r.levelReasons[i]),
-                        key: Key('readiness_detail_reason_$i'),
-                      ),
+                      child: Text(text, key: Key('readiness_detail_reason_$i')),
                     ),
                 ],
               ),
@@ -141,8 +213,17 @@ class ReadinessDetailScreen extends StatelessWidget {
                                   weight: readinessWeightOf(id),
                                 ),
                                 Text(
-                                  readinessMissingText(l, id),
+                                  readinessMissingText(l, r, id),
+                                  key: Key(
+                                    'readiness_detail_missing_reason_${id.name}',
+                                  ),
                                   style: _muted(context),
+                                ),
+                                ..._catchUp(
+                                  context,
+                                  id,
+                                  r.missingReasons[id]?.catchUp ?? const [],
+                                  canEnterSleep: canEnterSleep,
                                 ),
                               ],
                             ),
@@ -152,6 +233,18 @@ class ReadinessDetailScreen extends StatelessWidget {
                       ],
                     ),
             ),
+            if (sleepSelfReport && canEnterSleep)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton(
+                  key: const Key('readiness_detail_change_sleep'),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, RamuriTheme.minTarget),
+                  ),
+                  onPressed: _enterSleep,
+                  child: Text(l.readinessCatchUpChangeSleep),
+                ),
+              ),
             if (tatsachen.isNotEmpty) ...[
               const SizedBox(height: 16),
               _Section(
@@ -251,6 +344,70 @@ class ReadinessDetailScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Knopf bzw. Hinweis unter dem Grund (FR-0111). Knöpfe nur, wo der Weg
+  /// da ist ([ReadinessActions]).
+  List<Widget> _catchUp(
+    BuildContext context,
+    ReadinessFactorId id,
+    List<ReadinessCatchUp> ways, {
+    required bool canEnterSleep,
+  }) {
+    final l = AppLocalizations.of(context);
+    Widget button(Key key, String label, VoidCallback onPressed) => Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: TextButton(
+        key: key,
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, RamuriTheme.minTarget),
+          padding: const EdgeInsets.symmetric(horizontal: 0),
+        ),
+        onPressed: onPressed,
+        child: Text(label),
+      ),
+    );
+    Widget hint(ReadinessCatchUp c, String text) => Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Text(
+        text,
+        key: Key('readiness_detail_hint_${id.name}_${c.name}'),
+        style: _muted(context),
+      ),
+    );
+    return [
+      for (final c in ways)
+        ?switch (c) {
+          ReadinessCatchUp.startMorning =>
+            widget.actions.startMorning == null
+                ? null
+                : button(
+                    Key('readiness_detail_start_morning_${id.name}'),
+                    l.readinessCatchUpStartMorning,
+                    _startMorning,
+                  ),
+          ReadinessCatchUp.enterSleep =>
+            canEnterSleep
+                ? button(
+                    const Key('readiness_detail_enter_sleep'),
+                    l.readinessCatchUpEnterSleep,
+                    _enterSleep,
+                  )
+                : null,
+          ReadinessCatchUp.sleepAtMorning => hint(
+            c,
+            l.readinessCatchUpSleepAtMorning,
+          ),
+          ReadinessCatchUp.healthConnectSync => hint(
+            c,
+            l.readinessCatchUpHealthConnect,
+          ),
+          ReadinessCatchUp.wellbeingAfterRun => hint(
+            c,
+            l.readinessCatchUpWellbeing,
+          ),
+        },
+    ];
   }
 }
 

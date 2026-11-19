@@ -345,8 +345,8 @@ void main() {
             _text('readiness_detail_text'),
             startsWith(
               de
-                  ? 'Heute fehlt der HRV-Wert der letzten Nacht.'
-                  : 'Today there is no HRV value from last night.',
+                  ? 'HRV (RMSSD): Heute noch keine Messung.'
+                  : 'HRV (RMSSD): No measurement today yet.',
             ),
           );
           expect(_key('readiness_detail_reason_0'), findsOneWidget);

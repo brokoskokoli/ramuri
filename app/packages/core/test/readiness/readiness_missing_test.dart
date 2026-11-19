@@ -1,0 +1,526 @@
+// Gründe fehlender Faktoren (FR-0111): je Grund feste Eingaben, fester
+// Ortstag und feste Versätze (keine Wanduhr, keine Zeitzone des Rechners).
+import 'package:core/core.dart';
+import 'package:test/test.dart';
+
+const _cet = Duration(hours: 1);
+const _cest = Duration(hours: 2);
+final _today = DateTime.utc(2026, 11, 14);
+const _dev = CameraRelease(developerMode: true, rmssdOptIn: false);
+
+/// Messung am Ortstag [day] (UTC-Datum) um [hour]:[minute] Ortszeit.
+MorningMeasurement _m(
+  DateTime day, {
+  int hour = 7,
+  int minute = 0,
+  Duration offset = _cet,
+  PpgQuality quality = PpgQuality.good,
+  double? hr = 58,
+  double? rmssd = 42,
+  bool outside = false,
+  String model = 'M1',
+}) => MorningMeasurement(
+  measuredAt: DateTime.utc(
+    day.year,
+    day.month,
+    day.day,
+    hour,
+    minute,
+  ).subtract(offset),
+  utcOffset: offset,
+  posture: RestingPosture.lying,
+  deviceManufacturer: 'H',
+  deviceModel: model,
+  method: 'ppg',
+  methodVersion: 1,
+  quality: quality,
+  restingHrBpm: quality == PpgQuality.unusable ? null : hr,
+  rmssdMs: quality == PpgQuality.good ? rmssd : null,
+  timingNoiseMs: quality == PpgQuality.good ? 10 : null,
+  cameraIntervalsMs: const [],
+  beforeValidation: false,
+  outsideWindow: outside,
+);
+
+DateTime _back(int n) => _today.subtract(Duration(days: n));
+
+/// Gute Messungen an den Tagen [from] bis [to] vor heute (einschließlich),
+/// mit Streuung über der MAD-Grenze.
+List<MorningMeasurement> _history(int from, int to) => [
+  for (var i = from; i <= to; i++)
+    _m(_back(i), hr: 54.0 + (i % 5) * 2, rmssd: 36.0 + (i % 5) * 4),
+];
+
+ReadinessResult _run(
+  List<MorningMeasurement> all, {
+  DateTime? today,
+  CameraRelease release = _dev,
+  DeviationResult? hrvHc,
+  ReadinessWellbeing? wellbeing,
+  MorningWindow window = MorningWindow.standard,
+  bool loadRequested = true,
+  LoadDay? loadDay,
+}) {
+  final day = today ?? _today;
+  return computeReadiness(
+    ReadinessInputs(
+      today: day,
+      now: day.add(const Duration(hours: 12)),
+      dayStart: day.subtract(_cet),
+      hrvHealthConnect: hrvHc,
+      cameraDeviations: cameraDeviations(all, today: day),
+      morningMeasurements: all,
+      morningWindow: window,
+      release: release,
+      wellbeing: wellbeing,
+      loadRequested: loadRequested,
+      loadDay: loadDay,
+    ),
+  );
+}
+
+ReadinessMissingReason? _hrv(ReadinessResult r) =>
+    r.missingReasons[ReadinessFactorId.hrv];
+ReadinessMissingReason? _rhr(ReadinessResult r) =>
+    r.missingReasons[ReadinessFactorId.restingHeartRate];
+
+LoadDay _loadDay({
+  Set<LoadProvisionalReason> ctl = const {},
+  Set<LoadProvisionalReason> atl = const {},
+  double? atlValue = 30,
+}) => LoadDay(
+  day: _today,
+  load: 10,
+  atl: atlValue,
+  ctl: 30,
+  tsb: 0,
+  tsbPercentMean7: null,
+  flags: const {},
+  atlProvisionalReasons: atl,
+  ctlProvisionalReasons: ctl,
+  unitCount: 1,
+  ratedUnits: 1,
+  convertedUnits: 0,
+  unratedUnits: 0,
+);
+
+void main() {
+  group('HRV und Ruhepuls', () {
+    test(
+      'keine Quelle mit Werten: noch keine Messung, Knopf Morgenmessung',
+      () {
+        final r = _run(const []);
+        expect(
+          _hrv(r),
+          const ReadinessMissingReason(
+            ReadinessMissingCode.noMeasurement,
+            catchUp: [ReadinessCatchUp.startMorning],
+          ),
+        );
+        expect(_rhr(r)!.code, ReadinessMissingCode.noMeasurement);
+      },
+    );
+
+    test('Werte, aber heute keiner: heute noch keine Messung', () {
+      final r = _run(_history(1, 20));
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.noMeasurementToday,
+          catchUp: [ReadinessCatchUp.startMorning],
+        ),
+      );
+    });
+
+    test('Kamera-Messung um 11:30: außerhalb des Zeitfensters mit Fenster', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, hour: 11, minute: 30, outside: true),
+      ]);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.cameraOutsideWindow,
+          windowStartHour: 4,
+          windowEndHour: 11,
+          catchUp: [ReadinessCatchUp.startMorning],
+        ),
+      );
+      expect(_rhr(r)!.code, ReadinessMissingCode.cameraOutsideWindow);
+    });
+
+    test('Fenster aus der Einstellung steht im Grund', () {
+      final r = _run([
+        _m(_today, hour: 10, outside: true),
+      ], window: const MorningWindow(5, 9));
+      expect(_hrv(r)!.windowStartHour, 5);
+      expect(_hrv(r)!.windowEndHour, 9);
+    });
+
+    test('unbrauchbare Messung heute: Grund unbrauchbar', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, quality: PpgQuality.unusable),
+      ]);
+      expect(_hrv(r)!.code, ReadinessMissingCode.cameraQualityUnusable);
+      expect(_hrv(r)!.catchUp, [ReadinessCatchUp.startMorning]);
+    });
+
+    test('Stufe eingeschränkt: HRV fehlt mit Grund, Ruhepuls zählt', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, quality: PpgQuality.limited, hr: 56),
+      ]);
+      expect(r.missing, contains(ReadinessFactorId.hrv));
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(ReadinessMissingCode.cameraQualityLimited),
+      );
+      expect(
+        r.factors.map((f) => f.id),
+        contains(ReadinessFactorId.restingHeartRate),
+      );
+      expect(
+        r.missingReasons.containsKey(ReadinessFactorId.restingHeartRate),
+        isFalse,
+      );
+    });
+
+    test('zweite Messung des Tages ignoriert, Grund der ersten gilt', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, hour: 6, quality: PpgQuality.limited, hr: 56),
+        _m(_today, hour: 7, rmssd: 44, hr: 57),
+      ]);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.cameraQualityLimited,
+          laterIgnored: true,
+        ),
+      );
+    });
+
+    test('spätere Messung eines anderen Geräts: kein Zusatz „spätere zählen '
+        'nicht“', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, hour: 6, quality: PpgQuality.limited, hr: 56),
+        // Eigene Reihe, zählt dort; ohne HRV (eingeschränkt), damit der
+        // Grund weiter aus der ersten Messung des Tages kommt.
+        _m(_today, hour: 7, quality: PpgQuality.limited, hr: 57, model: 'M2'),
+      ]);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(ReadinessMissingCode.cameraQualityLimited),
+      );
+    });
+
+    test('2 Werte in 7 Tagen: 2 von 3', () {
+      final r = _run([_m(_back(3)), _m(_today)]);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.tooFewInWindow,
+          count: 2,
+          required: 3,
+        ),
+      );
+    });
+
+    test('9 Referenztage: 9 von 14, noch 5', () {
+      final r = _run([..._history(1, 9), _m(_today)]);
+      final h = _hrv(r)!;
+      expect(h.code, ReadinessMissingCode.tooFewReference);
+      expect(h.count, 9);
+      expect(h.required, 14);
+      expect(h.remaining, 5);
+      expect(h.catchUp, isEmpty);
+      expect(_rhr(r)!.count, 9);
+    });
+
+    test('gleichmäßige Werte: zu gleichmäßig für einen Vergleich', () {
+      final r = _run([
+        for (var i = 0; i <= 20; i++) _m(_back(i), hr: 58, rmssd: 42),
+      ]);
+      expect(_hrv(r)!.code, ReadinessMissingCode.madTooSmall);
+      expect(_rhr(r)!.code, ReadinessMissingCode.madTooSmall);
+    });
+
+    test('Kamera-HRV nicht freigegeben (ohne Opt-in): Grund gesperrt', () {
+      const release = CameraRelease(
+        developerMode: false,
+        rmssdOptIn: false,
+        state: {
+          ValidationQuantity.restingHr: ValidationState.passed,
+          ValidationQuantity.lnRmssdSupine: ValidationState.passed,
+        },
+      );
+      final r = _run([..._history(1, 20), _m(_today)], release: release);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(ReadinessMissingCode.cameraNotReleased),
+      );
+      expect(r.missing, isNot(contains(ReadinessFactorId.restingHeartRate)));
+    });
+
+    test('Health Connect ohne Wert heute: Hinweis auf Health Connect', () {
+      final hc = deviationForSeries(
+        byDay: {_back(1): 40, _back(2): 41},
+        today: _today,
+        factor: ReadinessFactor.hrv,
+        source: ReadinessSource.healthConnect,
+        rules: DeviationRules.hrv,
+      );
+      final r = _run(const [], hrvHc: hc);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.noMeasurementToday,
+          catchUp: [
+            ReadinessCatchUp.startMorning,
+            ReadinessCatchUp.healthConnectSync,
+          ],
+        ),
+      );
+    });
+
+    test('Health Connect mit Wert heute vor der Kamera', () {
+      final hc = deviationForSeries(
+        byDay: {_today: 40, _back(1): 41},
+        today: _today,
+        factor: ReadinessFactor.hrv,
+        source: ReadinessSource.healthConnect,
+        rules: DeviationRules.hrv,
+      );
+      final r = _run([..._history(1, 9), _m(_today)], hrvHc: hc);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.tooFewInWindow,
+          count: 2,
+          required: 3,
+        ),
+      );
+    });
+  });
+
+  group('Ortstag', () {
+    test('Messung um 23:59 des Vortags zählt nicht als heute', () {
+      final r = _run([
+        ..._history(2, 20),
+        _m(_back(1), hour: 23, minute: 59),
+      ], window: const MorningWindow(0, 24));
+      expect(_hrv(r)!.code, ReadinessMissingCode.noMeasurementToday);
+      expect(_hrv(r)!.catchUp, [ReadinessCatchUp.startMorning]);
+    });
+
+    test('Uhrumstellung: Ortstag folgt dem Versatz der Messung', () {
+      // 25.10.2026: Ende der Sommerzeit in Mitteleuropa (03:00 → 02:00).
+      final dst = DateTime.utc(2026, 10, 25);
+      final before = DateTime.utc(2026, 10, 24);
+      // 02:30 Sommerzeit am Umstellungstag (UTC 00:30) ist heute; 23:59
+      // Sommerzeit am Vortag (UTC 21:59) ist gestern.
+      final r = _run(
+        [
+          _m(before, hour: 23, minute: 59, offset: _cest),
+          _m(
+            dst,
+            hour: 2,
+            minute: 30,
+            offset: _cest,
+            quality: PpgQuality.limited,
+          ),
+        ],
+        today: dst,
+        window: const MorningWindow(0, 24),
+      );
+      expect(_hrv(r)!.code, ReadinessMissingCode.cameraQualityLimited);
+      // Ohne die Messung des Umstellungstags fehlt der Wert heute.
+      final r2 = _run(
+        [_m(before, hour: 23, minute: 59, offset: _cest)],
+        today: dst,
+        window: const MorningWindow(0, 24),
+      );
+      expect(_hrv(r2)!.code, ReadinessMissingCode.noMeasurementToday);
+    });
+  });
+
+  group('Validierungssperre ohne Entwicklermodus (K62)', () {
+    const locked = CameraRelease(developerMode: false, rmssdOptIn: false);
+
+    test('keine Knöpfe und kein Kamerabezug', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, hour: 11, minute: 30, outside: true),
+      ], release: locked);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(ReadinessMissingCode.noMeasurement),
+      );
+      expect(
+        r.missingReasons[ReadinessFactorId.sleep],
+        const ReadinessMissingReason(ReadinessMissingCode.sleepNoHealthConnect),
+      );
+      for (final reason in r.missingReasons.values) {
+        expect(reason.catchUp, isNot(contains(ReadinessCatchUp.startMorning)));
+        expect(reason.catchUp, isNot(contains(ReadinessCatchUp.enterSleep)));
+        expect(reason.code.name, isNot(startsWith('camera')));
+      }
+    });
+  });
+
+  group('Schlaf', () {
+    test('heutige Morgenmessung: Knopf „Schlaf angeben“', () {
+      final r = _run([_m(_today)]);
+      expect(
+        r.missingReasons[ReadinessFactorId.sleep],
+        const ReadinessMissingReason(
+          ReadinessMissingCode.sleepNoEntry,
+          catchUp: [ReadinessCatchUp.enterSleep],
+        ),
+      );
+    });
+
+    test('ohne heutige Morgenmessung: Hinweis und Morgenmessung', () {
+      final r = _run([_m(_back(1))]);
+      expect(r.missingReasons[ReadinessFactorId.sleep]!.catchUp, [
+        ReadinessCatchUp.sleepAtMorning,
+        ReadinessCatchUp.startMorning,
+      ]);
+    });
+
+    test('nur außerhalb des Fensters gemessen: kein „Schlaf angeben“', () {
+      final r = _run([_m(_today, hour: 12, outside: true)]);
+      expect(
+        r.missingReasons[ReadinessFactorId.sleep]!.catchUp,
+        isNot(contains(ReadinessCatchUp.enterSleep)),
+      );
+    });
+
+    test('Selbstangabe vorhanden: Schlaf fehlt nicht', () {
+      final r = computeReadiness(
+        ReadinessInputs(
+          today: _today,
+          now: _today.add(const Duration(hours: 12)),
+          release: _dev,
+          sleepBand: SleepBand.from7to8,
+          morningMeasurements: [_m(_today)],
+        ),
+      );
+      expect(r.missingReasons.containsKey(ReadinessFactorId.sleep), isFalse);
+    });
+  });
+
+  group('Befinden', () {
+    test('vor 5 Tagen: vor 5 Tagen, zählt 3', () {
+      final r = _run(
+        const [],
+        wellbeing: ReadinessWellbeing(level: 3, day: _back(5)),
+      );
+      expect(
+        r.missingReasons[ReadinessFactorId.wellbeing],
+        const ReadinessMissingReason(
+          ReadinessMissingCode.wellbeingTooOld,
+          count: 5,
+          required: 3,
+          catchUp: [ReadinessCatchUp.wellbeingAfterRun],
+        ),
+      );
+    });
+
+    test('keine Angabe', () {
+      final r = _run(const []);
+      expect(
+        r.missingReasons[ReadinessFactorId.wellbeing]!.code,
+        ReadinessMissingCode.wellbeingNone,
+      );
+    });
+  });
+
+  group('Belastung', () {
+    ReadinessMissingReason? load(ReadinessResult r) =>
+        r.missingReasons[ReadinessFactorId.load];
+
+    test('nicht berechnet: nur bei der erweiterten Einschätzung', () {
+      expect(
+        load(_run(const [], loadRequested: false))!.code,
+        ReadinessMissingCode.loadOnlyExtended,
+      );
+    });
+
+    test('ohne Verlauf', () {
+      expect(load(_run(const []))!.code, ReadinessMissingCode.loadNoHistory);
+      expect(
+        load(_run(const [], loadDay: _loadDay(atlValue: null)))!.code,
+        ReadinessMissingCode.loadNoHistory,
+      );
+    });
+
+    test('zu kurze Historie: 126 Tage (PAR-089)', () {
+      final r = _run(
+        const [],
+        loadDay: _loadDay(ctl: {LoadProvisionalReason.startup}),
+      );
+      expect(
+        load(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.loadHistoryShort,
+          required: 126,
+        ),
+      );
+      expect(load(r)!.catchUp, isEmpty);
+    });
+
+    test('ohne Zusage, Lücken, ohne 7-Tage-Mittel', () {
+      expect(
+        load(
+          _run(
+            const [],
+            loadDay: _loadDay(ctl: {LoadProvisionalReason.noCommitment}),
+          ),
+        )!.code,
+        ReadinessMissingCode.loadNoCommitment,
+      );
+      expect(
+        load(
+          _run(
+            const [],
+            loadDay: _loadDay(ctl: {LoadProvisionalReason.missingUnits}),
+          ),
+        ),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.loadMissingUnits,
+          count: 42,
+          required: 10,
+        ),
+      );
+      expect(
+        load(_run(const [], loadDay: _loadDay())),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.loadNoMean,
+          required: 7,
+        ),
+      );
+    });
+  });
+
+  test('Gründe ändern die Berechnung nicht', () {
+    final all = [..._history(1, 20), _m(_today)];
+    final a = _run(all);
+    final b = computeReadiness(
+      ReadinessInputs(
+        today: _today,
+        now: _today.add(const Duration(hours: 12)),
+        dayStart: _today.subtract(_cet),
+        cameraDeviations: cameraDeviations(all, today: _today),
+        release: _dev,
+      ),
+    );
+    expect(a.state, b.state);
+    expect(a.value, b.value);
+    expect(a.missing, b.missing);
+    expect(a.levelReasons, b.levelReasons);
+    expect(a.missingReasons.keys, a.missing);
+  });
+}

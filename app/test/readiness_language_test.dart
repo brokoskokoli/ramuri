@@ -101,7 +101,23 @@ void main() {
           ),
         for (final id in ReadinessFactorId.values) ...[
           readinessFactorName(l, id),
-          readinessMissingText(l, id),
+          for (final code in ReadinessMissingCode.values)
+            for (final later in [false, true])
+              readinessMissingText(
+                l,
+                _withReason(
+                  id,
+                  ReadinessMissingReason(
+                    code,
+                    count: 9,
+                    required: 14,
+                    windowStartHour: 4,
+                    windowEndHour: 11,
+                    laterIgnored: later,
+                  ),
+                ),
+                id,
+              ),
           for (final dir in ReadinessDirection.values)
             for (final cause in [null, ...ReadinessSleepCause.values])
               readinessDriverText(
@@ -118,6 +134,12 @@ void main() {
               ),
         ],
         for (final s in ReadinessFactorSource.values) readinessSourceName(l, s),
+        l.readinessCatchUpStartMorning,
+        l.readinessCatchUpEnterSleep,
+        l.readinessCatchUpChangeSleep,
+        l.readinessCatchUpSleepAtMorning,
+        l.readinessCatchUpHealthConnect,
+        l.readinessCatchUpWellbeing,
         for (final k in ReadinessFactKind.values)
           for (final z in [-1.0, 0.0, 1.0])
             readinessFactText(
@@ -243,4 +265,33 @@ void main() {
       contains('Ersatzwert'),
     );
   });
+}
+
+/// Ergebnis ohne Faktoren, dessen einziger Grund [reason] für [id] ist.
+ReadinessResult _withReason(
+  ReadinessFactorId id,
+  ReadinessMissingReason reason,
+) {
+  final r = computeReadiness(
+    ReadinessInputs(
+      today: DateTime.utc(2026, 11, 14),
+      now: DateTime.utc(2026, 11, 14, 12),
+    ),
+  );
+  return ReadinessResult(
+    state: r.state,
+    value: r.value,
+    band: r.band,
+    capped: r.capped,
+    factors: r.factors,
+    missing: r.missing,
+    blockers: r.blockers,
+    facts: r.facts,
+    markedFacts: r.markedFacts,
+    hasFreshMeasurement: r.hasFreshMeasurement,
+    level: r.level,
+    levelReasons: r.levelReasons,
+    explanation: r.explanation,
+    missingReasons: {id: reason},
+  );
 }
