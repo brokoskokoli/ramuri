@@ -14,12 +14,14 @@ import 'support/e2e_support.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets('Laufband-Lauf starten, Werte eingeben, speichern', (t) async {
+    step('TREADMILL start');
     final w = buildWorld();
     await startApp(t, w);
     await setupIfShown(t);
     final s = await session(t, w);
     final before = (await t.runAsync(() => s.runs.list()))!.length;
 
+    step('TREADMILL bandwahl');
     await tapKey(t, 'home_start_run');
     await waitFor(t, () => has('treadmill_mode_belt'), 'Bandwahl');
     await tapKey(t, 'treadmill_mode_belt');
@@ -30,6 +32,7 @@ void main() {
     await t.enterText(find.byKey(const Key('treadmill_start_incline')), '1.5');
     FocusManager.instance.primaryFocus?.unfocus();
     await pumpFor(t, const Duration(milliseconds: 300));
+    step('TREADMILL lauf_start');
     await tapKey(t, 'run_start_ready');
     await waitFor(
       t,
@@ -42,15 +45,18 @@ void main() {
     await waitFor(t, () => _shows('10', '5'), 'Startgeschwindigkeit angezeigt');
 
     await pumpFor(t, const Duration(seconds: 3));
+    step('TREADMILL geschwindigkeit_aendern');
     await tapKey(t, 'treadmill_speed_up');
     await waitFor(t, () => _shows('10', '6'), 'Geschwindigkeit nach Knopf');
     await pumpFor(t, const Duration(seconds: 3));
+    step('TREADMILL lauf_beenden');
     await tapKey(t, 'run_pause');
     await waitFor(t, () => has('run_finish'), 'Pause (Beenden sichtbar)');
     await tapKey(t, 'run_finish');
     await tapDialog(t, 'run_finish_confirm');
     await waitFor(t, () => has('run_done_status'), 'Laufende angezeigt');
 
+    step('TREADMILL gespeichert_pruefen');
     final runs = (await t.runAsync(() => s.runs.list()))!;
     final done = await _newestFinished(t, s);
     expect(runs.length, before + 1, reason: 'genau ein neuer Lauf');

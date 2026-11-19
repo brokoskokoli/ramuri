@@ -181,6 +181,7 @@ void main() {
   testWidgets(
     'M2: Plan, gefuehrte Einheit, Zusammenfassung, Anpassung',
     reportingFailures((t) async {
+      step('M2 start');
       final w = buildWorld();
       await startApp(t, w);
       await setupIfShown(t);
@@ -191,6 +192,7 @@ void main() {
         reason: 'Test erwartet frischen Speicher ohne Ziel',
       );
 
+      step('M2 profil');
       // Profil ueber die Oberflaeche.
       await tapKey(t, 'home_overview');
       await tapKey(t, 'home_profile');
@@ -214,12 +216,14 @@ void main() {
       }
       await waitFor(t, () => has('home_plan'), 'Heute');
 
+      step('M2 tageswechsel_abwarten');
       // Kurz vor Mitternacht erst den Tageswechsel abwarten (hoechstens 15 min): Der Lauftag wird jetzt festgelegt,
       // die Einheit muss beim Start noch auf "heute" liegen. Der Lauf selbst (Abschnitt, Frist bis 7 min, Zusammenfassung)
       // braucht ca. 6 min (Frist bis 15 min) und darf Mitternacht nicht ueberqueren: home_today_done prueft gegen "heute".
       while (DateTime.now().hour == 23 && DateTime.now().minute >= 45) {
         await pumpFor(t, const Duration(seconds: 1));
       }
+      step('M2 ziel_anlegen');
       // Ziel anlegen: heutiger Wochentag ist Lauftag, damit heute eine Einheit liegt.
       final today = DateTime.now().weekday;
       int wd(int add) => ((today - 1 + add) % 7) + 1;
@@ -245,6 +249,7 @@ void main() {
         'plan_form_can30 Nein',
         reveal: () => _reveal(t, 'plan_form_can30'),
       );
+      step('M2 can30_pruefen');
       // Harte Pruefung: am Ende ist "Nein" gewaehlt.
       await _reveal(t, 'plan_form_can30');
       final can30 = _can30();
@@ -264,6 +269,7 @@ void main() {
       await waitFor(t, () => has('plan_goal_card'), 'Zielkarte');
       await tapKey(t, 'home_today');
 
+      step('M2 einheit_starten');
       // Heute: Einheit starten (gefuehrt).
       final d0 = DateTime.now();
       final near = (await t.runAsync(
@@ -310,6 +316,7 @@ void main() {
       await waitFor(t, () => has('guided_section'), 'Fuehrungsseite');
       log('M2 guided_started run_time_built=${has('run_time')}');
 
+      step('M2 abschnittswechsel');
       // Abschnittswechsel abwarten (Echtzeit, die Einheit beginnt mit Aufwaermen/Lauf-Gehen).
       final first = txt('guided_section');
       final dl = DateTime.now().add(
@@ -328,6 +335,7 @@ void main() {
       }
       log('M2 section_changed');
 
+      step('M2 beenden');
       // Beenden: kein Karten-Dialog davor oder darueber.
       await _tapVisible(t, 'run_pause');
       await _tapVisible(t, 'run_finish');
@@ -343,6 +351,7 @@ void main() {
       final runs = await countRunsFinished(t, w);
       expect(runs.first.state, RunState.finished);
 
+      step('M2 zusammenfassung');
       // Zusammenfassung (auf der Laufende-Seite): erst jetzt kommt die Karten-Frage.
       await waitFor(
         t,
@@ -358,6 +367,7 @@ void main() {
       await waitFor(t, () => has('home_plan'), 'Heute');
       await waitFor(t, () => has('home_today_done'), 'Einheit als erledigt');
 
+      step('M2 rueckmeldung');
       // Rueckmeldung "zu schwer" und Neuberechnen: Plan angepasst, Verlauf.
       final before = (await t.runAsync(plans.history))!.length;
       await tapKey(t, 'home_plan');
@@ -392,6 +402,7 @@ void main() {
         reason: 'Meldung zur Rueckmeldung "zu schwer" passt zur Fassung',
       );
 
+      step('M2 ziel_aendern');
       // Ziel aendern (vierter Lauftag): neue Fassung mit Erklaerung (WP23).
       ScaffoldMessenger.of(t.element(find.byType(Scaffold).first))
           .clearSnackBars();
@@ -430,11 +441,13 @@ void main() {
       ScaffoldMessenger.of(t.element(find.byType(Scaffold).first))
           .clearSnackBars();
       await pumpFor(t, const Duration(milliseconds: 300));
+      step('M2 neu_berechnen');
       await tapKey(t, 'plan_recalculate');
       await waitFor(t, () => has('plan_recalculate_dialog'), 'Rueckfrage');
       await tapDialog(t, 'plan_recalculate_confirm');
       await waitFor(t, () => has('plan_recalculated'), 'neu berechnet');
 
+      step('M2 planverlauf');
       await _openPlanMenu(t);
       await waitFor(t, () => has('plan_menu_history'), 'Menue');
       await tapDialog(t, 'plan_menu_history');

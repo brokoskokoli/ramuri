@@ -16,7 +16,7 @@ import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/system_clock.dart';
 
-import 'support/e2e_support.dart' show hittable, pumpFor;
+import 'support/e2e_support.dart' show hittable, pumpFor, step;
 
 const _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 
@@ -320,8 +320,10 @@ void main() {
 }
 
 Future<void> _scenario(WidgetTester tester) async {
+  step('RECALC S0 daten_anlegen');
   await tester.runAsync(() => _seed());
   final base = await tester.runAsync(() => _dump('S0')) as String;
+  step('RECALC S0 app_start');
 
   await _startApp(tester);
   expect(find.byKey(const Key('home_screen')), findsOneWidget);
@@ -330,6 +332,7 @@ Future<void> _scenario(WidgetTester tester) async {
   await tester.tap(find.byType(BackButton));
   await tester.pumpAndSettle();
 
+  step('RECALC S1 basis_aendern');
   // Szenario 1
   await _changeMax(tester, '180');
   await _openSettings(tester);
@@ -341,6 +344,7 @@ Future<void> _scenario(WidgetTester tester) async {
   expect(s1, contains('profile max=180'));
   expect(s1, isNot(contains('pending=\n')));
 
+  step('RECALC S2 ablehnen');
   // Szenario 2
   await tester.tap(find.byKey(const Key('recalc_decline')));
   await _pumpUntilGone(tester, find.byKey(const Key('recalc_dialog')));
@@ -352,6 +356,7 @@ Future<void> _scenario(WidgetTester tester) async {
   expect(s2, contains('pending=\n'));
   log('S2 card gone');
 
+  step('RECALC S3 bestaetigen');
   // Szenario 3
   await tester.tap(find.byType(BackButton));
   await tester.pumpAndSettle();
@@ -385,6 +390,7 @@ Future<void> _scenario(WidgetTester tester) async {
   expect(_originals(s3), contains('@190/'));
   expect(_originals(s3), isNot(contains('@175')));
 
+  step('RECALC S4 neustart_offen');
   // Szenario 4: Basis erneut aendern, nicht beantworten, App neu starten
   await tester.tap(find.byType(BackButton));
   await tester.pumpAndSettle();

@@ -1,7 +1,8 @@
 // Gemeinsame Hilfen der Lauf-Integrationstests (Emulator, Test-Sensor).
 // Der Test-Sensor (DebugTestSensor) ersetzt nur den Pulsgurt; Rechte, Speicher
 // und Aufzeichnung sind echt. Das GPS liefert tool/ci_e2e.sh (adb emu geo fix).
-// Ausgabe: Zeilen "E2E_<zeit> ...", nur Marken und Zaehler, keine Messwerte.
+// Ausgabe: Zeilen "E2E_<zeit> ...", nur Marken und Zaehler, keine Messwerte;
+// oeffentlich nur "PUB_<zeit> ..." (logPub, step) ohne Werte.
 import 'package:core/core.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -28,6 +29,13 @@ void logPub(String s) {
   // ignore: avoid_print
   print('PUB_${DateTime.now().toIso8601String().substring(11, 23)} $s');
 }
+
+/// Schrittmarke fuer das oeffentliche CI-Log: Zeile `PUB_<zeit> SCHRITT <name>`.
+/// So zeigt ein roter Lauf, bis zu welchem Abschnitt der Test kam. [name] ist
+/// eine feste Zeichenkette aus dem Test (Abschnitt- oder Schluesselname), nie aus
+/// Daten gebildet; test/e2e_step_test.dart prueft, dass jeder Aufruf ein Literal
+/// ohne Interpolation uebergibt (SEC-0001..0010). Werte gehoeren in [log].
+void step(String name) => logPub('SCHRITT $name');
 
 /// Meldung eines Testfehlers ohne Werte: bei `expect` nur der Grund (`reason:`),
 /// den der matcher ohne Präfix als erste nicht eingerückte Zeile nach

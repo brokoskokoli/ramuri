@@ -35,6 +35,7 @@ bool _missingText() =>
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets('A echter Dialog $_mode', (t) async {
+    step('HCA start');
     final d = AppDependencies.create(
       heartRateSensor: DebugTestSensor(const SystemClock()),
     );
@@ -44,6 +45,7 @@ void main() {
     await setupIfShown(t);
     await waitFor(t, () => d.storageStart.state is StorageReady, 'Speicher');
     final s = (d.storageStart.state as StorageReady).session as HealthStorage;
+    step('HCA health_seite');
     await tapKey(t, 'home_overview');
     await tapKey(t, 'home_settings');
     await t.scrollUntilVisible(
@@ -55,12 +57,14 @@ void main() {
     await tapKey(t, 'settings_health');
     await waitFor(t, () => has('health_main'), 'Health-Seite');
     log('HCA Start Schalter ${_states()}');
+    step('HCA schalter');
     if (!_on('sleep')) await tapKey(t, 'health_switch_sleep');
     if (!_on('resting_heart_rate')) {
       await tapKey(t, 'health_switch_resting_heart_rate');
     }
     log('HCA vor Dialog Schalter ${_states()} fehlt-Text=${_missingText()}');
     await shot(t, 'before_dialog');
+    step('HCA dialog');
     final seen = <AppLifecycleState>[];
     final obs = _Obs(seen);
     WidgetsBinding.instance.addObserver(obs);
@@ -81,6 +85,7 @@ void main() {
     expect(has('health_main'), isTrue);
     expect(find.byType(ErrorWidget), findsNothing);
     await shot(t, 'after_dialog');
+    step('HCA abrufen');
     await tapKey(t, 'health_fetch');
     await pumpFor(t, const Duration(seconds: 4));
     final counts = (await t.runAsync(

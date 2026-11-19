@@ -25,6 +25,8 @@ import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
+import 'support/e2e_support.dart' show step;
+
 const phase = String.fromEnvironment('PHASE');
 const marker = String.fromEnvironment('MARKER');
 const settingKey = 'e2e.marker';
@@ -51,6 +53,7 @@ void main() {
     'storage $phase',
     (tester) async {
       await tester.runAsync(() async {
+        step('STORAGE start');
         final path = await databasePath();
         final storage = EncryptedStorage(path);
         final service = StorageKeyService(
@@ -58,6 +61,7 @@ void main() {
           databaseFilesExist: storage.filesExist,
           generateKey: generateStorageKey,
         );
+        step('STORAGE schluessel');
         final start = await service.decide();
         // ignore: avoid_print
         print('E2E_DECIDE=${start.runtimeType}');
@@ -68,8 +72,10 @@ void main() {
         };
         expect(key, isNotNull, reason: 'Speicher nicht öffnbar');
         if (key == null) return;
+        step('STORAGE oeffnen');
         final session = await storage.open(key);
         if (phase == 'write') {
+          step('STORAGE schreiben');
           await session.settings.set(settingKey, marker, at: DateTime.now());
           final back = await session.settings.get(settingKey);
           // ignore: avoid_print
@@ -79,6 +85,7 @@ void main() {
           print('E2E_NEED_KILL');
           await Future<void>.delayed(const Duration(minutes: 10));
         } else if (phase == 'fill') {
+          step('STORAGE fuellen');
           final at = DateTime.now();
           await session.settings.set(settingKey, marker, at: at);
           final padding = 'x' * (fillRowChars - marker.length);
@@ -101,6 +108,7 @@ void main() {
           _printSizes('after_reopen_close', path);
           await Future<void>.delayed(const Duration(minutes: 10));
         } else {
+          step('STORAGE lesen');
           final v = await session.settings.get(settingKey);
           // ignore: avoid_print
           print('E2E_READ present=${v != null} match=${v == marker}');

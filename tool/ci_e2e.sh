@@ -20,7 +20,8 @@
 # Shard -> Stufen steht nur hier) oder lokal E2E_STUFEN="recover-a recover-b"; beides zusammen
 # oder ein unbekannter Name ist ein Fehler (Exit 1), ebenso ein Lauf ohne eine einzige Stufe.
 # Ohne beides laufen alle Stufen. Test: tool/ci_e2e_test.sh.
-# Zeilen der Tests mit Praefix PUB_ (Schluesselnamen, Fehlertext, nie Werte) bleiben im Log und stehen bei Rot im Fehlerabschnitt.
+# Zeilen der Tests mit Praefix PUB_ (Schluesselnamen, Fehlertext, Schrittmarken "SCHRITT <name>", nie Werte) bleiben im Log
+# und stehen bei Rot im Fehlerabschnitt, dazu die letzte Schrittmarke vor dem ersten fehlgeschlagenen Test.
 # Bei Rot: Logcat (gefiltert), Bildschirmfoto je Stufe und gefiltertes Testlog (ohne E2E_-Zeilen) in <Ausgabeordner>.
 # Der Reporter ist fest "expanded": Unter GitHub Actions waehlt flutter test sonst
 # den github-Reporter, der die Ausgabe eines Tests erst an dessen Ende ausgibt
@@ -126,6 +127,9 @@ stufe() {
   echo "STUFE $name rc=$rc dauer=$(($(date +%s) - t0))s"
   # Nur Zeilen ohne "E2E_" (Wertausgaben der Tests) in das oeffentliche Log.
   grep -v 'E2E_' "$log" >"$log.pub"
+  # Alle Schrittmarken der Stufe (die letzten Zeilen unten zeigen bei langen Stufen nur das Ende).
+  echo "--- Schritte Stufe $name ---"
+  grep 'PUB_[^ ]* SCHRITT ' "$log.pub"
   tail -n 40 "$log.pub"
   if [ "$rc" -ne 0 ]; then
     rc_all=1
@@ -137,6 +141,9 @@ stufe() {
     echo "--- Fehlermeldung Stufe $name ---"
     # PUB_-Zeilen: Zustandsmarker und Testfehlertext ohne Werte (Praefix statt E2E_, siehe e2e_support.dart logPub).
     grep 'PUB_' "$log.pub" | tail -n 20
+    # Letzte Schrittmarke (step in e2e_support.dart) vor dem ersten fehlgeschlagenen Test ("[E]"):
+    # In der Sammlung laufen danach weitere Tests, deren Marken sonst den Fehlerort verdecken.
+    awk '/PUB_[^ ]* SCHRITT / { s = $0 } /\[E\]/ { exit } END { print "letzter Schritt vor dem Fehler: " (s == "" ? "keiner" : s) }' "$log.pub"
     awk '/EXCEPTION CAUGHT|Test failed|Expected:|TimeoutException/ { f = 1 } f' "$log.pub" | head -n 60
     cp "$log.pub" "$out/test-output-$name.txt"
   else

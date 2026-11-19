@@ -104,6 +104,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('Plan anlegen, anpassen, neu berechnen', (t) async {
+    step('PLAN start');
     final w = buildWorld();
     await startApp(t, w);
     await setupIfShown(t);
@@ -116,6 +117,7 @@ void main() {
 
     await _openPlan(t);
     expect(has('plan_empty'), isTrue);
+    step('PLAN ziel_anlegen');
     await tapKey(t, 'plan_create_goal');
     await waitFor(t, () => has('plan_form'), 'Zielformular');
     await _setDays(t, {2, 4, 6});
@@ -135,6 +137,7 @@ void main() {
     expect(history, hasLength(1), reason: 'erste Planfassung');
     await waitFor(t, () => has('plan_goal_card'), 'Zielkarte');
 
+    step('PLAN ziel_anpassen');
     // Anpassen: Montag als vierter Lauftag, das Ziel aendert sich, neue Fassung.
     await _snackGone(t);
     await tapKey(t, 'plan_edit_goal');
@@ -147,6 +150,7 @@ void main() {
     expect(history, hasLength(2));
     expect(history.last.trigger, PlanTrigger.goalChange);
 
+    step('PLAN neu_berechnen');
     // Neu berechnen: erst Abbrechen (nichts aendert sich), dann bestaetigen.
     await _snackGone(t);
     await tapKey(t, 'plan_recalculate');
@@ -182,6 +186,7 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 5)));
 
   testWidgets('Warnsignal melden, bestaetigen, aufheben', (t) async {
+    step('WARNING start');
     final w = buildWorld();
     await startApp(t, w);
     await setupIfShown(t);
@@ -215,6 +220,7 @@ void main() {
     expect(await t.runAsync(store.read), isNull);
     final versions = (await t.runAsync(plans.history))!.length;
 
+    step('WARNING melden_abbrechen');
     // Melden, dann in der Rueckfrage abbrechen: nichts aendert sich.
     await tapKey(t, 'plan_menu');
     await waitFor(t, () => has('plan_menu_report'), 'Menue');
@@ -226,6 +232,7 @@ void main() {
     expect((await t.runAsync(plans.history))!, hasLength(versions));
     expect(has('plan_warning_banner'), isFalse);
 
+    step('WARNING melden_bestaetigen');
     // Melden und bestaetigen: Warnsignal gespeichert, Banner, neue Fassung.
     await tapKey(t, 'plan_menu');
     await waitFor(t, () => has('plan_menu_report'), 'Menue');
@@ -251,6 +258,7 @@ void main() {
     await t.tapAt(const Offset(5, 5));
     await waitFor(t, () => !has('plan_menu_feedback'), 'Menue zu');
 
+    step('WARNING aufheben');
     // Aufheben: Banner weg, Warnsignal geloescht.
     await tapKey(t, 'plan_warning_lift');
     await waitFor(t, () => !has('plan_warning_banner'), 'Banner weg');
