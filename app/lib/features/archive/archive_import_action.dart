@@ -11,8 +11,9 @@ import 'archive_wiring.dart';
 
 /// Schaltfläche "Archiv importieren" im Daten-Bildschirm (FR-0198, OQ-0050,
 /// WP12). Ablauf: Hinweis (bei nicht leerer App mit Warnung und ausdrücklicher
-/// Bestätigung des Zurücksetzens), Datei wählen, Kopf vorprüfen, Passwort, Einlesen in
-/// die Zwischendatenbank, Tausch. Danach gilt die neue Sitzung. Ein offener
+/// Bestätigung des Zurücksetzens), Datei wählen, Kopf vorprüfen, Versuch mit
+/// dem leeren Passwort, nur sonst Passwortabfrage, Einlesen in die
+/// Zwischendatenbank, Tausch. Danach gilt die neue Sitzung. Ein offener
 /// Lauf sperrt den Import; Aufnahme und Neuberechnung sind ausgeschlossen
 /// ([serialize]). Die gewählte Kopie wird immer entsorgt.
 class ArchiveImportAction extends StatelessWidget {
@@ -81,10 +82,13 @@ class ArchiveImportAction extends StatelessWidget {
       final path = pick.path;
       if (path == null || !context.mounted) return;
       if (!await precheckPickedArchive(context, headerCheck, path)) return;
-      var wrong = false;
+      // Zuerst das leere Passwort (Archiv ohne Passwort, SEC-0011): gelingt
+      // es, fragt die App nicht. Sonst die Abfrage, beim ersten Mal ohne
+      // Fehlertext.
+      var attempt = ArchivePasswordAttempt.empty;
       while (true) {
         if (!context.mounted) return;
-        final password = await askArchivePassword(context, wrong: wrong);
+        final password = await nextArchivePassword(context, attempt);
         if (password == null || !context.mounted) return;
         final cancel = ArchiveCancel();
         try {
@@ -120,7 +124,7 @@ class ArchiveImportAction extends StatelessWidget {
           return;
         } on ArchiveImportException catch (e) {
           if (e.failure == ArchiveImportFailure.wrongPasswordOrDamaged) {
-            wrong = true;
+            attempt = attempt.next;
             continue;
           }
           if (e.failure == ArchiveImportFailure.cancelled) {
