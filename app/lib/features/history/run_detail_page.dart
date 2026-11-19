@@ -11,6 +11,7 @@ import '../summary/run_charts.dart';
 import '../summary/run_summary_body.dart' show clockText;
 import '../summary/run_summary_page.dart';
 import '../transparency/value_explanation_screen.dart';
+import 'uncomputable_run_note.dart';
 
 /// Inhalt der Detailansicht eines Laufs nach dem Screen `Detail.dc.html`
 /// (FR-0041, FR-0042, FR-0211): Route mit Umschalter und Kilometermarken,
@@ -29,6 +30,7 @@ class RunDetailPage extends StatelessWidget {
     required this.formatter,
     required this.session,
     required this.runId,
+    this.clock,
     this.subjective,
     this.onWarning,
     this.exportBusy,
@@ -42,6 +44,10 @@ class RunDetailPage extends StatelessWidget {
   final UnitFormatter formatter;
   final StorageSession session;
   final int runId;
+
+  /// Uhr für den Hinweis „nicht berechenbar“ ([UncomputableRunNote],
+  /// FR-0219); ohne Uhr entfällt er.
+  final Clock? clock;
 
   /// Dienst für die Angaben zum Lauf; im Detail änderbar, mit sRPE.
   final SubjectiveService? subjective;
@@ -91,6 +97,8 @@ class RunDetailPage extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         PlanOriginNote(session: session, runId: runId),
+        if (clock case final clock?)
+          UncomputableRunNote(session: session, clock: clock, runId: runId),
         _route(context, l10n, base),
         gap,
         _card(

@@ -217,6 +217,8 @@
   "histEmpty": "No runs recorded yet.",
   "histLoadFailed": "The history could not be read.",
   "histRowReadFailed": "The data of this run could not be read.",
+  "histRowUncomputable": "not computable",
+  "detailUncomputable": "The values of this run could not be calculated after three attempts. The recording is fully saved. It will be tried again with “Recalculate” in the settings or when a new app version changes the calculation.",
   "histRowHeartRate": "Avg. heart rate {bpm} bpm",
   "@histRowHeartRate": {"description": "WP10 B1", "placeholders": {"bpm": {"type": "int"}}},
   "histRowNoHeartRate": "Heart rate: not available",

@@ -4,7 +4,7 @@ title: Datenqualität und gemeinsame Berechnungsgrundlagen
 status: Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0045, FR-0046, FR-0047, FR-0048, FR-0049, FR-0050, FR-0051, FR-0052, FR-0053, FR-0054, FR-0055, FR-0056, FR-0057, FR-0058, FR-0059]
+related_requirements: [FR-0045, FR-0046, FR-0047, FR-0048, FR-0049, FR-0050, FR-0051, FR-0052, FR-0053, FR-0054, FR-0055, FR-0056, FR-0057, FR-0058, FR-0059, FR-0219]
 ---
 
 # Datenqualität und gemeinsame Berechnungsgrundlagen
@@ -170,6 +170,21 @@ Eine Änderung des Algorithmus oder persönlicher Basiswerte kann dazu führen, 
 - [ ] Rohdaten bleiben erhalten, solange der Lauf existiert (OQ-0031).
 - [ ] Nach einer Änderung bietet die App die Neuberechnung an und startet sie erst nach Bestätigung (OQ-0031).
 - [ ] Danach werden die neuen Werte angezeigt, gekennzeichnet mit Methode und Version (OQ-0031).
+
+### FR-0219 — Nachgeholte Berechnung nach drei Fehlversuchen nicht mehr bei jedem Start
+- **Status:** Approved | **Phase:** 1
+- **Quelle:** SRC-003 (Maintainer 2026-11-15)
+- **Verwandt:** FR-0058, NFR-0001, ADR-0004
+
+Scheitert die nachgeholte Berechnung eines Laufs dreimal, versucht die App sie beim Start nicht mehr und kennzeichnet den Lauf in der Historie als „nicht berechenbar“. „Neu berechnen“ und eine neue Methodenversion versuchen ihn erneut. Die Aufzeichnung bleibt unverändert.
+
+**Festlegung:** Gezählt werden nur gescheiterte Berechnungen beim Nachholen (App-Start); ein Lauf, dessen Werte nur nicht gelesen werden konnten, zählt nicht. Der Zähler ist ein technischer Merker in den Einstellungen (`values.calculationFailures`, keine Gesundheitsdaten, nicht im Archiv, [Archivvertrag](../contracts/archive.md) Abschnitt 4.3) und gilt für den Stand der Berechnung (Parameter- und Methodenversion), mit dem gezählt wurde. Eine neue Version setzt ihn damit zurück. „Neu berechnen“ ist das Bestätigen einer angebotenen Neuberechnung (FR-0058). Gelingt eine Berechnung, ist der Lauf ausgetragen. Die Detailansicht des Laufs sagt in einem Satz, dass die Werte nach drei Versuchen nicht berechnet werden konnten, die Aufzeichnung vollständig gespeichert ist und wann ein neuer Versuch folgt. Aufzeichnung und Export des Laufs bleiben unverändert.
+
+**Akzeptanzkriterien:**
+- [ ] Scheitert die Berechnung immer, versuchen Start 1 bis 3 sie je einmal, ab Start 4 kein Versuch mehr; Zähler und Kennzeichnung sind gesetzt.
+- [ ] Nach „Neu berechnen“ bzw. mit einer neuen Methodenversion folgt wieder ein Versuch; gelingt er, sind Kennzeichnung und Zähler weg.
+- [ ] Ein Lesefehler zählt nicht als Fehlversuch; andere Läufe werden weiter nachgeholt.
+- [ ] Die Historie zeigt „nicht berechenbar“ am Lauf, die Detailansicht den Satz; normale Läufe bleiben unverändert (Deutsch und Englisch).
 
 ### FR-0059 — Nachvollziehbarkeit eines geschätzten Werts
 - **Status:** Approved | **Phase:** 1*

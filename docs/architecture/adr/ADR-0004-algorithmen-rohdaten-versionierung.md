@@ -3,7 +3,7 @@
 - **Status:** Accepted (Maintainer, 2026-11-04)
 - **Datum:** 2026-11-04
 - **Quellen:** SRC-003 (OQ-0031, OQ-0043, OQ-0045, OQ-0053)
-- **Betroffene Anforderungen:** NFR-0001, NFR-0002, NFR-0005, FR-0006, FR-0020, FR-0053, FR-0057, FR-0058, FR-0075, FR-0097, FR-0192, FR-0197, SEC-0004, OQ-0031, OQ-0043
+- **Betroffene Anforderungen:** NFR-0001, NFR-0002, NFR-0005, FR-0006, FR-0020, FR-0053, FR-0057, FR-0058, FR-0075, FR-0097, FR-0192, FR-0197, FR-0219, SEC-0004, OQ-0031, OQ-0043
 
 ## Kontext
 Alle Algorithmen sind austauschbar, wählbar ist nur das Belastungsmodell (OQ-0043). Eine zweite Variante darf Aufzeichnung und Rohdaten nicht berühren (NFR-0005). Rohdaten bleiben, solange der Lauf existiert, und ursprüngliche Werte bleiben neben neu berechneten erhalten (OQ-0031, FR-0058). Beim Wechsel des Belastungsmodells wird nach Bestätigung alles neu gerechnet, sodass ein Verlauf nur ein Modell nutzt (OQ-0045).
@@ -25,6 +25,8 @@ Alle Algorithmen sind austauschbar, wählbar ist nur das Belastungsmodell (OQ-00
 **4. Ursprung und aktueller Stand:** Je Wert höchstens zwei Zeilen: unveränderlich `original` mit ursprünglicher Qualität und `current`. Das reicht für die drei Angaben aus FR-0058. Zwischenstände mehrerer Neuberechnungen entfallen.
 
 **5. Neuberechnung:** Ein Dienst in `core` rechnet nach Bestätigung (FR-0058, FR-0197) in einen Zwischenstand und tauscht ihn in einer Transaktion gegen `current`. So bleibt ein Verlauf auch bei einem Abbruch einheitlich (FR-0097). Lehnt der Nutzer ab, ändert sich nichts an den Daten (OQ-0053).
+
+**Nachtrag (SRC-003, Maintainer 2026-11-15) — Nachholen beim Start:** Werte eines beendeten Laufs, die nach dem Lauf nicht berechnet wurden, holt die App beim Start nach. Scheitert das für einen Lauf dreimal, versucht der Start ihn nicht mehr, und die Historie kennzeichnet ihn als „nicht berechenbar“ (FR-0219). Der Zähler hängt am Stand der Berechnung (Parameter- und Methodenversion): eine neue Version und das Bestätigen einer Neuberechnung („Neu berechnen“) versuchen den Lauf erneut. Rohdaten und Aufzeichnung bleiben unverändert.
 
 **6. Schema:** Versionierte drift-Migrationen mit Test je Schritt. Das Archiv (FR-0192) enthält alle drei Ebenen mit ihren Kennungen.
 
