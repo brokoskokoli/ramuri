@@ -108,6 +108,7 @@ class _RunDetailScreenState extends State<RunDetailScreen> {
               formatter: formatter,
               session: session,
               runId: runId,
+              clock: clock,
               subjective: SubjectiveService(session: session, clock: clock),
               onWarning: warningEntry(
                 session: session,
