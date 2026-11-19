@@ -2,10 +2,12 @@ import '../../ports/storage.dart';
 import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
+import '../fitness/aerobic_efficiency.dart';
 import '../fitness/fitness_parameters.dart';
 import '../fitness/fitness_result.dart';
 import '../fitness/heart_rate_basis.dart';
 import '../fitness/vo2max_estimator.dart';
+import '../fitness/vo2max_long_term.dart';
 import '../fitness/vo2max_section_selection.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/movement_time_processor.dart';
@@ -24,6 +26,19 @@ const String aerobicEfficiencyValueKey = 'aerobic_efficiency_change';
 const Set<String> dayValueKeys = {
   vo2maxLongTermValueKey,
   aerobicEfficiencyValueKey,
+};
+
+/// Methode und Methodenversion, mit denen die App jeden Tageswert aus
+/// [dayValueKeys] heute rechnet (die Parameterversion ist die der
+/// Fitnessparameter). Die Versionsprüfung der Neuberechnung vergleicht die
+/// gespeicherten Tageswerte damit (ADR-0004 Punkt 3); ein neuer Tagesschlüssel
+/// braucht hier einen Eintrag.
+const Map<String, (String, int)> dayValueMethods = {
+  vo2maxLongTermValueKey: (vo2maxLongTermMethod, vo2maxLongTermMethodVersion),
+  aerobicEfficiencyValueKey: (
+    aerobicEfficiencyMethod,
+    aerobicEfficiencyMethodVersion,
+  ),
 };
 
 const String vo2maxUnit = 'ml/kg/min';

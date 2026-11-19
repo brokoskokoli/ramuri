@@ -17,6 +17,7 @@ import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/debug/debug_test_health_connect.dart';
 import 'package:running_app/debug/debug_test_sensor.dart';
 import 'package:running_app/features/storage/storage_start.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/system_clock.dart';
 
 import 'support/e2e_support.dart';
@@ -194,11 +195,10 @@ void main() {
         reason: '${k.key} nicht eingewilligt, nichts gespeichert',
       );
     }
-    expect(
-      txt('health_last').contains('Nie') ||
-          txt('health_last').contains('Never'),
-      isFalse,
-    );
+    final never = AppLocalizations.of(
+      t.element(find.byKey(const Key('health_last'))),
+    ).healthLastNever;
+    expect(txt('health_last'), isNot(never), reason: 'letzter Abruf gesetzt');
     log('HC1 letzter Abruf gesetzt');
   });
 

@@ -20,6 +20,17 @@
 | Einwilligung | Datenquelle oder Empfänger, Zustand | SEC-0001, SEC-0002, SEC-0007 |
 | Externe Verknüpfung | Strava-Verbindung, Upload-Status je Lauf | FR-0185, FR-0188, FR-0190 |
 
+## Schritte eines Laufs (`raw_steps`)
+
+Speicherung der Schrittfrequenz des Smartphones (FR-0202, FR-0183); Tabelle `raw_steps` (`schema.drift`), Archivabschnitt 7 ([Archivvertrag](../contracts/archive.md)).
+
+- **`step_count`:** kumulierter Schrittzähler des Laufs, gezählt ab Laufbeginn aus den Schritten, die der Schrittdetektor des Telefons meldet; Schritte während einer manuellen Pause zählen nicht (in der automatischen Pause schon). Nach dem Fortsetzen eines unterbrochenen Laufs (FR-0193) zählt der Zähler vom höchsten gespeicherten Wert weiter, nie doppelt und nie von 0. Der Zähler fällt innerhalb eines Laufs nicht.
+- **`time_us`:** Zeitpunkt des Empfangs in derselben Zeitbasis wie die Anzeige und die übrigen Rohdaten des Laufs (Sitzungszeit, UTC).
+- **`source`:** `phone`. **`state`:** `present`.
+- **Dichte:** höchstens ein Wert je Anzeigetakt; kommen mehrere Meldungen vor dem nächsten Schreiben, bleibt nur der neueste Zählerstand (verlustfrei, weil kumuliert).
+- **Laufband:** gilt genauso für Läufe im Laufbandmodus (FR-0196).
+- **Verwendung:** Die Schrittfrequenz im Export rechnet der Dateiexport aus dem Zuwachs des Zählers ([Dateiexport-Vertrag](../contracts/file-export.md), Regel 11). Löschen eines Laufs und „Alles löschen“ entfernen die Werte (SEC-0004); Archiv und Reimport enthalten sie.
+
 ## Datenhoheit
 
 Läufe und Fitnessdaten müssen unabhängig von externen Plattformen nutzbar und exportierbar bleiben (CON-0008). Fremde und eigene VO₂max-Werte werden nicht ungeprüft zusammengeführt (FR-0024). TRIMP und sRPE werden zunächst getrennt geführt (FR-0096).

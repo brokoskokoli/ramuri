@@ -427,11 +427,14 @@ class RecalculationService {
       ? LoadSettings.pendingProfile(session.settings)
       : null;
 
-  /// Prüft, ob gespeicherte Laufwerte mit einer anderen Parameter- oder
-  /// Methodenversion gerechnet sind als die App sie jetzt verwendet: VO2max
-  /// und TRIMP (die Basis ändert sich mit dem Profil, das Ergebnis mit der
-  /// Methode). Zonenzeiten gehören bewusst nicht dazu: sie werden nie neu
-  /// gerechnet (L11), das Angebot käme nach jeder Bestätigung wieder.
+  /// Prüft, ob gespeicherte Lauf- oder Tageswerte mit einer anderen Methode,
+  /// Methoden- oder Parameterversion gerechnet sind als die App sie jetzt
+  /// verwendet: VO2max und TRIMP (die Basis ändert sich mit dem Profil, das
+  /// Ergebnis mit der Methode) sowie alle Tageswerte aus [dayValueKeys]
+  /// ([dayValueMethods]). Zonenzeiten gehören bewusst nicht dazu: sie werden
+  /// nie neu gerechnet (L11), das Angebot käme nach jeder Bestätigung wieder.
+  /// Aus demselben Grund zählen nur Tageswerte an Tagen, die [confirm] neu
+  /// rechnet ([ValueCalculationService.recalculableDays]).
   Future<RecalculationOffer?> checkVersions() async {
     const estimator = AcsmReserveVo2maxEstimator();
     // TRIMP-Modell des aktiven Belastungsprofils; nicht anwendbar: nicht
@@ -457,7 +460,35 @@ class RecalculationService {
         }
       }
     }
+    if (await _dayValuesOutdated()) {
+      return _offer(RecalculationCause.algorithmVersion);
+    }
     return null;
+  }
+
+  /// Trägt ein gespeicherter Tageswert (`current`) an einem Tag, den [confirm]
+  /// neu rechnet, eine andere Methode oder Version als [dayValueMethods]? Alle
+  /// Tage in einer Abfrage.
+  Future<bool> _dayValuesOutdated() async {
+    final stored = await session.values.readDayValues(dayValueKeys);
+    if (stored.isEmpty) return false;
+    final days = await _calc.recalculableDays();
+    for (final MapEntry(key: day, value: values) in stored.entries) {
+      if (!days.contains(day)) continue;
+      for (final v in values.values) {
+        // Ohne Zuordnung nicht vergleichen; ein Test verlangt sie für jeden
+        // Schlüssel aus [dayValueKeys].
+        final known = dayValueMethods[v.key];
+        if (known == null) continue;
+        final (method, version) = known;
+        if (v.parameterVersion != _calc.fitness.parameterVersion ||
+            v.method != method ||
+            v.methodVersion != version) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /// Startet die Neuberechnung. Nur mit einem offenen Angebot; sonst

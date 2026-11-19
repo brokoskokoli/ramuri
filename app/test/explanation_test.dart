@@ -183,6 +183,32 @@ void main() {
       },
     );
 
+    testWidgets('Laufwert ohne Puls und ohne Profil: Grund „kein Puls“, '
+        'Profilhinweis bleibt (FR-0057, FR-0055)', (tester) async {
+      final d = await seeded(
+        tester,
+        profile: null,
+        bpm: null,
+        knownDevice: false,
+      );
+      await openStats(d, tester);
+      await explainFromStats(tester, 'stat_explain_vo2_run');
+      expect(text('expl_reason'), contains('kein Puls'));
+      expect(text('expl_reason'), isNot(contains('im Profil prüfen')));
+      expect(key('expl_needs_hr'), findsOneWidget);
+      expect(key('expl_profile_hint'), findsOneWidget);
+    });
+
+    testWidgets('Laufwert mit Puls, Profil unvollständig: Profilgrund, '
+        'kein Pulshinweis (FR-0055)', (tester) async {
+      final d = await seeded(tester, profile: null);
+      await openStats(d, tester);
+      await explainFromStats(tester, 'stat_explain_vo2_run');
+      expect(text('expl_reason'), contains('im Profil prüfen'));
+      expect(text('expl_reason'), isNot(contains('kein Puls')));
+      expect(key('expl_needs_hr'), findsNothing);
+    });
+
     testWidgets('nur GPS: Grund „kein Puls“, Datenbasis nur GPS', (
       tester,
     ) async {

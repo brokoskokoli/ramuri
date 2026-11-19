@@ -5,6 +5,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/run/run_controller.dart';
+import 'package:running_app/features/run/run_ports.dart';
 
 import 'app_harness.dart';
 
@@ -183,6 +184,120 @@ void main() {
         expect(key('run_pause'), findsOneWidget);
       },
     );
+  });
+
+  group('Schritte gespeichert (FR-0202, raw_steps)', () {
+    final t0 = DateTime.utc(2030, 3, 1, 10);
+    Future<void> settle() => Future<void>.delayed(Duration.zero);
+    List<(Duration, int)> rows(StoredRawData raw) => [
+      for (final r in raw.steps) (r.value.time.difference(t0), r.value.count),
+    ];
+    LocationSample fix(FakeClock clock, int i) => LocationSample(
+      time: clock.now(),
+      latitude: 50 + i * 0.000027,
+      longitude: 8,
+      accuracyMeters: 5,
+    );
+    RunController controller(
+      FakeClock clock,
+      StorageSession session,
+      FakeLocationSource location,
+      FakeCadenceSensor cadence, {
+      int? resume,
+      RunMode mode = RunMode.gps,
+    }) => RunController(
+      clock: clock,
+      storage: session,
+      location: location,
+      cadence: cadence,
+      service: FakeRecordingServicePort(),
+      mode: mode,
+      startBeltSpeedMetersPerSecond: mode == RunMode.treadmill ? 3 : null,
+      resumeRunId: resume,
+      tickEvery: const Duration(hours: 1),
+    );
+
+    test('Lauf mit Fake-Schrittsensor: Zähler des Laufs gespeichert', () async {
+      final clock = FakeClock(t0);
+      final session = await FakeStorage().open(Uint8List(32));
+      final location = FakeLocationSource();
+      final cadence = FakeCadenceSensor();
+      final c = controller(clock, session, location, cadence);
+      addTearDown(c.dispose);
+      await c.start();
+      await settle();
+      clock.advance(const Duration(seconds: 1));
+      cadence.emit(clock.now(), 170, null, 3);
+      location.emit(fix(clock, 1)); // schreibt den wartenden Zähler mit
+      await settle();
+      clock.advance(const Duration(seconds: 1));
+      cadence.emit(clock.now(), 172, null, 2);
+      await settle();
+      await c.finish();
+      final raw = await session.rawData.read(c.runId!);
+      expect(rows(raw), [
+        (const Duration(seconds: 1), 3),
+        (const Duration(seconds: 2), 5),
+      ]);
+      expect(raw.steps.first.value.source, 'phone');
+    });
+
+    test('Laufband: Zähler wird ebenso gespeichert', () async {
+      final clock = FakeClock(t0);
+      final session = await FakeStorage().open(Uint8List(32));
+      final cadence = FakeCadenceSensor();
+      final c = controller(
+        clock,
+        session,
+        FakeLocationSource(),
+        cadence,
+        mode: RunMode.treadmill,
+      );
+      addTearDown(c.dispose);
+      await c.start();
+      await settle();
+      clock.advance(const Duration(seconds: 2));
+      cadence.emit(clock.now(), 168, null, 4);
+      await settle();
+      await c.finish();
+      final raw = await session.rawData.read(c.runId!);
+      expect((await session.runs.get(c.runId!))!.mode, RunMode.treadmill);
+      expect(rows(raw), [(const Duration(seconds: 2), 4)]);
+    });
+
+    test('Wiederanlauf (FR-0193): neuer Sensorstrom, Zähler läuft ohne '
+        'Doppelzählung weiter', () async {
+      final clock = FakeClock(t0);
+      final session = await FakeStorage().open(Uint8List(32));
+      final location = FakeLocationSource();
+      final cadence = FakeCadenceSensor();
+      final first = controller(clock, session, location, cadence);
+      await first.start();
+      await settle();
+      clock.advance(const Duration(seconds: 1));
+      cadence.emit(clock.now(), 170, null, 4);
+      location.emit(fix(clock, 1));
+      await settle();
+      final id = first.runId!;
+      first.dispose(); // Prozess weg, kein Ende
+      await settle();
+      expect((await session.runs.get(id))!.state, RunState.active);
+
+      clock.advance(const Duration(minutes: 1));
+      final again = controller(clock, session, location, cadence, resume: id);
+      addTearDown(again.dispose);
+      await again.start();
+      await settle();
+      expect(again.runId, id);
+      clock.advance(const Duration(seconds: 1));
+      cadence.emit(clock.now(), 171, null, 2); // neuer Strom zählt ab 0
+      await settle();
+      await again.finish();
+      expect(rows(await session.rawData.read(id)), [
+        (const Duration(seconds: 1), 4),
+        (const Duration(seconds: 62), 6),
+      ]);
+    });
   });
 
   group('Controller', () {

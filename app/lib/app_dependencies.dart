@@ -407,6 +407,8 @@ class _DeniedAccess implements LocationAccessPort {
   Future<LocationAccess> request() async => LocationAccess.denied;
   @override
   Future<bool> gpsEnabled() async => false;
+  @override
+  Future<bool> openLocationSettings() async => false;
 }
 
 class _EmptySource implements LocationSource {

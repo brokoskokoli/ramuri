@@ -48,6 +48,10 @@ class HealthConnectController extends ChangeNotifier {
   /// Gesetzt, solange eine Löschfrage auf dem Bildschirm steht (je Sitzung höchstens eine Abfolge zugleich).
   bool asking = false;
 
+  /// Ob die laufende Abfolge auch zurückgestellte Fragen ([deferred]) stellt: ihr eigener Aufruf oder ein weiterer
+  /// während des Laufs hat es verlangt.
+  bool askDeferredToo = false;
+
   /// Arten, deren Löschdialog gerade steht oder deren Antwort noch gespeichert wird, mit dem Ende dieser Frage.
   final Map<HealthDataKind, Future<void>> _asked = {};
 
@@ -65,6 +69,23 @@ class HealthConnectController extends ChangeNotifier {
     if (identical(_asked[kind], done.future)) _asked.remove(kind);
     if (!done.isCompleted) done.complete();
   }
+
+  /// Ende der Löschfrage, die gerade die Sperre der Art hält; `null`, wenn keine.
+  Future<void>? questionEnd(HealthDataKind kind) => _asked[kind];
+
+  /// Arten, die per Schalter ausgeschaltet wurden, während eine andere Löschfrage dieser Art die Sperre hielt. Der
+  /// Dialog dieser Frage gilt dann als der des Schalters („Abbrechen“ schaltet wieder ein); zeigt sie keinen, fragt
+  /// der Schalter danach selbst.
+  final Set<HealthDataKind> _switchWaiting = {};
+
+  /// Vermerkt, dass der Schalter der Art auf die laufende Frage wartet.
+  void markSwitchWaiting(HealthDataKind kind) => _switchWaiting.add(kind);
+
+  /// Ob der Schalter der Art noch auf eine Frage wartet.
+  bool isSwitchWaiting(HealthDataKind kind) => _switchWaiting.contains(kind);
+
+  /// Übernimmt den Vermerk des Schalters (die gezeigte Frage gilt als seine); `true`, wenn er wartete.
+  bool takeSwitchWaiting(HealthDataKind kind) => _switchWaiting.remove(kind);
 
   /// Wartet, bis keine Löschfrage mehr steht (auch die des Schalters).
   Future<void> questionsSettled() async {
