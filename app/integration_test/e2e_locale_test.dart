@@ -10,6 +10,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:running_app/features/home/app_shell.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/value_tile.dart';
 
@@ -102,6 +103,32 @@ Future<void> _setUnit(
   await waitFor(t, () => has('home_start_run'), 'Heute');
 }
 
+/// Datenstand der App-Huelle (zaehlt nach jeder Datenmeldung hoch).
+int _revision() =>
+    (find.byType(AppShell, skipOffstage: false).evaluate().first.widget
+            as AppShell)
+        .changes
+        .revision;
+
+/// Schliesst die Zusammenfassung und wartet, bis der Ablauf nach dem Lauf
+/// fertig ist: Ist heute eine Plan-Einheit offen (Plan aus frueheren Gruppen
+/// der Sammlung), fragt die App, ob der freie Lauf zu ihr zaehlt – Nein, der
+/// Plan bleibt unveraendert. Fertig ist der Ablauf mit der Datenmeldung danach.
+Future<void> _closeSummary(WidgetTester t) async {
+  final before = _revision();
+  await tapKey(t, 'run_done_close');
+  await waitFor(t, () {
+    return has('home_assign_ask') || _revision() > before;
+  }, 'Frage zur Plan-Einheit oder Datenmeldung');
+  if (has('home_assign_ask')) {
+    log('LOCALE frage_plan_einheit');
+    await tapDialog(t, 'home_assign_no');
+    await waitFor(t, () => !has('home_assign_ask'), 'Frage zu');
+    await waitFor(t, () => _revision() > before, 'Datenmeldung');
+  }
+  await waitFor(t, () => has('home_start_run'), 'Heute nach dem Lauf');
+}
+
 /// Verbindet den Test-Gurt; ist er schon verbunden (bekannt aus frueheren
 /// Gruppen der Sammlung), bleibt es dabei.
 Future<void> _belted(WidgetTester t) async {
@@ -179,8 +206,7 @@ void main() {
       _noUmlaut('Strecke', distance);
       _noUmlaut('Pace', paceTile);
       await shot(t, 'locale_zusammenfassung');
-      await tapKey(t, 'run_done_close');
-      await waitFor(t, () => has('home_start_run'), 'Heute nach dem Lauf');
+      await _closeSummary(t);
 
       step('LOCALE verlauf');
       final id = (await t.runAsync(() async {
