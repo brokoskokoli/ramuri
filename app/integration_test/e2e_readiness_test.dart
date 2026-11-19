@@ -493,9 +493,12 @@ void main() {
     expect(has('readiness_stage'), isTrue, reason: 'S5 Stufe auf der Karte');
     expect(txt('readiness_stage'), isNotEmpty, reason: 'S5 Stufe benannt');
     expect(txt('readiness_title'), isNotEmpty, reason: 'S5 Titel');
+    final insufficient = AppLocalizations.of(
+      t.element(find.byKey(const Key('readiness_title'))),
+    ).readinessInsufficientTitle;
     expect(
       txt('readiness_title'),
-      isNot(contains('Unzureichende Daten')),
+      isNot(contains(insufficient)),
       reason: 'S5 genug Daten mit HC (28 Tage)',
     );
     await shot(t, 's5_heute');
