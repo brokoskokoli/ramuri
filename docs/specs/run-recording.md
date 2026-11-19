@@ -4,7 +4,7 @@ title: Aufzeichnung von Laufeinheiten
 status: Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0031, FR-0032, FR-0033, FR-0034, FR-0035, FR-0036, FR-0037, FR-0038, FR-0039, FR-0193, FR-0194, FR-0195, FR-0196, FR-0202, FR-0204, FR-0210]
+related_requirements: [FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0031, FR-0032, FR-0033, FR-0034, FR-0035, FR-0036, FR-0037, FR-0038, FR-0039, FR-0193, FR-0194, FR-0195, FR-0196, FR-0202, FR-0204, FR-0210, FR-0218]
 ---
 
 # Aufzeichnung von Laufeinheiten
@@ -128,10 +128,26 @@ Die App warnt bei Überschreitung festgelegter Herzfrequenzbereiche.
 
 Die App gibt Hinweise zum nächsten Trainingsintervall.
 
-**Festlegung (K63):** Abschnitte laufen nur nach Zeit, gemessen in Bewegungszeit; Pause und Autopause halten den Abschnitt an. Angesagt werden jeder Wechsel und das Ende der Einheit, dazu 10 s vorher der nächste Abschnitt (nicht bei Abschnitten bis 20 s).
+**Festlegung (K63):** Abschnitte laufen nur nach Zeit oder bis der Nutzer überspringt (FR-0218), gemessen in Bewegungszeit; Pause und Autopause halten den Abschnitt an. Angesagt werden jeder Wechsel und das Ende der Einheit, dazu 10 s vorher der nächste Abschnitt (nicht bei Abschnitten bis 20 s).
 
 **Akzeptanzkriterien:**
 - [ ] Bei einer strukturierten Einheit wird das nächste Intervall angekündigt.
+
+### FR-0218 — Abschnitt einer geführten Einheit überspringen
+- **Status:** Approved | **Phase:** 2
+- **Quelle:** SRC-003 (Entscheidung des Maintainers 2026-11-15)
+- **Verwandt:** FR-0027, FR-0031, FR-0033, K63
+
+Während einer geführten Einheit kann der Nutzer den laufenden Abschnitt überspringen, auch Auf- und Abwärmen und den letzten. Der nächste Abschnitt beginnt sofort mit seiner vollen Dauer und wird angesagt; die folgenden Abschnitte rücken nach. Nach dem letzten Abschnitt meldet die App „Einheit fertig“, der Lauf läuft frei weiter. Einige Sekunden lang lässt sich der Sprung rückgängig machen; eine Rückfrage gibt es nicht. Die Aufzeichnung bleibt unverändert, die Einheit zählt im Plan als absolviert. Ein Wiederanlauf nach Abbruch setzt am erreichten Abschnitt fort.
+
+**Umsetzung:** Der Knopf „Abschnitt überspringen“ steht auf der Seite „Einheit“ (FR-0027) bis zum Ende der Einheit, im Lauf neben „Pause“, in der Pause vor „Weiter“. Nach dem Sprung erscheint ein Hinweis mit „Rückgängig“; läuft er ab, bleibt der Sprung. „Rückgängig“ nimmt nur den letzten Sprung zurück und sagt nichts an. Die Sprünge (Bewegungszeit) stehen im Schnappschuss der Einheit (`guided.unit_snapshot`), nicht in der Aufzeichnung.
+
+**Akzeptanzkriterien:**
+- [ ] Ein Sprung mitten in einem Abschnitt (auch Auf- oder Abwärmen) startet den nächsten Abschnitt sofort mit voller Dauer, die folgenden rücken nach; ein Sprung im letzten Abschnitt beendet die Einheit; ohne Sprung verläuft die Einheit unverändert.
+- [ ] Nach einem Sprung kommt genau eine Ansage (Wechsel bzw. „Einheit fertig“), keine doppelte Vorankündigung; der Pulshinweis beginnt neu; Pause hält den Abschnitt auch nach einem Sprung an; „Rückgängig“ sagt nichts an.
+- [ ] „Rückgängig“ im Hinweis stellt Abschnitt und Restzeit wie ohne Sprung her und entfernt den Sprung aus dem Schnappschuss; nach Ablauf des Hinweises bleibt der Sprung; bei zwei Sprüngen nimmt „Rückgängig“ nur den letzten zurück; es gibt keine Rückfrage.
+- [ ] Sprünge werden im Schnappschuss geschrieben und gelesen; ein Schnappschuss ohne Sprünge liest sich weiter; ein Wiederanlauf nach Abbruch setzt am erreichten Abschnitt fort.
+- [ ] Nach dem Sprung im letzten Abschnitt läuft der Lauf weiter, der Knopf ist verschwunden und der Lauf gehört wie ohne Sprung zur Einheit aus dem Plan.
 
 ### FR-0034 — Aufzeichnung bei ausgeschaltetem Bildschirm
 - **Status:** Approved | **Phase:** 1
