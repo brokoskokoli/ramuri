@@ -130,6 +130,13 @@ void main() {
           expect(m.total.bpm, closeTo(t.bpm, 0.5), reason: m.name);
           expect(m.total.rmssdMs, closeTo(t.rmssd, 5.0), reason: m.name);
         }
+        // Version 3 (PAR-230): Die Verfahren oben sind der Port der Referenz (ohne Auswahl). Die
+        // HRV-Auswahl bleibt bei gleichmäßigem Abstand Vorlage−Anstieg nahe an der Wahrheit; Puls
+        // und Zahl der gültigen Intervalle gleichen dem Hauptverfahren.
+        expect(r.hrv.rmssdMs, closeTo(t.rmssd, 5.0), reason: 'Seed $seed');
+        expect(r.hrv.diffs, greaterThanOrEqualTo(ppgMinHrvDiffs));
+        expect(r.hrv.bpm, r.main.total.bpm);
+        expect(r.hrv.validIbis, r.main.total.validIbis);
       }
     });
 
@@ -154,6 +161,7 @@ void main() {
       final t = truth([for (final b in s.beats) b + 0.12], 5.0, 65.0);
       expect(r.main.total.bpm, closeTo(t.bpm, 0.5));
       expect(r.main.total.rmssdMs, closeTo(t.rmssd, 3.0));
+      expect(r.hrv.rmssdMs, closeTo(t.rmssd, 3.0)); // Version 3 (PAR-230)
     });
 
     test('motionArtifactsAreDetectedAndExcluded', () {

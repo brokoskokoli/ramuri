@@ -25,6 +25,7 @@ PpgChannelResult channel({
   double noise = 10,
   double bpm = 60,
   double rmssd = 40,
+  int hrvDiffs = 60,
 }) {
   HrvStats stats() => HrvStats(
     beats: total + 1,
@@ -37,6 +38,7 @@ PpgChannelResult channel({
     pnn50: 10,
     minBpm: 50,
     maxBpm: 70,
+    diffs: hrvDiffs,
   );
   final m = PpgMethodResult(
     name: 'Vorl.Anstieg',
@@ -57,6 +59,8 @@ PpgChannelResult channel({
     meanFps: 30,
     frameJitterMs: 1,
     timingNoiseMs: noise,
+    hrv: stats(),
+    hrvValid: const [],
   );
 }
 
@@ -73,7 +77,7 @@ void main() {
       expect(m.hasResult, isTrue);
       expect(m.channel, 'Rot');
       expect(m.method, 'camera-ppg');
-      expect(m.methodVersion, 2);
+      expect(m.methodVersion, 3);
       expect(m.category, AlgorithmCategory.heuristic);
     });
 
@@ -86,13 +90,22 @@ void main() {
           );
           expect(m.intervalsMs, isNotEmpty);
           expect(m.intervalsMs.length, m.intervals);
-          expect(m.intervalsMs.where((v) => !v.isNaN).length, m.validIntervals);
+          // Version 3 (PAR-230): nur die HRV-Auswahl ist ausgegeben, sie ist höchstens so groß wie
+          // die gültigen Intervalle (der Puls zählt alle gültigen).
+          expect(
+            m.intervalsMs.where((v) => !v.isNaN).length,
+            lessThanOrEqualTo(m.validIntervals),
+          );
+          expect(
+            m.intervalsMs.where((v) => !v.isNaN).length,
+            greaterThan(m.validIntervals - 5),
+          );
           expect(
             m.intervalsMs.every((v) => v.isNaN || (v > 300 && v < 2000)),
             isTrue,
           );
-          final mean =
-              m.intervalsMs.reduce((a, b) => a + b) / m.intervalsMs.length;
+          final kept = m.intervalsMs.where((v) => !v.isNaN).toList();
+          final mean = kept.reduce((a, b) => a + b) / kept.length;
           expect(60000 / mean, closeTo(m.bpm!, 1.0));
         }
       },
@@ -158,10 +171,12 @@ void main() {
             for (final v in seq)
               if (!v.isNaN) v,
           ];
-          expect(valid.length, m.validIntervals);
+          // Version 3 (PAR-230): gespeichert ist die HRV-Auswahl; der Puls kommt aus der Analyse
+          // (alle gültigen Intervalle) und ist aus der Folge nicht mehr exakt nachrechenbar.
+          expect(valid.length, lessThanOrEqualTo(m.validIntervals));
           if (valid.length < seq.length) withGaps++;
           final mean = valid.reduce((a, b) => a + b) / valid.length;
-          expect(60000 / mean, closeTo(m.bpm!, 1e-6));
+          expect(60000 / mean, closeTo(m.bpm!, 1.0));
           var sum = 0.0;
           var n = 0;
           for (var i = 0; i + 1 < seq.length; i++) {
@@ -170,7 +185,7 @@ void main() {
             sum += d * d;
             n++;
           }
-          expect(math.sqrt(sum / n), closeTo(m.rmssdMs!, 1e-6));
+          expect(math.sqrt(sum / n), closeTo(m.rmssdMs!, 1e-9));
         }
         expect(withGaps, greaterThan(0));
       },

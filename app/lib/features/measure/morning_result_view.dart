@@ -147,6 +147,19 @@ class MorningResultView extends StatelessWidget {
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
+                // PAR-230: Grund, warum trotz Puls kein RMSSD vorliegt.
+                if (m.quality == PpgQuality.limited &&
+                    (controller.engine.result?.reasons.contains(
+                          PpgQualityReason.fewConsistentBeats,
+                        ) ??
+                        false)) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.measureFewConsistentBeats,
+                    key: const Key('morning_few_consistent'),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
               ],
             ),
           ),

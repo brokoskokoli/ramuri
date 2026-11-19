@@ -4,8 +4,10 @@ import '../algorithm_category.dart';
 /// Version 1 = Port von `PpgAnalyzer.kt` im Stand `algo-v0.4-frozen`, festes Fenster 5 bis 65 s.
 /// Version 2 (WP37, K66, K72) = zusätzlich wanderndes 60-s-Fenster in bis zu 120 s Aufnahme,
 /// Ende beim ersten guten Fenster (ALGORITHMUS.md Abschn. 2); Qualitätsgrenzen unverändert.
+/// Version 3 (PAR-230) = Schläge mit uneinigen Bezugspunkten zählen nicht für RMSSD, SDNN und
+/// pNN50 (ALGORITHMUS.md Abschn. 8); Puls, Anteil gültiger Intervalle und Fensterwahl unverändert.
 const String ppgMethod = 'camera-ppg';
-const int ppgMethodVersion = 2;
+const int ppgMethodVersion = 3;
 
 /// Stand der Referenz, aus der das Verfahren portiert ist.
 const String ppgReference = 'algo-v0.4-frozen';
@@ -92,6 +94,16 @@ const double ppgIntervalMaxSeconds = 2.0;
 
 /// Pulsdifferenzen über 50 ms zählen für pNN50, Abschn. 8.
 const double ppgPnnThresholdMs = 50.0;
+
+/// Uneinige Schläge für die HRV (PAR-230, ab Version 3), Abschn. 8: Ein Schlag ist uneinig, wenn
+/// sein Abstand „Vorlagenbezug Anstieg – lokaler steilster Anstieg“ um mehr als
+/// [ppgInconsistentBeatMs] vom Median der Schläge k − [ppgInconsistentMedianRadius] bis
+/// k + [ppgInconsistentMedianRadius] abweicht; seine beiden Intervalle zählen dann nicht für RMSSD,
+/// SDNN und pNN50. Bleiben weniger als [ppgMinHrvDiffs] Differenzen benachbarter Intervalle, gibt
+/// es keinen RMSSD und die Messung ist höchstens „eingeschränkt“ (Abschn. 10).
+const double ppgInconsistentBeatMs = 15.0;
+const int ppgInconsistentMedianRadius = 5;
+const int ppgMinHrvDiffs = 20;
 
 /// Auswahl der Signalquelle, Abschn. 9: brauchbar ab Q 0,25 und 60 % gültigen Intervallen;
 /// Teilbereiche mit Q ab 70 % des besten gehen in die Kombination ein.
