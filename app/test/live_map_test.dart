@@ -76,7 +76,8 @@ class _World {
   final consents = _Consents();
   late final MapConsentController map;
   late final MapConsentHolder holder;
-  late final RunController run;
+  late RunController run;
+  late StorageSession session;
   int _i = 0;
 
   int get requests => inner.requests.length;
@@ -86,7 +87,7 @@ class _World {
   ];
 
   Future<void> startRun({bool? autoPause}) async {
-    final session = await FakeStorage().open(Uint8List(32));
+    session = await FakeStorage().open(Uint8List(32));
     _worlds.add(this);
     run = RunController(
       clock: clock,
@@ -96,6 +97,25 @@ class _World {
       initialAutoPause: autoPause,
     );
     await run.start();
+  }
+
+  /// Der Prozess endet mitten im Lauf (Anzeige und Aufzeichnung weg, der Lauf bleibt offen). Nach [outage] ohne
+  /// Aufzeichnung, in der der Läufer weitergelaufen ist, wird er fortgesetzt (FR-0193) und die Anzeige neu aufgebaut.
+  Future<void> crashAndResume(WidgetTester tester, Duration outage) async {
+    final id = (await session.runs.unfinished()).single.id;
+    await tester.pumpWidget(const SizedBox());
+    run.dispose();
+    clock.advance(outage);
+    _i += outage.inSeconds;
+    run = RunController(
+      clock: clock,
+      storage: session,
+      location: location,
+      tickEvery: const Duration(seconds: 1),
+      resumeRunId: id,
+    );
+    await run.start();
+    await tester.pumpWidget(_app(this));
   }
 
   /// Ein Punkt je Sekunde nach Norden (rund 3 m/s) und ein Tick der Anzeige.
@@ -551,6 +571,31 @@ void main() {
           lessThan(parts()[i].first.latitude),
         );
       }
+    });
+
+    _testRun('Ausfall nach Absturz trennt nach der Wiederaufnahme', (
+      tester,
+    ) async {
+      final w = _World(consent: ConsentState.granted);
+      await w.startRun();
+      await tester.pumpWidget(_app(w));
+      await _toMap(tester);
+      await w.step(tester, n: 30);
+      await w.crashAndResume(tester, const Duration(minutes: 3));
+      await _toMap(tester);
+      await w.step(tester, n: 30);
+      await settleUntilRequestsStable(tester, () => w.requests);
+      expect(
+        w.run.snapshot.gaps.map((g) => g.kind),
+        contains(RunGapKind.interruption),
+      );
+      final parts = tester.widget<LiveRouteMap>(key('live_route_map')).route;
+      expect(parts, hasLength(2), reason: 'der Ausfall trennt die Linie');
+      // 3 Minuten Weg (rund 3 m/s) liegen zwischen den Teilen: nicht verbunden.
+      expect(
+        parts[1].first.latitude - parts[0].last.latitude,
+        greaterThan(150 * 0.000027),
+      );
     });
 
     _testRun('lange Läufe: die Punktzahl ist begrenzt, die Daten nicht', (
