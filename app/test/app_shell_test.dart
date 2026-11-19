@@ -268,6 +268,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.bySemanticsLabel(RegExp('Fortschritt')), findsWidgets);
+      // Auch nicht gewählt (normale Stärke) einzeilig mit „…“.
+      await tester.tap(find.byKey(const Key('home_today')));
+      await tester.pumpAndSettle();
+      final plain = tester.renderObject<RenderParagraph>(progress);
+      expect(plain.didExceedMaxLines, isTrue);
+      expect(plain.overflow, TextOverflow.ellipsis);
+      expect(tester.takeException(), isNull);
       semantics.dispose();
     });
 
