@@ -23,13 +23,6 @@ import 'package:running_app/system_clock.dart';
 
 import 'support/e2e_support.dart';
 
-const _shots = bool.fromEnvironment('E2E_SHOTS');
-
-Future<void> shot(WidgetTester t, String name) async {
-  log('SHOT $name');
-  if (_shots) await pumpFor(t, const Duration(milliseconds: 2500));
-}
-
 /// Uhr mit festem "jetzt", Versatz der Systemzeitzone (Emulator).
 class _FixedClock implements Clock {
   _FixedClock(this.at);
