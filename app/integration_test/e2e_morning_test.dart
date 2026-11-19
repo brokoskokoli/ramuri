@@ -12,15 +12,20 @@
 // 6 Gurt bekannt, aber getrennt: Autoverbinden beim Oeffnen („verbunden“, auch
 // nach erneutem Oeffnen), Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
 // 7 Ruhephase ueberspringen (Fortschritt, vermerkt), 8 Entwicklermodus aus ->
-// Einstieg weg (mit S1 die Pruefung K62 F1). Nur Zaehler und Marken in der
-// Ausgabe.
+// 7b Uhrzeit der Morgen-Erinnerung ueber den Zeitwaehler (geplanter Zeitpunkt
+// am Plattformkanal und im Speicher), 7c feste Uhr: Messung um 23:58 und um
+// 00:02 -> zwei Ortstage, je eine zaehlende Messung (FR-0215, K67), 8
+// Entwicklermodus aus -> Einstieg weg (mit S1 die Pruefung K62 F1). Nur Zaehler
+// und Marken in der Ausgabe.
 // Der Host (--dart-define=E2E_SHOTS=true) kann bei "E2E_.. SHOT <name>" ein Bildschirmfoto machen.
 import 'dart:async';
 import 'dart:io';
 
+import 'package:adapters/adapters.dart' show reminderChannelName;
 import 'package:core/core.dart';
 import 'package:core/fakes/fake_storage_settings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:running_app/debug/debug_test_ppg_camera.dart';
@@ -34,14 +39,19 @@ import 'support/e2e_support.dart';
 
 /// Systemuhr, deren monotone Zeit der Test vorstellen kann ([jump]): die feste
 /// Ruhephase der Morgenmessung (kein Ueberspringen) endet dann gleich. Die
-/// Wanduhr (Fenster, Zeitstempel) bleibt echt, die monotone Zeit bleibt monoton
-/// und laeuft sonst in Echtzeit (die Kamera-Aufnahme prueft Abstaende damit).
+/// Wanduhr (Fenster, Zeitstempel) bleibt echt, solange [wall] leer ist; mit
+/// [wall] steht sie fest (Fall um Mitternacht). Die monotone Zeit bleibt
+/// monoton und laeuft sonst in Echtzeit (die Kamera-Aufnahme prueft Abstaende
+/// damit).
 class _FastClock implements Clock {
   final _sw = Stopwatch()..start();
   Duration _bonus = Duration.zero;
   void jump(Duration d) => _bonus += d;
+
+  /// Feste Wanduhr (UTC); `null` = Systemuhr.
+  DateTime? wall;
   @override
-  DateTime now() => const SystemClock().now();
+  DateTime now() => wall ?? const SystemClock().now();
   @override
   Duration monotonic() => _sw.elapsed + _bonus;
   @override
@@ -172,6 +182,284 @@ Future<void> closeResultToHome(WidgetTester t) async {
   await waitFor(t, () => has('overview_about'), 'Uebersicht');
   await back(t);
   await waitFor(t, () => has('home_start_run'), 'Heute');
+}
+
+/// Zeichnet die Aufrufe der App am Kanal der Erinnerungen auf und reicht jeden
+/// unveraendert an die Plattform weiter (der Wecker wird echt gestellt). Die
+/// Aufzeichnung endet mit [stopReminderCalls].
+List<MethodCall> recordReminderCalls(WidgetTester t) {
+  final calls = <MethodCall>[];
+  final m = t.binding.defaultBinaryMessenger;
+  const codec = StandardMethodCodec();
+  m.setMockMessageHandler(reminderChannelName, (msg) {
+    if (msg != null) calls.add(codec.decodeMethodCall(msg));
+    return m.delegate.send(reminderChannelName, msg) ?? Future.value();
+  });
+  addTearDown(() => stopReminderCalls(t));
+  return calls;
+}
+
+void stopReminderCalls(WidgetTester t) => t.binding.defaultBinaryMessenger
+    .setMockMessageHandler(reminderChannelName, null);
+
+/// Zeitpunkte (Ortszeit des Geraets) aller `scheduleMorning`-Aufrufe.
+List<DateTime> scheduledMorning(List<MethodCall> calls) => [
+  for (final c in calls)
+    if (c.method == 'scheduleMorning')
+      DateTime.fromMillisecondsSinceEpoch(
+        (c.arguments as Map<Object?, Object?>)['at']! as int,
+      ),
+];
+
+Future<MorningReminderSettings> reminderSettings(
+  WidgetTester t,
+  StorageSession s,
+) async => (await t.runAsync(() => MorningReminderSettings.load(s.settings)))!;
+
+bool reminderSwitchReady() {
+  final f = find.byKey(const Key('morning_reminder_switch'));
+  return f.evaluate().isNotEmpty &&
+      (f.evaluate().first.widget as SwitchListTile).onChanged != null;
+}
+
+/// 7b) Morgen-Erinnerung einschalten, die Uhrzeit ueber den Zeitwaehler
+/// (Eingabe per Tastatur) aendern und pruefen, dass die geplante Erinnerung
+/// (Aufruf `scheduleMorning` an der Plattform) und der Speicher die neue Zeit
+/// tragen; danach wieder aus (kein Wecker fuer spaetere Gruppen).
+Future<void> reminderTimeViaUi(WidgetTester t, StorageSession s) async {
+  final calls = recordReminderCalls(t);
+  await tapKey(t, 'home_overview');
+  await tapKey(t, 'overview_morning_values');
+  await waitFor(t, () => has('morning_legend'), 'S7b Morgenwerte');
+  await waitFor(t, reminderSwitchReady, 'S7b Schalter Erinnerung bedienbar');
+  final before = await reminderSettings(t, s);
+  log('S7b vorher an=${before.enabled}');
+  if (!before.enabled) {
+    await tapKey(t, 'morning_reminder_switch');
+    await waitFor(
+      t,
+      () => scheduledMorning(calls).isNotEmpty,
+      'S7b eingeschaltet: Erinnerung geplant (scheduleMorning)',
+    );
+  }
+  expect(
+    (await reminderSettings(t, s)).enabled,
+    isTrue,
+    reason: 'S7b eingeschaltet gespeichert',
+  );
+  // Neue Zeit: sicher verschieden von der gespeicherten, vormittags (gleich
+  // in 12- und 24-Stunden-Anzeige ohne AM/PM-Wechsel).
+  const a = 7 * 60 + 45, b = 7 * 60 + 15;
+  final target = before.minuteOfDay == a ? b : a;
+  await waitFor(
+    t,
+    () =>
+        has('morning_reminder_time') &&
+        t
+            .widget<ListTile>(find.byKey(const Key('morning_reminder_time')))
+            .enabled,
+    'S7b Zeile Uhrzeit bedienbar',
+  );
+  calls.clear();
+  await tapKey(t, 'morning_reminder_time');
+  await waitFor(
+    t,
+    () => find.byType(TimePickerDialog).evaluate().isNotEmpty,
+    'S7b Zeitwaehler offen',
+  );
+  await t.tap(find.byIcon(Icons.keyboard_outlined));
+  await pumpFor(t, const Duration(milliseconds: 500));
+  final fields = find.descendant(
+    of: find.byType(TimePickerDialog),
+    matching: find.byType(TextField),
+  );
+  await waitFor(
+    t,
+    () => fields.evaluate().length >= 2,
+    'S7b Eingabefelder Stunde und Minute',
+  );
+  await t.enterText(fields.at(0), '${target ~/ 60}');
+  await pumpFor(t, const Duration(milliseconds: 300));
+  await t.enterText(fields.at(1), (target % 60).toString().padLeft(2, '0'));
+  await pumpFor(t, const Duration(milliseconds: 300));
+  await shot(t, 's7b_zeitwaehler');
+  final ok = MaterialLocalizations.of(t.element(find.byType(TimePickerDialog)))
+      .okButtonLabel;
+  // Taste im Dialog: kein ensureVisible (wie tapDialog, ohne eigenen Schluessel).
+  await t.tap(
+    find.descendant(of: find.byType(TimePickerDialog), matching: find.text(ok)),
+  );
+  await pumpFor(t, const Duration(milliseconds: 300));
+  await waitFor(
+    t,
+    () => find.byType(TimePickerDialog).evaluate().isEmpty,
+    'S7b Zeitwaehler zu',
+  );
+  await waitFor(
+    t,
+    () => scheduledMorning(calls).isNotEmpty,
+    'S7b neu geplant (scheduleMorning)',
+  );
+  final at = scheduledMorning(calls).last;
+  final now = DateTime.now();
+  log('S7b geplant n=${scheduledMorning(calls).length}');
+  expect(
+    at.hour * 60 + at.minute,
+    target,
+    reason: 'S7b geplante Erinnerung traegt die neue Uhrzeit',
+  );
+  expect(at.isAfter(now), isTrue, reason: 'S7b naechster Zeitpunkt danach');
+  expect(
+    at.difference(now) <= const Duration(days: 1),
+    isTrue,
+    reason: 'S7b naechster Zeitpunkt innerhalb eines Tages',
+  );
+  final saved = await reminderSettings(t, s);
+  expect(saved.minuteOfDay, target, reason: 'S7b Uhrzeit gespeichert');
+  expect(saved.enabled, isTrue, reason: 'S7b bleibt eingeschaltet');
+  final row = find.byKey(const Key('morning_reminder_time'));
+  final ctx = t.element(row);
+  final shown = MaterialLocalizations.of(ctx).formatTimeOfDay(
+    TimeOfDay(hour: target ~/ 60, minute: target % 60),
+    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(ctx),
+  );
+  expect(
+    find.descendant(of: row, matching: find.text(shown)),
+    findsOneWidget,
+    reason: 'S7b Zeile zeigt die neue Uhrzeit',
+  );
+  await shot(t, 's7b_erinnerung_neu');
+  // Wieder aus: gestrichen und gespeichert.
+  calls.clear();
+  await tapKey(t, 'morning_reminder_switch');
+  await waitFor(
+    t,
+    () => calls.any((c) => c.method == 'cancelMorning'),
+    'S7b aus: Erinnerung gestrichen (cancelMorning)',
+  );
+  expect(scheduledMorning(calls), isEmpty, reason: 'S7b aus plant nichts');
+  expect(
+    (await reminderSettings(t, s)).enabled,
+    isFalse,
+    reason: 'S7b aus gespeichert',
+  );
+  stopReminderCalls(t);
+  await tapKey(t, 'measure_back');
+  await back(t);
+  await waitFor(t, () => has('home_start_run'), 'S7b Heute');
+  log('S7b ok');
+}
+
+/// 7c) Feste Wanduhr: eine Messung um 23:58 und eine um 00:02 des Folgetags
+/// (Ortszeit) liegen auf zwei Ortstagen; jede ist die erste ihres Tages und
+/// zaehlt (FR-0215, K67). Die Tage liegen weit zurueck und haben noch keine
+/// Messung (die Morgentabelle kann Zeilen frueherer Gruppen haben).
+Future<void> midnight(
+  WidgetTester t,
+  StorageSession s,
+  World w,
+  MorningWindow restore,
+) async {
+  final clock = w.deps.clock;
+  final before = await stored(t, s);
+  final used = before.map(morningLocalDay).toSet();
+  final nowU = clock.now();
+  final nowL = nowU.toUtc().add(clock.utcOffsetAt(nowU));
+  var day = DateTime.utc(nowL.year, nowL.month, nowL.day - 400);
+  DateTime next(DateTime d) => DateTime.utc(d.year, d.month, d.day + 1);
+  while (used.contains(day) || used.contains(next(day))) {
+    day = DateTime.utc(day.year, day.month, day.day - 1);
+  }
+  final atLate = DateTime(day.year, day.month, day.day, 23, 58).toUtc();
+  final atEarly = DateTime(day.year, day.month, day.day + 1, 0, 2).toUtc();
+  // Ganzer Tag als Fenster: beide Zeitpunkte liegen darin.
+  await t.runAsync(
+    () => SettingsMorningWindowStore(
+      s.settings,
+      clock,
+    ).set(const MorningWindow(0, 24)),
+  );
+  try {
+    _clk.wall = atLate;
+    await measureFromTile(t);
+    expect(has('morning_again'), isFalse, reason: 'S7c 23:58 gueltig');
+    expect(
+      has('morning_note_outside'),
+      isFalse,
+      reason: 'S7c 23:58 im Fenster',
+    );
+    expect(
+      has('morning_note_not_counted'),
+      isFalse,
+      reason: 'S7c 23:58 zaehlt (erste des Ortstags)',
+    );
+    await storedCount(t, s, before.length + 1);
+    await shot(t, 's7c_ergebnis_2358');
+    await closeResultToHome(t);
+
+    _clk.wall = atEarly;
+    await measureFromTile(t);
+    expect(has('morning_again'), isFalse, reason: 'S7c 00:02 gueltig');
+    expect(
+      has('morning_note_outside'),
+      isFalse,
+      reason: 'S7c 00:02 im Fenster',
+    );
+    expect(
+      has('morning_note_not_counted'),
+      isFalse,
+      reason: 'S7c 00:02 zaehlt (neuer Ortstag, FR-0215)',
+    );
+    await shot(t, 's7c_ergebnis_0002');
+    final after = await storedCount(t, s, before.length + 2);
+    expect(after.length, before.length + 2, reason: 'S7c zwei gespeichert');
+    await closeResultToHome(t);
+
+    final mine = [
+      for (final m in after)
+        if (morningLocalDay(m) == day || morningLocalDay(m) == next(day)) m,
+    ];
+    final onLate = mine.where((m) => morningLocalDay(m) == day).toList();
+    final onEarly = mine.where((m) => morningLocalDay(m) == next(day)).toList();
+    log('S7c tag1=${onLate.length} tag2=${onEarly.length}');
+    expect(onLate.length, 1, reason: 'S7c Ortstag 1: genau eine Messung');
+    expect(onEarly.length, 1, reason: 'S7c Ortstag 2: genau eine Messung');
+    expect(
+      onLate.single.measuredAt.isAtSameMomentAs(atLate),
+      isTrue,
+      reason: 'S7c Zeitpunkt 23:58 (feste Uhr)',
+    );
+    expect(
+      onEarly.single.measuredAt.isAtSameMomentAs(atEarly),
+      isTrue,
+      reason: 'S7c Zeitpunkt 00:02 (feste Uhr)',
+    );
+    final countLate = morningCountingToday(
+      after,
+      nowUtc: atLate,
+      utcOffset: clock.utcOffsetAt(atLate),
+    );
+    final countEarly = morningCountingToday(
+      after,
+      nowUtc: atEarly,
+      utcOffset: clock.utcOffsetAt(atEarly),
+    );
+    expect(countLate.length, 1, reason: 'S7c Ortstag 1 zaehlt eine');
+    expect(countEarly.length, 1, reason: 'S7c Ortstag 2 zaehlt eine');
+    expect(
+      countLate.single.measuredAt.isAtSameMomentAs(
+        countEarly.single.measuredAt,
+      ),
+      isFalse,
+      reason: 'S7c je Ortstag eine eigene Messung',
+    );
+    log('S7c ok');
+  } finally {
+    _clk.wall = null;
+    await t.runAsync(
+      () => SettingsMorningWindowStore(s.settings, clock).set(restore),
+    );
+  }
 }
 
 void main() {
@@ -739,6 +1027,13 @@ void main() {
     );
     log('S7 vermerk_nach_s=${skipped.restSkippedAfterS!.toStringAsFixed(1)}');
     await closeResultToHome(t);
+
+    step('MORNING S7b erinnerung_zeit');
+    await reminderTimeViaUi(t, s);
+
+    step('MORNING S7c mitternacht');
+    await midnight(t, s, w, inWindow);
+
     await tapKey(t, 'home_overview');
     await waitFor(t, () => has('overview_developer'), 'S7 Uebersicht');
     await tapKey(t, 'overview_developer');
