@@ -681,12 +681,21 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         block == StartBlock.permissionDenied ||
         block == StartBlock.approximateOnly;
     final canOpenSettings = canAsk;
+    // Standort aus: direkt zu den Standort-Einstellungen des Systems; die
+    // Rückkehr in den Vordergrund prüft erneut (didChangeAppLifecycleState).
+    final canOpenLocationSettings = block == StartBlock.gpsOff;
     final actions = <Widget>[
       if (canAsk)
         FilledButton(
           key: const Key('run_block_ask'),
           onPressed: () => _check(askUser: true, autoStart: false),
           child: Text(l10n.runActionAsk),
+        ),
+      if (canOpenLocationSettings)
+        FilledButton(
+          key: const Key('run_block_location_settings'),
+          onPressed: () => widget.ports.access.openLocationSettings(),
+          child: Text(l10n.runActionLocationSettings),
         ),
       if (canOpenSettings)
         OutlinedButton(
@@ -695,7 +704,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
           child: Text(l10n.runActionSettings),
         ),
       // Ohne Abfrage lesen: nach Schalter oder Einstellungen genügt das.
-      if (!canAsk)
+      if (!canAsk && !canOpenLocationSettings)
         FilledButton(
           key: const Key('run_block_recheck'),
           onPressed: () => _check(askUser: false, autoStart: false),

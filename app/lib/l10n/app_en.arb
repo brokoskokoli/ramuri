@@ -156,6 +156,7 @@
   "runBlockUnknown": "Permission and GPS could not be checked, for example because a request is still open. Please check again.",
   "runActionAsk": "Request permission",
   "runActionSettings": "Open app settings",
+  "runActionLocationSettings": "Open location settings",
   "runActionRecheck": "Check again",
   "runStartFailed": "The run could not be created. Nothing was recorded.",
   "runTime": "Time",

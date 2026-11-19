@@ -386,6 +386,43 @@ void main() {
       expect(b.snapshot().distanceMeters, closeTo(20 + 900, 1e-9));
     });
 
+    // ADR-0005, Punkt 7 „Zeitbasis“: Der Abstand misst die monotone Uhr, eine
+    // umgestellte Wanduhr verschiebt das Lebenszeichen nicht.
+    test('Lebenszeichen: Wanduhr springt -10 min', () async {
+      final a = make();
+      await a.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2);
+      clock.advance(s(10));
+      clock.set(clock.now().subtract(const Duration(minutes: 10)));
+      clock.advance(beltHeartbeatInterval);
+      a.tick();
+      await a.flush();
+      final id = a.runId!;
+      final raw = await store.rawData.read(id);
+      expect(raw.beltSettings.length, 1 + 1);
+      final last = lastRecordedTime(
+        (await store.runs.get(id))!,
+        raw,
+        await store.markers.gaps(id),
+        await store.markers.laps(id),
+      );
+      expect(last, t0.add(s(10) + beltHeartbeatInterval));
+    });
+
+    test('Lebenszeichen: Wanduhr springt +1 h', () async {
+      final a = make();
+      await a.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2);
+      clock.advance(s(10));
+      clock.set(clock.now().add(const Duration(hours: 1)));
+      a.tick();
+      await a.flush();
+      final id = a.runId!;
+      expect((await store.rawData.read(id)).beltSettings.length, 1);
+      clock.advance(beltHeartbeatInterval);
+      a.tick();
+      await a.flush();
+      expect((await store.rawData.read(id)).beltSettings.length, 1 + 1);
+    });
+
     test('Ohne Lebenszeichen-Intervall und im GPS-Lauf keine Zeile', () async {
       final a = make();
       await a.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2);

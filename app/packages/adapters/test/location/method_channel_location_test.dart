@@ -202,6 +202,34 @@ void main() {
       expect(await a.gpsEnabled(), isFalse);
     });
 
+    test(
+      'openLocationSettings: Methode, Antwort, ohne Activity false',
+      () async {
+        final calls = <MethodCall>[];
+        messenger.setMockMethodCallHandler(channel, (c) async {
+          calls.add(c);
+          return true;
+        });
+        final a = MethodChannelLocationAccess();
+        expect(await a.openLocationSettings(), isTrue);
+        expect(calls.single.method, 'openLocationSettings');
+        expect(calls.single.arguments, isNull); // kein Recht, keine Daten
+        // Keine Einstellungsseite (Kotlin meldet false) oder keine Antwort.
+        answer({'openLocationSettings': false});
+        expect(await a.openLocationSettings(), isFalse);
+        answer({});
+        expect(await a.openLocationSettings(), isFalse);
+        // Ohne Activity bzw. Fehler der Plattform: false statt Absturz.
+        answer({
+          'openLocationSettings': PlatformException(code: 'no_activity'),
+        });
+        expect(await a.openLocationSettings(), isFalse);
+        // Kein Handler registriert (Kanal ohne Activity).
+        messenger.setMockMethodCallHandler(channel, null);
+        expect(await a.openLocationSettings(), isFalse);
+      },
+    );
+
     test('Gate mit Adapter: ungefähr blockiert, genau erlaubt', () async {
       answer({'locationAccess': 'approximate', 'gpsEnabled': true});
       final gate = RecordingStartGate(MethodChannelLocationAccess());
@@ -227,9 +255,16 @@ void main() {
     for (final key in full().keys) {
       expect(gps, contains('"$key"'), reason: key);
     }
-    for (final m in ['locationAccess', 'requestLocation', 'gpsEnabled']) {
+    for (final m in [
+      'locationAccess',
+      'requestLocation',
+      'gpsEnabled',
+      'openLocationSettings',
+    ]) {
       expect(main, contains('"$m"'), reason: m);
     }
+    // Kein neues Recht: nur die Einstellungsseite des Systems.
+    expect(main, contains('Settings.ACTION_LOCATION_SOURCE_SETTINGS'));
     for (final m in ['permission_denied', 'provider_disabled']) {
       expect(gps, contains('"$m"'), reason: m);
     }
