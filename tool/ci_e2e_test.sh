@@ -74,7 +74,7 @@ grep -q 'PUB_01 M2 form_error key=planFormErrorStand' "$tmp/stdout" && echo "OK 
 [ -f "$tmp/out/test-output-sammlung.txt" ] || { echo "FAIL kein Testlog im Artefakt"; fails=$((fails + 1)); }
 # Letzte Schrittmarke vor dem ersten [E] im Fehlerabschnitt, nicht die eines spaeteren Tests der Sammlung.
 run "Stufe rot mit Schrittmarken"              1 1 E2E_SHARD=sammlung FAKE_FAIL=1 FAKE_STEPS=1
-grep -q 'PUB_00 SCHRITT A1 start' "$tmp/stdout" && echo "OK   Schrittmarke im Log" || { echo "FAIL Schrittmarke fehlt im Log"; fails=$((fails + 1)); }
+sed -n '/^--- Schritte Stufe sammlung ---$/,/^--- Fehlermeldung/p' "$tmp/stdout" | grep -c ' SCHRITT ' | grep -qx 3 && echo "OK   alle Schrittmarken der Stufe im Log" || { echo "FAIL Schrittmarken der Stufe fehlen im Log"; fails=$((fails + 1)); }
 sed -n '/^--- Fehlermeldung Stufe sammlung ---$/,$p' "$tmp/stdout" | grep -qx 'letzter Schritt vor dem Fehler: PUB_01 SCHRITT A1 rot' && echo "OK   letzter Schritt vor dem Fehler im Fehlerabschnitt" || { echo "FAIL letzter Schritt vor dem Fehler fehlt"; fails=$((fails + 1)); }
 run "Stufe rot ohne Schrittmarken"             1 1 E2E_SHARD=sammlung FAKE_FAIL=1
 grep -qx 'letzter Schritt vor dem Fehler: keiner' "$tmp/stdout" && echo "OK   ohne Marke: keiner" || { echo "FAIL ohne Marke: Meldung fehlt"; fails=$((fails + 1)); }

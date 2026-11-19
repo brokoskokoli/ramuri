@@ -127,6 +127,9 @@ stufe() {
   echo "STUFE $name rc=$rc dauer=$(($(date +%s) - t0))s"
   # Nur Zeilen ohne "E2E_" (Wertausgaben der Tests) in das oeffentliche Log.
   grep -v 'E2E_' "$log" >"$log.pub"
+  # Alle Schrittmarken der Stufe (die letzten Zeilen unten zeigen bei langen Stufen nur das Ende).
+  echo "--- Schritte Stufe $name ---"
+  grep 'PUB_[^ ]* SCHRITT ' "$log.pub"
   tail -n 40 "$log.pub"
   if [ "$rc" -ne 0 ]; then
     rc_all=1
