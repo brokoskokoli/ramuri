@@ -799,6 +799,27 @@ class PlanController extends ChangeNotifier {
   /// ([checkPlanReplace] mit Ziel und Eingaben der neuesten Fassung, Einheiten
   /// und absolvierten intensiven Läufen um die Woche, „heute“). `null` ohne
   /// Ziel oder Fassung.
+  /// Anker der Wochenzählung und Länge der Geh-Lauf-Abfolge (PAR-192), wie
+  /// sie der Wochenverlauf des Plans nutzt ([planCourseSetup] aus dem
+  /// gespeicherten Ziel und den Eingaben der letzten Fassung). Für den
+  /// Hinweis auf die Reduktion beim Verschieben ([checkPlanMove], FR-0177).
+  /// `null` ohne Ziel oder Fassung.
+  Future<({DateTime anchor, int walkRunWeeks})?> courseWeeks() =>
+      _serial(() async {
+        final goal = await _goals.goal();
+        final history = await _plans.history();
+        if (goal == null || history.isEmpty) return null;
+        final inputs = history.last.inputs;
+        return (
+          anchor: inputs.anchor,
+          walkRunWeeks: planCourseSetup(
+            goal,
+            inputs,
+            parameters: parameters,
+          ).walkRunWeeks,
+        );
+      });
+
   Future<PlanReplaceCheck?> checkReplace(PlanUnit unit, PlanUnitKind kind) =>
       _serial(() => _replaceCheck(unit, kind, _today()));
 
