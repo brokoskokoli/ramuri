@@ -6,13 +6,16 @@ import '../plan/plan_unit.dart';
 /// kopierten Abschnitte samt Lauf-Kennung und dem Merker „Gehpausen-Hinweis
 /// gegeben“. Steht als JSON in `settings` ([SettingKeys.guidedUnitSnapshot]);
 /// eine Neuberechnung des Plans im Lauf ändert die geführte Einheit nicht, und
-/// ein Wiederanlauf liest ihn wieder. Enthält keine Messwerte.
+/// ein Wiederanlauf liest ihn wieder. Enthält keine Messwerte. Dazu kommen die
+/// Bewegungszeiten, an denen der Nutzer übersprungen hat (FR-0218), damit ein
+/// Wiederanlauf am erreichten Abschnitt fortsetzt.
 class GuidedUnitSnapshot {
   const GuidedUnitSnapshot({
     required this.runId,
     required this.segments,
     this.walkBreakHintGiven = false,
     this.kind,
+    this.skips = const [],
   });
 
   /// Lauf, zu dem der Schnappschuss gehört; ein fremder Lauf ignoriert ihn.
@@ -24,11 +27,25 @@ class GuidedUnitSnapshot {
   /// optional, ein Schnappschuss ohne sie bleibt gültig (Version 1 tolerant).
   final String? kind;
 
+  /// Bewegungszeiten der Sprünge in ihrer Reihenfolge (FR-0218); optional,
+  /// ein Schnappschuss ohne sie (Version 1 von vor FR-0218) hat keine.
+  final List<Duration> skips;
+
   GuidedUnitSnapshot withWalkBreakHintGiven() => GuidedUnitSnapshot(
     runId: runId,
     segments: segments,
     walkBreakHintGiven: true,
     kind: kind,
+    skips: skips,
+  );
+
+  /// Derselbe Schnappschuss mit den Sprüngen [value].
+  GuidedUnitSnapshot withSkips(List<Duration> value) => GuidedUnitSnapshot(
+    runId: runId,
+    segments: segments,
+    walkBreakHintGiven: walkBreakHintGiven,
+    kind: kind,
+    skips: List.unmodifiable(value),
   );
 
   String encode() => jsonEncode({
@@ -37,6 +54,7 @@ class GuidedUnitSnapshot {
     'hint': walkBreakHintGiven,
     if (kind != null) 'kind': kind,
     'seg': [for (final s in segments) _segment(s)],
+    if (skips.isNotEmpty) 'skip': [for (final d in skips) d.inMilliseconds],
   });
 
   /// `null` bei leerem, unlesbarem oder fremdem Wert.
@@ -55,10 +73,20 @@ class GuidedUnitSnapshot {
         ],
         walkBreakHintGiven: j['hint'] == true,
         kind: j['kind'] is String ? j['kind'] as String : null,
+        skips: _readSkips(j['skip']),
       );
     } on Object {
       return null;
     }
+  }
+
+  /// Fehlt der Eintrag, gibt es keine Sprünge; ein kaputter Eintrag macht den
+  /// ganzen Schnappschuss unlesbar (wie bei den Abschnitten).
+  static List<Duration> _readSkips(Object? value) {
+    if (value == null) return const [];
+    return List.unmodifiable([
+      for (final ms in value as List) Duration(milliseconds: ms as int),
+    ]);
   }
 
   static Map<String, Object?> _segment(PlanSegment s) => {
