@@ -76,7 +76,7 @@ Future<void> _setUnit(
   await tapKey(t, 'home_settings');
   await waitFor(
     t,
-    () => !has('home_settings'),
+    () => !has('home_settings') && has('home_start_run'),
     'Einstellungen offen (home_settings verdeckt)',
   );
   await t.scrollUntilVisible(
