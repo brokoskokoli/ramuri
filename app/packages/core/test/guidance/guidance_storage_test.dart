@@ -144,6 +144,40 @@ void main() {
       );
     });
 
+    test('Sprünge (FR-0218): schreiben, lesen, alter Stand ohne Sprünge', () {
+      const seg = [PlanSegment(kind: PlanSegmentKind.easy, minutes: 5)];
+      final s = GuidedUnitSnapshot(runId: 3, segments: seg, kind: 'easy')
+          .withSkips(const [
+            Duration(seconds: 90),
+            Duration(minutes: 4, milliseconds: 250),
+          ]);
+      final r = GuidedUnitSnapshot.decode(s.encode())!;
+      expect(r.skips, const [
+        Duration(seconds: 90),
+        Duration(minutes: 4, milliseconds: 250),
+      ]);
+      expect(r.kind, 'easy');
+      // Der Merker des Gehpausen-Hinweises behält die Sprünge.
+      expect(r.withWalkBreakHintGiven().skips, r.skips);
+      // Ohne Sprünge kein Eintrag: derselbe Text wie vor FR-0218.
+      final none = GuidedUnitSnapshot(runId: 3, segments: seg);
+      expect(none.encode(), isNot(contains('skip')));
+      expect(none.withSkips(const []).encode(), none.encode());
+      // Version 1 ohne Sprünge liest sich.
+      final old = GuidedUnitSnapshot.decode(
+        '{"v":1,"run":1,"hint":true,"seg":[{"k":"easy","m":5}]}',
+      )!;
+      expect(old.skips, isEmpty);
+      expect(old.walkBreakHintGiven, isTrue);
+      // Kaputter Eintrag: unlesbar wie ein kaputter Abschnitt.
+      expect(
+        GuidedUnitSnapshot.decode(
+          '{"v":1,"run":1,"seg":[{"k":"easy","m":5}],"skip":["x"]}',
+        ),
+        isNull,
+      );
+    });
+
     test('leer, kaputt, fremde Version: null', () {
       expect(GuidedUnitSnapshot.decode(null), isNull);
       expect(GuidedUnitSnapshot.decode(''), isNull);

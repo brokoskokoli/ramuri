@@ -98,12 +98,9 @@ void main() {
 
       step('M2 einheit_starten');
       // Heute: Einheit starten (gefuehrt).
-      // Dauer des ersten Abschnitts der heutigen Einheit: daraus folgt die Frist des Abschnittswechsels.
-      final firstSegmentSeconds = await firstSegmentSecondsToday(
-        t,
-        plans,
-        'M2',
-      );
+      // Einheiten um heute ins Log (nur Zaehler); die Frist des Wechsels nach Zeit
+      // braucht dieser Test nicht, er springt per Knopf.
+      await firstSegmentSecondsToday(t, plans, 'M2');
       await waitFor(t, () => has('home_start_unit'), 'heutige Einheit');
       log('M2 unit_today_len=${txt('home_today_unit').length}');
       await tapKey(t, 'home_start_unit');
@@ -130,14 +127,45 @@ void main() {
       log('M2 guided_started run_time_built=${has('run_time')}');
 
       step('M2 abschnittswechsel');
-      // Abschnittswechsel abwarten (Echtzeit, die Einheit beginnt mit Aufwaermen/Lauf-Gehen).
+      // Abschnitt überspringen (FR-0218) statt auf den Wechsel nach Zeit zu
+      // warten: erst überspringen und „Rückgängig“ (der Abschnitt ist wieder
+      // da), dann überspringen und den Wechsel prüfen.
       final first = txt('guided_section');
-      final dl = DateTime.now().add(
-        Duration(seconds: firstSegmentSeconds + 120),
+      await tapVisible(t, 'guided_skip');
+      await waitFor(
+        t,
+        () => txt('guided_section') != first,
+        'Wechsel nach Ueberspringen',
       );
-      while (txt('guided_section') == first) {
-        if (DateTime.now().isAfter(dl)) {
-          fail('kein Abschnittswechsel in ${firstSegmentSeconds + 120} s');
+      await waitFor(t, () => has('guided_skip_undo'), 'Hinweis Rueckgaengig');
+      await tapVisible(t, 'guided_skip_undo');
+      await waitFor(
+        t,
+        () => txt('guided_section') == first,
+        'Abschnitt nach Rueckgaengig',
+      );
+      log('M2 skip_undone');
+      // Der Hinweis des ersten Sprungs ist weg, bevor erneut gesprungen wird.
+      await waitFor(t, () => !has('guided_skip_undo'), 'Hinweis zu');
+      await tapVisible(t, 'guided_skip');
+      await waitFor(
+        t,
+        () => txt('guided_section') != first,
+        'Wechsel nach Ueberspringen',
+      );
+      expect(
+        has('map_consent_dialog'),
+        isFalse,
+        reason: 'Karten-Frage im Lauf',
+      );
+      log('M2 section_changed');
+      // Der Sprung verkürzt den Lauf auf wenige Sekunden. Damit die
+      // Zusammenfassung eine Route hat (sonst keine Karte und keine
+      // Karten-Frage), laufen, bis genug Positionen gespeichert sind.
+      final routeDl = DateTime.now().add(const Duration(seconds: 90));
+      while ((await countRuns(t, w)).first.positions < 15) {
+        if (DateTime.now().isAfter(routeDl)) {
+          fail('keine Positionen fuer die Route in 90 s');
         }
         expect(
           has('map_consent_dialog'),
@@ -146,7 +174,7 @@ void main() {
         );
         await pumpFor(t, const Duration(seconds: 1));
       }
-      log('M2 section_changed');
+      log('M2 route_recorded');
 
       step('M2 beenden');
       // Beenden: kein Karten-Dialog davor oder darueber.

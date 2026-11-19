@@ -130,6 +130,203 @@ void main() {
     });
   });
 
+  group('Überspringen (FR-0218)', () {
+    final segs = [
+      seg(PlanSegmentKind.warmUp, 1),
+      seg(PlanSegmentKind.interval, 5, max: 150),
+      seg(PlanSegmentKind.recovery, 2),
+      seg(PlanSegmentKind.coolDown, 1),
+    ];
+
+    test('Sprung: genau eine Ansage segmentChange, folgende nach Zeit', () {
+      final a = GuidanceAnnouncer(segments: segs);
+      final sim = Sim(a)..play(0, 90);
+      final e = a.skip(s(90));
+      expect(e.map((x) => (x.kind, x.segmentIndex)), [
+        (GuidanceEventKind.segmentChange, 2),
+      ]);
+      expect(a.skips, [s(90)]);
+      sim.play(91, 400);
+      final ch = sim.of(GuidanceEventKind.segmentChange);
+      // Wechsel nach Zeit: 60 (Intervall), dann Abwärmen 90 + 120 = 210.
+      expect(ch.map((x) => (x.$1, x.$2.segmentIndex)), [(60, 1), (210, 3)]);
+      // Keine Ansage des übersprungenen Wechsels bei 360, keine doppelte.
+      expect(sim.of(GuidanceEventKind.segmentPreview).map((x) => x.$1), [
+        50,
+        200,
+      ]);
+      expect(sim.of(GuidanceEventKind.unitComplete).map((x) => x.$1), [270]);
+    });
+
+    test('Sprung im Vorankündigungsfenster: keine weitere Vorankündigung', () {
+      final a = GuidanceAnnouncer(segments: segs);
+      final sim = Sim(a)..play(0, 355);
+      expect(sim.of(GuidanceEventKind.segmentPreview).map((x) => x.$1), [
+        50,
+        350,
+      ]);
+      expect(a.skip(s(355)).single.segmentIndex, 2);
+      sim.play(356, 365);
+      expect(sim.of(GuidanceEventKind.segmentPreview), hasLength(2));
+      expect(sim.of(GuidanceEventKind.segmentChange), hasLength(1));
+    });
+
+    test('letzter Abschnitt: unitComplete, danach nichts mehr', () {
+      final a = GuidanceAnnouncer(segments: segs);
+      final sim = Sim(a)..play(0, 490);
+      expect(sim.of(GuidanceEventKind.segmentChange), hasLength(3));
+      final e = a.skip(s(490));
+      expect(e.map((x) => x.kind), [GuidanceEventKind.unitComplete]);
+      sim.play(491, 600);
+      expect(sim.of(GuidanceEventKind.unitComplete), isEmpty);
+      expect(sim.of(GuidanceEventKind.segmentChange), hasLength(3));
+      // Fertige Einheit: Überspringen tut nichts.
+      expect(a.skip(s(600)), isEmpty);
+      expect(a.skips, [s(490)]);
+    });
+
+    test('Schalter „Intervallwechsel“ aus: Sprung ohne Ansage', () {
+      final a = GuidanceAnnouncer(
+        segments: segs,
+        switches: const GuidanceSwitches(segments: false),
+      );
+      Sim(a).play(0, 30);
+      expect(a.skip(s(30)), isEmpty);
+      expect(a.skips, [s(30)]);
+    });
+
+    test('Pause: Ansage sofort, Abschnitt steht danach still', () {
+      final a = GuidanceAnnouncer(segments: segs);
+      final sim = Sim(a)..play(0, 30);
+      sim.play(30, 30, phase: RecordingPhase.paused);
+      expect(a.skip(s(30)).single.segmentIndex, 1);
+      sim.play(30, 30, phase: RecordingPhase.paused);
+      sim.play(30, 30, phase: RecordingPhase.autoPaused);
+      expect(sim.events, isEmpty);
+      // Weiter: das Intervall läuft ab 30 s volle 5 min.
+      sim.play(31, 340);
+      expect(sim.of(GuidanceEventKind.segmentChange).map((x) => x.$1), [330]);
+    });
+
+    test('Pulshinweis zurückgesetzt: Zählung beginnt im neuen Abschnitt', () {
+      final s2 = [
+        seg(PlanSegmentKind.easy, 10, max: 140),
+        seg(PlanSegmentKind.easy, 10, max: 140),
+      ];
+      final a = GuidanceAnnouncer(segments: s2);
+      // 3:00–3:20 über der Grenze, dann Sprung bei 200 s.
+      final sim = Sim(a)..play(0, 200, bpm: (_) => 150);
+      expect(a.pulseOverrunSustained, isFalse);
+      a.skip(s(200));
+      sim.play(201, 600, bpm: (_) => 150);
+      final hr = sim.of(GuidanceEventKind.heartRateAbove);
+      // Neuer Abschnitt ab 200 s: Fenster ab 380 s, plus 30 s über der Grenze.
+      expect(hr.map((x) => x.$1), [410]);
+    });
+
+    test(
+      'Pulshinweis im alten Abschnitt gegeben: im neuen genau einmal wieder',
+      () {
+        final s2 = [
+          seg(PlanSegmentKind.easy, 10, max: 140),
+          seg(PlanSegmentKind.easy, 10, max: 140),
+        ];
+        final a = GuidanceAnnouncer(segments: s2);
+        // Durchgehend über der Grenze: Hinweis bei 210 s, Sprung bei 300 s.
+        final sim = Sim(a)..play(0, 300, bpm: (_) => 150);
+        expect(sim.of(GuidanceEventKind.heartRateAbove).map((x) => x.$1), [
+          210,
+        ]);
+        a.skip(s(300));
+        sim.play(301, 900, bpm: (_) => 150);
+        // Neuer Abschnitt ab 300 s: Fenster ab 480 s, plus 30 s über der
+        // Grenze; ohne Rückkehr in den Bereich danach nicht noch einmal.
+        expect(sim.of(GuidanceEventKind.heartRateAbove).map((x) => x.$1), [
+          210,
+          510,
+        ]);
+      },
+    );
+
+    test(
+      'Rückgängig: keine erneute Ansage, Abschnitt läuft nach Zeit weiter',
+      () {
+        final a = GuidanceAnnouncer(segments: segs);
+        final sim = Sim(a)..play(0, 90);
+        a.skip(s(90));
+        sim.play(91, 93);
+        expect(a.undoSkip(s(93)), isTrue);
+        expect(a.skips, isEmpty);
+        sim.play(94, 400);
+        // Wie ohne Sprung: Intervall endet bei 360, keine Ansage für das
+        // wiederhergestellte Intervall.
+        expect(
+          sim
+              .of(GuidanceEventKind.segmentChange)
+              .map((x) => (x.$1, x.$2.segmentIndex)),
+          [(60, 1), (360, 2)],
+        );
+        expect(a.undoSkip(s(400)), isFalse);
+      },
+    );
+
+    test('Rückgängig nach gesprochener Vorankündigung: nicht noch einmal', () {
+      final a = GuidanceAnnouncer(segments: segs);
+      final sim = Sim(a)..play(0, 352);
+      a.skip(s(352));
+      sim.play(353, 354);
+      a.undoSkip(s(354));
+      sim.play(355, 365);
+      expect(sim.of(GuidanceEventKind.segmentPreview).map((x) => x.$1), [
+        50,
+        350,
+      ]);
+      expect(sim.of(GuidanceEventKind.segmentChange).map((x) => x.$1), [
+        60,
+        360,
+      ]);
+    });
+
+    test('Rückgängig nach unitComplete: letzter Abschnitt wieder da', () {
+      final a = GuidanceAnnouncer(segments: segs);
+      final sim = Sim(a)..play(0, 490);
+      a.skip(s(490));
+      a.undoSkip(s(491));
+      sim.play(491, 600);
+      expect(sim.of(GuidanceEventKind.unitComplete).map((x) => x.$1), [540]);
+    });
+
+    test('zwei Sprünge, Rückgängig nimmt nur den letzten zurück', () {
+      final a = GuidanceAnnouncer(segments: segs);
+      final sim = Sim(a)..play(0, 30);
+      a.skip(s(30));
+      sim.play(31, 40);
+      a.skip(s(40));
+      expect(a.skips, [s(30), s(40)]);
+      a.undoSkip(s(41));
+      expect(a.skips, [s(30)]);
+      sim.play(41, 400);
+      expect(
+        sim
+            .of(GuidanceEventKind.segmentChange)
+            .map((x) => (x.$1, x.$2.segmentIndex)),
+        [(330, 2)],
+      );
+    });
+
+    test('Wiederanlauf mit Sprüngen: setzt am erreichten Abschnitt fort', () {
+      final sim = Sim(GuidanceAnnouncer(segments: segs, skips: [s(90)]))
+        ..play(100, 400);
+      expect(
+        sim
+            .of(GuidanceEventKind.segmentChange)
+            .map((x) => (x.$1, x.$2.segmentIndex)),
+        [(210, 3)],
+      );
+      expect(sim.of(GuidanceEventKind.unitComplete).map((x) => x.$1), [270]);
+    });
+  });
+
   group('Kilometer', () {
     test('bei jedem vollen km, Zeit und Dauer des letzten km', () {
       // 3 m/s bis 400 s, danach 2 m/s.

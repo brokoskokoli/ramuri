@@ -203,6 +203,58 @@ void main() {
       expect(_text('sum_from_plan_unit'), isNotEmpty);
     });
 
+    testWidgets('alle Abschnitte übersprungen (FR-0218): Lauf läuft weiter, '
+        'Knopf weg, „Aus dem Plan“ wie ohne Sprung', (tester) async {
+      final d = Device();
+      await _open(d);
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('home_start_unit'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      Future<void> tick(int i) async {
+        d.clock.advance(const Duration(seconds: 10));
+        d.location.emit(
+          LocationSample(
+            time: d.clock.now(),
+            latitude: 50 + i * 0.0001,
+            longitude: 8,
+            accuracyMeters: 5,
+          ),
+        );
+        await tester.pump(const Duration(seconds: 1));
+      }
+
+      for (var i = 0; i < 3; i++) {
+        await tick(i);
+      }
+      var taps = 0;
+      while (key('guided_skip').evaluate().isNotEmpty && taps < 20) {
+        await tester.tap(key('guided_skip'));
+        await tester.pumpAndSettle();
+        taps++;
+      }
+      expect(taps, greaterThan(0));
+      expect(key('guided_skip'), findsNothing);
+      expect(key('guided_done'), findsOneWidget);
+      // Der Hinweis läuft ab, der Lauf läuft frei weiter.
+      for (var i = 3; i < 10; i++) {
+        await tick(i);
+      }
+      await tester.pumpAndSettle();
+      expect(key('guided_skip_undo'), findsNothing);
+      expect(key('guided_done'), findsOneWidget);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      await tester.tap(key('run_finish'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_finish_confirm'));
+      await tester.pumpAndSettle();
+      expect(key('sum_trimp'), findsOneWidget);
+      expect(key('sum_from_plan'), findsOneWidget);
+      expect(_text('sum_from_plan_unit'), isNotEmpty);
+    });
+
     testWidgets('Absturz, Fortsetzen, Beenden: Zusammenfassung zeigt „Aus dem '
         'Plan“, der Lauf wird nach dem Schließen zugeordnet (NB4)', (
       tester,

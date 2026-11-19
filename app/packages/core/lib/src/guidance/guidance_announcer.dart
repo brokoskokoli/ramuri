@@ -23,8 +23,9 @@ class GuidanceTick {
 /// fällig sind. Hält nur flüchtigen Zustand; ein neuer Geber mit denselben
 /// Abschnitten setzt beim ersten Tick aus (Abschnitte, Bewegungszeit,
 /// Strecke) neu auf und sagt Vergangenes nicht noch einmal an (Wiederanlauf).
-/// Nur im Zustand `running` kommen Ansagen; in Pause und Autopause steht die
-/// Bewegungszeit und damit der Abschnitt still.
+/// Je Tick kommen Ansagen nur im Zustand `running`; in Pause und Autopause
+/// steht die Bewegungszeit und damit der Abschnitt still. Ein Sprung des
+/// Nutzers ([skip]) sagt den neuen Abschnitt sofort an, auch in der Pause.
 ///
 /// Zustand läuft unabhängig von [switches] weiter: ein abgeschalteter Kanal
 /// sagt später nichts Altes nach.
@@ -34,10 +35,17 @@ class GuidanceAnnouncer {
     this.switches = const GuidanceSwitches(),
     this.suppressHeartRateForWalkBreaks = false,
     bool walkBreakHintGiven = false,
+    List<Duration> skips = const [],
   }) : segments = List.unmodifiable(segments),
-       _walkHintGiven = walkBreakHintGiven;
+       _walkHintGiven = walkBreakHintGiven,
+       _skips = [...skips];
 
   final List<PlanSegment> segments;
+
+  final List<Duration> _skips;
+
+  /// Bewegungszeiten der Sprünge (FR-0218), in der Reihenfolge der Sprünge.
+  List<Duration> get skips => List.unmodifiable(_skips);
 
   /// Änderbar während des Laufs.
   GuidanceSwitches switches;
@@ -57,7 +65,7 @@ class GuidanceAnnouncer {
   int _lastKm = 0;
   Duration? _lastKmTime;
   int _lastIndex = 0;
-  int _previewedIndex = -1;
+  final Set<int> _previewed = {};
   Duration? _aboveSince;
   bool _armed = true;
   Duration _lastTime = Duration.zero;
@@ -75,7 +83,7 @@ class GuidanceAnnouncer {
 
   List<GuidanceEvent> onTick(GuidanceTick tick) {
     final t = tick.movingTime.isNegative ? Duration.zero : tick.movingTime;
-    final pos = guidedPosition(segments, t);
+    final pos = guidedPosition(segments, t, skips: _skips);
     final km = _wholeKm(tick.distanceMeters);
     if (!_initialised) {
       _initialised = true;
@@ -83,7 +91,7 @@ class GuidanceAnnouncer {
       // Der Start des ersten Kilometers ist Zeit 0; danach unbekannt.
       _lastKmTime = km == 0 ? Duration.zero : null;
       _lastIndex = pos.index;
-      if (_inPreviewWindow(pos)) _previewedIndex = pos.index;
+      if (_inPreviewWindow(pos)) _previewed.add(pos.index);
       // Erster Tick: nichts nachsagen.
       return const [];
     }
@@ -127,8 +135,7 @@ class GuidanceAnnouncer {
     }
 
     // Vorankündigung.
-    if (!changed && _inPreviewWindow(pos) && _previewedIndex != pos.index) {
-      _previewedIndex = pos.index;
+    if (!changed && _inPreviewWindow(pos) && _previewed.add(pos.index)) {
       emit(
         GuidanceEvent.segmentPreview(
           index: pos.index + 1,
@@ -141,6 +148,43 @@ class GuidanceAnnouncer {
     // Puls (PAR-107).
     _heartRate(tick, t, pos, emit);
     return out;
+  }
+
+  /// Überspringt den Abschnitt, der bei [movingTime] läuft (FR-0218): Der
+  /// nächste beginnt jetzt mit voller Dauer. Gibt die Ansage des Wechsels
+  /// zurück (`segmentChange`, beim letzten Abschnitt `unitComplete`), sofort
+  /// und auch in der Pause, denn der Nutzer hat den Wechsel selbst ausgelöst;
+  /// die Schalter gelten wie beim Wechsel nach Zeit. Ohne laufenden Abschnitt
+  /// (Einheit fertig) geschieht nichts. Der Pulshinweis des Abschnitts beginnt
+  /// neu.
+  List<GuidanceEvent> skip(Duration movingTime) {
+    final t = movingTime.isNegative ? Duration.zero : movingTime;
+    final before = guidedPosition(segments, t, skips: _skips);
+    if (before.finished) return const [];
+    _skips.add(t);
+    final pos = guidedPosition(segments, t, skips: _skips);
+    _lastIndex = pos.index;
+    _aboveSince = null;
+    _armed = true;
+    final e = pos.finished
+        ? const GuidanceEvent.unitComplete()
+        : GuidanceEvent.segmentChange(index: pos.index, segment: pos.segment!);
+    return switches.allows(e.kind) ? [e] : const [];
+  }
+
+  /// Nimmt den letzten Sprung zurück (FR-0218): Der Stand ist wieder der
+  /// ohne diesen Sprung bei [movingTime]. Es kommt keine Ansage, auch nicht
+  /// für den wiederhergestellten Abschnitt; eine schon gesprochene
+  /// Vorankündigung kommt nicht noch einmal. Gibt `false` ohne Sprung zurück.
+  bool undoSkip(Duration movingTime) {
+    if (_skips.isEmpty) return false;
+    _skips.removeLast();
+    final t = movingTime.isNegative ? Duration.zero : movingTime;
+    final pos = guidedPosition(segments, t, skips: _skips);
+    _lastIndex = pos.index;
+    _aboveSince = null;
+    _armed = true;
+    return true;
   }
 
   bool _inPreviewWindow(GuidedPosition pos) =>

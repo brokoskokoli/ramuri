@@ -247,6 +247,78 @@ class RunController extends ChangeNotifier {
     return null;
   }
 
+  /// Bewegungszeiten, an denen der Nutzer übersprungen hat (FR-0218); leer im
+  /// freien Lauf und ohne Sprung.
+  List<Duration> get guidedSkips => _guided?.skips ?? const [];
+
+  /// Stand der geführten Einheit jetzt (Abschnitte, Sprünge, Bewegungszeit);
+  /// `null` im freien Lauf.
+  GuidedPosition? get guidedUnitPosition {
+    final segments = guidedUnitSegments;
+    if (segments == null) return null;
+    return guidedPosition(
+      segments,
+      _snapshot.movingTime ?? Duration.zero,
+      skips: guidedSkips,
+    );
+  }
+
+  /// Der laufende Abschnitt lässt sich überspringen (FR-0218): geführte
+  /// Einheit mit Schnappschuss, Lauf aktiv oder pausiert, Einheit nicht fertig.
+  bool get canSkipSegment {
+    if (_guided == null || _guidanceClosed) return false;
+    final phase = _snapshot.phase;
+    if (phase != RecordingPhase.running &&
+        phase != RecordingPhase.paused &&
+        phase != RecordingPhase.autoPaused) {
+      return false;
+    }
+    return !(guidedUnitPosition?.finished ?? true);
+  }
+
+  /// Überspringt den laufenden Abschnitt (FR-0218): Der nächste beginnt jetzt
+  /// mit voller Dauer und wird angesagt; der Sprung steht sofort im
+  /// Schnappschuss, damit ein Wiederanlauf am erreichten Abschnitt fortsetzt.
+  /// Gibt `false` zurück, wenn nichts zu überspringen ist.
+  bool skipSegment() {
+    _update();
+    if (!canSkipSegment) return false;
+    final t = _snapshot.movingTime ?? Duration.zero;
+    _guided = _guided!.withSkips([...guidedSkips, t]);
+    unawaited(_saveGuided());
+    final a = _announcer;
+    if (a != null && !_disposed) {
+      try {
+        for (final e in a.skip(t)) {
+          _say(e);
+        }
+      } on Object {
+        // Keine Ansage, der Sprung gilt trotzdem.
+      }
+    }
+    _update();
+    return true;
+  }
+
+  /// Nimmt den letzten Sprung zurück (FR-0218): Der Abschnitt steht wieder mit
+  /// der Restzeit, die er ohne Sprung jetzt hätte; ohne Ansage. Der Eintrag
+  /// verschwindet aus dem Schnappschuss. `false` ohne Sprung.
+  bool undoSkipSegment() {
+    final g = _guided;
+    if (g == null || g.skips.isEmpty || _guidanceClosed) return false;
+    _update();
+    final t = _snapshot.movingTime ?? Duration.zero;
+    _guided = g.withSkips(g.skips.sublist(0, g.skips.length - 1));
+    unawaited(_saveGuided());
+    try {
+      _announcer?.undoSkip(t);
+    } on Object {
+      // Der Stand gilt aus dem Schnappschuss.
+    }
+    _update();
+    return true;
+  }
+
   /// Art der geführten Einheit (Schnappschuss oder Übergabe), `null` unbekannt.
   PlanUnitKind? get guidedUnitKind {
     final name =
@@ -504,6 +576,8 @@ class RunController extends ChangeNotifier {
         switches: switches,
         suppressHeartRateForWalkBreaks: suppress,
         walkBreakHintGiven: hintGiven,
+        // Sprünge vor dem Anlegen des Gebers bzw. aus dem Schnappschuss.
+        skips: _guided?.skips ?? const [],
       );
       // Nur wenn eine geführte Einheit (neu oder nach Absturz fortgesetzt)
       // wirklich Ansagen spricht, sonst wäre der Hinweis ohne Nutzen.
