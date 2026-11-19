@@ -136,8 +136,11 @@ class LiveRunView extends StatelessWidget {
                         controller: controller,
                         formatter: formatter,
                         segments: guided,
-                        controls: (ctx) =>
-                            _controls(ctx, AppLocalizations.of(ctx)),
+                        controls: (ctx, skip) => _controls(
+                          ctx,
+                          AppLocalizations.of(ctx),
+                          skip: skip,
+                        ),
                       ),
               ),
       ),
@@ -397,7 +400,14 @@ class LiveRunView extends StatelessWidget {
 
   /// Läuft: Runde und Pause. Pausiert: Weiter und Beenden (FR-0028), die
   /// Runde ist in der Pause gesperrt und entfällt.
-  Widget _controls(BuildContext context, AppLocalizations l10n) {
+  /// [skip]: Knopf „Abschnitt überspringen“ der geführten Einheit (FR-0218);
+  /// im Lauf auf dem freien Platz rechts neben „Pausieren“, in der Pause vor
+  /// „Weiter“ und „Beenden“.
+  Widget _controls(
+    BuildContext context,
+    AppLocalizations l10n, {
+    Widget? skip,
+  }) {
     final paused = controller.phase == RecordingPhase.paused;
     final c = RamuriColors.of(context);
     final dark = Theme.of(context).brightness == Brightness.dark;
@@ -432,7 +442,10 @@ class LiveRunView extends StatelessWidget {
               onPressed: controller.pause,
             ),
             const SizedBox(width: 28),
-            const SizedBox(width: 68),
+            if (skip == null)
+              const SizedBox(width: 68)
+            else
+              SizedBox.square(dimension: 68, child: Center(child: skip)),
           ],
         ),
       );
@@ -448,6 +461,7 @@ class LiveRunView extends StatelessWidget {
         );
     return Row(
       children: [
+        if (skip != null) ...[skip, const SizedBox(width: 12)],
         Expanded(
           child: FilledButton.icon(
             key: const Key('run_resume'),

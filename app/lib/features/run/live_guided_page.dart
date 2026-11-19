@@ -5,6 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../plan/plan_texts.dart' show planKindName;
 import '../settings/unit_format.dart';
+import 'live_map_page.dart' show LiveRoundButton;
 import 'live_run_values.dart' show LiveBanner, splitUnit;
 import 'live_run_view.dart' show formatClock, livePaceText;
 import 'run_controller.dart';
@@ -28,8 +29,9 @@ class LiveGuidedPage extends StatelessWidget {
   final List<PlanSegment> segments;
 
   /// Pause, Weiter, Runde, Beenden wie auf der Werte-Seite, im dunklen Theme
-  /// gebaut.
-  final WidgetBuilder controls;
+  /// gebaut; dazu der Knopf „Abschnitt überspringen“ (FR-0218), `null`, wenn
+  /// es nichts zu überspringen gibt.
+  final Widget Function(BuildContext context, Widget? skip) controls;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +51,7 @@ class LiveGuidedPage extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final s = controller.snapshot;
     final moving = s.movingTime ?? Duration.zero;
-    final pos = guidedPosition(segments, moving);
+    final pos = guidedPosition(segments, moving, skips: controller.guidedSkips);
     final paused =
         s.phase == RecordingPhase.paused ||
         s.phase == RecordingPhase.autoPaused;
@@ -164,11 +166,57 @@ class LiveGuidedPage extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: controls(context),
+            child: controls(
+              context,
+              controller.canSkipSegment ? _skipButton(context, l10n) : null,
+            ),
           ),
         ],
       ),
     );
+  }
+
+  /// Höhe der Knöpfe unten (größter Knopf 104 dp und Ränder) mit Abstand.
+  static const double _controlsHeight = 144;
+
+  /// Knopf „Abschnitt überspringen“ (FR-0218, Design `Intervall.dc.html`):
+  /// ohne Rückfrage; danach einige Sekunden der Hinweis mit „Rückgängig“.
+  Widget _skipButton(BuildContext context, AppLocalizations l10n) {
+    final c = RamuriColors.of(context);
+    return LiveRoundButton(
+      key: const Key('guided_skip'),
+      semanticLabel: l10n.guidedLiveSkip,
+      size: 64,
+      background: c.surface,
+      foreground: c.text,
+      icon: Icons.skip_next_rounded,
+      iconSize: 26,
+      onPressed: () => _skip(context, l10n),
+    );
+  }
+
+  void _skip(BuildContext context, AppLocalizations l10n) {
+    if (!controller.skipSegment()) return;
+    // Dauer wie die übrigen Hinweise der App (Vorgabe); mit Knopf würde der
+    // Hinweis sonst stehen bleiben, der Sprung soll aber endgültig werden.
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          key: const Key('guided_skipped'),
+          persist: false,
+          // Über den Knöpfen: Ein zweiter Tipp auf „Überspringen“ darf nicht
+          // auf „Rückgängig“ landen.
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, _controlsHeight),
+          content: Text(l10n.guidedLiveSkipped),
+          action: SnackBarAction(
+            key: const Key('guided_skip_undo'),
+            label: l10n.guidedLiveSkipUndo,
+            onPressed: controller.undoSkipSegment,
+          ),
+        ),
+      );
   }
 
   /// Balken über alle Abschnitte, Breite nach Dauer (wie im Design).
