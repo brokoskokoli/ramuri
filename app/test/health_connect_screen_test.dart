@@ -60,6 +60,25 @@ HealthRecord _rec(HealthDataKind kind, String id) => HealthRecord(
   unit: 'bpm',
 );
 
+/// Einwilligungsspeicher, der das Lesen der Löschfragen zurückhalten kann: Solange [hold] gesetzt ist, liefert jedes
+/// Lesen eines Eintrags „Löschfrage offen“ den Stand vom Aufruf erst, wenn [hold] erfüllt ist.
+class _HeldConsentStore extends FakeConsentStore {
+  _HeldConsentStore(FakeStorageData d) : super(d);
+  Completer<void>? hold;
+  int held = 0;
+
+  @override
+  Future<ConsentState?> get(String sourceKey) async {
+    final value = await super.get(sourceKey);
+    final h = hold;
+    if (h != null && sourceKey.endsWith('.delete_question')) {
+      held++;
+      await h.future;
+    }
+    return value;
+  }
+}
+
 Future<(HealthConnectController, FakeStorage, _Port)> _setup(
   WidgetTester tester, {
   HealthSdkStatus status = HealthSdkStatus.available,
@@ -67,18 +86,20 @@ Future<(HealthConnectController, FakeStorage, _Port)> _setup(
   Set<HealthDataKind> consented = const {},
   Map<HealthDataKind, int> stored = const {},
   Brightness brightness = Brightness.light,
+  FakeStorage? storage,
+  ConsentStore? consentStore,
 }) async {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final storage = FakeStorage();
+  storage ??= FakeStorage();
   final clock = FakeClock(DateTime.utc(2026, 11, 14, 12));
   final port = _Port(status, granted);
   final c = HealthConnectController(
     port: port,
     store: storage.data.health,
     settings: FakeSettingsStore(storage.data),
-    consentStore: FakeConsentStore(storage.data),
+    consentStore: consentStore ?? FakeConsentStore(storage.data),
     clock: clock,
   );
   for (final k in consented) {
@@ -308,6 +329,183 @@ void main() {
     await tapKey(tester, 'health_delete_keep');
     expect(await first, isTrue);
     expect(key('health_delete_dialog'), findsNothing);
+    expect(await storage.data.health.count(HealthDataKind.sleep), 2);
+  });
+
+  BuildContext screenContext(WidgetTester tester) =>
+      tester.element(find.byType(HealthConnectScreen));
+
+  testWidgets('Neue Frage während der Abfolge: in derselben Sitzung gefragt', (
+    tester,
+  ) async {
+    final (c, storage, port) = await _setup(
+      tester,
+      granted: HealthDataKind.values.toSet()..remove(HealthDataKind.sleep),
+      consented: {HealthDataKind.sleep, HealthDataKind.vo2Max},
+      stored: {HealthDataKind.sleep: 2, HealthDataKind.vo2Max: 1},
+    );
+    // Die Abfolge der Seite steht bei der Frage zu Schlaf.
+    expect(key('health_delete_dialog'), findsOneWidget);
+    expect(c.asking, isTrue);
+    // Ein späteres Laden öffnet die Frage zu VO2max; der zweite Aufruf kehrt sofort zurück.
+    port.granted = port.granted.difference({HealthDataKind.vo2Max});
+    await c.load();
+    expect(c.questions, [HealthDataKind.sleep, HealthDataKind.vo2Max]);
+    await askOpenHealthQuestions(screenContext(tester), c, skipDeferred: true);
+    expect(key('health_delete_dialog'), findsOneWidget);
+    await tapKey(tester, 'health_delete_keep');
+    await tester.pumpAndSettle();
+    // Danach genau ein Dialog zu VO2max, ohne die Seite neu zu öffnen.
+    expect(key('health_delete_dialog'), findsOneWidget);
+    expect(c.questions, [HealthDataKind.vo2Max]);
+    await tapKey(tester, 'health_delete_confirm');
+    await tester.pumpAndSettle();
+    expect(key('health_delete_dialog'), findsNothing);
+    expect(c.asking, isFalse);
+    expect(await storage.data.health.count(HealthDataKind.sleep), 2);
+    expect(await storage.data.health.count(HealthDataKind.vo2Max), 0);
+  });
+
+  for (final (secondSkips, asked) in [(false, true), (true, false)]) {
+    testWidgets('Zurückgestellte Frage während der Abfolge von „Heute“: '
+        'zweiter Aufruf skipDeferred: $secondSkips', (tester) async {
+      final (c, _, port) = await _setup(
+        tester,
+        consented: {HealthDataKind.sleep, HealthDataKind.vo2Max},
+        stored: {HealthDataKind.sleep: 2, HealthDataKind.vo2Max: 1},
+      );
+      // VO2max wurde beim Öffnen der App schon zurückgestellt.
+      c.deferred.add(HealthDataKind.vo2Max);
+      port.granted = HealthDataKind.values.toSet().difference({
+        HealthDataKind.sleep,
+        HealthDataKind.vo2Max,
+      });
+      await c.load();
+      expect(c.questions, [HealthDataKind.sleep, HealthDataKind.vo2Max]);
+      final context = screenContext(tester);
+      final run = askOpenHealthQuestions(context, c, skipDeferred: true);
+      await tester.pumpAndSettle();
+      expect(key('health_delete_dialog'), findsOneWidget);
+      await askOpenHealthQuestions(context, c, skipDeferred: secondSkips);
+      await tapKey(tester, 'health_delete_keep');
+      await tester.pumpAndSettle();
+      expect(
+        key('health_delete_dialog'),
+        asked ? findsOneWidget : findsNothing,
+      );
+      if (asked) {
+        expect(c.questions, [HealthDataKind.vo2Max]);
+        await tapKey(tester, 'health_delete_keep');
+        await tester.pumpAndSettle();
+        expect(key('health_delete_dialog'), findsNothing);
+      } else {
+        expect(c.questions, [HealthDataKind.vo2Max]);
+      }
+      await run;
+      expect(c.asking, isFalse);
+    });
+  }
+
+  testWidgets('Abbrechen in der Abfolge: Frage bleibt offen, Lauf endet', (
+    tester,
+  ) async {
+    final (c, storage, _) = await _setup(
+      tester,
+      granted: HealthDataKind.values.toSet()..remove(HealthDataKind.sleep),
+      consented: {HealthDataKind.sleep},
+      stored: {HealthDataKind.sleep: 2},
+    );
+    expect(key('health_delete_dialog'), findsOneWidget);
+    await tapKey(tester, 'health_delete_cancel');
+    await tester.pumpAndSettle();
+    // Im selben Lauf nicht noch einmal gefragt; die Abfolge ist zu Ende.
+    expect(key('health_delete_dialog'), findsNothing);
+    expect(c.asking, isFalse);
+    expect(c.questions, [HealthDataKind.sleep]);
+    expect(
+      await c.consents.isDeleteQuestionOpen(
+        healthSourceKey(HealthDataKind.sleep),
+      ),
+      isTrue,
+    );
+    expect(await storage.data.health.count(HealthDataKind.sleep), 2);
+  });
+
+  // Die Frage zu Schlaf ist offen, die Abfolge hält ihre Sperre und liest gerade, ob sie offen ist.
+  Future<(HealthConnectController, FakeStorage, _HeldConsentStore)>
+  holdSleepCheck(WidgetTester tester, {required bool closedInStore}) async {
+    final storage = FakeStorage();
+    final consents = _HeldConsentStore(storage.data);
+    final (c, _, _) = await _setup(
+      tester,
+      storage: storage,
+      consentStore: consents,
+      consented: {HealthDataKind.sleep, HealthDataKind.vo2Max},
+      stored: {HealthDataKind.sleep: 2, HealthDataKind.vo2Max: 1},
+    );
+    final sleepKey = healthSourceKey(HealthDataKind.sleep);
+    await c.consents.openDeleteQuestion(sleepKey);
+    await c.load();
+    expect(c.questions, [HealthDataKind.sleep]);
+    // Randfall: Gespeichert ist die Frage schon geschlossen, die Liste kennt sie noch.
+    if (closedInStore) await c.consents.closeDeleteQuestion(sleepKey);
+    consents.hold = Completer<void>();
+    unawaited(askOpenHealthQuestions(screenContext(tester), c));
+    await tester.pumpAndSettle();
+    expect(consents.held, 1);
+    expect(key('health_delete_dialog'), findsNothing);
+    // Der Nutzer schaltet Schlaf aus, solange die Abfolge prüft.
+    await tapKey(tester, 'health_switch_sleep');
+    expect(key('health_delete_dialog'), findsNothing);
+    consents.hold!.complete();
+    consents.hold = null;
+    await tester.pumpAndSettle();
+    return (c, storage, consents);
+  }
+
+  for (final (answer, deleted, onAgain) in [
+    ('health_delete_cancel', false, true),
+    ('health_delete_keep', false, false),
+    ('health_delete_confirm', true, false),
+  ]) {
+    testWidgets('Ausschalten während die Abfolge prüft: Dialog des Schalters '
+        '($answer)', (tester) async {
+      final (c, storage, _) = await holdSleepCheck(
+        tester,
+        closedInStore: false,
+      );
+      expect(key('health_delete_dialog'), findsOneWidget);
+      await tapKey(tester, answer);
+      await tester.pumpAndSettle();
+      expect(key('health_delete_dialog'), findsNothing);
+      expect(c.asking, isFalse);
+      final sleepKey = healthSourceKey(HealthDataKind.sleep);
+      expect(await c.consents.isGranted(sleepKey), onAgain);
+      expect(c.enabled.contains(HealthDataKind.sleep), onAgain);
+      expect(
+        tester.widget<SwitchListTile>(key('health_switch_sleep')).value,
+        onAgain,
+      );
+      expect(await c.consents.isDeleteQuestionOpen(sleepKey), isFalse);
+      expect(c.questions, isEmpty);
+      expect(
+        await storage.data.health.count(HealthDataKind.sleep),
+        deleted ? 0 : 2,
+      );
+      expect(await storage.data.health.count(HealthDataKind.vo2Max), 1);
+      expect(c.enabled.contains(HealthDataKind.vo2Max), isTrue);
+    });
+  }
+
+  testWidgets('Ausschalten während die Abfolge prüft: nicht offen, '
+      'dann fragt der Schalter selbst', (tester) async {
+    final (c, storage, _) = await holdSleepCheck(tester, closedInStore: true);
+    // Die Abfolge zeigt keinen Dialog; der Schalter fragt danach genau einmal.
+    expect(key('health_delete_dialog'), findsOneWidget);
+    await tapKey(tester, 'health_delete_cancel');
+    await tester.pumpAndSettle();
+    expect(key('health_delete_dialog'), findsNothing);
+    expect(c.enabled.contains(HealthDataKind.sleep), isTrue);
     expect(await storage.data.health.count(HealthDataKind.sleep), 2);
   });
 

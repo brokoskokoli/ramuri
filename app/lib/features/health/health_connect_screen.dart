@@ -65,8 +65,17 @@ Future<bool> askHealthDeleteQuestion(
   HealthDataKind kind, {
   required bool fromSwitch,
 }) async {
-  final done = c.beginQuestion(kind);
-  if (done == null) return false;
+  var done = c.beginQuestion(kind);
+  while (done == null) {
+    if (!fromSwitch) return false;
+    // Eine andere Frage dieser Art hält die Sperre (etwa die Abfolge beim Prüfen): Zeigt sie ihren Dialog, gilt er als
+    // der des Schalters; zeigt sie keinen, fragt der Schalter danach selbst.
+    c.markSwitchWaiting(kind);
+    await c.questionEnd(kind);
+    if (!c.takeSwitchWaiting(kind)) return false;
+    if (!context.mounted) return false;
+    done = c.beginQuestion(kind);
+  }
   try {
     // Der Schalter fragt immer (auch wenn das Merken scheiterte); sonst nur, solange die Frage noch offen ist.
     if (!fromSwitch && !await c.isQuestionOpen(kind)) return false;
@@ -125,9 +134,11 @@ Future<void> _showDeleteQuestion(
       ],
     ),
   );
+  // Wurde die Art ausgeschaltet, während diese Frage die Sperre hielt, ist es der Dialog des Schalters.
+  final asSwitch = c.takeSwitchWaiting(kind) || fromSwitch;
   if (!context.mounted) return;
   if (choice == null) {
-    if (fromSwitch) await _guardHealth(context, () => c.cancelDisable(kind));
+    if (asSwitch) await _guardHealth(context, () => c.cancelDisable(kind));
     return;
   }
   final ok = await _guardHealth(
@@ -171,28 +182,43 @@ void _healthSnack(BuildContext context, String text) {
 }
 
 /// Fragt der Reihe nach alle offenen Löschfragen (Recht fehlt, Health Connect nicht mehr verfügbar oder Antwort stand
-/// aus). Läuft höchstens einmal zugleich je Sitzung ([HealthConnectController.asking]); [skipDeferred] überspringt
-/// Fragen, die beim Öffnen der App schon zurückgestellt wurden. Steht schon eine Löschfrage (etwa die des Schalters),
-/// kommt die nächste erst danach; eine inzwischen beantwortete Frage entfällt.
+/// aus). Läuft höchstens einmal zugleich je Sitzung ([HealthConnectController.asking]); ein weiterer Aufruf während des
+/// Laufs geht nicht verloren: Die laufende Abfolge liest die offenen Fragen danach erneut und stellt die neuen, und
+/// verlangt einer der Aufrufe auch zurückgestellte Fragen, gilt das für den Lauf. [skipDeferred] überspringt Fragen,
+/// die beim Öffnen der App schon zurückgestellt wurden. Je Lauf wird jede Art höchstens einmal gefragt („Abbrechen“
+/// lässt die Frage offen). Steht schon eine Löschfrage (etwa die des Schalters), kommt die nächste erst danach; eine
+/// inzwischen beantwortete Frage entfällt.
 Future<void> askOpenHealthQuestions(
   BuildContext context,
   HealthConnectController c, {
   bool skipDeferred = false,
 }) async {
-  if (c.asking) return;
+  if (c.asking) {
+    if (!skipDeferred) c.askDeferredToo = true;
+    return;
+  }
   c.asking = true;
+  c.askDeferredToo = !skipDeferred;
+  final tried = <HealthDataKind>{};
+  bool due(HealthDataKind k) =>
+      !tried.contains(k) && (c.askDeferredToo || !c.deferred.contains(k));
   try {
-    for (final kind in List.of(c.questions)) {
-      await c.questionsSettled();
-      if (!context.mounted) return;
-      if (skipDeferred && c.deferred.contains(kind)) continue;
-      final asked = await askHealthDeleteQuestion(
-        context,
-        c,
-        kind,
-        fromSwitch: false,
-      );
-      if (asked && c.questions.contains(kind)) c.deferred.add(kind);
+    while (true) {
+      final open = c.questions.where(due).toList();
+      if (open.isEmpty) break;
+      for (final kind in open) {
+        await c.questionsSettled();
+        if (!context.mounted) return;
+        if (!due(kind)) continue;
+        tried.add(kind);
+        final asked = await askHealthDeleteQuestion(
+          context,
+          c,
+          kind,
+          fromSwitch: false,
+        );
+        if (asked && c.questions.contains(kind)) c.deferred.add(kind);
+      }
     }
   } finally {
     c.asking = false;
