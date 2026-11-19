@@ -14,11 +14,6 @@ import 'package:running_app/system_clock.dart';
 
 import 'support/e2e_support.dart';
 
-Future<void> shot(WidgetTester t, String name) async {
-  log('SHOT $name');
-  await pumpFor(t, const Duration(milliseconds: 2500));
-}
-
 Future<void> hostAct(WidgetTester t, String a) async {
   log('HOSTACT $a');
   await pumpFor(t, const Duration(seconds: 6));
@@ -93,7 +88,7 @@ void main() {
       );
       expect(n, greaterThan(0), reason: 'Daten blieben ueber den Neustart');
       expect(has('health_delete_dialog'), isFalse);
-      await shot(t, 'd2_today_granted');
+      await shot(t, 'd2_today_granted', pause: true);
     });
   }
   if (phase == '3') {
@@ -104,7 +99,7 @@ void main() {
       await waitFor(t, () => has('health_delete_dialog'), 'Loeschfrage');
       final n = await count(t, d, HealthDataKind.sleep);
       log('HCD3 entzogen: Frage sichtbar=true Schlaf=$n');
-      await shot(t, 'd3_question');
+      await shot(t, 'd3_question', pause: true);
       if (answer == 'keep') {
         step('HCD3 behalten');
         await tapDialog(t, 'health_delete_keep');
@@ -184,7 +179,7 @@ void main() {
           'Rueckmeldung',
         );
         step('HCB zaehlen');
-        await shot(t, 'b_after_fetch');
+        await shot(t, 'b_after_fetch', pause: true);
         for (final k in [
           HealthDataKind.restingHeartRate,
           HealthDataKind.hrvRmssd,

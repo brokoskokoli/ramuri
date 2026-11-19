@@ -37,6 +37,19 @@ void logPub(String s) {
 /// ohne Interpolation uebergibt (SEC-0001..0010). Werte gehoeren in [log].
 void step(String name) => logPub('SCHRITT $name');
 
+/// Ob der Host Bildschirmfotos macht (`E2E_SHOTS=1 sh tool/ci_e2e.sh` reicht
+/// `--dart-define=E2E_SHOTS=true` an jede Stufe weiter).
+const e2eShots = bool.fromEnvironment('E2E_SHOTS');
+
+/// Marke `SHOT <name>` fuer das Bildschirmfoto des Hosts (Zeile `E2E_`, also
+/// nicht im oeffentlichen Log). [name] nur aus `[a-z0-9_-]`, sonst verwirft der
+/// Host die Marke. Mit [pause] bleibt die Seite 2,5 s stehen, damit das Foto
+/// sie zeigt; Standard: nur, wenn der Host Fotos macht ([e2eShots]).
+Future<void> shot(WidgetTester t, String name, {bool pause = e2eShots}) async {
+  log('SHOT $name');
+  if (pause) await pumpFor(t, const Duration(milliseconds: 2500));
+}
+
 /// Meldung eines Testfehlers ohne Werte: bei `expect` nur der Grund (`reason:`),
 /// den der matcher ohne Präfix als erste nicht eingerückte Zeile nach
 /// Expected/Actual/Which schreibt (diese drei können Werte tragen und fehlen),
