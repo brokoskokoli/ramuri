@@ -26,6 +26,13 @@ class _FakeRestore {
   final List<String> events = [];
   Completer<void>? gate;
 
+  /// Das Archiv hat ein Passwort: der Versuch mit dem leeren Passwort scheitert
+  /// wie beim echten Leser am ersten Stück (vor [gate] und [errors]).
+  bool protected = true;
+
+  /// Abgewiesene Versuche mit dem leeren Passwort.
+  int emptyRejected = 0;
+
   /// Fehler je Aufruf (nach der Reihenfolge); danach Erfolg.
   final List<Object> errors = [];
   StorageSession? result;
@@ -47,6 +54,12 @@ class _FakeRestore {
       bool resetConfirmed = false,
       ArchiveCancel? cancel,
     }) => serialize(() async {
+      if (protected && password.isEmpty) {
+        emptyRejected++;
+        throw const ArchiveImportException(
+          ArchiveImportFailure.wrongPasswordOrDamaged,
+        );
+      }
       events.add('restore');
       calls.add((path: path, password: password, reset: resetConfirmed));
       await gate?.future;
@@ -349,9 +362,58 @@ void main() {
     final before = d.session;
     await _walk(tester, d, enterPassword: false);
     await _tapKey(tester, 'archive_import_password_cancel');
-    expect(restore.events, isEmpty);
+    // Nur der Versuch mit dem leeren Passwort, kein Einlesen.
+    expect(restore.emptyRejected, 1);
+    expect(restore.events.where((e) => e == 'restore'), isEmpty);
+    expect(restore.calls, isEmpty);
     expect(d.fileHandoff.discardCount, 1);
     expect(d.session, same(before));
+    await d.stop(tester);
+  });
+
+  testWidgets('Archiv ohne Passwort: keine Passwortabfrage, Import mit '
+      'leerem Passwort (FR-0198, SEC-0011)', (tester) async {
+    final restore = _FakeRestore()..protected = false;
+    final d = await _open(tester, restore);
+    await _walk(tester, d, enterPassword: false);
+    expect(
+      find.byKey(const Key('archive_import_password_dialog')),
+      findsNothing,
+    );
+    expect(restore.calls.single.password, '');
+    expect(restore.calls.single.path, _path);
+    expect(d.session, same(restore.result));
+    expect(find.textContaining('Archiv importiert.'), findsOneWidget);
+    expect(d.fileHandoff.discardCount, 1);
+    await d.stop(tester);
+  });
+
+  testWidgets('Archiv mit Passwort: genau eine Abfrage ohne Fehlertext, dann '
+      'Import mit dem Passwort', (tester) async {
+    final restore = _FakeRestore();
+    final d = await _open(tester, restore);
+    await _walk(tester, d, enterPassword: false);
+    expect(restore.emptyRejected, 1);
+    expect(
+      find.byKey(const Key('archive_import_password_dialog')),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Falsches Passwort oder beschädigter Anfang'),
+      findsNothing,
+    );
+    await tester.enterText(
+      find.byKey(const Key('archive_import_password')),
+      _pw,
+    );
+    await _tapKey(tester, 'archive_import_password_ok');
+    expect(
+      find.byKey(const Key('archive_import_password_dialog')),
+      findsNothing,
+    );
+    expect(restore.emptyRejected, 1);
+    expect(restore.calls.map((c) => c.password), [_pw]);
+    expect(d.session, same(restore.result));
     await d.stop(tester);
   });
 
@@ -532,7 +594,13 @@ void main() {
         );
       final d = await _open(tester, restore, locale: Locale(lang));
       final before = d.session;
-      await _walk(tester, d);
+      // Schon der Versuch mit dem leeren Passwort braucht den Dienst: der
+      // Fehler kommt ohne Passwortabfrage.
+      await _walk(tester, d, enterPassword: false);
+      expect(
+        find.byKey(const Key('archive_import_password_dialog')),
+        findsNothing,
+      );
       expect(find.text(keyUnavailable), findsOneWidget);
       expect(find.text(general[lang]!), findsNothing);
       expect(d.session, same(before));
@@ -679,7 +747,13 @@ void main() {
       await d.session.runs.create(startedAt: DateTime.utc(2031));
     };
     final before = d.session;
-    await _walk(tester, d);
+    // Schon der Versuch mit dem leeren Passwort scheitert am offenen Lauf.
+    await _walk(tester, d, enterPassword: false);
+    expect(
+      find.byKey(const Key('archive_import_password_dialog')),
+      findsNothing,
+    );
+    expect(restore.emptyRejected, 0);
     expect(restore.calls, isEmpty, reason: 'Dienst nicht aufgerufen');
     expect(
       find.textContaining('Beende zuerst den laufenden Lauf'),
@@ -730,18 +804,22 @@ void main() {
       ),
     );
     await _tapKey(tester, 'archive_import');
-    await _tapKey(tester, 'archive_import_confirm');
+    await tester.tap(find.byKey(const Key('archive_import_confirm')));
+    await tester.pump();
+    await tester.pump();
+    // Auch der Versuch mit dem leeren Passwort wartet hinter serialize.
+    expect(order, ['eingereiht']);
+    expect(restore.emptyRejected, 0);
+    expect(restore.calls, isEmpty);
+    release.complete();
+    await tester.pumpAndSettle();
+    expect(restore.emptyRejected, 1);
     await tester.enterText(
       find.byKey(const Key('archive_import_password')),
       _pw,
     );
-    await tester.tap(find.byKey(const Key('archive_import_password_ok')));
-    await tester.pump();
-    await tester.pump();
-    expect(order, ['eingereiht']);
-    expect(restore.calls, isEmpty);
-    release.complete();
-    await tester.pumpAndSettle();
+    await _tapKey(tester, 'archive_import_password_ok');
+    expect(order, ['eingereiht', 'eingereiht']);
     expect(restore.calls, hasLength(1));
     await d.stop(tester);
   });

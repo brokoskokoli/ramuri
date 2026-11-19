@@ -27,6 +27,8 @@ Jeweils die Empfehlung gilt: `cryptography`, mindestens 15 Zeichen ohne Klassenr
 - **B. Mindestlänge des Passworts:** Die Spec nennt keine. NIST verlangt für ein Passwort als alleinigen Faktor mindestens 15 Zeichen und verbietet Zeichenklassen-Regeln [7]. Empfehlung: 15 Zeichen ohne Klassenregeln, weil die Datei offline angreifbar ist und kein zweiter Faktor existiert. Die dort geforderte Sperrliste häufiger Passwörter [7] schlage ich wegen des Pflegeaufwands nicht vor.
 - **C. Neueres Archiv in älterer App:** ADR-0004 lässt das offen. Empfehlung: ablehnen, ohne Daten zu ändern.
 
+**Nachtrag 2026-11-18:** Passwort freiwillig (SEC-0011 geändert); leeres Passwort = kein Schutz, gleiche Ableitung, kein Formatwechsel. Vergibt der Nutzer eins, gilt weiter B (mindestens 15 Zeichen). Beim Lesen versucht die App zuerst das leere Passwort und fragt nur sonst nach ([Archivvertrag](../../contracts/archive.md), Abschnitt 3.1).
+
 ## Erwogene Alternativen
 - **`sodium` 4.1.2+1 (BSD-3-Clause, Stand 2026-10-27) mit libsodium 1.0.22 (ISC):** Fertiger Strom `crypto_secretstream` mit Schutz gegen Abschneiden [8] und natives Argon2id [9], die stärkste Umsetzung im Vergleich. Der Build-Hook übersetzt libsodium aus dem Quellpaket [10]. Eigener Versuch: Android-APK mit minSdk 31 baut (arm64, Debug, rund 1 Minute, Flutter 3.47.7). `flutter test` scheitert aber auf dem Entwicklungsrechner ohne vollständiges Xcode bereits am Hook, sobald das Paket im Abhängigkeitsgraph liegt, auch für Tests, die es nicht nutzen. Ob es mit Xcode durchläuft, ist nicht geprüft. Der Hook lässt sich per Umgebungsvariable überspringen [10], dann prüft das Gate die Kryptografie nicht.
 - **age-Format mit `dartage` 0.3.0 (MIT) oder `rage` 0.1.0 (Apache-2.0):** Ein fremdes Werkzeug könnte das Archiv öffnen, und das Format ist fertig dokumentiert [1]. Beide Pakete sind jung und kaum verbreitet, `rage` verlangt zudem eine Rust-Toolchain; age nutzt scrypt statt Argon2id. Bleibt Option, falls das Öffnen ohne die App gewünscht ist.
@@ -42,7 +44,7 @@ Jeweils die Empfehlung gilt: `cryptography`, mindestens 15 Zeichen ohne Klassenr
 - Der STREAM-Rahmen ist eigener Sicherheitscode. Er bleibt klein, folgt einem veröffentlichten Aufbau und braucht Mutationsbelege (REVIEW.md).
 - `cryptography` hatte seit fast einem Jahr keine Veröffentlichung, das Repository zeigt 37 offene Punkte. Der Port begrenzt die Kosten eines Wechsels, die Formatversion erlaubt ihn auch für neue Archive.
 - Dart-Strings lassen sich nicht überschreiben; das Passwort kann also kurz im Speicher bleiben. Das schützt nicht gegen ein kompromittiertes, entsperrtes Gerät (wie ADR-0003).
-- Ohne Passwort gibt es keinen Rettungsweg, darauf weist die App hin (SEC-0011).
+- Ohne das vergebene Passwort gibt es keinen Rettungsweg, darauf weist die App hin (SEC-0011). Ein Archiv ohne Passwort ist nicht geschützt; auch darauf weist die App hin.
 - Das Archiv lässt sich außerhalb der App nur mit dem dokumentierten Format und eigenem Werkzeug öffnen.
 
 ## Eigene Messung
