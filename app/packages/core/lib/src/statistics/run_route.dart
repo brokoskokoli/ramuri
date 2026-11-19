@@ -30,9 +30,11 @@ List<List<RoutePoint>> runRouteJob(
     gaps: a.gaps,
     parameters: a.parameters,
   )),
+  // Ein Ausfall nach Absturz zählt wie eine Pause (FR-0042, FR-0193): die Linie ist dort unterbrochen (FR-0204).
+  // Signalverlust trennt die Vorverarbeitung selbst über die GPS-Lücke.
   pauses: [
     for (final g in a.gaps)
-      if (g.kind == RunGapKind.manualPause)
+      if (g.kind == RunGapKind.manualPause || g.kind == RunGapKind.interruption)
         TimeSpan(start: g.start, end: g.end ?? a.end),
   ],
   maxPoints: a.maxPoints,

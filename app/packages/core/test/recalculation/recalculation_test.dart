@@ -3,6 +3,30 @@ import 'package:test/test.dart';
 
 import 'recalc_support.dart';
 
+/// Kopie von [v] mit anderer Methode bzw. Version (Bestand einer älteren
+/// App-Version).
+ComputedValue changed(
+  ComputedValue v, {
+  String? method,
+  int? methodVersion,
+  int? parameterVersion,
+}) => ComputedValue(
+  key: v.key,
+  value: v.value,
+  unit: v.unit,
+  computedAt: v.computedAt,
+  measurementCount: v.measurementCount,
+  sources: v.sources,
+  method: method ?? v.method,
+  methodVersion: methodVersion ?? v.methodVersion,
+  parameterVersion: parameterVersion ?? v.parameterVersion,
+  quality: v.quality,
+  dataFrom: v.dataFrom,
+  dataTo: v.dataTo,
+  unavailableReason: v.unavailableReason,
+  heartRateBasis: v.heartRateBasis,
+);
+
 void main() {
   late RecalcWorld w;
   late List<int> ids;
@@ -222,28 +246,6 @@ void main() {
   });
 
   group('Versionsprüfung: TRIMP, nicht die Zonenzeiten', () {
-    ComputedValue changed(
-      ComputedValue v, {
-      String? method,
-      int? methodVersion,
-      int? parameterVersion,
-    }) => ComputedValue(
-      key: v.key,
-      value: v.value,
-      unit: v.unit,
-      computedAt: v.computedAt,
-      measurementCount: v.measurementCount,
-      sources: v.sources,
-      method: method ?? v.method,
-      methodVersion: methodVersion ?? v.methodVersion,
-      parameterVersion: parameterVersion ?? v.parameterVersion,
-      quality: v.quality,
-      dataFrom: v.dataFrom,
-      dataTo: v.dataTo,
-      unavailableReason: v.unavailableReason,
-      heartRateBasis: v.heartRateBasis,
-    );
-
     // Ändert nur den Wert [key] im current des ersten Laufs.
     Future<void> alter(
       String key, {
@@ -316,5 +318,167 @@ void main() {
       expect(pair.original.value, original.value);
       expect(pair.current.methodVersion, original.methodVersion);
     });
+  });
+
+  group('Versionsprüfung: Tageswerte', () {
+    final runStart = DateTime.utc(2030, 2, 25, 8);
+    const runDay = '2030-02-25';
+
+    // Ein Lauf mit aktuellen Laufwerten; der Tageswert [key] seines Tages ist
+    // mit [stale] gerechnet (original und current), wie von einer älteren
+    // App-Version gespeichert.
+    Future<RecalcWorld> worldWithStaleDay(
+      String key,
+      ComputedValue Function(ComputedValue) stale,
+    ) async {
+      final ref = await RecalcWorld.create();
+      await ref.calc().calculateAfterRun(await ref.seedRun(runStart));
+      final refValue = (await ref.session.values.read(
+        const ValueOwner.day(runDay),
+      )).firstWhere((p) => p.original.key == key).original;
+      final old = stale(refValue);
+      final x = await RecalcWorld.create();
+      final id = await x.seedRun(runStart);
+      const owner = ValueOwner.day(runDay);
+      await x.session.values.createOriginals(owner, [old]);
+      await x.calc().calculateAfterRun(id);
+      await x.session.values.swapCurrentAll({
+        owner: [old],
+      });
+      return x;
+    }
+
+    Future<ComputedValue> dayPart(
+      RecalcWorld x,
+      String day,
+      String key, {
+      bool original = false,
+    }) async {
+      final p = (await x.session.values.read(ValueOwner.day(day)))
+          .firstWhere((p) => p.original.key == key);
+      return original ? p.original : p.current;
+    }
+
+    test('Langzeitwert der Methodenversion 1: Angebot, nach der Bestätigung '
+        'Version 2 im current, 1 im original, kein neues Angebot', () async {
+      final x = await worldWithStaleDay(
+        vo2maxLongTermValueKey,
+        (v) => changed(v, methodVersion: 1),
+      );
+      final offer = await x.recalc().checkVersions();
+      expect(offer!.causes, {RecalculationCause.algorithmVersion});
+      await x.recalc().confirm(offer);
+      final current = await dayPart(x, runDay, vo2maxLongTermValueKey);
+      expect(current.methodVersion, vo2maxLongTermMethodVersion);
+      expect(current.methodVersion, 2);
+      expect(current.method, vo2maxLongTermMethod);
+      final original = await dayPart(
+        x,
+        runDay,
+        vo2maxLongTermValueKey,
+        original: true,
+      );
+      expect(original.methodVersion, 1);
+      expect(await x.recalc().checkVersions(), isNull);
+    });
+
+    for (final (name, method, methodVersion) in [
+      ('Methode', 'andere-effizienz', null),
+      ('Methodenversion', null, 99),
+    ]) {
+      test('Aerobe Effizienz mit anderer $name: Angebot, nach der '
+          'Bestätigung aktuell, original unverändert', () async {
+        final x = await worldWithStaleDay(
+          aerobicEfficiencyValueKey,
+          (v) => changed(v, method: method, methodVersion: methodVersion),
+        );
+        final before = await dayPart(
+          x,
+          runDay,
+          aerobicEfficiencyValueKey,
+          original: true,
+        );
+        final offer = await x.recalc().checkVersions();
+        expect(offer!.causes, {RecalculationCause.algorithmVersion});
+        await x.recalc().confirm(offer);
+        final current = await dayPart(x, runDay, aerobicEfficiencyValueKey);
+        expect(current.method, aerobicEfficiencyMethod);
+        expect(current.methodVersion, aerobicEfficiencyMethodVersion);
+        final original = await dayPart(
+          x,
+          runDay,
+          aerobicEfficiencyValueKey,
+          original: true,
+        );
+        expect(original.method, before.method);
+        expect(original.methodVersion, before.methodVersion);
+        expect(await x.recalc().checkVersions(), isNull);
+      });
+    }
+
+    for (final key in dayValueKeys) {
+      test('$key mit anderer Parameterversion bietet an', () async {
+        final x = await worldWithStaleDay(
+          key,
+          (v) => changed(v, parameterVersion: 99),
+        );
+        final offer = await x.recalc().checkVersions();
+        expect(offer!.causes, {RecalculationCause.algorithmVersion});
+      });
+    }
+
+    test('Alles aktuell, auch ein Tageswert ohne Wert: kein Angebot', () async {
+      final days = await w.session.values.readDayValues(dayValueKeys);
+      final all = [for (final d in days.values) ...d.values];
+      expect(dayValueKeys, everyElement(isIn(all.map((v) => v.key))));
+      expect(
+        all.where((v) => v.unavailableReason != null),
+        isNotEmpty,
+        reason: 'Ausgangslage braucht einen Tageswert ohne Wert',
+      );
+      expect(await w.recalc().checkVersions(), isNull);
+    });
+
+    test('Veralteter Tageswert an einem Tag ohne Lauf: kein Angebot, und '
+        'nach einer Bestätigung kommt keines wieder', () async {
+      const emptyDay = '2030-02-10';
+      final template = await dayPart(w, runDay, vo2maxLongTermValueKey);
+      final old = changed(template, methodVersion: 1);
+      await w.session.values.createOriginals(const ValueOwner.day(emptyDay), [
+        old,
+      ]);
+      expect(await w.recalc().checkVersions(), isNull);
+
+      // Ein anderer veralteter Tageswert löst das Angebot aus.
+      final pair = (await w.session.values.read(const ValueOwner.day(runDay)))
+          .firstWhere((p) => p.original.key == vo2maxLongTermValueKey);
+      await w.session.values.swapCurrentAll({
+        const ValueOwner.day(runDay): [changed(pair.current, methodVersion: 1)],
+      });
+      final offer = await w.recalc().checkVersions();
+      expect(offer, isNotNull);
+      await w.recalc().confirm(offer!);
+      expect(await w.recalc().checkVersions(), isNull);
+      // Den Tag ohne Lauf rechnet die Neuberechnung nicht; er bleibt.
+      final kept = await dayPart(w, emptyDay, vo2maxLongTermValueKey);
+      expect(kept.methodVersion, 1);
+    });
+
+    test(
+      'Jeder Tagesschlüssel hat Methode und Version, wie gerechnet',
+      () async {
+        expect(dayValueMethods.keys.toSet(), dayValueKeys);
+        final days = await w.session.values.readDayValues(dayValueKeys);
+        for (final d in days.values) {
+          for (final v in d.values) {
+            expect(
+              (v.method, v.methodVersion),
+              dayValueMethods[v.key],
+              reason: v.key,
+            );
+          }
+        }
+      },
+    );
   });
 }

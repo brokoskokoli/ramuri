@@ -107,6 +107,22 @@ DateTime _monday(DateTime day) {
 int _weeksBetween(DateTime from, DateTime to) =>
     to.difference(from).inDays ~/ 7;
 
+/// Erste Woche der Reduktion (PAR-199) als Wochenindex ab dem Anker: die
+/// letzten `reductionWeeks(distance)` Wochen bis einschließlich [lastWeek]
+/// (Woche des Zieltermins), frühestens die erste Laufwoche nach der
+/// Geh-Lauf-Abfolge ([walkRunWeeks], PAR-192, PAR-065). Liegt das Ergebnis
+/// nach [lastWeek], hat der Verlauf keine Woche der Reduktion. Gemeinsam für
+/// [planWeeklyTime] und den Hinweis beim Verschieben (`checkPlanMove`).
+int planReductionStartWeek({
+  required int lastWeek,
+  required GoalDistance distance,
+  int walkRunWeeks = 0,
+  PlanParameters parameters = const PlanParameters(),
+}) {
+  final start = lastWeek - parameters.reductionWeeks(distance) + 1;
+  return start < walkRunWeeks ? walkRunWeeks : start;
+}
+
 /// Rundung der Wochenzeit: die einzige Stelle (Minuten ganzzahlig).
 int _toMinutes(double value) => value.round();
 
@@ -168,8 +184,12 @@ WeeklyTimeResult planWeeklyTime({
   if (targetDate != null) {
     last = _weeksBetween(anchorMonday, _monday(targetDate));
     if (distance != null) {
-      reductionStart = last - p.reductionWeeks(distance) + 1;
-      if (reductionStart < first) reductionStart = first;
+      reductionStart = planReductionStartWeek(
+        lastWeek: last,
+        distance: distance,
+        walkRunWeeks: walkRunWeeks,
+        parameters: p,
+      );
       reductionShare = p.reductionShare(distance);
     }
   } else {

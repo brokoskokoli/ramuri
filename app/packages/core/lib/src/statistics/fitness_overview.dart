@@ -16,10 +16,15 @@ class RunEstimate {
     required this.endedAt,
     required this.day,
     required this.value,
+    this.hasHeartRate = true,
   });
 
   final int runId;
   final DateTime endedAt;
+
+  /// Der Lauf hat einen Durchschnittspuls. Ohne Puls nennt die Anzeige auch
+  /// bei einem Grund aus der Profilbasis den fehlenden Puls (FR-0057).
+  final bool hasHeartRate;
 
   /// Lokaler Kalendertag des Laufendes (K21).
   final String day;
@@ -122,7 +127,12 @@ class FitnessOverviewService {
   final StorageSession session;
 
   /// [finishedRuns]: alle beendeten Läufe (mit Laufende).
-  Future<FitnessOverview> load(Iterable<StoredRun> finishedRuns) async {
+  /// [runsWithoutHeartRate]: Kennungen der Läufe ohne Durchschnittspuls (aus
+  /// den schon gelesenen Laufdaten, keine eigene Abfrage).
+  Future<FitnessOverview> load(
+    Iterable<StoredRun> finishedRuns, {
+    Set<int> runsWithoutHeartRate = const {},
+  }) async {
     try {
       final runs = [
         for (final r in finishedRuns)
@@ -142,6 +152,7 @@ class FitnessOverviewService {
               endedAt: r.endedAt!,
               day: dayOfRun(r),
               value: v,
+              hasHeartRate: !runsWithoutHeartRate.contains(r.id),
             ),
           );
         }

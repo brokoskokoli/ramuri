@@ -29,9 +29,12 @@ Die App soll aufgezeichnete Laufeinheiten in den standardisierten Formaten GPX, 
 
 ### FR-0183 — Exportinhalte
 - **Status:** Approved | **Phase:** 1
-- **Quelle:** SRC-001 §20.1, Z. 1199–1205
+- **Quelle:** SRC-001 §20.1, Z. 1199–1205; SRC-003 (Maintainer 2026-11-15)
+- **Verwandt:** FR-0202
 
 Exportiert werden je nach Format: GPS-Strecke, Zeitstempel, Herzfrequenz, Höhenwerte und gegebenenfalls Kadenz und weitere vorhandene Trainingsdaten.
+
+**Festlegung (SRC-003, Maintainer 2026-11-15):** Die Schrittfrequenz des Smartphones (FR-0202) wird gespeichert und in FIT und TCX exportiert, auch bei Laufbandläufen; GPX bleibt ohne Kadenz. Speicherung: `raw_steps` im [Datenmodell](../architecture/data-model.md); Felder und Berechnung: [Dateiexport-Vertrag](../contracts/file-export.md).
 
 **Akzeptanzkriterien:**
 - [ ] Vom Format unterstützte, vorhandene Werte stimmen nach dem Export mit dem gespeicherten Lauf überein.
@@ -132,16 +135,18 @@ Neben einzelnen Aktivitäten soll ein Gesamtexport der Nutzerdaten möglich sein
 **Akzeptanzkriterien:**
 - [ ] Der Export enthält alle drei genannten Bereiche (ACC-15), dazu Ziele, Pläne und eine aktive Warnmeldung.
 - [ ] Der Export ist ein dokumentiertes Archiv und enthält auch die Rohdaten (OQ-0032).
-- [ ] Das Archiv ist immer mit einem Passwort des Nutzers verschlüsselt und enthält keine Zugangsdaten und Einwilligungen (SEC-0011).
+- [ ] Das Archiv ist verschlüsselt, mit einem freiwilligen Passwort des Nutzers (SEC-0011), und enthält keine Zugangsdaten und Einwilligungen.
 
 ### FR-0198 — Reimport des Gesamtexports
 - **Status:** Approved | **Phase:** 1
-- **Quelle:** SRC-003 (OQ-0032); SRC-003 (Maintainer 2026-11-15)
+- **Quelle:** SRC-003 (OQ-0032); SRC-003 (Maintainer 2026-11-15); SRC-003 (Maintainer 2026-11-18)
 - **Verwandt:** FR-0192, OQ-0032
 
 Ein Gesamtexport lässt sich wieder importieren, damit ein Gerätewechsel möglich ist (ADR-0001).
 
 **Festlegung (SRC-003, Maintainer 2026-11-15):** Die App prüft den unverschlüsselten Kopf der gewählten Datei, bevor sie nach dem Passwort fragt; eine fremde Datei oder eine nicht lesbare Version meldet sie ohne Passwortabfrage. Die Vorprüfung wendet die Leser-Regeln 1 bis 4 des Kopfes an ([Archivvertrag](../contracts/archive.md), Abschnitt 2); die vollständige Prüfung beim Einlesen bleibt.
+
+**Festlegung (SRC-003, Maintainer 2026-11-18):** Ein Archiv ohne Passwort öffnet die App ohne Abfrage (zuerst Versuch mit dem leeren Passwort). Passt das leere Passwort nicht, fragt sie wie bisher nach dem Passwort (SEC-0011).
 
 **Festlegung (SRC-003, Maintainer 2026-11-15):** Leer ist die App, wenn sie keine Läufe, nachgetragenen Trainings, Ziele und Pläne, Referenzleistungen, Geräte, importierten Gesundheitsdaten und Morgenmessungen enthält; ein Profil aus der Ersteinrichtung zählt nicht und wird durch das des Archivs ersetzt. Der Hinweis vor dem Import nennt das. Prüfung und Einzelheiten: [Archivvertrag](../contracts/archive.md), Abschnitt 4.6.
 

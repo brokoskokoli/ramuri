@@ -320,17 +320,25 @@ class PlanController extends ChangeNotifier {
       final warned = await warning.read() != null;
       final held = warningHeldFromSummary(last.summary) != null;
       if (warned != held) {
-        // Banner bzw. Erinnerung zuerst zeigen, nicht erst nach der Rechnung.
-        await _load();
-        await _recalculate(
-          PlanTrigger.feedback,
-          goal,
-          last,
-          reason: warned ? planReasonWarning : planReasonWarningLifted,
-          // Die Heilung ist keine Wochenprüfung: der Prüftag bleibt, damit
-          // eine fällige Bewertung der Vorwoche beim nächsten Öffnen läuft.
-          markChecked: false,
-        );
+        // Banner bzw. Erinnerung zuerst zeigen, nicht erst nach der Rechnung;
+        // unter gespeichertem Signal mit Fortschrittsanzeige wie nach dem
+        // Melden, bis die Rechnung endet (auch wenn sie scheitert). Das
+        // anschließende Laden in [open] blendet sie aus.
+        _warningRecalculating = warned;
+        try {
+          await _load();
+          await _recalculate(
+            PlanTrigger.feedback,
+            goal,
+            last,
+            reason: warned ? planReasonWarning : planReasonWarningLifted,
+            // Die Heilung ist keine Wochenprüfung: der Prüftag bleibt, damit
+            // eine fällige Bewertung der Vorwoche beim nächsten Öffnen läuft.
+            markChecked: false,
+          );
+        } finally {
+          _warningRecalculating = false;
+        }
         return;
       }
     }
@@ -717,7 +725,8 @@ class PlanController extends ChangeNotifier {
   /// Neuberechnung: [PlanActionResult.savedNotPlanned].
   Future<PlanActionResult> saveGoal(TrainingGoal goal) => _act(() async {
     final existed = await _goals.goal() != null;
-    await _goals.save(goal, today: _today());
+    // Zeitpunkt statt `_today()`: `validate` liest ihn im Ortstag.
+    await _goals.save(goal, today: clock.now());
     onChanged?.call();
     try {
       final saved = await _goals.goal();
@@ -790,6 +799,27 @@ class PlanController extends ChangeNotifier {
   /// ([checkPlanReplace] mit Ziel und Eingaben der neuesten Fassung, Einheiten
   /// und absolvierten intensiven Läufen um die Woche, „heute“). `null` ohne
   /// Ziel oder Fassung.
+  /// Anker der Wochenzählung und Länge der Geh-Lauf-Abfolge (PAR-192), wie
+  /// sie der Wochenverlauf des Plans nutzt ([planCourseSetup] aus dem
+  /// gespeicherten Ziel und den Eingaben der letzten Fassung). Für den
+  /// Hinweis auf die Reduktion beim Verschieben ([checkPlanMove], FR-0177).
+  /// `null` ohne Ziel oder Fassung.
+  Future<({DateTime anchor, int walkRunWeeks})?> courseWeeks() =>
+      _serial(() async {
+        final goal = await _goals.goal();
+        final history = await _plans.history();
+        if (goal == null || history.isEmpty) return null;
+        final inputs = history.last.inputs;
+        return (
+          anchor: inputs.anchor,
+          walkRunWeeks: planCourseSetup(
+            goal,
+            inputs,
+            parameters: parameters,
+          ).walkRunWeeks,
+        );
+      });
+
   Future<PlanReplaceCheck?> checkReplace(PlanUnit unit, PlanUnitKind kind) =>
       _serial(() => _replaceCheck(unit, kind, _today()));
 
@@ -960,7 +990,8 @@ class PlanController extends ChangeNotifier {
         return result;
       });
 
-  /// Läuft nach dem Melden noch die Neuberechnung ([reportWarning])?
+  /// Läuft unter Warnsignal noch die Neuberechnung: nach dem Melden
+  /// ([reportWarning]) oder beim Nachholen der Ruhetag-Fassung in [open]?
   bool get warningRecalculating => _warningRecalculating;
   bool _warningRecalculating = false;
 
@@ -1193,11 +1224,12 @@ class PlanController extends ChangeNotifier {
       if ((await _plans.history()).isEmpty) {
         throw const StorageException(StorageFailure.notFound);
       }
-      final today = _today();
-      if (goal.validate(today, null, true) != null) {
+      // Zeitpunkt statt `_today()`: `validate` liest ihn im Ortstag.
+      final now = clock.now();
+      if (goal.validate(now, null, true) != null) {
         throw const StorageException(StorageFailure.rejected);
       }
-      await _goals.save(goal, today: today);
+      await _goals.save(goal, today: now);
       onChanged?.call();
       try {
         await _restartForPause(q, chosen: true);
