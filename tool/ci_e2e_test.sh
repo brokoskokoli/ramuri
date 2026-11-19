@@ -24,6 +24,7 @@ X
 cat > "$tmp/bin/flutter" <<'X'
 #!/bin/sh
 for a in "$@"; do case "$a" in integration_test/*) echo "$a" >> "$FAKE_LOG" ;; esac; done
+echo "$*" >> "$FAKE_ARGS"
 echo "E2E_WERT=geheim123"
 [ -z "${FAKE_E:-}" ] || echo "00:01 +0 -1: Archiv [E]"
 [ -z "${FAKE_SLEEP:-}" ] || sleep 6
@@ -33,24 +34,25 @@ case "$*" in *PHASE=write* | *PHASE=a*) [ -n "${FAKE_NOKILL:-}" ] || { echo "E2E
 exit 0
 X
 chmod +x "$tmp/bin/adb" "$tmp/bin/flutter"
-export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" FAKE_SHOTS="$tmp/shots" ANDROID_SERIAL=emulator-5554
+export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" FAKE_SHOTS="$tmp/shots" FAKE_ARGS="$tmp/args" ANDROID_SERIAL=emulator-5554
 unset E2E_SHARD E2E_STUFEN FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP FAKE_STEPS
 fails=0
 # run <Name> <rc> <Aufrufe-der-Testdateien (Anzahl)> [VAR=Wert ...]
 run() {
   name=$1 want_rc=$2 want_calls=$3; shift 3
-  : > "$FAKE_LOG"; rm -rf "$tmp/out"
+  : > "$FAKE_LOG"; : > "$FAKE_ARGS"; rm -rf "$tmp/out"
   env "$@" sh "$script" "$tmp/out" > "$tmp/stdout" 2>&1; rc=$?
   calls=$(wc -l < "$FAKE_LOG" | tr -d ' ')
   if [ "$rc" -eq "$want_rc" ] && [ "$calls" -eq "$want_calls" ]; then echo "OK   $name"; else
     echo "FAIL $name (rc=$rc erwartet $want_rc, Stufen $calls erwartet $want_calls)"; fails=$((fails + 1)); fi
 }
-run "Shard sammlung: nur all_test"            0 1 E2E_SHARD=sammlung
-grep -qx 'integration_test/all_test.dart' "$FAKE_LOG" || { echo "FAIL Shard sammlung: falsche Datei"; fails=$((fails + 1)); }
+run "Shard sammlung: all_test und treadmill-plan" 0 2 E2E_SHARD=sammlung
+grep -qx 'integration_test/all_test.dart' "$FAKE_LOG" || { echo "FAIL Shard sammlung: all_test fehlt"; fails=$((fails + 1)); }
+grep -qx 'integration_test/e2e_treadmill_test.dart' "$FAKE_LOG" || { echo "FAIL Shard sammlung: treadmill-plan fehlt"; fails=$((fails + 1)); }
 run "Shard stufen: Mehrphasen-Stufen, m2-flow und readiness" 0 6 E2E_SHARD=stufen
 grep -q all_test "$FAKE_LOG" && { echo "FAIL Shard stufen fuehrt all_test aus"; fails=$((fails + 1)); }
-run "ohne Auswahl: alle sieben Stufen"         0 7 X=1
-run "Shard unbekannt (Tippfehler) -> Fehler"   1 0 E2E_SHARD=sammlungx
+run "ohne Auswahl: alle acht Stufen"          0 8 X=1
+run "Shard unbekannt (Tippfehler) -> Fehler"   1 0 E2E_STUFEN=sammlungx
 run "Stufe unbekannt -> Fehler"                1 0 E2E_STUFEN=recover-x
 run "eine bekannte, eine unbekannte -> Fehler" 1 0 "E2E_STUFEN=sammlung recover-x"
 run "Shard und Stufen zusammen -> Fehler"      1 0 E2E_SHARD=stufen E2E_STUFEN=sammlung
@@ -59,6 +61,9 @@ run "Stufe m2-flow: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=m2-flow
 grep -qx 'integration_test/e2e_m2_flow_test.dart' "$FAKE_LOG" || { echo "FAIL m2-flow: falsche Datei"; fails=$((fails + 1)); }
 run "Stufe readiness: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=readiness
 grep -qx 'integration_test/e2e_readiness_test.dart' "$FAKE_LOG" || { echo "FAIL readiness: falsche Datei"; fails=$((fails + 1)); }
+run "Stufe treadmill-plan: Laufband-Datei mit Schalter" 0 1 E2E_STUFEN=treadmill-plan
+grep -qx 'integration_test/e2e_treadmill_test.dart' "$FAKE_LOG" || { echo "FAIL treadmill-plan: falsche Datei"; fails=$((fails + 1)); }
+grep -q 'TREADMILL_PLAN=true' "$FAKE_ARGS" || { echo "FAIL treadmill-plan: Schalter fehlt"; fails=$((fails + 1)); }
 run "leere Auswahl: keine Stufe gelaufen"      1 0 "E2E_STUFEN= "
 # Waechter: eine Stufe in keinem Shard (Kopie des Skripts mit einer zusaetzlichen Stufe) ist ein Fehler vor dem ersten Lauf.
 sed 's|^\[ "\$ran" -gt 0 \]|stufe neu 0 integration_test/e2e_a_test.dart\n&|' "$script" > "$tmp/ci_e2e_neu.sh"
@@ -67,35 +72,35 @@ script_orig=$script; script="$tmp/ci_e2e_neu.sh"
 run "Stufe ohne Shard -> Fehler vor dem Lauf" 1 0 X=1
 grep -q 'Stufe neu steht in keinem Shard' "$tmp/stdout" || { echo "FAIL Waechter: Meldung fehlt"; fails=$((fails + 1)); }
 script=$script_orig
-run "Stufe rot -> Exit 1"                      1 1 E2E_SHARD=sammlung FAKE_FAIL=1
+run "Stufe rot -> Exit 1"                      1 1 E2E_STUFEN=sammlung FAKE_FAIL=1
 grep -q 'E2E_\|geheim123' "$tmp/stdout" && { echo "FAIL E2E_-Zeile in der Ausgabe"; fails=$((fails + 1)); } || echo "OK   keine E2E_-Zeile in der Ausgabe"
 grep -rq 'E2E_\|geheim123' "$tmp/out" && { echo "FAIL E2E_-Zeile im Artefakt"; fails=$((fails + 1)); } || echo "OK   keine E2E_-Zeile im Artefakt"
 grep -q 'PUB_01 M2 form_error key=planFormErrorStand' "$tmp/stdout" && echo "OK   PUB_-Zeile (Marker ohne Werte) im Log trotz langer Ausgabe" || { echo "FAIL PUB_-Zeile fehlt im Log"; fails=$((fails + 1)); }
 [ -f "$tmp/out/test-output-sammlung.txt" ] || { echo "FAIL kein Testlog im Artefakt"; fails=$((fails + 1)); }
 # Letzte Schrittmarke vor dem ersten [E] im Fehlerabschnitt, nicht die eines spaeteren Tests der Sammlung.
-run "Stufe rot mit Schrittmarken"              1 1 E2E_SHARD=sammlung FAKE_FAIL=1 FAKE_STEPS=1
+run "Stufe rot mit Schrittmarken"              1 1 E2E_STUFEN=sammlung FAKE_FAIL=1 FAKE_STEPS=1
 sed -n '/^--- Schritte Stufe sammlung ---$/,/^--- Fehlermeldung/p' "$tmp/stdout" | grep -c ' SCHRITT ' | grep -qx 3 && echo "OK   alle Schrittmarken der Stufe im Log" || { echo "FAIL Schrittmarken der Stufe fehlen im Log"; fails=$((fails + 1)); }
 sed -n '/^--- Fehlermeldung Stufe sammlung ---$/,$p' "$tmp/stdout" | grep -qx 'letzter Schritt vor dem Fehler: PUB_01 SCHRITT A1 rot' && echo "OK   letzter Schritt vor dem Fehler im Fehlerabschnitt" || { echo "FAIL letzter Schritt vor dem Fehler fehlt"; fails=$((fails + 1)); }
-run "Stufe rot ohne Schrittmarken"             1 1 E2E_SHARD=sammlung FAKE_FAIL=1
+run "Stufe rot ohne Schrittmarken"             1 1 E2E_STUFEN=sammlung FAKE_FAIL=1
 grep -qx 'letzter Schritt vor dem Fehler: keiner' "$tmp/stdout" && echo "OK   ohne Marke: keiner" || { echo "FAIL ohne Marke: Meldung fehlt"; fails=$((fails + 1)); }
 run "Prozessende ohne NEED_KILL -> Exit 1"     1 1 E2E_STUFEN=storage-a FAKE_NOKILL=1
 # Foto: laeuft die Stufe weiter, kommen Fotos; nach dem ersten "[E]" kein neues mehr.
-: > "$tmp/shots"; run "Foto: ohne Fehler laufend aktualisiert" 0 1 E2E_SHARD=sammlung FAKE_SLEEP=1
+: > "$tmp/shots"; run "Foto: ohne Fehler laufend aktualisiert" 0 1 E2E_STUFEN=sammlung FAKE_SLEEP=1
 [ "$(wc -l < "$tmp/shots" | tr -d ' ')" -ge 2 ] || { echo "FAIL Foto: keine laufenden Fotos"; fails=$((fails + 1)); }
-: > "$tmp/shots"; run "Foto: nach [E] eingefroren" 1 1 E2E_SHARD=sammlung FAKE_SLEEP=1 FAKE_E=1 FAKE_FAIL=1
+: > "$tmp/shots"; run "Foto: nach [E] eingefroren" 1 1 E2E_STUFEN=sammlung FAKE_SLEEP=1 FAKE_E=1 FAKE_FAIL=1
 [ "$(wc -l < "$tmp/shots" | tr -d ' ')" -le 1 ] || { echo "FAIL Foto: nach [E] weitere Fotos"; fails=$((fails + 1)); }
 # Waechter: Testdatei, die weder eingebunden noch Stufe ist, auch als Kommentar.
 : > app/integration_test/e2e_neu_test.dart
-run "Waechter: nicht eingebundene Datei"       1 0 E2E_SHARD=sammlung
+run "Waechter: nicht eingebundene Datei"       1 0 E2E_STUFEN=sammlung
 printf "import 'e2e_a_test.dart';\n// import 'e2e_neu_test.dart';\n" > app/integration_test/all_test.dart
-run "Waechter: nur auskommentierter Import"    1 0 E2E_SHARD=sammlung
+run "Waechter: nur auskommentierter Import"    1 0 E2E_STUFEN=sammlung
 printf "import 'e2e_a_test.dart';\nimport 'e2e_neu_test.dart';\n" > app/integration_test/all_test.dart
-run "Waechter: eingebunden -> frei"            0 1 E2E_SHARD=sammlung
+run "Waechter: eingebunden -> frei"            0 1 E2E_STUFEN=sammlung
 # Eine Datei, die nur als Stufe (nicht in all_test.dart) steht, ist frei; ohne Stufenzeile rot.
 rm -f app/integration_test/e2e_neu_test.dart
 printf "import 'e2e_a_test.dart';\n" > app/integration_test/all_test.dart
-run "Waechter: m2-flow als Stufe statt Import" 0 1 E2E_SHARD=sammlung
+run "Waechter: m2-flow als Stufe statt Import" 0 1 E2E_STUFEN=sammlung
 # Lokale Mehrphasentests (Host-Schritte) sind vom Waechter ausgenommen, auch ohne Import in all_test.dart.
 : > app/integration_test/e2e_health_real_test.dart; : > app/integration_test/e2e_health_revoke_test.dart
-run "Waechter: lokale Health-Tests ausgenommen" 0 1 E2E_SHARD=sammlung
+run "Waechter: lokale Health-Tests ausgenommen" 0 1 E2E_STUFEN=sammlung
 [ $fails -eq 0 ] && echo "ci_e2e-Test GRÜN" || { echo "ci_e2e-Test ROT"; exit 1; }
