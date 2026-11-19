@@ -54,3 +54,7 @@ Tests geben nur Zähler, Schlüssel und Längen aus, nie Werte (SEC-0001..0010);
 - `logPub(...)` schreibt `PUB_<zeit> ...` für Zustandsmarker mit Schlüsselnamen (`tap_vor`, `im_baum=ja|nein`) und den Fehlertext ohne Werte (`reportingFailures`); nie Werte.
 
 Ist eine Stufe rot, zeigt der Fehlerabschnitt von `ci_e2e.sh` die letzten `PUB_`-Zeilen und die Zeile `letzter Schritt vor dem Fehler: ...` (letzte Schrittmarke vor dem ersten fehlgeschlagenen Test der Stufe).
+
+## Bildschirmfotos: `E2E_SHOTS=1`
+
+`shot(t, '<name>')` (`support/e2e_support.dart`) schreibt die Marke `SHOT <name>` als `E2E_`-Zeile (also nicht im öffentlichen CI-Log). Mit `E2E_SHOTS=1 sh tool/ci_e2e.sh <ausgabe>` reicht das Skript `--dart-define=E2E_SHOTS=true` an jede Stufe weiter; der Test hält die Seite dann bei jeder Marke 2,5 s, und der Host macht in dieser Zeit genau ein Foto `<ausgabe>/shots/<stufe>-<name>.png` (z. B. `sammlung-s3_morgenwerte_marken_dunkel.png`). Der Name besteht nur aus `[a-z0-9_-]`, sonst verwirft der Host die Marke (Meldung ohne Namen im Log). Am Ende jeder Stufe steht `FOTOS Stufe <stufe>: <anzahl>` im Log. Hell und dunkel schaltet der Test selbst (`platformBrightnessTestValue`, Fotos `..._hell`/`..._dunkel`). Ohne Schalter gibt es weder Fotos noch Pausen; ein anderer Wert als `1` ist ein Fehler. Die Tests der lokalen Health-Connect-Abläufe (`e2e_health*_test.dart`) halten bei `SHOT` immer (`pause: true`), weil der Host dort nach der Marke den Systemdialog bedient. Die Fotos zeigen nur synthetische Daten der Tests (SEC-0001..0010) und gehören nicht ins Repo.

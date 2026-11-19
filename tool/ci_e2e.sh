@@ -23,6 +23,11 @@
 # Shard -> Stufen steht nur hier) oder lokal E2E_STUFEN="recover-a recover-b"; beides zusammen
 # oder ein unbekannter Name ist ein Fehler (Exit 1), ebenso ein Lauf ohne eine einzige Stufe.
 # Ohne beides laufen alle Stufen. Test: tool/ci_e2e_test.sh.
+# Bildschirmfotos: E2E_SHOTS=1 reicht --dart-define=E2E_SHOTS=true an jede Stufe weiter (der Test haelt die Seite
+# bei jeder Marke "SHOT <name>" 2,5 s, shot in app/integration_test/support/e2e_support.dart); der Host macht
+# waehrend der Stufe je neue Zeile "E2E_<zeit> SHOT <name>" genau ein Foto <Ausgabeordner>/shots/<stufe>-<name>.png.
+# Name nur aus [a-z0-9_-], sonst verworfen. Ohne Schalter weder Fotos noch Pause; ein anderer Wert ist ein Fehler.
+# Die SHOT-Zeilen bleiben E2E_-Zeilen (nicht im oeffentlichen Log), die Fotos zeigen nur synthetische Testdaten.
 # Zeilen der Tests mit Praefix PUB_ (Schluesselnamen, Fehlertext, Schrittmarken "SCHRITT <name>", nie Werte) bleiben im Log
 # und stehen bei Rot im Fehlerabschnitt, dazu die letzte Schrittmarke vor dem ersten fehlgeschlagenen Test.
 # Bei Rot: Logcat (gefiltert), Bildschirmfoto je Stufe und gefiltertes Testlog (ohne E2E_-Zeilen) in <Ausgabeordner>.
@@ -65,6 +70,34 @@ for n in $auswahl; do
   case " $alle_stufen " in *" $n "*) ;; *) echo "unbekannte Stufe: $n"; exit 1 ;; esac
 done
 
+case "${E2E_SHOTS:-}" in
+  "") shots_define="" ;;
+  1) shots_define="--dart-define=E2E_SHOTS=true" ;;
+  *) echo "E2E_SHOTS nur 1 oder leer"; exit 1 ;;
+esac
+
+# shot_watch <testlog> <stufe>: je neue vollstaendige Zeile "E2E_<zeit> SHOT <name>" genau ein Foto
+# <out>/shots/<stufe>-<name>.png (der Test steht dabei 2,5 s); ungueltiger Name -> kein Foto.
+# Laeuft im Hintergrund, bis die Stufe endet.
+shot_watch() {
+  seen=0
+  while :; do
+    # Nur Zeilen mit Zeilenende (die letzte kann noch halb geschrieben sein).
+    lines=$(wc -l <"$1" 2>/dev/null) || lines=0
+    n=$(head -n "$lines" "$1" 2>/dev/null | grep -c 'E2E_[^ ]* SHOT ') || n=0
+    if [ "$n" -gt "$seen" ]; then
+      # Je Marke ein Wort: der Name, oder "!" fuer einen ungueltigen (dann ohne Leerzeichen im Wort).
+      for s in $(head -n "$lines" "$1" | grep 'E2E_[^ ]* SHOT ' | sed -n "$((seen + 1)),${n}p" |
+        sed 's/^.*E2E_[^ ]* SHOT //; /^[a-z0-9_-]\{1,\}$/!s/.*/!/'); do
+        if [ "$s" = '!' ]; then echo "SHOT-Marke verworfen (Name nicht aus [a-z0-9_-])"; continue; fi
+        a exec-out screencap -p >"$out/shots/$2-$s.tmp" 2>/dev/null && mv "$out/shots/$2-$s.tmp" "$out/shots/$2-$s.png"
+      done
+      seen=$n
+    fi
+    sleep 0.2
+  done
+}
+
 gps_feed() {
   lat=10.0
   while :; do
@@ -102,8 +135,17 @@ stufe() {
   log="$out/flutter-test-$name.log"
   t0=$(date +%s)
   a logcat -c
-  (cd app && flutter test --reporter expanded "$@" -d "$serial") >"$log" 2>&1 &
+  : >"$log"
+  # $shots_define ist leer oder ein Wort ohne Leerzeichen (ungequotet: leer = kein Argument).
+  # shellcheck disable=SC2086
+  (cd app && flutter test --reporter expanded "$@" $shots_define -d "$serial") >"$log" 2>&1 &
   pid=$!
+  spid=""
+  if [ -n "$shots_define" ]; then
+    mkdir -p "$out/shots"
+    shot_watch "$log" "$name" &
+    spid=$!
+  fi
   grant_until_done &
   gpid=$!
   killed=1
@@ -123,6 +165,11 @@ stufe() {
   wait "$pid"
   rc=$?
   kill "$gpid" 2>/dev/null
+  if [ -n "$spid" ]; then
+    kill "$spid" 2>/dev/null
+    wait "$spid" 2>/dev/null
+    echo "FOTOS Stufe $name: $(find "$out/shots" -name "$name-*.png" | wc -l | tr -d ' ')"
+  fi
   if [ "$kill_after" = 1 ]; then
     # Das Testende nach dem Prozessende ist erwartet; fehlt das Zeichen, ist die Stufe rot.
     if [ "$killed" = 0 ]; then rc=0; else rc=1; echo "kein NEED_KILL in Stufe $name"; fi
