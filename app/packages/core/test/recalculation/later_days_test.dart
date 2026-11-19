@@ -176,6 +176,132 @@ void main() {
     expect(probe.values.dayWrites, {'2030-03-01': 1});
     expect(probe.values.writeAlls, 1);
   });
+
+  /// Kennzeichnet die Läufe als nicht berechenbar (FR-0219).
+  Future<void> markUncomputable(RecalcWorld w, Iterable<int> ids) async {
+    final counter = w.calc().failures;
+    for (final id in ids) {
+      for (var n = 0; n < uncomputableAfterFailures; n++) {
+        await counter.recordFailure(id);
+      }
+    }
+    expect(await counter.uncomputable(), ids.toSet());
+  }
+
+  test('„Neu berechnen“ mehrerer nicht berechenbarer Läufe: jeder Tag '
+      'höchstens einmal gerechnet, Ergebnis wie bei vollständiger '
+      'Neuberechnung', () async {
+    final w = await RecalcWorld.create();
+    // Absichtlich nicht in zeitlicher Reihenfolge angelegt: 22., 10., 14.
+    final open22 = await w.seedRun(DateTime.utc(2030, 2, 22, 8), speed: 3.2);
+    final open10 = await w.seedRun(DateTime.utc(2030, 2, 10, 8), speed: 2.7);
+    final open14 = await w.seedRun(DateTime.utc(2030, 2, 14, 8), speed: 2.9);
+    final done18 = await w.seedRun(DateTime.utc(2030, 2, 18, 8), speed: 3.0);
+    final done26 = await w.seedRun(DateTime.utc(2030, 2, 26, 8), speed: 3.3);
+    w.clock.set(recalcNow);
+    await w.calc().calculateAfterRun(done18);
+    await w.calc().calculateAfterRun(done26);
+    await markUncomputable(w, [open22, open10, open14]);
+
+    final probe = counting(w);
+    await w.calc(over: probe.session).retryUncomputable();
+
+    for (final id in [open10, open14, open22]) {
+      expect(await runVo2Pairs(w.session, id), hasLength(1));
+    }
+    expect(
+      probe.values.dayWrites.values.every((n) => n == 1),
+      isTrue,
+      reason: '${probe.values.dayWrites}',
+    );
+    expect(probe.values.dayWrites.keys.toSet(), {
+      '2030-02-10',
+      '2030-02-14',
+      '2030-02-18',
+      '2030-02-22',
+      '2030-02-26',
+    });
+    expect(await w.calc().failures.read(), isEmpty);
+    expect((await longTermOf(w, '2030-02-26')).current.measurementCount, 5);
+    await expectFullRecalculation(w);
+  });
+
+  test('„Neu berechnen“: der mittlere von drei Läufen scheitert erneut: '
+      'Ergebnis wie bei vollständiger Neuberechnung, jeder Tag höchstens '
+      'einmal, Zähler 1', () async {
+    final w = await RecalcWorld.create();
+    final open18 = await w.seedRun(DateTime.utc(2030, 2, 18, 8), speed: 2.9);
+    final failing = await w.seedRun(DateTime.utc(2030, 2, 14, 8));
+    final open10 = await w.seedRun(DateTime.utc(2030, 2, 10, 8), speed: 2.7);
+    final done16 = await w.seedRun(DateTime.utc(2030, 2, 16, 8), speed: 3.0);
+    final done20 = await w.seedRun(DateTime.utc(2030, 2, 20, 8), speed: 3.1);
+    w.clock.set(recalcNow);
+    await w.calc().calculateAfterRun(done16);
+    await w.calc().calculateAfterRun(done20);
+    await markUncomputable(w, [open18, failing, open10]);
+
+    final probe = counting(w)..values.failRun = failing;
+    await expectLater(
+      w.calc(over: probe.session).retryUncomputable(),
+      throwsA(isA<StorageException>()),
+    );
+
+    for (final id in [open10, open18]) {
+      expect(await runVo2Pairs(w.session, id), hasLength(1));
+    }
+    expect(await runVo2Pairs(w.session, failing), isEmpty);
+    expect(await w.calc().failures.read(), {failing: 1});
+    expect(
+      probe.values.dayWrites.values.every((n) => n == 1),
+      isTrue,
+      reason: '${probe.values.dayWrites}',
+    );
+    expect((await longTermOf(w, '2030-02-20')).current.measurementCount, 4);
+    await expectFullRecalculation(w);
+  });
+
+  test('„Neu berechnen“: der letzte von zwei Läufen scheitert erneut: die '
+      'Tage ab ihm am Ende in einem Schritt, Ergebnis wie bei vollständiger '
+      'Neuberechnung', () async {
+    final w = await RecalcWorld.create();
+    final failing = await w.seedRun(DateTime.utc(2030, 2, 14, 8));
+    final open10 = await w.seedRun(DateTime.utc(2030, 2, 10, 8), speed: 2.7);
+    final done12 = await w.seedRun(DateTime.utc(2030, 2, 12, 8), speed: 2.8);
+    final done16 = await w.seedRun(DateTime.utc(2030, 2, 16, 8), speed: 3.0);
+    final done20 = await w.seedRun(DateTime.utc(2030, 2, 20, 8), speed: 3.1);
+    w.clock.set(recalcNow);
+    for (final id in [done12, done16, done20]) {
+      await w.calc().calculateAfterRun(id);
+    }
+    await markUncomputable(w, [failing, open10]);
+
+    final probe = counting(w)..values.failRun = failing;
+    await expectLater(
+      w.calc(over: probe.session).retryUncomputable(),
+      throwsA(isA<StorageException>()),
+    );
+
+    expect(await runVo2Pairs(w.session, open10), hasLength(1));
+    expect(await runVo2Pairs(w.session, failing), isEmpty);
+    expect(await w.calc().failures.read(), {failing: 1});
+    // Lauf vom 10. rechnet seinen Tag und den 12. (bis vor den 14.); der
+    // abschließende Schritt die Tage ab dem 14. in einem Schreibvorgang
+    // (Lauf vom 10., gescheiterter Lauf, Abschluss).
+    expect(probe.values.writeAlls, 3);
+    expect(probe.values.dayWrites.keys.toSet(), {
+      '2030-02-10',
+      '2030-02-12',
+      '2030-02-16',
+      '2030-02-20',
+    });
+    expect(
+      probe.values.dayWrites.values.every((n) => n == 1),
+      isTrue,
+      reason: '${probe.values.dayWrites}',
+    );
+    expect((await longTermOf(w, '2030-02-20')).current.measurementCount, 4);
+    await expectFullRecalculation(w);
+  });
 }
 
 /// Zählt je Tag, wie oft Tageswerte geschrieben werden (angelegt oder
