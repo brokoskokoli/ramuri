@@ -1,7 +1,7 @@
 import '../goals/training_goal.dart' show GoalDistance;
 import 'plan_parameters.dart';
 import 'plan_unit.dart';
-import 'weekly_time.dart' show planDay;
+import 'weekly_time.dart' show planDay, planReductionStartWeek;
 
 /// Warum eine Einheit nicht auf den gewünschten Tag kann (wie der Speicher
 /// bei `PlanRepository.confirmMove` ablehnt; vorher geprüft, damit die
@@ -126,7 +126,12 @@ PlanUnitFixed planMovedFixed(PlanUnit unit, DateTime newDay) {
 /// - Ziel mit Datum ([targetDate]): Ist der neue Tag der Zieltag, oder liegt
 ///   er in einer der letzten `reductionWeeks(distance)` Wochen bis zur Woche
 ///   des Zieltags (Reduktion, PAR-199): [PlanMoveCheck.goalHint]. Ohne
-///   Zieldatum (offenes Ziel) nie.
+///   Zieldatum (offenes Ziel) nie. Mit Geh-Lauf-Abfolge ([anchor] der
+///   Wochenzählung und [walkRunWeeks] wie im Wochenverlauf des Plans)
+///   beginnt die Reduktion frühestens in der ersten Laufwoche danach
+///   (PAR-192, PAR-065), wie in `planWeeklyTime`; der Zieltag bleibt
+///   Zieltag. Ohne [anchor] oder mit [walkRunWeeks] 0 zählt nur die
+///   Reduktion vor dem Zieltag.
 ///
 /// [completedIntensiveDays] sind Ortstage absolvierter Läufe, die nach
 /// PAR-058 als intensiv gelten (auch ohne Einheit); sie zählen für den
@@ -141,8 +146,13 @@ PlanMoveCheck checkPlanMove({
   Set<int> runDays = const {},
   DateTime? targetDate,
   GoalDistance? distance,
+  DateTime? anchor,
+  int walkRunWeeks = 0,
   PlanParameters parameters = const PlanParameters(),
 }) {
+  if (walkRunWeeks < 0) {
+    throw ArgumentError.value(walkRunWeeks, 'walkRunWeeks', 'nicht negativ');
+  }
   final t = planDay(today);
   final day = planDay(newDay);
   final from = planDay(unit.day);
@@ -223,18 +233,29 @@ PlanMoveCheck checkPlanMove({
     weekCapMinutes: cap,
     alternatives: alternatives,
     endsHardReplacement: planMovedFixed(unit, day) != unit.fixed,
-    goalHint: _goalHint(day, targetDate, distance, parameters),
+    goalHint: _goalHint(
+      day,
+      targetDate,
+      distance,
+      anchor,
+      walkRunWeeks,
+      parameters,
+    ),
   );
 }
 
 /// Lage von [day] zum Ziel (FR-0177): Zieltag, sonst Woche der Reduktion wie
 /// im Wochenverlauf (`planWeeklyTime`, PAR-199): die letzten
 /// `reductionWeeks(distance)` Wochen bis einschließlich der Woche des
-/// Zieltags. Ohne [targetDate] `null`.
+/// Zieltags, mit [anchor] frühestens die erste Laufwoche nach
+/// [walkRunWeeks] Wochen Geh-Lauf-Abfolge ([planReductionStartWeek]).
+/// Ohne [targetDate] `null`.
 PlanMoveGoalHint? _goalHint(
   DateTime day,
   DateTime? targetDate,
   GoalDistance? distance,
+  DateTime? anchor,
+  int walkRunWeeks,
   PlanParameters p,
 ) {
   if (targetDate == null) return null;
@@ -244,9 +265,21 @@ PlanMoveGoalHint? _goalHint(
   DateTime monday(DateTime d) =>
       d.subtract(Duration(days: d.weekday - DateTime.monday));
   final goalWeek = monday(goal);
-  final first = goalWeek.subtract(
+  var first = goalWeek.subtract(
     Duration(days: 7 * (p.reductionWeeks(distance) - 1)),
   );
+  if (anchor != null && walkRunWeeks > 0) {
+    // Wochenindex ab dem Anker wie in `planWeeklyTime`: frühestens die erste
+    // Laufwoche nach der Abfolge.
+    final base = monday(planDay(anchor));
+    final start = planReductionStartWeek(
+      lastWeek: goalWeek.difference(base).inDays ~/ 7,
+      distance: distance,
+      walkRunWeeks: walkRunWeeks,
+      parameters: p,
+    );
+    first = base.add(Duration(days: 7 * start));
+  }
   final m = monday(day);
   return !m.isBefore(first) && !m.isAfter(goalWeek)
       ? PlanMoveGoalHint.reduction

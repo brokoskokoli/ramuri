@@ -32,6 +32,8 @@ PlanMoveCheck _check(
   Set<int> runDays = const {},
   int? goalDay,
   GoalDistance? distance = GoalDistance.tenKilometers,
+  int? anchorDay,
+  int walkRunWeeks = 0,
 }) => checkPlanMove(
   units: units,
   unit: unit,
@@ -42,6 +44,8 @@ PlanMoveCheck _check(
   runDays: runDays,
   targetDate: goalDay == null ? null : _d(goalDay),
   distance: distance,
+  anchor: anchorDay == null ? null : _d(anchorDay),
+  walkRunWeeks: walkRunWeeks,
 );
 
 void main() {
@@ -254,37 +258,100 @@ void main() {
       expect(c.goalHint, isNull);
     });
 
-    test('Reduktion wie im Wochenverlauf (planWeeklyTime)', () {
+    test('Reduktion wie im Wochenverlauf (planWeeklyTime), auch mit '
+        'Geh-Lauf-Abfolge', () {
+      // Ziel So der vierten Woche (27); Abfolgen von 0 bis 4 Wochen, 4 reicht
+      // bis in die Zielwoche (dann keine Woche der Reduktion).
       for (final dist in GoalDistance.values) {
-        final weeks = planWeeklyTime(
-          startMinutes: 60,
-          capMinutes: 240,
-          anchor: _mon,
-          today: _mon,
-          distance: dist,
-          targetDate: _d(27),
-        ).weeks;
-        final unit = _u(1, 0);
-        for (var d = 1; d <= 27; d++) {
-          final phase = weeks[d ~/ 7].phase;
-          final hint = _check(
-            [unit],
-            unit,
-            d,
-            goalDay: 27,
+        for (var walkRun = 0; walkRun <= 4; walkRun++) {
+          final weeks = planWeeklyTime(
+            startMinutes: 60,
+            capMinutes: 240,
+            anchor: _mon,
+            today: _mon,
             distance: dist,
-          ).goalHint;
-          expect(
-            hint,
-            d == 27
-                ? PlanMoveGoalHint.goalDay
-                : phase == PlanPhase.reduction
-                ? PlanMoveGoalHint.reduction
-                : isNull,
-            reason: '$dist Tag $d',
-          );
+            targetDate: _d(27),
+            walkRunWeeks: walkRun,
+          ).weeks;
+          final unit = _u(1, 0);
+          for (var d = 1; d <= 27; d++) {
+            final phase = weeks[d ~/ 7].phase;
+            final hint = _check(
+              [unit],
+              unit,
+              d,
+              goalDay: 27,
+              distance: dist,
+              anchorDay: 0,
+              walkRunWeeks: walkRun,
+            ).goalHint;
+            expect(
+              hint,
+              d == 27
+                  ? PlanMoveGoalHint.goalDay
+                  : phase == PlanPhase.reduction
+                  ? PlanMoveGoalHint.reduction
+                  : isNull,
+              reason: '$dist Abfolge $walkRun Tag $d',
+            );
+            if (walkRun == 4) {
+              expect(
+                hint,
+                d == 27 ? PlanMoveGoalHint.goalDay : isNull,
+                reason: '$dist Abfolge bis in die Zielwoche, Tag $d',
+              );
+            }
+          }
         }
       }
+    });
+  });
+
+  group('FR-0177: Reduktion erst nach der Geh-Lauf-Abfolge (PAR-192)', () {
+    // Halbmarathon (PAR-199: zwei Wochen Reduktion), Ziel So der dritten
+    // Woche (20), Anker Mo 0. Regulär wären die Wochen ab 7 Reduktion; die
+    // Abfolge von zwei Wochen (0 bis 13) verkürzt sie auf die Woche ab 14.
+    PlanMoveCheck check(int day, {int walkRunWeeks = 2, int? anchorDay = 0}) =>
+        _check(
+          week,
+          easy,
+          day,
+          goalDay: 20,
+          distance: GoalDistance.halfMarathon,
+          anchorDay: anchorDay,
+          walkRunWeeks: walkRunWeeks,
+        );
+
+    test('Tag in einer Woche der Abfolge: kein Reduktionshinweis', () {
+      expect(check(8).goalHint, isNull);
+      expect(check(13).goalHint, isNull);
+      // Ohne Abfolge läge der Tag in der Reduktion.
+      expect(check(8, walkRunWeeks: 0).goalHint, PlanMoveGoalHint.reduction);
+    });
+
+    test('erste Laufwoche bis Zielwoche: Reduktion, Zieltag: Zieltag', () {
+      expect(check(14).goalHint, PlanMoveGoalHint.reduction);
+      expect(check(19).goalHint, PlanMoveGoalHint.reduction);
+      expect(check(20).goalHint, PlanMoveGoalHint.goalDay);
+    });
+
+    test('Abfolge bis in die Zielwoche: nur der Zieltag', () {
+      expect(check(15, walkRunWeeks: 3).goalHint, isNull);
+      expect(check(20, walkRunWeeks: 3).goalHint, PlanMoveGoalHint.goalDay);
+    });
+
+    test('ohne Anker: wie ohne Abfolge', () {
+      expect(check(8, anchorDay: null).goalHint, PlanMoveGoalHint.reduction);
+    });
+
+    test('Anker in einer früheren Woche zählt die Abfolge ab dort', () {
+      // Anker Mo -7: Abfolge -7 bis 6, erste Laufwoche ab 7.
+      expect(check(8, anchorDay: -7).goalHint, PlanMoveGoalHint.reduction);
+      expect(check(6, anchorDay: -7).goalHint, isNull);
+    });
+
+    test('negative Länge der Abfolge: Fehler', () {
+      expect(() => check(8, walkRunWeeks: -1), throwsArgumentError);
     });
   });
 }
