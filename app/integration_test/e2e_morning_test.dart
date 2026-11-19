@@ -17,7 +17,7 @@
 // 00:02 -> zwei Ortstage, je eine zaehlende Messung (FR-0215, K67), 8
 // Entwicklermodus aus -> Einstieg weg (mit S1 die Pruefung K62 F1). Nur Zaehler
 // und Marken in der Ausgabe.
-// Der Host (--dart-define=E2E_SHOTS=true) kann bei "E2E_.. SHOT <name>" ein Bildschirmfoto machen.
+// Mit E2E_SHOTS=1 sh tool/ci_e2e.sh macht der Host bei "E2E_.. SHOT <name>" ein Bildschirmfoto (shot in support/e2e_support.dart).
 import 'dart:async';
 import 'dart:io';
 
@@ -64,16 +64,6 @@ late _FastClock _clk;
 World buildFastWorld(DebugTestPpgCamera cam) {
   _clk = _FastClock();
   return buildWorld(camera: cam, clock: _clk);
-}
-
-/// Bildschirmfotos nur, wenn der Host sie mit --dart-define=E2E_SHOTS=true
-/// verlangt; sonst keine Pause.
-const _shots = bool.fromEnvironment('E2E_SHOTS');
-
-/// Marke fuer das Bildschirmfoto des Hosts; die Seite bleibt kurz stehen.
-Future<void> shot(WidgetTester t, String name) async {
-  log('SHOT $name');
-  if (_shots) await pumpFor(t, const Duration(milliseconds: 2500));
 }
 
 /// Wartet, bis der Morgen-Einstieg unter [owner] ([MorningCard] auf Heute,
