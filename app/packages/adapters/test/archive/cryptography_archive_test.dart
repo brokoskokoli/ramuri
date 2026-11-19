@@ -186,5 +186,39 @@ void main() {
       await fails(Uint8List.fromList([...file, 0]), pw, ArchiveFailure.damaged);
       await fails(Uint8List(0), pw, ArchiveFailure.notAnArchive);
     });
+
+    test('leeres Passwort: echte Ableitung, Rundgang, Gegenprobe', () async {
+      // SEC-0011: Ohne Passwort wird mit dem leeren Passwort verschlüsselt,
+      // gleiches Format und gleiche Ableitung.
+      final cipher = createArchiveCipher(
+        randomBytes: (len) => Uint8List.fromList(List.generate(len, (i) => i)),
+      );
+      final plain = Uint8List.fromList('SYNTHETISCH'.codeUnits);
+      final open = await _collect(cipher.encrypt('', Stream.value(plain)));
+      expect(open.sublist(0, 8), 'RUNARCHV'.codeUnits);
+      expect(await _collect(cipher.decrypt('', Stream.value(open))), plain);
+      await expectLater(
+        _collect(cipher.decrypt('ein langes Passwort', Stream.value(open))),
+        throwsA(
+          isA<ArchiveException>().having(
+            (e) => e.failure,
+            'failure',
+            ArchiveFailure.wrongPasswordOrDamaged,
+          ),
+        ),
+      );
+      const pw = 'ein langes synthetisches Passwort';
+      final locked = await _collect(cipher.encrypt(pw, Stream.value(plain)));
+      await expectLater(
+        _collect(cipher.decrypt('', Stream.value(locked))),
+        throwsA(
+          isA<ArchiveException>().having(
+            (e) => e.failure,
+            'failure',
+            ArchiveFailure.wrongPasswordOrDamaged,
+          ),
+        ),
+      );
+    });
   });
 }
