@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -61,6 +62,17 @@ class HomeScreen extends StatefulWidget {
   final Clock clock;
   final RecalculationController recalculation;
   final DataChanges changes;
+
+  /// Nur für Tests: umhüllt das Ergebnis jedes Ladelaufs der Erholung;
+  /// [call] zählt die Läufe einer Seite ab 1. Gerechnet wird mit dem Stand
+  /// beim Start des Laufs, der Haken kann nur die Übergabe des Ergebnisses
+  /// verzögern (Reihenfolge der Läufe prüfen). In Release-Builds ohne Wirkung.
+  @visibleForTesting
+  static Future<ReadinessSnapshot?> Function(
+    int call,
+    Future<ReadinessSnapshot?> load,
+  )?
+  debugWrapReadiness;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -225,11 +237,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     widget.clock,
   ).catchError((Object _) => const HomeHints());
 
-  Future<ReadinessSnapshot?> _loadReadiness() => loadReadinessToday(
-    session: widget.session,
-    clock: widget.clock,
-    recalculation: widget.recalculation.service,
-  );
+  /// Gezählte Ladeläufe der Erholung (nur für [HomeScreen.debugWrapReadiness]).
+  int _readinessCalls = 0;
+
+  Future<ReadinessSnapshot?> _loadReadiness() {
+    final load = loadReadinessToday(
+      session: widget.session,
+      clock: widget.clock,
+      recalculation: widget.recalculation.service,
+    );
+    final wrap = HomeScreen.debugWrapReadiness;
+    if (kReleaseMode || wrap == null) return load;
+    return wrap(++_readinessCalls, load);
+  }
 
   /// Wege zum Nachholen auf der Detailseite der Erholung (FR-0111): die
   /// Morgenmessung über ihren vorhandenen Einstieg (nur mit Kamera) und die
