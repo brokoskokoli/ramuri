@@ -193,6 +193,93 @@ void main() {
     _expectLabelsFit(tester, 'breit');
   });
 
+  group('Schriftfaktor der Leiste (FR-0208)', () {
+    final progress = find.descendant(
+      of: find.byKey(const Key('home_statistics')),
+      matching: find.text('Fortschritt'),
+    );
+
+    /// Wirksamer Faktor der Beschriftung „Fortschritt“ (Grundgröße 12).
+    double factor(WidgetTester tester) =>
+        MediaQuery.textScalerOf(tester.element(progress)).scale(12) / 12;
+
+    /// Startet die App in [width] dp mit Schrift [scale], „Fortschritt“
+    /// gewählt (fett, also am breitesten).
+    Future<void> open(WidgetTester tester, double width, double scale) async {
+      await loadManrope(tester);
+      await started(tester);
+      tester.view.physicalSize = Size(width, 780);
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('home_statistics')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('360 dp, Schrift 1,3: verkleinert, aber über Grundschrift', (
+      tester,
+    ) async {
+      await open(tester, 360, 1.3);
+      expect(factor(tester), greaterThan(1.0));
+      expect(factor(tester), lessThan(1.3));
+      _expectLabelsFit(tester, '1,3');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('360 dp, Schrift 2,0: wie bei 1,3, einzeilig, kein Überlauf', (
+      tester,
+    ) async {
+      await open(tester, 360, 1.3);
+      final at13 = factor(tester);
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      await tester.pumpAndSettle();
+      expect(factor(tester), moreOrLessEquals(at13, epsilon: 0.01));
+      expect(factor(tester), greaterThan(1.0));
+      _expectLabelsFit(tester, '2,0');
+      expect(tester.getSize(find.byType(NavigationBar)).height, 72);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('300 dp, Schrift 1,0: Grundschrift, „…“, voller Text im '
+        'Tooltip und für Screenreader', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await open(tester, 300, 1.0);
+      expect(factor(tester), 1.0);
+      final p = tester.renderObject<RenderParagraph>(progress);
+      // Einzeilig und mit „…“ gekürzt.
+      expect(p.didExceedMaxLines, isTrue);
+      expect(p.overflow, TextOverflow.ellipsis);
+      final line = p.getBoxesForSelection(
+        const TextSelection(baseOffset: 0, extentOffset: 'Fortschritt'.length),
+      );
+      expect(line.map((b) => b.top).toSet(), hasLength(1));
+      final box = tester.getRect(find.byKey(const Key('home_statistics')));
+      final r = tester.getRect(progress);
+      expect(r.left, greaterThanOrEqualTo(box.left));
+      expect(r.right, lessThanOrEqualTo(box.right));
+      expect(tester.takeException(), isNull);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home_statistics')),
+          matching: find.byWidgetPredicate(
+            (w) => w is Tooltip && w.message == 'Fortschritt',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel(RegExp('Fortschritt')), findsWidgets);
+      semantics.dispose();
+    });
+
+    testWidgets('300 dp, Schrift 0,85: nicht über die Systemschrift gehoben', (
+      tester,
+    ) async {
+      await open(tester, 300, 0.85);
+      expect(factor(tester), lessThanOrEqualTo(0.85 + 1e-9));
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   testWidgets(
     'Zurück: aus Verlauf und Fortschritt zu Heute, von Heute aus der App',
     (tester) async {

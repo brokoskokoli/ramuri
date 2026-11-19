@@ -151,13 +151,16 @@ abstract final class RamuriTheme {
         indicatorShape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
         ),
+        // Einzeilig; passt die Beschriftung auch in Grundschrift nicht, endet
+        // sie mit „…“ (FR-0208), der volle Text steht im Tooltip.
         labelTextStyle: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
               ? textTheme.labelSmall?.copyWith(
                   color: c.text,
                   fontWeight: FontWeight.w800,
+                  overflow: TextOverflow.ellipsis,
                 )
-              : textTheme.labelSmall,
+              : textTheme.labelSmall?.copyWith(overflow: TextOverflow.ellipsis),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
           (s) => IconThemeData(
