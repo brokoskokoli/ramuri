@@ -148,9 +148,12 @@ Future<void> tapDialog(WidgetTester t, String key) async {
 }
 
 /// Ob ein Tipp in die Mitte von [f] dieses Element traefe (nicht verdeckt, die
-/// Seite nicht mehr im Uebergang).
+/// Seite nicht mehr im Uebergang). Findet [f] kein Element (lazy Liste hat das
+/// Ziel gerade nicht gebaut), gilt es als nicht treffbar: `false`, kein Wurf.
 bool hittable(WidgetTester t, Finder f) {
-  final target = t.element(f.first).renderObject;
+  final found = f.evaluate();
+  if (found.isEmpty) return false;
+  final target = found.first.renderObject;
   final hit = HitTestResult();
   t.binding.hitTestInView(hit, t.getCenter(f.first), t.view.viewId);
   return hit.path.any((e) => e.target == target);
@@ -214,6 +217,15 @@ Future<void> tapUntil(
         logPub('tap_miss what=$what versuch=$versuch');
         break;
       }
+      if (target.evaluate().isEmpty) {
+        // Nach ensureVisible aus dem gebauten Bereich gefallen (Liste
+        // verschoben, Tastatur zu): zurueckholen und erneut einblenden.
+        logPub('tap_ziel_fehlt what=$what versuch=$versuch');
+        await bringBack();
+        if (target.evaluate().isEmpty) fail('Taste fehlt: $what');
+        await t.ensureVisible(target);
+        continue;
+      }
       await pumpFor(t, const Duration(milliseconds: 100));
     }
     logPub('tap_vor what=$what versuch=$versuch im_baum=${_imBaum(target)}');
@@ -248,6 +260,7 @@ Future<void> tapKey(WidgetTester t, String key) async {
   // Waehrend eines Seitenwechsels liegt die Taste noch verschoben; erst tippen,
   // wenn der Tipp sie trifft (echte Bedingung, sonst Rot mit Schluessel).
   final end = DateTime.now().add(const Duration(seconds: 5));
+  var fehlte = false;
   while (!hittable(t, f)) {
     if (DateTime.now().isAfter(end)) fail('Tipp trifft $key nicht');
     // Ausserhalb eines Laufs (Zusammenfassung, Verlauf) kommt die Karten-Frage
@@ -255,6 +268,15 @@ Future<void> tapKey(WidgetTester t, String key) async {
     // vor die Taste legen: wegklicken statt Rot.
     await _noConsent(t);
     await pumpFor(t, const Duration(milliseconds: 100));
+    // Faellt die Taste aus dem Baum (lazy Liste), gilt sie als nicht
+    // treffbar; steht sie wieder im Baum, erneut einblenden.
+    if (f.evaluate().isEmpty) {
+      if (!fehlte) logPub('tap_ziel_fehlt what=$key versuch=1');
+      fehlte = true;
+    } else if (fehlte) {
+      fehlte = false;
+      await t.ensureVisible(f);
+    }
   }
   await t.tap(f);
   await pumpFor(t, const Duration(milliseconds: 300));
