@@ -10,6 +10,8 @@ import 'package:running_app/features/statistics/fitness_section.dart'
 import 'package:running_app/features/statistics/load_card.dart';
 import 'package:running_app/features/statistics/load_view_state.dart';
 import 'package:running_app/features/statistics/statistics_screen.dart';
+import 'package:running_app/features/settings/unit_format.dart'
+    show asOfDateText;
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
@@ -24,7 +26,10 @@ import 'app_harness.dart';
 
 Finder k(String key) => find.byKey(Key(key));
 
-final DateTime _end = DateTime.utc(2030, 3, 1);
+/// Festes laufendes Jahr der Seite: Alle Daten der Beispiele liegen darin.
+const int _year = 2030;
+
+final DateTime _end = DateTime.utc(_year, 3, 1);
 DateTime _d(int back) => _end.subtract(Duration(days: back));
 
 TrainingLoadReport report({
@@ -86,6 +91,17 @@ TrainingLoadReport settled() => report(
   units: [for (var i = 0; i < 200; i++) LoadUnit.run(day: _d(i), trimp: 60)],
 );
 
+/// Wie [settled], aber mit letztem Tag (und letzter Einheit) [end].
+TrainingLoadReport settledUntil(DateTime end) => report(
+  confirms: true,
+  factor: 1.0,
+  today: end,
+  units: [
+    for (var i = 0; i < 200; i++)
+      LoadUnit.run(day: end.subtract(Duration(days: i)), trimp: 60),
+  ],
+);
+
 Future<void> pump(
   WidgetTester tester,
   Widget child, {
@@ -142,6 +158,7 @@ void main() {
           await pump(
             tester,
             LoadCardBody(
+              currentYear: _year,
               initiallyExpanded: true,
               state: LoadViewState.ready(mixed()),
             ),
@@ -193,7 +210,11 @@ void main() {
         ]) {
           await pump(
             tester,
-            LoadCardBody(initiallyExpanded: true, state: state),
+            LoadCardBody(
+              currentYear: _year,
+              initiallyExpanded: true,
+              state: state,
+            ),
             locale: locale,
           );
           final text = allText(tester);
@@ -210,6 +231,7 @@ void main() {
       await pump(
         tester,
         LoadCardBody(
+          currentYear: _year,
           initiallyExpanded: true,
           state: LoadViewState.ready(settled()),
         ),
@@ -234,6 +256,7 @@ void main() {
         await pump(
           tester,
           LoadCardBody(
+            currentYear: _year,
             initiallyExpanded: true,
             state: LoadViewState.ready(report(units: const [])),
           ),
@@ -255,6 +278,7 @@ void main() {
       await pump(
         tester,
         LoadCardBody(
+          currentYear: _year,
           initiallyExpanded: true,
           state: LoadViewState.ready(
             report(
@@ -276,6 +300,7 @@ void main() {
         await pump(
           tester,
           LoadCardBody(
+            currentYear: _year,
             initiallyExpanded: true,
             state: LoadViewState.ready(
               report(
@@ -315,6 +340,7 @@ void main() {
       await pump(
         tester,
         LoadCardBody(
+          currentYear: _year,
           initiallyExpanded: true,
           state: LoadViewState.ready(report(units: [LoadUnit.run(day: _d(1))])),
         ),
@@ -332,6 +358,7 @@ void main() {
       await pump(
         tester,
         LoadCardBody(
+          currentYear: _year,
           initiallyExpanded: true,
           state: LoadViewState.ready(report(units: const [])),
         ),
@@ -352,7 +379,11 @@ void main() {
       ) async {
         await pump(
           tester,
-          LoadCardBody(initiallyExpanded: true, state: LoadViewState.ready(r)),
+          LoadCardBody(
+            currentYear: _year,
+            initiallyExpanded: true,
+            state: LoadViewState.ready(r),
+          ),
           locale: locale,
         );
         return AppLocalizations.of(tester.element(k('load_card')));
@@ -420,38 +451,91 @@ void main() {
     });
 
     // E2E 36: "Pkt. Punkte" und doppelter Punkt nach dem abgekürzten Datum.
+    // FR-0044: Zeitraum des Diagramms (erster bis letzter Tag) ohne Jahr nur,
+    // wenn er ganz im laufenden Jahr liegt; sonst Enddatum wie „Stand“.
+    final windows = {
+      // Name: (letzter Tag, Jahr des ersten Tags, mit Jahr)
+      'ganz im laufenden Jahr': (DateTime.utc(_year, 6, 1), _year, false),
+      'über den Jahreswechsel': (DateTime.utc(_year, 3, 1), _year - 1, true),
+      'ganz im Vorjahr': (DateTime.utc(_year - 1, 6, 1), _year - 1, true),
+    };
     for (final locale in ['de', 'en']) {
-      testWidgets('$locale: Diagramm-Semantik als fertiger Text', (
-        tester,
-      ) async {
-        final handle = tester.ensureSemantics();
-        final r = settled();
-        await pump(
-          tester,
-          LoadCardBody(initiallyExpanded: true, state: LoadViewState.ready(r)),
-          locale: locale,
+      for (final MapEntry(key: name, value: (last, firstYear, withYear))
+          in windows.entries) {
+        testWidgets('$locale: Diagramm-Semantik als fertiger Text, Fenster '
+            '$name', (tester) async {
+          final handle = tester.ensureSemantics();
+          final r = settledUntil(last);
+          await pump(
+            tester,
+            LoadCardBody(
+              currentYear: _year,
+              initiallyExpanded: true,
+              state: LoadViewState.ready(r),
+            ),
+            locale: locale,
+          );
+          final chart = tester.widget<LoadChart>(k('load_chart'));
+          expect(chart.days.last.day, last);
+          expect(chart.days.first.day.year, firstYear);
+          final label = tester.getSemantics(k('load_chart')).label;
+          final cur = r.series.summary.current!;
+          final german = locale == 'de';
+          final end = withYear
+              ? asOfDateText(locale, last)
+              : MaterialLocalizations.of(tester.element(k('load_card')))
+                    .formatMediumDate(last);
+          final atl = fitnessNumber(german, cur.atl!);
+          final ctl = fitnessNumber(german, cur.ctl!);
+          expect(
+            label,
+            german
+                ? 'Verlauf der kurzfristigen Belastung und des langfristigen '
+                      'Belastungsniveaus, 84 Tage bis $end; zuletzt $atl und '
+                      '$ctl Punkte.'
+                : 'Course of the short-term load and the long-term load '
+                      'level, 84 days up to $end; latest $atl and $ctl '
+                      'points.',
+          );
+          expect(label.contains('${last.year}'), withYear);
+          expect(label, isNot(contains('Pkt')));
+          expect(label, isNot(contains('..')));
+          expect(label, isNot(contains('pts')));
+          handle.dispose();
+        });
+      }
+    }
+
+    // FR-0059/FR-0044: Datenstand ohne Jahr nur im laufenden Jahr, sonst im
+    // Format von „Stand“.
+    for (final locale in ['de', 'en']) {
+      for (final (lastUnit, withYear) in [
+        (DateTime.utc(_year, 6, 1), false),
+        (DateTime.utc(_year - 1, 11, 20), true),
+      ]) {
+        testWidgets(
+          '$locale: Datenstand ${withYear ? 'im Vorjahr mit' : 'im '
+                    'laufenden Jahr ohne'} Jahr',
+          (tester) async {
+            await pump(
+              tester,
+              LoadCardBody(
+                currentYear: _year,
+                initiallyExpanded: true,
+                state: LoadViewState.ready(settledUntil(lastUnit)),
+              ),
+              locale: locale,
+            );
+            final element = tester.element(k('load_card'));
+            final date = withYear
+                ? asOfDateText(locale, lastUnit)
+                : MaterialLocalizations.of(element).formatMediumDate(lastUnit);
+            final text = tester.widget<Text>(k('load_data')).data!;
+            expect(text, AppLocalizations.of(element).loadDataThrough(date));
+            expect(text.contains('${lastUnit.year}'), withYear);
+          },
         );
-        final label = tester.getSemantics(k('load_chart')).label;
-        final cur = r.series.summary.current!;
-        final german = locale == 'de';
-        final end = MaterialLocalizations.of(tester.element(k('load_card')))
-            .formatMediumDate(DateTime.utc(2030, 3, 1));
-        final atl = fitnessNumber(german, cur.atl!);
-        final ctl = fitnessNumber(german, cur.ctl!);
-        expect(
-          label,
-          german
-              ? 'Verlauf der kurzfristigen Belastung und des langfristigen '
-                    'Belastungsniveaus, 84 Tage bis $end; zuletzt $atl und '
-                    '$ctl Punkte.'
-              : 'Course of the short-term load and the long-term load '
-                    'level, 84 days up to $end; latest $atl and $ctl points.',
-        );
-        expect(label, isNot(contains('Pkt')));
-        expect(label, isNot(contains('..')));
-        expect(label, isNot(contains('pts')));
-        handle.dispose();
-      });
+      }
     }
 
     testWidgets('Faktor: fehlt, wenig gesichert, angewandt, nicht mehr '
@@ -488,6 +572,7 @@ void main() {
         await pump(
           tester,
           LoadCardBody(
+            currentYear: _year,
             initiallyExpanded: true,
             state: LoadViewState.ready(
               report(units: units, factorState: state),
@@ -501,6 +586,7 @@ void main() {
       await pump(
         tester,
         LoadCardBody(
+          currentYear: _year,
           initiallyExpanded: true,
           state: LoadViewState.ready(
             report(
@@ -528,6 +614,7 @@ void main() {
         await pump(
           tester,
           LoadCardBody(
+            currentYear: _year,
             initiallyExpanded: true,
             state: LoadViewState.ready(
               report(
@@ -560,6 +647,7 @@ void main() {
       await pump(
         tester,
         LoadCardBody(
+          currentYear: _year,
           initiallyExpanded: true,
           state: LoadViewState.ready(
             report(
@@ -582,6 +670,7 @@ void main() {
       await pump(
         tester,
         LoadCardBody(
+          currentYear: _year,
           state: const LoadViewState.failed(),
           onRetry: () => retried++,
         ),
@@ -595,7 +684,10 @@ void main() {
     });
 
     testWidgets('Laden: Text, keine Zahl', (tester) async {
-      await pump(tester, const LoadCardBody(state: LoadViewState.loading()));
+      await pump(
+        tester,
+        const LoadCardBody(currentYear: _year, state: LoadViewState.loading()),
+      );
       expect(k('load_loading'), findsOneWidget);
       expect(k('load_atl'), findsNothing);
     });
@@ -606,7 +698,10 @@ void main() {
       tester,
     ) async {
       final handle = tester.ensureSemantics();
-      await pump(tester, LoadCardBody(state: LoadViewState.ready(mixed())));
+      await pump(
+        tester,
+        LoadCardBody(currentYear: _year, state: LoadViewState.ready(mixed())),
+      );
       final l10n = AppLocalizations.of(tester.element(k('load_card')));
       final series = mixed().series;
       final cur = series.summary.current!;
@@ -638,7 +733,10 @@ void main() {
           for (final locale in ['de', 'en']) {
             await pump(
               tester,
-              LoadCardBody(state: LoadViewState.ready(mixed())),
+              LoadCardBody(
+                currentYear: _year,
+                state: LoadViewState.ready(mixed()),
+              ),
               width: 390,
               height: 844,
               locale: locale,
@@ -680,7 +778,7 @@ void main() {
       ]) {
         await pump(
           tester,
-          LoadCardBody(state: state),
+          LoadCardBody(currentYear: _year, state: state),
           width: 390,
           height: 844,
           locale: locale,
@@ -706,7 +804,7 @@ void main() {
       );
       await pump(
         tester,
-        LoadCardBody(state: LoadViewState.ready(banister)),
+        LoadCardBody(currentYear: _year, state: LoadViewState.ready(banister)),
         width: 390,
         height: 844,
       );
@@ -718,7 +816,7 @@ void main() {
       final handle = tester.ensureSemantics();
       await pump(
         tester,
-        LoadCardBody(state: LoadViewState.ready(mixed())),
+        LoadCardBody(currentYear: _year, state: LoadViewState.ready(mixed())),
         width: 390,
         height: 844,
       );
@@ -771,7 +869,10 @@ void main() {
     testWidgets('Legende: Kennzeichen nur, wenn im Zeitraum vorhanden', (
       tester,
     ) async {
-      await pump(tester, LoadCardBody(state: LoadViewState.ready(settled())));
+      await pump(
+        tester,
+        LoadCardBody(currentYear: _year, state: LoadViewState.ready(settled())),
+      );
       expect(k('load_legend'), findsOneWidget);
       expect(k('load_legend_converted'), findsNothing);
     });
@@ -783,6 +884,7 @@ void main() {
         await pump(
           tester,
           LoadCardBody(
+            currentYear: _year,
             state: LoadViewState.ready(mixed()),
             initiallyExpanded: true,
           ),
@@ -798,7 +900,7 @@ void main() {
       testWidgets('große Schrift, ${width}px: kein Überlauf', (tester) async {
         await pump(
           tester,
-          LoadCardBody(state: LoadViewState.ready(mixed())),
+          LoadCardBody(currentYear: _year, state: LoadViewState.ready(mixed())),
           width: width,
           textScale: 2,
           locale: 'en',
