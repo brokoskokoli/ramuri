@@ -23,18 +23,21 @@ final _now = DateTime.utc(2026, 11, 11, 12);
 final _mon = DateTime.utc(2026, 11, 9);
 DateTime _d(int n) => _mon.add(Duration(days: n));
 
-TrainingGoal _goal({double capMinutes = 240, DateTime? targetDate}) =>
-    TrainingGoal(
-      type: GoalType.distance,
-      distance: GoalDistance.tenKilometers,
-      targetDate: targetDate ?? DateTime.utc(2027, 3, 14),
-      runDays: const {1, 2, 4, 6},
-      maxSessionSeconds: 7200,
-      weeklyCapSeconds: capMinutes * 60,
-      createdAt: DateTime.utc(2026, 11, 1),
-      canRun30: ContinuousRun30.yes,
-      hardSessionEnabled: false,
-    );
+TrainingGoal _goal({
+  double capMinutes = 240,
+  DateTime? targetDate,
+  GoalDistance distance = GoalDistance.tenKilometers,
+}) => TrainingGoal(
+  type: GoalType.distance,
+  distance: distance,
+  targetDate: targetDate ?? DateTime.utc(2027, 3, 14),
+  runDays: const {1, 2, 4, 6},
+  maxSessionSeconds: 7200,
+  weeklyCapSeconds: capMinutes * 60,
+  createdAt: DateTime.utc(2026, 11, 1),
+  canRun30: ContinuousRun30.yes,
+  hardSessionEnabled: false,
+);
 
 PlanUnit _u(int day, PlanUnitKind kind, int minutes) => PlanUnit(
   day: _d(day),
@@ -154,6 +157,7 @@ Future<void> _sheet(WidgetTester tester, int n, String action) async {
 /// (ausgefallen), Do 12.11. Intervalle, Sa 14.11. lang; Folgewoche Di
 /// locker, Do Intervalle, Sa lang. Mi 11.11. (heute) und So sind frei.
 ///
+/// [walkRunWeeks]: Geh-Lauf-Abfolge ab dem Anker Mo 9.11. (PAR-192).
 /// [extra]: weitere Einheiten; [freeRuns]: Läufe ohne Einheit je Tag (ab
 /// Montag 9.11.) mit RPE-Angabe (`null` = keine).
 Future<(StorageSession, FakeClock)> _seed({
@@ -161,10 +165,16 @@ Future<(StorageSession, FakeClock)> _seed({
   List<PlanUnit> extra = const [],
   Map<int, int?> freeRuns = const {},
   DateTime? targetDate,
+  GoalDistance distance = GoalDistance.tenKilometers,
+  int walkRunWeeks = 0,
 }) async {
   final session = await FakeStorage().open(_key);
   final clock = FakeClock(_now);
-  final goal = _goal(capMinutes: capMinutes, targetDate: targetDate);
+  final goal = _goal(
+    capMinutes: capMinutes,
+    targetDate: targetDate,
+    distance: distance,
+  );
   await (session as GoalStorage).goals.save(goal, today: _d(0));
   final plans = (session as PlanStorage).plans;
   final inputs = PlanInputs(
@@ -173,6 +183,7 @@ Future<(StorageSession, FakeClock)> _seed({
     today: _d(0),
     easyPaceSecondsPerKm: 360,
     easyRunCount: 4,
+    walkRunWeeks: walkRunWeeks,
   );
   await plans.writeVersion(
     PlanVersionDraft(
@@ -556,6 +567,50 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    testWidgets('Geh-Lauf-Abfolge verkürzt die Reduktion: in einer Woche der '
+        'Abfolge kein Hinweis', (tester) async {
+      // Halbmarathon am So 29.11. (PAR-199: zwei Wochen Reduktion, regulär
+      // ab Mo 16.11.); die Abfolge über zwei Wochen ab Mo 9.11. verkürzt die
+      // Reduktion auf die Woche ab Mo 23.11. (wie im Wochenverlauf).
+      final (session, clock) = await _seed(
+        targetDate: _d(20),
+        distance: GoalDistance.halfMarathon,
+        walkRunWeeks: 2,
+      );
+      await _pump(tester, session, clock);
+
+      // Mo 16. -> Mi 18.: Woche der Abfolge, kein Hinweis.
+      await _startMove(tester, 8, 9);
+      expect(key('calendar_move_reduction'), findsNothing);
+      expect(key('calendar_move_goal_day'), findsNothing);
+      await tester.tap(key('calendar_move_cancel'));
+      await tester.pumpAndSettle();
+
+      // Mo 16. -> Di 24.: erste Laufwoche, Reduktion.
+      await _startMove(tester, 8, 15);
+      expect(key('calendar_move_reduction'), findsOneWidget);
+      await tester.tap(key('calendar_move_cancel'));
+      await tester.pumpAndSettle();
+
+      // Mo 16. -> So 29.: Zieltag.
+      await _startMove(tester, 8, 20);
+      expect(key('calendar_move_goal_day'), findsOneWidget);
+      expect(key('calendar_move_reduction'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('ohne Abfolge: dieselbe Woche liegt in der Reduktion', (
+      tester,
+    ) async {
+      final (session, clock) = await _seed(
+        targetDate: _d(20),
+        distance: GoalDistance.halfMarathon,
+      );
+      await _pump(tester, session, clock);
+      await _startMove(tester, 8, 9);
+      expect(key('calendar_move_reduction'), findsOneWidget);
+    });
 
     testWidgets('Ziel weit entfernt: kein Hinweis', (tester) async {
       final (session, clock) = await _seed();

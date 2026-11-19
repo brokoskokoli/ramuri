@@ -110,6 +110,30 @@ void main() {
     },
   );
 
+  test(
+    'Schrittzahl je Wert: Schritte ohne Frequenz gehen mit dem nächsten Wert',
+    () async {
+      final got = <CadenceReading>[];
+      final sub = MethodChannelCadenceSensor().readings().listen(got.add);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final t0 = DateTime.utc(2030, 1, 1).millisecondsSinceEpoch;
+      void step(int ms) =>
+          sink!.add({'timeMs': t0 + ms, 'elapsedMs': 9000 + ms});
+      for (var i = 0; i < 5; i++) {
+        step(i * 500);
+      }
+      step(2000); // nicht nach dem letzten: kein Schritt
+      // Nach 20 s Stillstand: zwei Schritte ohne Frequenz, dann ein Wert.
+      for (var i = 0; i < 3; i++) {
+        step(22000 + i * 500);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await sub.cancel();
+      expect([for (final r in got) r.steps], [3, 1, 1, 3]);
+      expect(got.fold<int>(0, (n, r) => n + r.steps), 8);
+    },
+  );
+
   test('Kanalnamen und Zustände stehen gleich in Kotlin', () {
     final kt = File(
       '../../android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/StepSensor.kt',

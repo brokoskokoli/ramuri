@@ -191,7 +191,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0180 | Erklärungsarten | functional | Approved | 2 | [explanations](specs/explanations.md#fr-0180--erklärungsarten) | FR-0170, OQ-0011, OQ-0039 |
 | FR-0181 | Erklärungen beruhen auf tatsächlichen Daten | functional | Approved | 2 | [explanations](specs/explanations.md#fr-0181--erklärungen-beruhen-auf-tatsächlichen-daten) | FR-0059 |
 | FR-0182 | Dateiexport als GPX, TCX und FIT | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0182--dateiexport-als-gpx-tcx-und-fit) | CON-0010, ACC-13, OQ-0032, OQ-0066 |
-| FR-0183 | Exportinhalte | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0183--exportinhalte) | — |
+| FR-0183 | Exportinhalte | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0183--exportinhalte) | FR-0202 |
 | FR-0184 | Zusatzmetriken separat exportierbar | functional | Approved | 2 | [export-sync](specs/export-sync.md#fr-0184--zusatzmetriken-separat-exportierbar) | OQ-0032 |
 | FR-0185 | Strava-Konto einmalig verknüpfen | functional | Draft | Zurückgestellt (OQ-0049) | [export-sync](specs/export-sync.md#fr-0185--strava-konto-einmalig-verknüpfen) | SEC-0003, SEC-0008, OQ-0024, OQ-0049 |
 | FR-0186 | Manueller Upload einzelner Läufe | functional | Draft | Zurückgestellt (OQ-0049) | [export-sync](specs/export-sync.md#fr-0186--manueller-upload-einzelner-läufe) | SEC-0008, OQ-0049 |
@@ -212,7 +212,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0201 | Export teilen | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0201--export-teilen) | FR-0182, CON-0010, OQ-0049 |
 | FR-0202 | Schrittfrequenz aus dem Smartphone | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0202--schrittfrequenz-aus-dem-smartphone) | FR-0027, FR-0021, OQ-0052 |
 | FR-0203 | Warnsignal melden und aufheben | functional | Approved | 2 | [plan-adaptation](specs/plan-adaptation.md#fr-0203--warnsignal-melden-und-aufheben) | FR-0163, FR-0118, OQ-0026, OQ-0048, OQ-0055, OQ-0058 |
-| FR-0204 | Karte der Route | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0204--karte-der-route) | FR-0027, FR-0037, FR-0040, FR-0041, FR-0056, SEC-0002, SEC-0007, SEC-0008, SEC-0009, OQ-0074, OQ-0075, ADR-0009 |
+| FR-0204 | Karte der Route | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0204--karte-der-route) | FR-0027, FR-0037, FR-0040, FR-0041, FR-0056, FR-0193, SEC-0002, SEC-0007, SEC-0008, SEC-0009, OQ-0074, OQ-0075, ADR-0009 |
 | FR-0205 | Erscheinungsbild nach dem Screen-Design | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0205--erscheinungsbild-nach-dem-screen-design) | NFR-0006, CON-0009, OQ-0075, OQ-0076, OQ-0077, DEC-0070 |
 | FR-0206 | Name, Icon und Systemsymbole | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0206--name-icon-und-systemsymbole) | FR-0034, OQ-0075, DEC-0070 |
 | FR-0207 | Willkommensbildschirm | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0207--willkommensbildschirm) | FR-0001, OQ-0075 |
