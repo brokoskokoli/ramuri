@@ -388,6 +388,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 today: DateTime.parse('${_today}T00:00:00Z'),
               ),
               LoadCard(
+                currentYear: year,
                 session: widget.session,
                 clock: widget.clock,
                 recalculation: widget.recalculation,
