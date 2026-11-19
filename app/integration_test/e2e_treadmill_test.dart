@@ -250,7 +250,13 @@ Future<void> _guidedUnit(WidgetTester t) async {
     reason: 'Startgeschwindigkeit',
   );
   expect(raw.beltSettings.first.value.inclinePercent, 1, reason: 'Steigung');
-  // Einheit im Plan erledigt: der Lauf ist der heutigen Einheit zugeordnet.
+
+  step('TREADMILL_PLAN erledigt');
+  await tapKey(t, 'run_done_close');
+  await waitFor(t, () => has('home_plan'), 'Heute');
+  await waitFor(t, () => has('home_today_done'), 'Einheit als erledigt');
+  // Einheit im Plan erledigt: zurueck auf "Heute" ordnet die App den Lauf der
+  // gestarteten Einheit zu (plan_started_unit.dart), danach traegt sie ihn.
   final d0 = DateTime.now();
   final today = DateTime.utc(d0.year, d0.month, d0.day);
   PlanUnit? unit = await t.runAsync<PlanUnit?>(() => plans.unitOn(today));
@@ -261,11 +267,6 @@ Future<void> _guidedUnit(WidgetTester t) async {
   }
   expect(unit, isNotNull, reason: 'Einheit heute');
   expect(unit!.runId, done.id, reason: 'Lauf der Einheit zugeordnet');
-
-  step('TREADMILL_PLAN erledigt');
-  await tapKey(t, 'run_done_close');
-  await waitFor(t, () => has('home_plan'), 'Heute');
-  await waitFor(t, () => has('home_today_done'), 'Einheit als erledigt');
 }
 
 bool _shows(String whole, String tenth) =>
