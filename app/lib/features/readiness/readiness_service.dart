@@ -9,6 +9,7 @@ class ReadinessSnapshot {
     this.series = const [],
     this.release,
     this.today,
+    this.sleepEntry,
   });
 
   final ReadinessResult result;
@@ -35,8 +36,24 @@ class ReadinessSnapshot {
   /// der jüngste Tag der Reihen.
   final DateTime? today;
 
+  /// Die erste zählende Morgenmessung des Ortstags mit ihrer Schlafangabe
+  /// (PAR-164K): dort setzt „Schlaf angeben“ die Stufe; `null` ohne heutige
+  /// Morgenmessung oder ohne zulässige Kamerawerte (K62 Punkt 1).
+  final ReadinessSleepEntry? sleepEntry;
+
   CameraRelease get effectiveRelease =>
       release ?? CameraRelease(developerMode: developerMode, rmssdOptIn: false);
+}
+
+/// Morgenmessung, an der die Schlafangabe hängt, und ihre Stufe.
+class ReadinessSleepEntry {
+  const ReadinessSleepEntry({required this.measurementId, this.band});
+
+  final int measurementId;
+  final SleepBand? band;
+
+  @override
+  String toString() => 'ReadinessSleepEntry($measurementId)';
 }
 
 /// Baut [ReadinessInputs] aus den Ports und rechnet [computeReadiness]
@@ -141,21 +158,37 @@ class ReadinessService {
     var camera = const <DeviationResult>[];
     SleepBand? band;
     var hasMorning = false;
+    var all = const <MorningMeasurement>[];
+    ReadinessSleepEntry? sleepEntry;
     if (session is MorningStorage) {
-      final all = [
-        for (final e in await (session as MorningStorage).morning.list())
-          e.value,
-      ];
+      final stored = await (session as MorningStorage).morning.list();
+      all = [for (final e in stored) e.value];
       hasMorning = all.isNotEmpty;
       camera = cameraDeviations(all, today: today);
-      for (final m in morningCountingToday(
+      final counting = morningCountingToday(
         all,
         nowUtc: now.toUtc(),
         utcOffset: clock.utcOffsetAt(now),
-      )) {
+      );
+      for (final m in counting) {
         band ??= m.sleepBand;
       }
+      if (counting.isNotEmpty && release.cameraValuesAllowed) {
+        final first = counting.first;
+        for (final e in stored) {
+          if (identical(e.value, first)) {
+            sleepEntry = ReadinessSleepEntry(
+              measurementId: e.id,
+              band: first.sleepBand,
+            );
+          }
+        }
+      }
     }
+    final window = await SettingsMorningWindowStore(
+      session.settings,
+      clock,
+    ).read();
 
     // Erweiterte Stufe (FR-0105): mit Einwilligung für Health Connect oder mit
     // vorhandenen, zulässigen Kamera-Messungen; der Entwicklermodus allein
@@ -165,6 +198,7 @@ class ReadinessService {
         rhrOn ||
         sleepOn ||
         (release.cameraValuesAllowed && hasMorning);
+    final loadDay = extended ? await _loadDay() : null;
     final inputs = ReadinessInputs(
       today: today,
       now: now,
@@ -176,9 +210,13 @@ class ReadinessService {
       sleepSessions: sessions,
       sleepBand: band,
       // Die Basisstufe braucht weder Belastung noch Befinden (kein Rechnen).
-      tsbPercent: extended ? await _tsb() : null,
+      tsbPercent: readinessTsbPercent(loadDay),
       wellbeing: extended ? await _wellbeing() : null,
       processing: processing,
+      morningMeasurements: all,
+      morningWindow: window,
+      loadRequested: extended,
+      loadDay: loadDay,
     );
     return ReadinessSnapshot(
       result: computeReadiness(inputs),
@@ -187,6 +225,7 @@ class ReadinessService {
       release: release,
       today: today,
       series: [?hrv, ?rhr, if (release.cameraValuesAllowed) ...camera],
+      sleepEntry: sleepEntry,
     );
   }
 
@@ -201,9 +240,9 @@ class ReadinessService {
         HealthSample(time: r.start, value: r.value!, origin: r.origin),
   ];
 
-  Future<double?> _tsb() async {
+  Future<LoadDay?> _loadDay() async {
     try {
-      return readinessTsbPercent(await loadToday?.call());
+      return await loadToday?.call();
     } on Object {
       return null;
     }

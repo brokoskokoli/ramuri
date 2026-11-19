@@ -73,7 +73,7 @@ DeviationResult healthConnectRestingHrDeviation({
 /// RMSSD der Messung, wenn sie für die Reihe zählt (PAR-160K): Qualität „gut“,
 /// Zeitrauschen unter der Grenze, Bereich 1–200 ms. Speicherung und Bau einer
 /// Messung prüfen das schon, dies sichert die Regel an der Quelle der Reihe.
-double? _validRmssd(MorningMeasurement m) {
+double? cameraRmssdValue(MorningMeasurement m) {
   final v = m.rmssdMs;
   final noise = m.timingNoiseMs;
   if (v == null ||
@@ -88,7 +88,9 @@ double? _validRmssd(MorningMeasurement m) {
   return v;
 }
 
-double? _validRestingHr(MorningMeasurement m) {
+/// Ruhepuls der Messung, wenn er für die Reihe zählt (PAR-160K, PAR-162K):
+/// gerundet und im Bereich der Morgenmessung.
+double? cameraRestingHrValue(MorningMeasurement m) {
   final v = m.roundedRestingHr;
   if (v == null ||
       !v.isFinite ||
@@ -113,11 +115,11 @@ List<DeviationResult> cameraDeviations(
   final out = <DeviationResult>[];
   morningSeries(all).forEach((key, list) {
     for (final (factor, rules, pick) in [
-      (ReadinessFactor.hrv, DeviationRules.cameraHrv, _validRmssd),
+      (ReadinessFactor.hrv, DeviationRules.cameraHrv, cameraRmssdValue),
       (
         ReadinessFactor.restingHeartRate,
         DeviationRules.cameraRestingHeartRate,
-        _validRestingHr,
+        cameraRestingHrValue,
       ),
     ]) {
       final byDay = <DateTime, double>{};
