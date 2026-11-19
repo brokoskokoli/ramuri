@@ -48,7 +48,7 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _Data {
-  _Data(this.overviews, this.trainings, this.imported)
+  _Data(this.overviews, this.trainings, this.imported, this.uncomputable)
     : figures = [for (final o in overviews) o.toFigures()];
   final List<RunOverview> overviews;
 
@@ -62,6 +62,10 @@ class _Data {
 
   /// Einmal gebildet, nicht je Build.
   final List<RunFigures> figures;
+
+  /// Läufe, deren Werte sich nach drei Versuchen nicht berechnen ließen
+  /// (FR-0219).
+  final Set<int> uncomputable;
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
@@ -115,7 +119,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
         // Ohne Inhalt: der Verlauf zeigt dann nur die eigenen Einträge.
       }
     }
-    return _Data(overviews, await _subjective.trainings(), imported);
+    var uncomputable = const <int>{};
+    try {
+      uncomputable = await CalculationFailures(
+        settings: session.settings,
+        clock: widget.clock,
+      ).uncomputable();
+    } on Object {
+      // Nur die Kennzeichnung fehlt.
+    }
+    return _Data(
+      overviews,
+      await _subjective.trainings(),
+      imported,
+      uncomputable,
+    );
   }
 
   Future<void> _openImported(HealthRecord e) async {
@@ -427,6 +445,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 _RunEntry(:final overview) => _RunTile(
                   key: ValueKey(overview.run.id),
                   overview: overview,
+                  uncomputable: data.uncomputable.contains(overview.run.id),
                   formatter: formatter,
                   session: widget.session,
                   miniatures: _miniatures,
@@ -641,6 +660,7 @@ class _RunTile extends StatelessWidget {
   const _RunTile({
     super.key,
     required this.overview,
+    this.uncomputable = false,
     required this.formatter,
     required this.session,
     required this.miniatures,
@@ -649,6 +669,9 @@ class _RunTile extends StatelessWidget {
   });
 
   final RunOverview overview;
+
+  /// Werte nach drei Versuchen nicht berechnet (FR-0219).
+  final bool uncomputable;
   final UnitFormatter formatter;
   final StorageSession session;
   final MiniatureService? miniatures;
@@ -737,6 +760,12 @@ class _RunTile extends StatelessWidget {
             l10n.histRowReadFailed,
             key: Key('history_failed_$id'),
             style: text.bodySmall,
+          ),
+        if (uncomputable)
+          Text(
+            l10n.histRowUncomputable,
+            key: Key('history_uncomputable_$id'),
+            style: text.labelMedium,
           ),
         Text(
           bpm == null
