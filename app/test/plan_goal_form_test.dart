@@ -319,6 +319,27 @@ void main() {
       expect(goal.targetDate, DateTime(2026, 11, 11));
       expect(calendarDay(goal.targetDate!), DateTime.utc(2026, 11, 11));
     });
+
+    testWidgets('Gestern als Zieldatum wird als „in der Vergangenheit“ '
+        'abgelehnt, auch westlich von UTC', (tester) async {
+      final clock = FakeClock(DateTime(2026, 11, 1, 12));
+      final session = await _withPlan(
+        _goal(target: DateTime(2026, 11, 10), createdAt: clock.now()),
+        clock,
+      );
+      clock.set(localNow);
+      final c = _Scripted(session, clock, PlanActionResult.done);
+      await _pump(tester, session: session, clock: clock, controller: c);
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_edit_goal')),
+      );
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_form_check')),
+      );
+      expect(_error(tester), de.planFormErrorDatePast);
+    });
   });
 
   testWidgets('Ändern: Formular vorbelegt, Änderung rechnet mit goalChange', (
