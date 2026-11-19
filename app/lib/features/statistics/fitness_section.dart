@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_card.dart';
 import '../settings/unit_format.dart' show asOfDateText;
+import '../summary/run_summary_body.dart' show isProfileBasisReason;
 import 'period_date.dart';
 import '../transparency/value_explanation_screen.dart';
 import 'statistics_screen.dart' show ExplainValue;
@@ -11,25 +12,32 @@ import 'statistics_view.dart';
 
 /// Text zu einem Grund, warum ein Fitnesswert fehlt (FR-0068). Jeder Grund hat
 /// einen eigenen Text; fehlende Profilwerte weisen auf das Profil hin
-/// (FR-0055).
-String reasonText(AppLocalizations l10n, UnavailableReason reason) =>
-    switch (reason) {
-      UnavailableReason.missingMaxHeartRate ||
-      UnavailableReason.missingRestingHeartRate ||
-      UnavailableReason.maxNotAboveResting ||
-      UnavailableReason.reserveTooSmall ||
-      UnavailableReason.missingLoadCoefficients => l10n.runZoneNoBasis,
-      UnavailableReason.noHeartRate => l10n.sumNoHeartRate,
-      UnavailableReason.insufficientCoverage => l10n.sumCoverageLow,
-      UnavailableReason.noMovingTime => l10n.statReasonNoMoving,
-      UnavailableReason.insufficientData => l10n.statReasonInsufficient,
-      UnavailableReason.noValidSection => l10n.statReasonNoSection,
-      UnavailableReason.allEstimatesImplausible => l10n.statReasonImplausible,
-      UnavailableReason.spreadTooHigh => l10n.statReasonSpread,
-      UnavailableReason.currentWindowTooSmall => l10n.statReasonCurrentWindow,
-      UnavailableReason.referenceWindowTooSmall =>
-        l10n.statReasonReferenceWindow,
-    };
+/// (FR-0055). Hatte der Lauf keinen Puls ([hasHeartRate] false), nennt auch ein
+/// Grund aus der Profilbasis den fehlenden Puls (FR-0057,
+/// [isProfileBasisReason]).
+String reasonText(
+  AppLocalizations l10n,
+  UnavailableReason reason, {
+  bool hasHeartRate = true,
+}) => !hasHeartRate && isProfileBasisReason(reason)
+    ? l10n.sumNoHeartRate
+    : switch (reason) {
+        UnavailableReason.missingMaxHeartRate ||
+        UnavailableReason.missingRestingHeartRate ||
+        UnavailableReason.maxNotAboveResting ||
+        UnavailableReason.reserveTooSmall ||
+        UnavailableReason.missingLoadCoefficients => l10n.runZoneNoBasis,
+        UnavailableReason.noHeartRate => l10n.sumNoHeartRate,
+        UnavailableReason.insufficientCoverage => l10n.sumCoverageLow,
+        UnavailableReason.noMovingTime => l10n.statReasonNoMoving,
+        UnavailableReason.insufficientData => l10n.statReasonInsufficient,
+        UnavailableReason.noValidSection => l10n.statReasonNoSection,
+        UnavailableReason.allEstimatesImplausible => l10n.statReasonImplausible,
+        UnavailableReason.spreadTooHigh => l10n.statReasonSpread,
+        UnavailableReason.currentWindowTooSmall => l10n.statReasonCurrentWindow,
+        UnavailableReason.referenceWindowTooSmall =>
+          l10n.statReasonReferenceWindow,
+      };
 
 /// Zahl mit einer Nachkommastelle, im Deutschen mit Komma; mit [sign] steht
 /// bei positiven Werten ein Plus (FR-0087: 5,56 wird „5,6“). Das Vorzeichen
@@ -46,15 +54,17 @@ String fitnessNumber(bool german, double v, {bool sign = false}) {
 
 /// Wert eines gespeicherten Fitnesswerts oder, wenn er fehlt, sein Grund
 /// (FR-0068, FR-0057).
+/// [hasHeartRate] wie bei [reasonText].
 String valueOrReasonText(
   AppLocalizations l10n,
   ComputedValue v,
-  String Function(double) format,
-) => v.value != null
+  String Function(double) format, {
+  bool hasHeartRate = true,
+}) => v.value != null
     ? format(v.value!)
     : (v.unavailableReason == null
           ? l10n.runUnavailable
-          : reasonText(l10n, v.unavailableReason!));
+          : reasonText(l10n, v.unavailableReason!, hasHeartRate: hasHeartRate));
 
 /// Öffnet die Erklärung eines Werts: über [onExplain], sonst die
 /// Erklärungsseite aus den gespeicherten Angaben.
@@ -138,8 +148,11 @@ class FitnessSection extends StatelessWidget {
           ),
         );
 
-    String valueOrReason(ComputedValue v, String Function(double) format) =>
-        valueOrReasonText(l10n, v, format);
+    String valueOrReason(
+      ComputedValue v,
+      String Function(double) format, {
+      bool hasHeartRate = true,
+    }) => valueOrReasonText(l10n, v, format, hasHeartRate: hasHeartRate);
 
     // Sicht 1: Schätzung aus einem Lauf, der neueste im Zeitraum.
     RunEstimate? inPeriod;
@@ -152,7 +165,11 @@ class FitnessSection extends StatelessWidget {
     final runText = inPeriod != null
         ? l10n.statVo2OfRun(
             dateOf(inPeriod.day),
-            valueOrReason(inPeriod.value, estimate),
+            valueOrReason(
+              inPeriod.value,
+              estimate,
+              hasHeartRate: inPeriod.hasHeartRate,
+            ),
           )
         : (runsInPeriod == 0 ? l10n.statVo2NoRunInPeriod : l10n.statVo2NoValue);
 

@@ -12,6 +12,17 @@ import '../../ui/unbreakable_unit.dart';
 String clockText(AppLocalizations l10n, Duration? d) =>
     d == null ? l10n.runUnavailable : formatClock(d);
 
+/// Grund aus der Profilbasis (Ruhepuls, HFmax): Die Rechnung prüft die Basis
+/// vor den Pulswerten. Einzige Liste dieser Gründe; die Anzeige nennt bei einem
+/// Lauf ohne Puls statt ihrer den fehlenden Puls (FR-0057, FR-0055).
+bool isProfileBasisReason(UnavailableReason reason) => switch (reason) {
+  UnavailableReason.missingMaxHeartRate ||
+  UnavailableReason.missingRestingHeartRate ||
+  UnavailableReason.maxNotAboveResting ||
+  UnavailableReason.reserveTooSmall => true,
+  _ => false,
+};
+
 /// Grund, warum ein Wert fehlt, als Text (nie 0). Hatte der Lauf keinen
 /// Puls ([hasHeartRate] false), nennt auch ein Grund aus der Profilbasis den
 /// fehlenden Puls: Die Rechnung prüft die Basis vor den Pulswerten und meldet
@@ -21,16 +32,13 @@ String unavailableReasonText(
   AppLocalizations l10n,
   UnavailableReason reason, {
   bool hasHeartRate = true,
-}) => switch (reason) {
-  UnavailableReason.noHeartRate => l10n.sumNoHeartRate,
-  UnavailableReason.missingMaxHeartRate ||
-  UnavailableReason.missingRestingHeartRate ||
-  UnavailableReason.maxNotAboveResting ||
-  UnavailableReason.reserveTooSmall =>
-    hasHeartRate ? l10n.sumNoBasisShort : l10n.sumNoHeartRate,
-  UnavailableReason.insufficientCoverage => l10n.sumCoverageLow,
-  _ => l10n.runUnavailable,
-};
+}) => isProfileBasisReason(reason)
+    ? (hasHeartRate ? l10n.sumNoBasisShort : l10n.sumNoHeartRate)
+    : switch (reason) {
+        UnavailableReason.noHeartRate => l10n.sumNoHeartRate,
+        UnavailableReason.insufficientCoverage => l10n.sumCoverageLow,
+        _ => l10n.runUnavailable,
+      };
 
 /// Dezimalzahl in der Schreibweise der Sprache.
 String decimalText(UnitFormatter formatter, String text) =>
