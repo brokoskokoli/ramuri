@@ -7,18 +7,26 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../settings/unit_format.dart';
 import 'prediction_card.dart' show predictionDistanceName;
+import 'reference_run_picker.dart';
 
 /// Eingabe einer Referenzleistung (FR-0129): Art Wettkampf oder Test, Distanz
 /// (Vorwahl oder frei in der gewählten Einheit), Zeit, Datum. Geprüft wird mit
 /// [ReferencePerformance.validate] aus `core`; ein Fehler steht als Text da,
 /// nichts wird verschluckt. Gibt die Referenz zurück oder `null` bei Abbruch.
+///
+/// Mit [loadRuns] gibt es zusätzlich den Weg „Aus einem Lauf übernehmen“
+/// ([showReferenceRunPicker]): Die Auswahl füllt Distanz, Zeit und Datum und
+/// gibt die Referenz als bestätigten Lauf mit Lauf-ID zurück
+/// ([referenceFromRun]), geprüft wie eine eingegebene.
 Future<ReferencePerformance?> showReferenceForm(
   BuildContext context, {
   required DateTime now,
   required UnitFormatter formatter,
+  ReferenceRunLoader? loadRuns,
 }) => showDialog<ReferencePerformance>(
   context: context,
-  builder: (_) => ReferenceFormDialog(now: now, formatter: formatter),
+  builder: (_) =>
+      ReferenceFormDialog(now: now, formatter: formatter, loadRuns: loadRuns),
 );
 
 class ReferenceFormDialog extends StatefulWidget {
@@ -26,10 +34,14 @@ class ReferenceFormDialog extends StatefulWidget {
     super.key,
     required this.now,
     required this.formatter,
+    this.loadRuns,
   });
 
   final DateTime now;
   final UnitFormatter formatter;
+
+  /// Läufe für „Aus einem Lauf übernehmen“; `null`: Weg nicht angeboten.
+  final ReferenceRunLoader? loadRuns;
 
   @override
   State<ReferenceFormDialog> createState() => _ReferenceFormDialogState();
@@ -91,13 +103,21 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
     }
     final seconds =
         _number(_hours) * 3600 + _number(_minutes) * 60 + _number(_seconds);
-    final reference = ReferencePerformance(
-      kind: _kind,
-      distanceMeters: meters,
-      seconds: seconds.toDouble(),
-      date: _date,
-      createdAt: widget.now,
+    _finish(
+      ReferencePerformance(
+        kind: _kind,
+        distanceMeters: meters,
+        seconds: seconds.toDouble(),
+        date: _date,
+        createdAt: widget.now,
+      ),
     );
+  }
+
+  /// Prüft [reference] ([ReferencePerformance.validate], PAR-208) und gibt
+  /// sie zurück; sonst steht der Fehler im Formular.
+  void _finish(ReferencePerformance reference) {
+    final l10n = AppLocalizations.of(context);
     const params = PredictionParameters();
     final problem = reference.validate(widget.now, params);
     if (problem != null) {
@@ -127,6 +147,37 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
       return;
     }
     Navigator.pop(context, reference);
+  }
+
+  /// „Aus einem Lauf übernehmen“: füllt Distanz, Zeit und Datum aus dem Lauf
+  /// und übernimmt ihn als bestätigten Lauf (FR-0129, FR-0131).
+  Future<void> _fromRun(ReferenceRunLoader loadRuns) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final run = await showReferenceRunPicker(
+      context,
+      now: widget.now,
+      formatter: widget.formatter,
+      loadRuns: loadRuns,
+    );
+    if (run == null || !mounted) return;
+    final reference = referenceFromRun(run, widget.now);
+    if (reference == null) return;
+    final total = reference.seconds.round();
+    final value = widget.formatter.unit.distanceFromMeters(
+      reference.distanceMeters,
+    );
+    setState(() {
+      _preset = null;
+      _distance.text = value.toStringAsFixed(2);
+      _hours.text = '${total ~/ 3600}';
+      _minutes.text = '${total % 3600 ~/ 60}';
+      _seconds.text = '${total % 60}';
+      final d = reference.date.toLocal();
+      _date = DateTime(d.year, d.month, d.day);
+      _error = null;
+      _timeError = false;
+    });
+    _finish(reference);
   }
 
   Future<void> _pickDate() async {
@@ -196,6 +247,16 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (widget.loadRuns case final load?)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: OutlinedButton.icon(
+                key: const Key('prediction_form_from_run'),
+                onPressed: () => _fromRun(load),
+                icon: const Icon(Icons.directions_run_rounded),
+                label: Text(l10n.referenceFromRun),
+              ),
+            ),
           label(l10n.predictionFormKind),
           Wrap(
             spacing: 8,
