@@ -11,7 +11,10 @@ permissions:
 jobs:
   gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Gemessen an 75 grünen Läufen dieses Jobs (bis 2026-11-19): 17,4 bis 28,4 min samt Einrichtung, Median
+    # 23,8 min, längster 1706 s (davon tool/gate.sh 1656 s). Das alte Limit von 30 min ließ nur 1,6 min Luft;
+    # unter paralleler Last brach der Release-APK-Schritt ohne Fehler ab. 45 min wie e2e.yml: 16,6 min Abstand.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
