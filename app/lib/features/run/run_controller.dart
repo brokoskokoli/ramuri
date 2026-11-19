@@ -734,6 +734,8 @@ class RunController extends ChangeNotifier {
           (r) {
             _cadence = r.stepsPerMinute;
             _cadenceAt = clock.monotonic();
+            // Gespeichert als Zähler des Laufs (`raw_steps`), auch im Bandlauf.
+            _recorder.addSteps(r.steps);
             _update();
           },
           onError: (Object _) => _cadenceEnded(),

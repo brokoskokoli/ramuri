@@ -422,21 +422,36 @@ void main() {
       );
     }
 
-    test('die eben gesetzte Zeile wird zurückgenommen: Warnsignal und Plan '
-        'gelten beide oder keines', () async {
-      final (e, service) = await failing();
-      final before = await e.sigs();
-      await expectLater(
-        service.report(
-          source: WarningSource.manual,
-          today: _day(3),
-          now: _now(3),
-        ),
-        throwsA(isA<StorageException>()),
-      );
-      expect(await e.warning.read(), isNull);
-      expect(await e.sigs(), before);
-    });
+    test(
+      'die eben gesetzte Zeile bleibt gespeichert, der Fehler geht an '
+      'den Aufrufer; die nächste Neuberechnung holt die Fassung nach',
+      () async {
+        final (e, service) = await failing();
+        final before = await e.sigs();
+        await expectLater(
+          service.report(
+            source: WarningSource.manual,
+            today: _day(3),
+            now: _now(3),
+          ),
+          throwsA(isA<StorageException>()),
+        );
+        final w = (await e.warning.read())!;
+        expect(w.reportedOn, _day(3));
+        expect(w.source, WarningSource.manual);
+        expect(await e.sigs(), before);
+        // Mit funktionierendem Speicher holt ein erneutes Melden die
+        // Ruhetag-Fassung nach, ohne das Signal zu ändern.
+        final r = await e.service.report(
+          source: WarningSource.runFeedback,
+          today: _day(4),
+          now: _now(4),
+        );
+        expect(r.wasWritten, isTrue);
+        expect((await e.plans.history()).last.reason, planReasonWarning);
+        expect((await e.warning.read())!.source, WarningSource.manual);
+      },
+    );
 
     test('ein früheres Warnsignal bleibt stehen', () async {
       final (e, service) = await failing();

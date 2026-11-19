@@ -856,4 +856,141 @@ void main() {
       expect(r.probe.maxBatchRows, lessThanOrEqualTo(5));
     });
   });
+
+  group('Schritte des Telefons (FR-0202, raw_steps)', () {
+    List<(Duration, int)> rows(StoredRawData raw) => [
+      for (final s in raw.steps) (s.value.time.difference(t0), s.value.count),
+    ];
+
+    test('Zähler des Laufs: Sitzungszeit beim Empfang, Quelle phone, '
+        'höchstens ein Wert je Takt', () async {
+      final r = await Rig.make();
+      expect(
+        r.recorder.addSteps(3),
+        Intake.ignoredNotActive,
+        reason: 'vor Start',
+      );
+      await r.recorder.start();
+      r.clock.advance(const Duration(seconds: 1));
+      expect(r.recorder.addSteps(3), Intake.processed);
+      r.recorder.tick();
+      await r.recorder.flush();
+      r.clock.advance(const Duration(milliseconds: 400));
+      r.recorder.addSteps(1);
+      r.clock.advance(const Duration(milliseconds: 300));
+      r.recorder.addSteps(2);
+      expect(r.recorder.addSteps(0), isNot(Intake.processed));
+      r.recorder.tick();
+      await r.recorder.flush();
+      final raw = await r.raw();
+      expect(rows(raw), [
+        (const Duration(seconds: 1), 3),
+        (const Duration(milliseconds: 1700), 6),
+      ]);
+      expect(raw.steps.first.value.source, 'phone');
+      expect(raw.steps.first.value.state, MeasurementState.present);
+    });
+
+    test('ohne Takt geht der Wert mit dem nächsten Punkt und spätestens mit '
+        'dem Ende', () async {
+      final r = await Rig.make();
+      await r.recorder.start();
+      r.clock.advance(const Duration(milliseconds: 500));
+      r.recorder.addSteps(2);
+      await r.move(1, 3); // Punkt schreibt den wartenden Wert mit
+      expect(rows(await r.raw()), [(const Duration(milliseconds: 500), 2)]);
+      r.recorder.addSteps(2);
+      await r.recorder.finish();
+      expect(rows(await r.raw()).last, (const Duration(milliseconds: 1500), 4));
+      expect(r.recorder.addSteps(5), Intake.ignoredFinished);
+    });
+
+    test(
+      'manuelle Pause: Schritte zählen nicht, danach geht es weiter',
+      () async {
+        final r = await Rig.make();
+        await r.recorder.start();
+        r.clock.advance(const Duration(seconds: 1));
+        r.recorder.addSteps(4);
+        await r.recorder.pause();
+        r.clock.advance(const Duration(seconds: 1));
+        expect(r.recorder.addSteps(9), Intake.ignoredNotActive);
+        await r.recorder.resume();
+        r.clock.advance(const Duration(seconds: 1));
+        r.recorder.addSteps(1);
+        r.recorder.tick();
+        await r.recorder.flush();
+        expect(rows(await r.raw()), [
+          (const Duration(seconds: 1), 4),
+          (const Duration(seconds: 3), 5),
+        ]);
+      },
+    );
+
+    test('Bandlauf: Schritte werden ebenso gespeichert', () async {
+      final r = await Rig.make();
+      await r.recorder.start(
+        mode: RunMode.treadmill,
+        beltSpeedMetersPerSecond: 3,
+      );
+      r.clock.advance(const Duration(seconds: 2));
+      r.recorder.addSteps(5);
+      r.recorder.tick();
+      await r.recorder.flush();
+      expect(rows(await r.raw()), [(const Duration(seconds: 2), 5)]);
+    });
+
+    test('Speicherfehler failed: der Wert geht nicht verloren', () async {
+      final r = await Rig.make();
+      await r.recorder.start();
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addSteps(3);
+      r.probe.failNext = StorageFailure.failed;
+      r.recorder.tick();
+      await r.recorder.flush(); // wiederholt den gescheiterten Wert
+      expect(r.recorder.lastWriteFailure, StorageFailure.failed);
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addSteps(2);
+      r.recorder.tick();
+      await r.recorder.flush();
+      expect(rows(await r.raw()), [
+        (const Duration(seconds: 1), 3),
+        (const Duration(seconds: 2), 5),
+      ]);
+    });
+
+    test('Wiederanlauf (FR-0193): weiterzählen ab dem gespeicherten Zähler, '
+        'ohne Doppelzählung', () async {
+      final r = await Rig.make();
+      await r.recorder.start();
+      for (var i = 0; i < 3; i++) {
+        r.clock.advance(const Duration(seconds: 1));
+        r.recorder.addSteps(3);
+        r.recorder.tick();
+        await r.recorder.flush();
+      }
+      // Danach: Prozess weg, kein finish.
+      r.clock.advance(const Duration(seconds: 20));
+      final again = RunRecorder(
+        clock: r.clock,
+        runs: r.session.runs,
+        rawData: r.session.rawData,
+        markers: r.session.markers,
+      );
+      expect(await again.restore(r.id), CommandResult.ok);
+      // Der neue Sensorstrom zählt wieder ab null; die Aufzeichnung nicht.
+      r.clock.advance(const Duration(seconds: 1));
+      again.addSteps(2);
+      again.tick();
+      await again.finish();
+      final raw = await r.raw();
+      expect(rows(raw), [
+        (const Duration(seconds: 1), 3),
+        (const Duration(seconds: 2), 6),
+        (const Duration(seconds: 3), 9),
+        (const Duration(seconds: 24), 11),
+      ]);
+      expect(raw.steps.length, 4, reason: 'nichts doppelt gespeichert');
+    });
+  });
 }

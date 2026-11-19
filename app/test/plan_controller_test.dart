@@ -1836,6 +1836,77 @@ void main() {
       expect(reopened.controller.state.warning, isNotNull);
     });
 
+    test('Nachholen unter gespeichertem Signal: warningRecalculating, '
+        'solange die Rechnung läuft; danach die Ruhetag-Fassung', () async {
+      final e = await opened();
+      await warningOf(e)
+          .set(WarningSignal(reportedOn: _today, source: WarningSource.manual));
+      final gate = Completer<List<RunFigures>>();
+      final reopened = _Env(e.session, loadRuns: () => gate.future);
+      expect(reopened.controller.warningRecalculating, isFalse);
+      final opening = reopened.controller.open();
+      while (reopened.controller.state.warning == null) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(reopened.controller.warningRecalculating, isTrue);
+      expect(gate.isCompleted, isFalse);
+      gate.complete(const []);
+      await opening;
+      expect(reopened.controller.warningRecalculating, isFalse);
+      final last = (await e.plans.history()).last;
+      expect(last.reason, planReasonWarning);
+      expect(warningHeldFromSummary(last.summary), isNotNull);
+      // Die Seite hat die Ruhetag-Fassung geladen.
+      final loaded = reopened.controller.state.version!;
+      expect(loaded.id, last.id);
+      expect(loaded.reason, planReasonWarning);
+      final week = reopened.controller.state.weekUnits
+          .where((u) => !u.day.isBefore(_today))
+          .toList();
+      expect(week.every((u) => u.kind == PlanUnitKind.rest), isTrue);
+    });
+
+    test('Nachholen unter gespeichertem Signal scheitert: '
+        'warningRecalculating danach false, Signal bleibt', () async {
+      final e = await opened();
+      await warningOf(e)
+          .set(WarningSignal(reportedOn: _today, source: WarningSource.manual));
+      final versions = (await e.plans.history()).length;
+      final reopened = _Env(
+        e.session,
+        loadRuns: () async => throw StateError('Lesefehler'),
+      );
+      await reopened.controller.open();
+      expect(reopened.controller.warningRecalculating, isFalse);
+      expect(await warningOf(e).read(), isNotNull);
+      expect(await e.plans.history(), hasLength(versions));
+      expect(reopened.controller.state.warning, isNotNull);
+    });
+
+    test(
+      'Nachholen nach aufgehobenem Signal: keine Fortschrittsanzeige',
+      () async {
+        final e = await opened();
+        await e.controller.reportWarning();
+        await warningOf(e).lift(); // Schreiben der Fassung scheiterte
+        final gate = Completer<List<RunFigures>>();
+        final reopened = _Env(e.session, loadRuns: () => gate.future);
+        final seen = <bool>[];
+        reopened.controller.addListener(
+          () => seen.add(reopened.controller.warningRecalculating),
+        );
+        final opening = reopened.controller.open();
+        while (seen.isEmpty) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        expect(reopened.controller.warningRecalculating, isFalse);
+        gate.complete(const []);
+        await opening;
+        expect(seen, everyElement(isFalse));
+        expect((await e.plans.history()).last.reason, planReasonWarningLifted);
+      },
+    );
+
     test('Heilung setzt den Prüftag nicht: eine fällige Wochenprüfung bleibt '
         'fällig', () async {
       final e = await opened();

@@ -11,14 +11,15 @@
 | GPX | 1.1 | `http://www.topografix.com/GPX/1/1` | `http://www.topografix.com/GPX/1/1/gpx.xsd` |
 | GPX-Puls | Garmin TrackPointExtension v1 | `http://www.garmin.com/xmlschemas/TrackPointExtension/v1` | `https://www8.garmin.com/xmlschemas/TrackPointExtensionv1.xsd` |
 | TCX | TrainingCenterDatabase v2 | `http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2` | `https://www8.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd` |
+| TCX-Kadenz | Garmin ActivityExtension v2 | `http://www.garmin.com/xmlschemas/ActivityExtension/v2` | `https://www8.garmin.com/xmlschemas/ActivityExtensionv2.xsd` |
 | FIT | Protokoll 2.0, Profilfelder nach Profil 21.x | Nachrichten `file_id`, `event`, `record`, `lap`, `session`, `activity` | eigener Kodierer ohne Garmin-Code (OQ-0066, L1) |
 
-Die TCX-ActivityExtension v2 wird nicht gebraucht und nicht verwendet.
+Die TCX-ActivityExtension v2 trägt nur die Schrittfrequenz (`RunCadence`); ihr Namensraum (`xmlns:tpx`) steht nur in Dateien mit Schrittfrequenz, andere Dateien bleiben byte-gleich.
 
 ## Abbildungsregeln (Vorschläge)
 
 1. **Umfang:** Nur Läufe im Zustand `finished`. Nur Rohwerte mit Zustand `present`; `estimated`, `discarded` und `unavailable` fehlen im Export.
-2. **Nur gemessene Werte:** Position, Höhe, Puls und Zeitstempel. Keine Kadenz (wird nicht gespeichert), keine Profilwerte, keine berechneten Eigenwerte (Zonen, TRIMP, VO₂max, Vorverarbeitung), keine Sensornamen oder Gerätekennungen. Ausnahme sind Pflichtfelder eines Formats, die minimal aus den exportierten Rohwerten gefüllt werden (siehe Feldabbildung).
+2. **Nur gemessene Werte:** Position, Höhe, Puls, Schrittfrequenz (aus dem gespeicherten Schrittzähler, Regel 11) und Zeitstempel. Keine Profilwerte, keine berechneten Eigenwerte (Zonen, TRIMP, VO₂max, Vorverarbeitung), keine Sensornamen oder Gerätekennungen. Ausnahme sind Pflichtfelder eines Formats, die minimal aus den exportierten Rohwerten gefüllt werden (siehe Feldabbildung).
 3. **Zeit:** UTC. GPX und TCX: ISO 8601 mit Millisekunden, Mikrosekunden werden abgeschnitten. FIT: ganze Sekunden seit 1989-12-31 00:00 UTC. Je Kanal und Zeitschritt (1 ms bzw. 1 s) gilt der erste gespeicherte Wert; weitere Werte desselben Zeitschritts fallen weg (dokumentierter Verlust).
 4. **Zusammenführung:** Ein Exportpunkt je Zeitstempel. TCX und FIT: Ein Punkt trägt nur die Werte, die zu seinem Zeitstempel gemessen wurden; Punkte nur mit Puls oder nur mit Höhe sind erlaubt, ein Ort wird nie erfunden. GPX: Ein `trkpt` entsteht nur aus einer gemessenen Position; Höhe und Puls kommen vom zeitlich nächsten Wert desselben Abschnitts innerhalb von ±1 s (bei Gleichstand der frühere), sonst fehlen sie.
 5. **Pausen und Lücken:** `manualPause` und `interruption` trennen Abschnitte (GPX neues `trkseg`, TCX neuer `Track`, FIT Timer-Ereignis `stop_all`/`start`). Eine Pause gilt von ihrem Beginn (einschließlich) bis zu ihrem Ende (ausschließlich); Werte darin fehlen. Eine offene Pause endet am Laufende. `positionLoss` und `heartRateLoss` erzeugen nur fehlende Werte: keine Interpolation, nie 0.
@@ -27,6 +28,7 @@ Die TCX-ActivityExtension v2 wird nicht gebraucht und nicht verwendet.
 8. **Name:** `run-YYYYMMDD-HHMMSS` aus der Startzeit in Ortszeit über den UTC-Versatz am Laufende, sonst UTC. Dateiname: Name, beschränkt auf `A–Z a–z 0–9 . _ -` (anderes wird `_`, führende `.`/`_` entfallen, leer wird `run`), plus Erweiterung. In XML werden `& < > " '` escaped und in XML 1.0 unzulässige Zeichen entfernt.
 9. **Ungültige Werte:** Positionen außerhalb von Breite −90…90 und Länge −180…<180 sowie nicht endliche Werte und Puls außerhalb 1…255 fehlen, weil die Formate sie nicht darstellen. Werte vor dem Start oder nach dem Ende des Laufs fehlen.
 10. **Logs:** keine Werte, Koordinaten oder Zeitstempel.
+11. **Schrittfrequenz (FR-0183, FR-0202; Methode `steps-counter-window`, Version 1):** Quelle ist der kumulierte Schrittzähler `raw_steps` ([Datenmodell](../architecture/data-model.md)), nur Werte mit Zustand `present`. Je Abschnitt (Regel 5) in Zeitfolge erhält jeder Zählerwert die Schrittfrequenz (Zähler − Zähler des frühesten Werts desselben Abschnitts, der höchstens 10 s davor liegt) / Zeitabstand · 60 in Schritten je Minute; das Fenster ist dasselbe wie in der Anzeige (`CadenceEstimator.defaultWindow`). Ohne solchen Vorgänger (erster Wert eines Abschnitts), bei Zeitabstand 0 oder fallendem Zähler fehlt der Wert: keine Interpolation, nie ein erfundenes 0. Gerechnet wird vor dem Abrunden der Zeit (Regel 3); jeder Zählerwert mit Schrittfrequenz ist ein eigener Exportpunkt (Regel 4). FIT und TCX tragen Doppelschritte je Minute (Schritte je Minute / 2, gerundet), wie für Laufen üblich; Werte außerhalb 0…254 fehlen. GPX trägt keine Schrittfrequenz.
 
 ## Feldabbildung
 
@@ -41,11 +43,11 @@ Die TCX-ActivityExtension v2 wird nicht gebraucht und nicht verwendet.
 | Zeitstempel | `trkpt/time` | `Trackpoint/Time` | `record.timestamp` (ganze Sekunden) |
 | Höhe | `trkpt/ele` (Regel 4) | `Trackpoint/AltitudeMeters` | `record.altitude` (uint16, (m + 500) · 5, gerundet: 0,2 m Auflösung) |
 | Puls | `trkpt/extensions/gpxtpx:TrackPointExtension/gpxtpx:hr` (Regel 4) | `Trackpoint/HeartRateBpm/Value` | `record.heart_rate` (uint8, bpm) |
-| Kadenz | – (nicht gespeichert) | – | – |
+| Schrittfrequenz (Regel 11) | – | `Trackpoint/Extensions/tpx:TPX/tpx:RunCadence` (ActivityExtension v2, Doppelschritte je Minute, letztes Kind des `Trackpoint`) | `record.cadence` (Feld 4, uint8, Doppelschritte je Minute) |
 | Abschnitt | `trkseg` (nur mit Punkten) | `Track` je Abschnitt und Runde (nur mit Punkten) | `event` timer `start` am Abschnittsbeginn, `stop_all` am Abschnittsende |
 | Runde | – (GPX kennt keine Runden) | `Lap` | `lap` am Rundenende |
 
-**Pflichtfelder der TCX-Runde** (Schema verlangt sie): `TotalTimeSeconds` = Zeit der Runde ohne Pausen; `DistanceMeters` = Summe der Großkreisabstände (Haversine mit mittlerem Erdradius 6 371 008,8 m wie in `geo.dart`) aufeinanderfolgender exportierter Positionen desselben Abschnitts, der Runde des späteren Punkts zugerechnet, auf Millimeter gerundet (über einen Positionsverlust hinweg zählt die gerade Verbindung, über eine Pause nicht); `Calories` = 0, nur weil das Schema den Wert verlangt; `Intensity` = `Active`; `TriggerMethod` = `Manual`. Nicht ausgegeben werden die optionalen Felder `MaximumSpeed`, `AverageHeartRateBpm`, `MaximumHeartRateBpm`, `Cadence` und `Trackpoint/DistanceMeters`.
+**Pflichtfelder der TCX-Runde** (Schema verlangt sie): `TotalTimeSeconds` = Zeit der Runde ohne Pausen; `DistanceMeters` = Summe der Großkreisabstände (Haversine mit mittlerem Erdradius 6 371 008,8 m wie in `geo.dart`) aufeinanderfolgender exportierter Positionen desselben Abschnitts, der Runde des späteren Punkts zugerechnet, auf Millimeter gerundet (über einen Positionsverlust hinweg zählt die gerade Verbindung, über eine Pause nicht); `Calories` = 0, nur weil das Schema den Wert verlangt; `Intensity` = `Active`; `TriggerMethod` = `Manual`. Nicht ausgegeben werden die optionalen Felder `MaximumSpeed`, `AverageHeartRateBpm`, `MaximumHeartRateBpm`, `Cadence` (Runde und `Trackpoint/Cadence`, die für Radfahren gedacht sind) und `Trackpoint/DistanceMeters`.
 
 **FIT-Datei** (Protokoll 2.0, Profil 21.40 im Kopf, eigener Kodierer): 14-Byte-Kopf mit `.FIT`, Datengröße und Kopf-CRC; danach Nachrichten mit normalem Kopf, little-endian, je Nachrichtenart ein lokaler Typ, definiert vor der ersten Datennachricht; am Ende die Datei-CRC über Kopf und Daten. CRC: CRC-16/ARC (Polynom 0xA001 bitumgekehrt, Start 0), wie im FIT-Protokoll; Referenzwert `"123456789"` → 0xBB3D. Keine komprimierten Zeitstempel, keine Entwicklerfelder.
 
@@ -53,14 +55,14 @@ Die TCX-ActivityExtension v2 wird nicht gebraucht und nicht verwendet.
 |---|---|
 | `file_id` | `type` = activity (4), `manufacturer` = development (255), `time_created` = Laufstart. Kein `product`, keine `serial_number`. |
 | `event` | `timestamp`, `event` = timer (0), `event_type` = start (0) am Beginn jedes Abschnitts bzw. stop_all (4) an seinem Ende. Ohne Abschnitt (Lauf ganz in Pause): start und stop_all am Laufstart. |
-| `record` | je Exportpunkt: `timestamp`, `position_lat`, `position_long`, `altitude`, `heart_rate`. Ein fehlender Wert steht als Invalid-Wert des Typs (sint32 0x7FFFFFFF, uint16 0xFFFF, uint8 0xFF), nie als 0. |
+| `record` | je Exportpunkt: `timestamp`, `position_lat`, `position_long`, `altitude`, `heart_rate`, und nur wenn der Lauf eine Schrittfrequenz hat zusätzlich `cadence` als letztes Feld der Definition (Läufe ohne Schritte bleiben byte-gleich). Ein fehlender Wert steht als Invalid-Wert des Typs (sint32 0x7FFFFFFF, uint16 0xFFFF, uint8 0xFF), nie als 0. |
 | `lap` | je Runde am Rundenende, Nachrichtenfolge zeitlich: `message_index`, `timestamp` = Rundenende, `event` = lap (9), `event_type` = stop (1), `start_time`, `total_elapsed_time` (Ende − Start), `total_timer_time` (ohne Pausen), `total_distance` (wie TCX `DistanceMeters`, Zentimeter), `lap_trigger` = manual (0) für markierte Runden, session_end (7) für die letzte, `sport` = running. |
 | `session` | eine: `message_index` = 0, `timestamp` = Laufende, `event` = session (8), `event_type` = stop, `start_time`, `sport`, `sub_sport`, `total_elapsed_time`, `total_timer_time`, `total_distance` (Summe der Runden), `first_lap_index` = 0, `num_laps`, `trigger` = activity_end (0). |
 | `activity` | eine: `timestamp` = Laufende, `total_timer_time`, `num_sessions` = 1, `type` = manual (0), `event` = activity (26), `event_type` = stop. Kein `local_timestamp`. |
 
-Nicht ausgegeben: `total_calories`, Durchschnitts- und Höchstwerte, `distance` und `speed` je `record`, `enhanced_altitude`, `cadence`. Die Pflichtangaben von `lap` und `session` sind nur aus Zeiten und exportierten Positionen gerechnet (Regel 2).
+Nicht ausgegeben: `total_calories`, Durchschnitts- und Höchstwerte, `distance` und `speed` je `record`, `enhanced_altitude`, `fractional_cadence`, Durchschnitts- und Höchstkadenz in `lap` und `session`. Die Pflichtangaben von `lap` und `session` sind nur aus Zeiten und exportierten Positionen gerechnet (Regel 2).
 
-**FIT-Zeit und Zusammenführung:** Der Lauf wird mit Auflösung 1 s abgebildet (`exportSecond`); Zeiten mit Bruchteilen lehnt der Kodierer ab. Fallen nach dem Abrunden zwei Abschnitte in dieselbe Sekunde (Pause unter einer Sekunde), entsteht dort ein `record`, der die Werte des früheren Punkts trägt und nur fehlende Kanäle aus dem späteren ergänzt (erster Wert je Kanal und Sekunde). Ein Punkt gehört zur letzten Runde, deren Start nicht nach ihm liegt; ein Abschnittsende zur Runde davor.
+**FIT-Zeit und Zusammenführung:** Der Lauf wird mit Auflösung 1 s abgebildet (`exportSecond`); Zeiten mit Bruchteilen lehnt der Kodierer ab. Fallen nach dem Abrunden zwei Abschnitte in dieselbe Sekunde (Pause unter einer Sekunde), entsteht dort ein `record`, der die Werte des früheren Punkts trägt (auch die Schrittfrequenz) und nur fehlende Kanäle aus dem späteren ergänzt (erster Wert je Kanal und Sekunde). Ein Punkt gehört zur letzten Runde, deren Start nicht nach ihm liegt; ein Abschnittsende zur Runde davor.
 
 **FIT-Wertebereiche:** Höhe außerhalb −500 … 12 606,8 m und Puls 255 (Invalid-Wert von uint8) fehlen. Länge: Der Rundungswert 2³¹ (= 180°) wird −2³¹ (= −180°); der Wert 2³¹ − 1 fiele mit dem Invalid-Wert zusammen und wird 2³¹ − 2 (eine Einheit, unter 1 cm).
 
@@ -68,11 +70,12 @@ Nicht ausgegeben: `total_calories`, Durchschnitts- und Höchstwerte, `distance` 
 
 - **GPX gesperrt:** GPX hat nichts zu tragen (kein `trkpt` ohne Position, Regel 4). Der Kodierer lehnt den Lauf ab (`ArgumentError`); das Exportfenster blendet GPX mit Grund aus und wählt TCX vor.
 - **Punkte:** Aus den Bandeinstellungen entsteht je volle Sekunde ab Abschnittsbeginn und am Abschnittsende ein Punkt (1-s-Raster, kein Messwert); Puls-Punkte tragen ebenfalls die Strecke. Jeder Punkt trägt die kumulierte Strecke und die eingestellte Geschwindigkeit; Pausen und Unterbrechungen bleiben Abschnittsgrenzen (Regel 5).
-- **TCX:** `Trackpoint` ohne `Position` und ohne `AltitudeMeters`, mit `DistanceMeters` (kumuliert, Meter). `Lap/DistanceMeters` ist der Zuwachs der Punktstrecke in der Runde (statt Haversine). Sport `Running`; TCX kennt keine Laufbandkennzeichnung, keine Speed-Extension.
-- **FIT:** eigene `record`-Definition mit `timestamp`, `heart_rate`, `distance` (uint32, Zentimeter, Feld 5), `speed` (uint16, Millimeter je Sekunde, Feld 6; über 65,5 m/s fehlt der Wert) und ohne `position_lat`, `position_long`, `altitude`; `session.sub_sport` = treadmill (1). `lap.total_distance` und `session.total_distance` sind der Streckenzuwachs. Alle übrigen Nachrichten wie oben.
+- **TCX:** `Trackpoint` ohne `Position` und ohne `AltitudeMeters`, mit `DistanceMeters` (kumuliert, Meter); Schrittfrequenz wie oben. `Lap/DistanceMeters` ist der Zuwachs der Punktstrecke in der Runde (statt Haversine). Sport `Running`; TCX kennt keine Laufbandkennzeichnung, keine Speed-Extension.
+- **FIT:** eigene `record`-Definition mit `timestamp`, `heart_rate`, `distance` (uint32, Zentimeter, Feld 5), `speed` (uint16, Millimeter je Sekunde, Feld 6; über 65,5 m/s fehlt der Wert) und ohne `position_lat`, `position_long`, `altitude`; mit Schrittfrequenz zusätzlich `cadence` wie oben; `session.sub_sport` = treadmill (1). `lap.total_distance` und `session.total_distance` sind der Streckenzuwachs. Alle übrigen Nachrichten wie oben.
+- **Schrittfrequenz:** wie bei GPS-Läufen (Regel 11), der Schrittzähler läuft auch auf dem Laufband.
 - GPS-Läufe bleiben byte-gleich (Goldens).
 
-**Bekannte Verluste:** GPX trägt Puls und Höhe ohne gleichzeitige Position nicht; GPX hat keine Runden und kein Laufende. TCX hat kein Namensfeld. FIT hat kein Namensfeld (nur der Dateiname), Zeit nur in ganzen Sekunden und Höhe in 0,2 m.
+**Bekannte Verluste:** GPX trägt Puls und Höhe ohne gleichzeitige Position nicht; GPX hat keine Runden und kein Laufende. GPX trägt keine Schrittfrequenz. TCX hat kein Namensfeld. FIT hat kein Namensfeld (nur der Dateiname), Zeit nur in ganzen Sekunden und Höhe in 0,2 m.
 
 ## Übergabe an das System (FR-0201)
 
