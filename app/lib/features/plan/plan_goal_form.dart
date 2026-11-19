@@ -298,7 +298,7 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     final draft = _draft();
     // Der Stand ist nur beim Anlegen ohne Läufe und beim neuen Einstieg
     // gefragt (PAR-192, PAR-181).
-    final problem = draft.validate(_today, null, _askStand);
+    final problem = draft.validate(widget.clock.now(), null, _askStand);
     if (problem != null) {
       setState(() {
         _error = _problemText(l, problem);
@@ -404,7 +404,9 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
       lastDate: DateTime(t.year + 5, 12, 31),
     );
     if (picked != null && mounted) {
-      _set(() => _date = DateTime.utc(picked.year, picked.month, picked.day));
+      // Lokaler Kalendertag (lokale Mitternacht), wie ihn der Speicher
+      // liefert; UTC-Mitternacht läge westlich von UTC auf dem Vortag.
+      _set(() => _date = DateTime(picked.year, picked.month, picked.day));
     }
   }
 

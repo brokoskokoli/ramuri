@@ -28,7 +28,7 @@ TrainingGoal _goal({
 }) => TrainingGoal(
   type: GoalType.distance,
   distance: GoalDistance.tenKilometers,
-  targetDate: target ?? DateTime.utc(2027, 3, 14),
+  targetDate: target ?? DateTime(2027, 3, 14),
   runDays: days,
   maxSessionSeconds: 120 * 60,
   weeklyCapSeconds: 4 * 3600,
@@ -238,7 +238,7 @@ void main() {
     final goal = (await (session as GoalStorage).goals.goal())!;
     expect(goal.type, GoalType.distance);
     expect(goal.distance, GoalDistance.tenKilometers);
-    expect(goal.targetDate, DateTime.utc(2026, 11, 28));
+    expect(goal.targetDate, DateTime(2026, 11, 28));
     expect(goal.runDays, {1, 3, 5});
     expect(goal.maxSessionSeconds, 50 * 60);
     expect(goal.currentWeeklySeconds, 120 * 60);
@@ -246,6 +246,79 @@ void main() {
     expect(goal.hardSessionEnabled, isFalse);
     final history = await (session as PlanStorage).plans.history();
     expect(history.single.inputs.today, _today);
+  });
+
+  group('Zieldatum als lokaler Kalendertag (FR-0136)', () {
+    // Uhr in Ortszeit: Der Tag im Kalender ist in jeder Zeitzone der 11.11.
+    final localNow = DateTime(2026, 11, 11, 12);
+
+    Future<(StorageSession, PlanController)> openForm(
+      WidgetTester tester,
+    ) async {
+      final session = await FakeStorage().open(_key);
+      final clock = FakeClock(localNow);
+      await session.profile.save(
+        const ProfileRecord(
+          trainingDaysMask: 0x15,
+          usualTrainingMinutes: 50,
+          weeklyRunMinutes: 120,
+        ),
+      );
+      final c = _controller(session, clock);
+      await _pump(tester, session: session, clock: clock, controller: c);
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_create_goal')),
+      );
+      await tapFinderAfterSettle(tester, find.text(de.planDistance10k));
+      return (session, c);
+    }
+
+    Future<void> checkAndSave(WidgetTester tester) async {
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_form_check')),
+      );
+      expect(find.byKey(const Key('plan_form_error')), findsNothing);
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_form_save')),
+      );
+    }
+
+    testWidgets('Wahl des 14.11.: gespeichert als lokaler 14.11., beim '
+        'Ändern wieder der 14.11.', (tester) async {
+      final (session, _) = await openForm(tester);
+      await _pickDay(tester, 14);
+      await checkAndSave(tester);
+
+      final date = (await (session as GoalStorage).goals.goal())!.targetDate!;
+      expect(date, DateTime(2026, 11, 14));
+      expect(date.isUtc, isFalse);
+      // Derselbe Tag im Ortstag, auch westlich von UTC.
+      expect(calendarDay(date), DateTime.utc(2026, 11, 14));
+
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_edit_goal')),
+      );
+      expect(
+        tester.widget<Text>(find.byKey(const Key('plan_form_date'))).data,
+        DateFormat.yMMMd('de').format(DateTime(2026, 11, 14)),
+      );
+    });
+
+    testWidgets('Heute als Zieldatum wird angenommen, nicht als '
+        '„in der Vergangenheit“ abgelehnt', (tester) async {
+      final (session, _) = await openForm(tester);
+      await _pickDay(tester, 11);
+      await checkAndSave(tester);
+
+      expect(find.text(de.planFormErrorDatePast), findsNothing);
+      final goal = (await (session as GoalStorage).goals.goal())!;
+      expect(goal.targetDate, DateTime(2026, 11, 11));
+      expect(calendarDay(goal.targetDate!), DateTime.utc(2026, 11, 11));
+    });
   });
 
   testWidgets('Ändern: Formular vorbelegt, Änderung rechnet mit goalChange', (
@@ -265,7 +338,7 @@ void main() {
     expect(find.text('120'), findsOneWidget); // max. Minuten je Einheit
     expect(
       tester.widget<Text>(find.byKey(const Key('plan_form_date'))).data,
-      DateFormat.yMMMd('de').format(DateTime.utc(2027, 3, 14)),
+      DateFormat.yMMMd('de').format(DateTime(2027, 3, 14)),
     );
     expect(find.text(de.planFormRegulatorValue('4')), findsWidgets);
     expect(tester.widget<Slider>(find.byType(Slider)).value, 4);
@@ -283,7 +356,7 @@ void main() {
     final goal = (await (session as GoalStorage).goals.goal())!;
     expect(goal.runDays, {1, 2, 4, 6});
     expect(goal.createdAt, DateTime.utc(2026, 11, 1));
-    expect(goal.targetDate, DateTime.utc(2027, 3, 14));
+    expect(goal.targetDate, DateTime(2027, 3, 14));
     final history = await (session as PlanStorage).plans.history();
     expect(history.length, 2);
     expect(history.last.trigger, PlanTrigger.goalChange);
@@ -544,7 +617,7 @@ void main() {
     final clock = FakeClock(DateTime.utc(2026, 11, 1, 12));
     final session = await _withPlan(
       _goal(
-        target: DateTime.utc(2026, 11, 5),
+        target: DateTime(2026, 11, 5),
         createdAt: DateTime.utc(2026, 11, 1),
       ),
       clock,
@@ -644,7 +717,7 @@ void main() {
       'setzt das Datum und schätzt neu ein', (tester) async {
     final clock = FakeClock(_now);
     final session = await _withPlan(
-      _goal(target: _today.add(const Duration(days: 14))),
+      _goal(target: DateTime(2026, 11, 25)),
       clock,
     );
     final c = _controller(session, clock);

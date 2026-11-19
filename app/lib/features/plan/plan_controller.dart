@@ -717,7 +717,8 @@ class PlanController extends ChangeNotifier {
   /// Neuberechnung: [PlanActionResult.savedNotPlanned].
   Future<PlanActionResult> saveGoal(TrainingGoal goal) => _act(() async {
     final existed = await _goals.goal() != null;
-    await _goals.save(goal, today: _today());
+    // Zeitpunkt statt `_today()`: `validate` liest ihn im Ortstag.
+    await _goals.save(goal, today: clock.now());
     onChanged?.call();
     try {
       final saved = await _goals.goal();
@@ -1193,11 +1194,12 @@ class PlanController extends ChangeNotifier {
       if ((await _plans.history()).isEmpty) {
         throw const StorageException(StorageFailure.notFound);
       }
-      final today = _today();
-      if (goal.validate(today, null, true) != null) {
+      // Zeitpunkt statt `_today()`: `validate` liest ihn im Ortstag.
+      final now = clock.now();
+      if (goal.validate(now, null, true) != null) {
         throw const StorageException(StorageFailure.rejected);
       }
-      await _goals.save(goal, today: today);
+      await _goals.save(goal, today: now);
       onChanged?.call();
       try {
         await _restartForPause(q, chosen: true);
