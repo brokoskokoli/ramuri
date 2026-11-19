@@ -138,8 +138,10 @@ class _LiveMapPageState extends State<LiveMapPage> with WidgetsBindingObserver {
     final pre = widget.controller.preprocessing;
     if (pre == null) return;
     final pauses = [
+      // Pause und Ausfall nach Absturz (nach der Wiederaufnahme) trennen die Linie (FR-0204, FR-0193).
       for (final g in widget.controller.snapshot.gaps)
-        if (g.kind == RunGapKind.manualPause)
+        if (g.kind == RunGapKind.manualPause ||
+            g.kind == RunGapKind.interruption)
           TimeSpan(start: g.start, end: g.end ?? DateTime.utc(9999)),
     ];
     final key = (

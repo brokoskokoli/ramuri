@@ -9,6 +9,7 @@ import '../recalculation/recalculation_controller.dart';
 import 'fitness_section.dart' show fitnessNumber;
 import 'load_controller.dart';
 import 'load_view_state.dart';
+import 'period_date.dart';
 
 /// Karte „Belastung“ auf Fortschritt (WP19, FR-0097 bis FR-0104).
 ///
@@ -27,11 +28,16 @@ class LoadCard extends StatefulWidget {
   const LoadCard({
     super.key,
     this.session,
+    required this.currentYear,
     this.clock,
     this.recalculation,
     this.controller,
     this.onFirstSettled,
   });
+
+  /// Laufendes Jahr der Seite (Tag aus der [Clock]); Daten außerhalb tragen
+  /// das Jahr (FR-0044).
+  final int currentYear;
 
   /// Einmal, nachdem die Karte ihre endgültige Höhe hat (erstes Ergebnis oder
   /// Fehler statt „wird berechnet“). Die Seite stellt dann ihre gemerkte
@@ -106,8 +112,11 @@ class _LoadCardState extends State<LoadCard> {
       padding: const EdgeInsets.only(top: 14),
       child: ListenableBuilder(
         listenable: controller,
-        builder: (context, _) =>
-            LoadCardBody(state: controller.state, onRetry: controller.reload),
+        builder: (context, _) => LoadCardBody(
+          state: controller.state,
+          currentYear: widget.currentYear,
+          onRetry: controller.reload,
+        ),
       ),
     );
   }
@@ -119,11 +128,16 @@ class LoadCardBody extends StatelessWidget {
   const LoadCardBody({
     super.key,
     required this.state,
+    required this.currentYear,
     this.onRetry,
     this.initiallyExpanded = false,
   });
 
   final LoadViewState state;
+
+  /// Laufendes Jahr der Seite: Datenstand und Zeitraum des Diagramms stehen
+  /// ohne Jahr nur, wenn sie ganz in diesem Jahr liegen (FR-0044).
+  final int currentYear;
   final VoidCallback? onRetry;
 
   /// Der Bereich „Grundlage“ ist eingeklappt; Tests können ihn offen starten.
@@ -280,7 +294,12 @@ class LoadCardBody extends StatelessWidget {
             excludeSemantics: true,
             label: l10n.loadChartSemantics(
               window.length,
-              material.formatMediumDate(last),
+              periodDateText(
+                context,
+                last,
+                currentYear: currentYear,
+                span: [first],
+              ),
               fitnessNumber(german, current.atl!),
               fitnessNumber(german, current.ctl!),
             ),
@@ -521,7 +540,6 @@ class LoadCardBody extends StatelessWidget {
     TextTheme theme,
   ) {
     final german = Localizations.localeOf(context).languageCode == 'de';
-    final material = MaterialLocalizations.of(context);
     final profile = state.profile ?? LoadProfile.edwards;
     final profileName = switch (profile) {
       LoadProfile.edwards => l10n.loadProfileNameEdwards,
@@ -576,7 +594,9 @@ class LoadCardBody extends StatelessWidget {
     final through = state.dataThrough;
     final dataText = through == null
         ? l10n.loadDataNone
-        : l10n.loadDataThrough(material.formatMediumDate(through));
+        : l10n.loadDataThrough(
+            periodDateText(context, through, currentYear: currentYear),
+          );
     final small = theme.bodySmall!.copyWith(color: c.textMuted);
 
     return [

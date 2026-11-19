@@ -122,6 +122,7 @@ void main() {
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: LoadCard(
+            currentYear: 2030,
             session: session,
             clock: clock,
             recalculation: controller,
