@@ -224,6 +224,44 @@ void main() {
     expect(zeilen, contains('tap_bleibt what=dialog_bleibt'));
   });
 
+  testWidgets('tapDialog: Menue geht noch auf -> erst tippen, wenn der '
+      'Eintrag getroffen wird, Auswahl kommt an', (t) async {
+    String? gewaehlt;
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(
+            actions: [
+              PopupMenuButton<String>(
+                key: const Key('menu'),
+                onSelected: (v) => gewaehlt = v,
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    key: Key('menu_a'),
+                    value: 'a',
+                    child: Text('a'),
+                  ),
+                  PopupMenuItem(
+                    key: Key('menu_b'),
+                    value: 'b',
+                    child: Text('b'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.byKey(const Key('menu')));
+    // Nur ein Frame: das Menue steht im Baum, ist aber noch nicht offen.
+    await t.pump();
+    expect(find.byKey(const Key('menu_b')), findsOneWidget);
+    await tapDialog(t, 'menu_b');
+    await t.pumpAndSettle();
+    expect(gewaehlt, 'b');
+  });
+
   testWidgets('tapKey: nach dem Tipp nur ein Frame, keine feste Pause', (
     t,
   ) async {

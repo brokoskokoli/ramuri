@@ -174,13 +174,20 @@ Future<void> _waitPresent(WidgetTester t, Finder f, String meldung) async {
 
 /// Taste in einem Dialog oder Menue, die ihn schliesst: kein ensureVisible (es
 /// scrollt sonst die Seite dahinter). Wartet vor dem Tipp, bis die Taste im
-/// Baum steht, und danach, bis genau diese Taste nicht mehr im Baum steht
-/// (Dialog bzw. Menue zu); sonst `Dialog-Taste <key> bleibt`. Keine feste
-/// Pause. Bleibt ein Dialog bewusst offen: [tapKey]/[tapUntil] mit eigener
-/// Bedingung.
+/// Baum steht und der Tipp sie trifft (ein Menue geht noch auf: ein Tipp
+/// daneben schloesse es ohne Auswahl), und danach, bis genau diese Taste nicht
+/// mehr im Baum steht (Dialog bzw. Menue zu); sonst `Dialog-Taste <key>
+/// bleibt`. Keine feste Pause. Bleibt ein Dialog bewusst offen:
+/// [tapKey]/[tapUntil] mit eigener Bedingung.
 Future<void> tapDialog(WidgetTester t, String key) async {
   final f = find.byKey(Key(key));
   await _waitPresent(t, f, 'Dialog-Taste $key fehlt');
+  final end = DateTime.now().add(_tapFrist);
+  while (!hittable(t, f.first)) {
+    if (DateTime.now().isAfter(end))
+      fail('Tipp trifft Dialog-Taste $key nicht');
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
   final ziel = f.evaluate().first;
   await t.tap(f.first);
   await _waitGone(t, () => !ziel.mounted, key, 'Dialog-Taste $key bleibt');
