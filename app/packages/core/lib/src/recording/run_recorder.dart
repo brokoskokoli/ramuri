@@ -82,6 +82,11 @@ class RunRecorder {
   int _beltCursor = 0; // Einstellungen der Sitzung, die schon im Puffer sind
   final List<BeltSetting> _belts = [];
 
+  /// Höchstens ein ungeschriebener Schrittwert: ein neuer ersetzt ihn (der
+  /// Zähler ist kumuliert, es geht kein Schritt verloren). Geschrieben wird
+  /// mit dem nächsten Schreiben, spätestens im nächsten [tick].
+  final List<RawSteps> _steps = [];
+
   /// Monotone Zeit des letzten Anhängens einer Einstellung (Lebenszeichen).
   Duration? _lastBeltAt;
 
@@ -358,11 +363,36 @@ class RunRecorder {
     return intake;
   }
 
-  /// Prüft die GPS-Lücke gegen die Uhr (Anzeigetakt des Hosts).
+  /// Nimmt [newSteps] neue Schritte des Telefonsensors an (FR-0202) und
+  /// speichert den Zähler des Laufs als `raw_steps` (GPS- und Bandlauf). Die
+  /// Zeit ist die Sitzungszeit beim Empfang. Gespeichert wird höchstens ein
+  /// Wert je Anzeigetakt.
+  Intake addSteps(int newSteps) {
+    final intake = _session.addSteps(newSteps);
+    _processEvents();
+    if (intake != Intake.processed) return intake;
+    final v = RawSteps(
+      time: _session.lastStepsTime!,
+      source: RecordingSession.stepsSource,
+      count: _session.stepCount,
+    );
+    if (_steps.isEmpty) {
+      _steps.add(v);
+    } else {
+      _steps.last = v;
+    }
+    return intake;
+  }
+
+  /// Prüft die GPS-Lücke gegen die Uhr (Anzeigetakt des Hosts) und schreibt
+  /// einen wartenden Schrittwert.
   void tick() {
     _session.tick();
     _processEvents();
     _beltHeartbeat();
+    if (_steps.isNotEmpty && _runId != null) {
+      unawaited(_write(_flush).catchError((Object _) {}));
+    }
   }
 
   /// Im Laufbandmodus alle [beltHeartbeatInterval] die aktuelle Einstellung
@@ -403,7 +433,8 @@ class RunRecorder {
       _altitudes.length +
       _heartRates.length +
       _rrPackets.length +
-      _belts.length;
+      _belts.length +
+      _steps.length;
 
   void _flushIfFull() {
     if (_pendingRows >= _batchRows) {
@@ -431,6 +462,7 @@ class RunRecorder {
         heartRates: take(_heartRates),
         rrPackets: take(_rrPackets),
         beltSettings: take(_belts),
+        steps: take(_steps),
       );
       try {
         await _raw.append(_runId!, batch);
@@ -442,6 +474,7 @@ class RunRecorder {
           _heartRates.insertAll(0, batch.heartRates);
           _rrPackets.insertAll(0, batch.rrPackets);
           _belts.insertAll(0, batch.beltSettings);
+          _steps.insertAll(0, batch.steps);
         }
         rethrow;
       }

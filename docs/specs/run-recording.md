@@ -259,6 +259,8 @@ Ohne Standortberechtigung startet kein GPS-Lauf. Läufe ohne GPS gibt es in Phas
 
 In Phase 1 liefert der Schrittsensor des Smartphones die Schrittfrequenz. Die App fragt dafür eine eigene Berechtigung an; ohne sie funktioniert die Aufzeichnung weiter.
 
+Die Schritte werden als Rohdaten `raw_steps` gespeichert ([Datenmodell](../architecture/data-model.md)) und exportiert (FR-0183).
+
 **Akzeptanzkriterien:**
 - [ ] Mit Berechtigung wird die Schrittfrequenz live angezeigt.
 - [ ] Ohne Berechtigung ist sie als nicht verfügbar ausgewiesen, und der Lauf wird normal aufgezeichnet.
