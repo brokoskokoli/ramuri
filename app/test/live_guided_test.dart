@@ -145,8 +145,10 @@ Future<_World> _show(
   bool? autoPause,
   bool still = false,
   FakeVoice? voice,
+  double width = 390,
+  double textScale = 1,
 }) async {
-  tester.view.physicalSize = const Size(390, 844);
+  tester.view.physicalSize = Size(width, 844);
   tester.view.devicePixelRatio = 1;
   final w = _World(
     segments: segments,
@@ -169,6 +171,11 @@ Future<_World> _show(
       theme: dark ? RamuriTheme.dark : RamuriTheme.light,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: ListenableBuilder(
         listenable: w.run,
         builder: (context, _) => LiveRunView(
@@ -527,5 +534,137 @@ void main() {
     expect(_k('run_tab_1'), findsOneWidget); // Karte
     expect(_k('run_tab_2'), findsNothing);
     expect(_k('run_time').hitTestable(), findsOneWidget);
+  });
+
+  group('Abschnitt überspringen (FR-0218)', () {
+    for (final lang in ['de', 'en']) {
+      for (final dark in [false, true]) {
+        _test('Knopf: sichtbar, 48 dp, Semantik-Label, 360 dp, Schrift 1,3 '
+            '($lang, ${dark ? 'dunkel' : 'hell'})', (tester) async {
+          final semantics = tester.ensureSemantics();
+          final w = await _show(
+            tester,
+            lang: lang,
+            dark: dark,
+            width: 360,
+            textScale: 1.3,
+          );
+          await w.seconds(tester, 3);
+          final l = lookupAppLocalizations(Locale(lang));
+          expect(_k('guided_skip'), findsOneWidget);
+          final size = tester.getSize(_k('guided_skip'));
+          expect(size.width, greaterThanOrEqualTo(48));
+          expect(size.height, greaterThanOrEqualTo(48));
+          expect(find.bySemanticsLabel(l.guidedLiveSkip), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          // Auch in der Pause, neben „Weiter“ und „Beenden“.
+          await tester.tap(_k('run_pause'));
+          await tester.pump();
+          expect(_k('guided_skip'), findsOneWidget);
+          expect(_k('run_resume'), findsOneWidget);
+          expect(
+            tester.getSize(_k('guided_skip')).height,
+            greaterThanOrEqualTo(48),
+          );
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+        });
+      }
+    }
+
+    for (final lang in ['de', 'en']) {
+      _test('Sprung ohne Rückfrage, Hinweis mit „Rückgängig“ ($lang)', (
+        tester,
+      ) async {
+        final w = await _show(tester, lang: lang);
+        await w.seconds(tester, 10);
+        final l = lookupAppLocalizations(Locale(lang));
+        await tester.tap(_k('guided_skip'));
+        await tester.pump();
+        expect(find.byType(Dialog), findsNothing);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.text(l.guidedLiveSkipped), findsOneWidget);
+        expect(find.text(l.guidedLiveSkipUndo), findsOneWidget);
+        // Intervall mit voller Dauer.
+        expect(
+          _t(tester, 'guided_section'),
+          l.guidedLiveSection(2, 3, l.voiceSegmentInterval),
+        );
+        expect(_t(tester, 'guided_remaining'), '5:00');
+        await w.seconds(tester, 2);
+        await tester.tap(_k('guided_skip_undo'));
+        await tester.pump();
+        // Aufwärmen wie ohne Sprung: 60 − 12 s.
+        expect(
+          _t(tester, 'guided_section'),
+          l.guidedLiveSection(1, 3, l.voiceSegmentWarmUp),
+        );
+        expect(_t(tester, 'guided_remaining'), '0:48');
+        expect(w.run.guidedSkips, isEmpty);
+      });
+    }
+
+    _test('nach Ablauf des Hinweises bleibt der Sprung', (tester) async {
+      final w = await _show(tester);
+      await w.seconds(tester, 10);
+      await tester.tap(_k('guided_skip'));
+      await tester.pump();
+      expect(_k('guided_skipped'), findsOneWidget);
+      await w.seconds(tester, 6);
+      await tester.pumpAndSettle();
+      expect(_k('guided_skipped'), findsNothing);
+      expect(_k('guided_skip_undo'), findsNothing);
+      expect(w.run.guidedSkips, hasLength(1));
+      expect(_t(tester, 'guided_remaining'), '4:54');
+    });
+
+    _test('zwei Sprünge: „Rückgängig“ nimmt nur den letzten zurück', (
+      tester,
+    ) async {
+      final w = await _show(tester);
+      final l = lookupAppLocalizations(const Locale('de'));
+      await w.seconds(tester, 5);
+      await tester.tap(_k('guided_skip'));
+      await tester.pump();
+      await w.seconds(tester, 1);
+      await tester.tap(_k('guided_skip'));
+      await tester.pump();
+      // Der neue Hinweis ersetzt den alten (Aus- und Einblenden).
+      await tester.pumpAndSettle();
+      expect(
+        _t(tester, 'guided_section'),
+        l.guidedLiveSection(3, 3, l.voiceSegmentRecovery),
+      );
+      await tester.tap(_k('guided_skip_undo'));
+      await tester.pump();
+      expect(w.run.guidedSkips, hasLength(1));
+      expect(
+        _t(tester, 'guided_section'),
+        l.guidedLiveSection(2, 3, l.voiceSegmentInterval),
+      );
+    });
+
+    _test('letzter Abschnitt übersprungen: fertig, Knopf weg, Lauf läuft', (
+      tester,
+    ) async {
+      final w = await _show(tester);
+      await w.seconds(tester, 3);
+      for (var i = 0; i < 3; i++) {
+        await tester.tap(_k('guided_skip'));
+        await tester.pump();
+      }
+      expect(_k('guided_done'), findsOneWidget);
+      expect(_k('guided_skip'), findsNothing);
+      final before = w.run.snapshot.movingTime!;
+      await w.seconds(tester, 5);
+      expect(w.run.phase, RecordingPhase.running);
+      expect(w.run.snapshot.movingTime!, greaterThan(before));
+      expect(_k('guided_skip'), findsNothing);
+      // Rückgängig holt den letzten Abschnitt zurück, samt Knopf.
+      await tester.tap(_k('guided_skip_undo'));
+      await tester.pump();
+      expect(_k('guided_done'), findsNothing);
+      expect(_k('guided_skip'), findsOneWidget);
+    });
   });
 }

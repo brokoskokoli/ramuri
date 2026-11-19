@@ -226,6 +226,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0215 | Morgenmessung mit der Handykamera | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0215--morgenmessung-mit-der-handykamera) | FR-0109, FR-0112, FR-0115, FR-0214, FR-0216, FR-0217, OQ-0006, OQ-0078, DEC-0073, DEC-0074, DEC-0075, DEC-0076 |
 | FR-0216 | Plan „adaptiv“ oder „fix“ | functional | Approved | 3 | [plan-adaptation](specs/plan-adaptation.md#fr-0216--plan-adaptiv-oder-fix) | FR-0156, FR-0157, FR-0158, FR-0203, FR-0108, FR-0215 |
 | FR-0217 | Entwicklermodus | functional | Approved | 3 | [profile](specs/profile.md#fr-0217--entwicklermodus) | FR-0215, FR-0213, FR-0021, FR-0216, SEC-0009, DEC-0074, FR-0220 |
+| FR-0218 | Abschnitt einer geführten Einheit überspringen | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0218--abschnitt-einer-geführten-einheit-überspringen) | FR-0027, FR-0031, FR-0033, K63 |
 | FR-0220 | Kamera für die Kamera-Messung | functional | Approved | 3 | [profile](specs/profile.md#fr-0220--kamera-für-die-kamera-messung) | FR-0214, FR-0215, FR-0217, ADR-0011 |
 | NFR-0001 | Algorithmen versionierbar und nachvollziehbar | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0001--algorithmen-versionierbar-und-nachvollziehbar) | FR-0053, FR-0058 |
 | NFR-0002 | Einordnung in drei Verfahrenskategorien | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0002--einordnung-in-drei-verfahrenskategorien) | — |

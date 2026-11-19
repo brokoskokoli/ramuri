@@ -674,6 +674,165 @@ void main() {
     });
   });
 
+  group('Überspringen (FR-0218)', () {
+    const three = [
+      PlanSegment(kind: PlanSegmentKind.warmUp, minutes: 1),
+      PlanSegment(kind: PlanSegmentKind.interval, minutes: 2),
+      PlanSegment(kind: PlanSegmentKind.coolDown, minutes: 1),
+    ];
+    Future<GuidedUnitSnapshot?> stored(_World w) async =>
+        GuidedUnitSnapshot.decode(
+          await w.session.settings.get(SettingKeys.guidedUnitSnapshot),
+        );
+    final l = lookupAppLocalizations(const Locale('de'));
+
+    guided('Sprung: Ansage sofort, nächster Abschnitt voll, im Schnappschuss', (
+      tester,
+    ) async {
+      final w = await _World.create();
+      final c = w.controller(segments: three);
+      await c.start();
+      await w.seconds(tester, 20);
+      expect(c.canSkipSegment, isTrue);
+      final t = c.snapshot.movingTime!;
+      expect(c.skipSegment(), isTrue);
+      expect(w.voice.spoken, ['Intervall, 2 Minuten 0 Sekunden.']);
+      expect(c.guidedSkips, [t]);
+      final p = c.guidedUnitPosition!;
+      expect(p.index, 1);
+      expect(p.remaining, const Duration(minutes: 2));
+      await tester.pump();
+      expect((await stored(w))!.skips, [t]);
+      // Kein zweiter Wechsel zur alten Zeit (60 s).
+      await w.seconds(tester, 50);
+      expect(w.voice.spoken, hasLength(1));
+    });
+
+    guided('Rückgängig: Abschnitt und Restzeit wie ohne Sprung, Eintrag weg, '
+        'keine Ansage', (tester) async {
+      final w = await _World.create();
+      final c = w.controller(segments: three);
+      await c.start();
+      await w.seconds(tester, 20);
+      c.skipSegment();
+      await w.seconds(tester, 3);
+      expect(c.undoSkipSegment(), isTrue);
+      final p = c.guidedUnitPosition!;
+      final plain = guidedPosition(three, c.snapshot.movingTime!);
+      expect(p.index, 0);
+      expect((p.index, p.remaining), (plain.index, plain.remaining));
+      expect(c.guidedSkips, isEmpty);
+      await tester.pump();
+      expect((await stored(w))!.skips, isEmpty);
+      expect(w.voice.spoken, hasLength(1)); // nur die Ansage des Sprungs
+      expect(c.undoSkipSegment(), isFalse);
+    });
+
+    guided('zwei Sprünge: Rückgängig nimmt nur den letzten zurück', (
+      tester,
+    ) async {
+      final w = await _World.create();
+      final c = w.controller(segments: three);
+      await c.start();
+      await w.seconds(tester, 10);
+      c.skipSegment();
+      final first = c.guidedSkips.single;
+      await w.seconds(tester, 5);
+      c.skipSegment();
+      expect(c.guidedUnitPosition!.index, 2);
+      c.undoSkipSegment();
+      expect(c.guidedSkips, [first]);
+      expect(c.guidedUnitPosition!.index, 1);
+      await tester.pump();
+      expect((await stored(w))!.skips, [first]);
+    });
+
+    guided('Wiederanlauf nach Sprung setzt am erreichten Abschnitt fort', (
+      tester,
+    ) async {
+      final w = await _World.create();
+      final first = w.controller(segments: three);
+      await first.start();
+      await w.seconds(tester, 20);
+      first.skipSegment();
+      await w.seconds(tester, 5);
+      final id = first.runId!;
+      final at = first.snapshot.movingTime!;
+      w.drop(first);
+      w.clock.advance(const Duration(seconds: 10));
+      final second = w.controller(resume: id);
+      await second.start();
+      await w.seconds(tester, 1);
+      expect(second.guidedSkips, hasLength(1));
+      final p = second.guidedUnitPosition!;
+      expect(p.index, 1);
+      // Ohne Sprung stünde der Lauf noch im Aufwärmen.
+      expect(guidedPosition(three, at).index, 0);
+      // Der Wechsel zum Abwärmen kommt nach Zeit ab dem Sprung.
+      w.voice.spoken.clear();
+      await w.seconds(tester, p.remaining.inSeconds + 1);
+      expect(w.voice.spoken, contains('Abwärmen, 1 Minute 0 Sekunden.'));
+    });
+
+    guided('letzter Abschnitt: „Einheit fertig“, Lauf läuft weiter, kein '
+        'Überspringen mehr', (tester) async {
+      final w = await _World.create();
+      final c = w.controller(segments: three);
+      await c.start();
+      await w.seconds(tester, 5);
+      c.skipSegment();
+      c.skipSegment();
+      w.voice.spoken.clear();
+      expect(c.skipSegment(), isTrue);
+      expect(w.voice.spoken, [l.voiceUnitComplete]);
+      expect(c.guidedUnitPosition!.finished, isTrue);
+      expect(c.canSkipSegment, isFalse);
+      expect(c.skipSegment(), isFalse);
+      final before = c.snapshot.movingTime!;
+      await w.seconds(tester, 30);
+      expect(c.phase, RecordingPhase.running);
+      expect(c.snapshot.movingTime!, greaterThan(before));
+      expect(w.voice.spoken, [l.voiceUnitComplete]);
+    });
+
+    guided('Pause: Überspringen möglich, Abschnitt steht still', (
+      tester,
+    ) async {
+      final w = await _World.create();
+      final c = w.controller(segments: three);
+      await c.start();
+      await w.seconds(tester, 10);
+      await c.pause();
+      expect(c.canSkipSegment, isTrue);
+      c.skipSegment();
+      final p = c.guidedUnitPosition!;
+      await w.seconds(tester, 30);
+      final q = c.guidedUnitPosition!;
+      expect((q.index, q.remaining), (p.index, p.remaining));
+      expect(q.remaining, const Duration(minutes: 2));
+    });
+
+    guided('freier Lauf: nichts zu überspringen', (tester) async {
+      final w = await _World.create();
+      final c = w.controller();
+      await c.start();
+      await w.seconds(tester, 3);
+      expect(c.canSkipSegment, isFalse);
+      expect(c.skipSegment(), isFalse);
+      expect(c.guidedUnitPosition, isNull);
+    });
+
+    guided('beendeter Lauf: nichts zu überspringen', (tester) async {
+      final w = await _World.create();
+      final c = w.controller(segments: three);
+      await c.start();
+      await w.seconds(tester, 3);
+      await c.finish();
+      expect(c.canSkipSegment, isFalse);
+      expect(c.skipSegment(), isFalse);
+    });
+  });
+
   test('keine Werte in Logs: neue Dateien ohne print, debugPrint, log', () {
     final files = [
       'lib/features/run/run_controller.dart',
