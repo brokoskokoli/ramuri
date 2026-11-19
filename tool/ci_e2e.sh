@@ -70,7 +70,7 @@ for n in $auswahl; do
   case " $alle_stufen " in *" $n "*) ;; *) echo "unbekannte Stufe: $n"; exit 1 ;; esac
 done
 
-case "${E2E_SHOTS:-}" in
+case "${E2E_SHOTS:-1}" in
   "") shots_define="" ;;
   1) shots_define="--dart-define=E2E_SHOTS=true" ;;
   *) echo "E2E_SHOTS nur 1 oder leer"; exit 1 ;;
@@ -169,6 +169,7 @@ stufe() {
     kill "$spid" 2>/dev/null
     wait "$spid" 2>/dev/null
     echo "FOTOS Stufe $name: $(find "$out/shots" -name "$name-*.png" | wc -l | tr -d ' ')"
+    (cd "$out/shots" && for p in "$name"-*.png; do [ -f "$p" ] && echo "FOTO $p $(wc -c <"$p" | tr -d ' ') $(md5sum <"$p" | cut -c1-8)"; done)
   fi
   if [ "$kill_after" = 1 ]; then
     # Das Testende nach dem Prozessende ist erwartet; fehlt das Zeichen, ist die Stufe rot.
