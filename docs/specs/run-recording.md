@@ -244,13 +244,17 @@ Bei GPS-Verlust laufen Zeit und Puls weiter. Die Lücke wird markiert, und die S
 
 ### FR-0195 — Start nur mit Standortberechtigung
 - **Status:** Approved | **Phase:** 1
-- **Quelle:** SRC-003 (OQ-0021)
+- **Quelle:** SRC-003 (OQ-0021); SRC-003 (Maintainer 2026-11-15)
 - **Verwandt:** OQ-0021, OQ-0064
 
 Ohne Standortberechtigung startet kein GPS-Lauf. Läufe ohne GPS gibt es in Phase 1 nicht; ein Laufbandmodus folgt in Phase 2 (FR-0196).
 
+**Festlegungen (Maintainer 2026-11-15):**
+- Ist der Standort ausgeschaltet, bietet die Seite „Lauf vorbereiten“ an, die Standort-Einstellungen des Systems zu öffnen, und prüft nach der Rückkehr erneut. Die Erklärung des Grunds bleibt stehen; ein neues Recht braucht das nicht.
+
 **Akzeptanzkriterien:**
 - [ ] Ohne Berechtigung startet kein Lauf, und die App erklärt den Grund.
+- [ ] Bei ausgeschaltetem Standort öffnet ein Knopf die Standort-Einstellungen des Systems; nach der Rückkehr mit eingeschaltetem Standort ist die Sperre aufgehoben.
 
 ### FR-0202 — Schrittfrequenz aus dem Smartphone
 - **Status:** Approved | **Phase:** 1
@@ -258,6 +262,8 @@ Ohne Standortberechtigung startet kein GPS-Lauf. Läufe ohne GPS gibt es in Phas
 - **Verwandt:** FR-0027, FR-0021, OQ-0052
 
 In Phase 1 liefert der Schrittsensor des Smartphones die Schrittfrequenz. Die App fragt dafür eine eigene Berechtigung an; ohne sie funktioniert die Aufzeichnung weiter.
+
+Die Schritte werden als Rohdaten `raw_steps` gespeichert ([Datenmodell](../architecture/data-model.md)) und exportiert (FR-0183).
 
 **Akzeptanzkriterien:**
 - [ ] Mit Berechtigung wird die Schrittfrequenz live angezeigt.
