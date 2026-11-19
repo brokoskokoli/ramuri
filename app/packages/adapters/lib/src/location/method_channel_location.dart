@@ -125,4 +125,17 @@ class MethodChannelLocationAccess implements LocationAccessPort {
   @override
   Future<bool> gpsEnabled() async =>
       await _channel.invokeMethod<bool>('gpsEnabled') ?? false;
+
+  /// Ohne Activity, ohne Einstellungsseite oder ohne Kotlin-Seite: `false`
+  /// statt Fehler; die Sperre bleibt mit ihrer Erklärung stehen.
+  @override
+  Future<bool> openLocationSettings() async {
+    try {
+      return await _channel.invokeMethod<bool>('openLocationSettings') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
 }

@@ -112,6 +112,13 @@ class MainActivity : FlutterActivity() {
                         (getSystemService(LOCATION_SERVICE) as LocationManager)
                             .isProviderEnabled(LocationManager.GPS_PROVIDER),
                     )
+                    // FR-0195: Standort aus -> Standort-Einstellungen des Systems; kein neues Recht.
+                    // Ohne passende Einstellungsseite false statt Absturz.
+                    "openLocationSettings" -> result.success(
+                        runCatching {
+                            startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                        }.isSuccess,
+                    )
                     "openAppSettings" -> {
                         val intent = Intent(
                             Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
