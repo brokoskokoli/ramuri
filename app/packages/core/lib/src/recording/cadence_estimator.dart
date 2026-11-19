@@ -20,11 +20,16 @@ class CadenceEstimator {
 
   final List<Duration> _steps = [];
 
+  /// Zahl aller angenommenen Schritte (ignorierte zählen nicht).
+  int get accepted => _accepted;
+  int _accepted = 0;
+
   /// Nimmt einen Schritt auf und liefert die Schrittfrequenz, sofern es eine
   /// gibt. Ein Schritt, der nicht nach dem letzten liegt, wird ignoriert.
   double? add(Duration step) {
     if (_steps.isNotEmpty && step <= _steps.last) return null;
     _steps.add(step);
+    _accepted++;
     _steps.removeWhere((s) => step - s > window);
     return value;
   }

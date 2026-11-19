@@ -29,9 +29,12 @@ Die App soll aufgezeichnete Laufeinheiten in den standardisierten Formaten GPX, 
 
 ### FR-0183 — Exportinhalte
 - **Status:** Approved | **Phase:** 1
-- **Quelle:** SRC-001 §20.1, Z. 1199–1205
+- **Quelle:** SRC-001 §20.1, Z. 1199–1205; SRC-003 (Maintainer 2026-11-15)
+- **Verwandt:** FR-0202
 
 Exportiert werden je nach Format: GPS-Strecke, Zeitstempel, Herzfrequenz, Höhenwerte und gegebenenfalls Kadenz und weitere vorhandene Trainingsdaten.
+
+**Festlegung (SRC-003, Maintainer 2026-11-15):** Die Schrittfrequenz des Smartphones (FR-0202) wird gespeichert und in FIT und TCX exportiert, auch bei Laufbandläufen; GPX bleibt ohne Kadenz. Speicherung: `raw_steps` im [Datenmodell](../architecture/data-model.md); Felder und Berechnung: [Dateiexport-Vertrag](../contracts/file-export.md).
 
 **Akzeptanzkriterien:**
 - [ ] Vom Format unterstützte, vorhandene Werte stimmen nach dem Export mit dem gespeicherten Lauf überein.
