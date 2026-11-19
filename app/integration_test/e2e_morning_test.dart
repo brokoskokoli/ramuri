@@ -380,8 +380,12 @@ Future<void> midnight(
     ).set(const MorningWindow(0, 24)),
   );
   try {
+    // Der ganze Fall bleibt in der Uebersicht: „Heute“ wird erst mit der
+    // Systemuhr wieder geoeffnet.
+    await tapKey(t, 'home_overview');
+    await waitFor(t, () => has('overview_about'), 'S7c Uebersicht');
     _clk.wall = atLate;
-    await measureFromTile(t);
+    await measureFromOverview(t, 'S7c 23:58');
     expect(has('morning_again'), isFalse, reason: 'S7c 23:58 gueltig');
     expect(
       has('morning_note_outside'),
@@ -395,10 +399,10 @@ Future<void> midnight(
     );
     await storedCount(t, s, before.length + 1);
     await shot(t, 's7c_ergebnis_2358');
-    await closeResultToHome(t);
+    await closeResultToOverview(t, 'S7c 23:58');
 
     _clk.wall = atEarly;
-    await measureFromTile(t);
+    await measureFromOverview(t, 'S7c 00:02');
     expect(has('morning_again'), isFalse, reason: 'S7c 00:02 gueltig');
     expect(
       has('morning_note_outside'),
@@ -413,7 +417,7 @@ Future<void> midnight(
     await shot(t, 's7c_ergebnis_0002');
     final after = await storedCount(t, s, before.length + 2);
     expect(after.length, before.length + 2, reason: 'S7c zwei gespeichert');
-    await closeResultToHome(t);
+    await closeResultToOverview(t, 'S7c 00:02');
 
     final mine = [
       for (final m in after)
@@ -460,6 +464,24 @@ Future<void> midnight(
       () => SettingsMorningWindowStore(s.settings, clock).set(restore),
     );
   }
+  await back(t);
+  await waitFor(t, () => has('home_start_run'), 'S7c Heute (Systemuhr)');
+}
+
+/// Von der Uebersicht ueber den Eintrag Morgenmessung bis zum Ergebnis.
+Future<void> measureFromOverview(WidgetTester t, String what) async {
+  await tapKey(t, 'overview_morning');
+  await waitFor(t, () => has('morning_start'), '$what Einstieg');
+  log('$what einstieg');
+  await toResult(t);
+  log('$what ergebnis');
+}
+
+/// Ergebnis schliessen; zurueck in der Uebersicht.
+Future<void> closeResultToOverview(WidgetTester t, String what) async {
+  await tapKey(t, 'morning_done');
+  await waitFor(t, () => has('overview_about'), '$what Uebersicht');
+  log('$what zurueck');
 }
 
 void main() {
