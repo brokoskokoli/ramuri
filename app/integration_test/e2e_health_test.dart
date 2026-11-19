@@ -69,6 +69,11 @@ Future<void> _start(WidgetTester t, AppDependencies d) async {
 Future<void> _openHealth(WidgetTester t) async {
   await tapKey(t, 'home_overview');
   await tapKey(t, 'home_settings');
+  await waitFor(
+    t,
+    () => !has('home_settings'),
+    'Einstellungen offen (home_settings verdeckt)',
+  );
   // Die Karte liegt weit unten in der Liste (wird erst beim Scrollen gebaut).
   await t.scrollUntilVisible(
     find.byKey(const Key('settings_health')),
@@ -167,7 +172,11 @@ void main() {
     await shot(t, 'health_page_initial', pause: true);
     await tapKey(t, 'health_switch_exercise');
     await tapKey(t, 'health_switch_vo2_max');
-    expect(_on('exercise') && _on('vo2_max'), isTrue);
+    await waitFor(
+      t,
+      () => _on('exercise') && _on('vo2_max'),
+      'Schalter health_switch_exercise und health_switch_vo2_max an',
+    );
     expect(await hc.grantedKinds(), isEmpty);
     step('HC1 einwilligen');
     await tapKey(t, 'health_continue');
@@ -399,7 +408,7 @@ void main() {
     await back(t);
     await back(t);
     await tapKey(t, 'home_today');
-    expect(has('home_start_run'), isTrue);
+    await waitFor(t, () => has('home_start_run'), 'Heute (home_start_run)');
     await tapKey(t, 'home_history');
     await pumpFor(t, const Duration(seconds: 1));
     expect(find.byType(ErrorWidget), findsNothing);
@@ -444,7 +453,7 @@ void _realScenario() {
         await back(t);
       }
       await tapKey(t, 'home_today');
-      expect(has('home_start_run'), isTrue);
+      await waitFor(t, () => has('home_start_run'), 'Heute (home_start_run)');
       await tapKey(t, 'home_history');
       await pumpFor(t, const Duration(seconds: 1));
       expect(find.byType(ErrorWidget), findsNothing);
