@@ -319,6 +319,26 @@ Future<void> connect(WidgetTester t, List<String> ids, String prefer) async {
 
 Future<void> startRun(WidgetTester t) async {
   await tapKey(t, 'home_start_run');
+  await waitFor(
+    t,
+    () => has('run_start_ready') || has('treadmill_mode'),
+    'Start-Seite',
+  );
+  // Die Laufart bleibt gespeichert (FR-0196); nach einem Laufband-Lauf
+  // frueherer Gruppen der Sammlung steht sie auf Band: GPS waehlen.
+  bool gps() =>
+      maybeWidget<SegmentedButton<RunMode>>(
+        find.byKey(const Key('treadmill_mode')),
+      )?.selected.contains(RunMode.gps) ??
+      true;
+  if (!gps()) {
+    await tapUntil(
+      t,
+      find.byKey(const Key('treadmill_mode_gps')),
+      gps,
+      'Laufart GPS',
+    );
+  }
   await waitFor(t, () => has('run_start_ready'), 'Start-Seite bereit');
   // Das Recht setzt tool/ci_e2e.sh von aussen (pm grant) kurz nach dem
   // Installieren; die Start-Seite prueft es beim Oeffnen. Kam der Grant
