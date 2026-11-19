@@ -10,7 +10,8 @@ enum LocationAccess {
   denied,
 }
 
-/// Port: Standortberechtigung prüfen und anfordern, GPS-Schalter lesen.
+/// Port: Standortberechtigung prüfen und anfordern, GPS-Schalter lesen und
+/// die Standort-Einstellungen des Systems öffnen.
 /// (Der Stand für die Berechtigungsseite liegt in [PermissionStatusPort].)
 abstract interface class LocationAccessPort {
   /// Aktueller Stand, ohne den Nutzer zu fragen.
@@ -21,4 +22,9 @@ abstract interface class LocationAccessPort {
 
   /// Ob der GPS-Anbieter im System eingeschaltet ist.
   Future<bool> gpsEnabled();
+
+  /// Öffnet die Standort-Einstellungen des Systems (FR-0195), ohne neues
+  /// Recht. `true`, wenn sie geöffnet wurden; sonst `false`, nie ein Fehler.
+  /// Den Stand danach liest die Seite bei der Rückkehr neu.
+  Future<bool> openLocationSettings();
 }
