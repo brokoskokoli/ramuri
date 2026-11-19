@@ -35,9 +35,6 @@ void main() {
     }
     await pumpFor(t, const Duration(seconds: 6));
     step('RUN lauf_beenden');
-    if (DateTime.now().year > 2000) {
-      fail('absichtlich rot: Probe der Schrittmarken, wird zurueckgenommen');
-    }
     await finishRun(t);
     // Der Abschluss schreibt asynchron in die Datenbank.
     await pumpFor(t, const Duration(seconds: 2));
