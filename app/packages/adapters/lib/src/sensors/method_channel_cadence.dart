@@ -40,6 +40,9 @@ class MethodChannelCadenceSensor implements CadenceSensor {
   @override
   Stream<CadenceReading> readings() {
     final estimator = CadenceEstimator();
+    // Schritte seit dem letzten Wert (auch die ohne Frequenz), damit der
+    // Zähler des Laufs keinen Schritt verliert.
+    var pending = 0;
     StreamSubscription<dynamic>? sub;
     var cancelled = false;
     late final StreamController<CadenceReading> out;
@@ -58,8 +61,13 @@ class MethodChannelCadenceSensor implements CadenceSensor {
             final time = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
             final elapsed = Duration(milliseconds: mono);
             // Abstände nur auf der Monotonzeit: die Wanduhr kann zurückspringen.
+            final before = estimator.accepted;
             final spm = estimator.add(elapsed);
-            if (spm != null) out.add(CadenceReading(time, spm, elapsed));
+            pending += estimator.accepted - before;
+            if (spm != null && pending > 0) {
+              out.add(CadenceReading(time, spm, elapsed, steps: pending));
+              pending = 0;
+            }
           },
           // Sensor oder Recht fiel weg: der Strom endet, der Lauf geht weiter.
           onError: (Object _) => out.close(),

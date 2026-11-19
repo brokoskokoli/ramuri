@@ -16,6 +16,10 @@ class FakeLocationAccess implements LocationAccessPort {
   bool fail = false;
   int requestCount = 0;
 
+  /// Aufrufe von [openLocationSettings]; [settingsOpen] ist deren Antwort.
+  int openSettingsCount = 0;
+  bool settingsOpen = true;
+
   @override
   Future<LocationAccess> access() async {
     if (fail) throw StateError('Stand nicht lesbar');
@@ -31,4 +35,10 @@ class FakeLocationAccess implements LocationAccessPort {
 
   @override
   Future<bool> gpsEnabled() async => gps;
+
+  @override
+  Future<bool> openLocationSettings() async {
+    openSettingsCount++;
+    return settingsOpen;
+  }
 }

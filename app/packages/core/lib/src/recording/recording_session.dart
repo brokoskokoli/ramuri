@@ -358,6 +358,8 @@ class RecordingSession {
     }
     for (final r in raw.steps) {
       add(r.value.time, 1, () => pre.addSteps(r.value));
+      // Weiterzählen ab dem höchsten gespeicherten Zähler (keine Doppelzählung).
+      if (r.value.count > _stepCount) _stepCount = r.value.count;
     }
     // Dart-Sortierung ist nicht stabil: Reihenfolge der Einfügung als Schlüssel.
     final indexed = [for (var i = 0; i < events.length; i++) (i, events[i])]
@@ -534,6 +536,36 @@ class RecordingSession {
         bpm: r.beatsPerMinute,
         contact: r.contact,
       ),
+    );
+    return Intake.processed;
+  }
+
+  /// Herkunft der Schrittwerte (`raw_steps.source`): der Schrittsensor des
+  /// Telefons (FR-0202).
+  static const String stepsSource = 'phone';
+
+  /// Zähler des Laufs (`raw_steps`, FR-0202): Schritte des Telefonsensors seit
+  /// Laufbeginn, ohne die Schritte in der manuellen Pause; über ein Fortsetzen
+  /// (FR-0193) hinweg ab dem zuletzt gespeicherten Wert weitergezählt.
+  int get stepCount => _stepCount;
+  int _stepCount = 0;
+
+  /// Sitzungszeit des zuletzt von [addSteps] angenommenen Werts (Empfang).
+  DateTime? get lastStepsTime => _lastStepsTime;
+  DateTime? _lastStepsTime;
+
+  /// Nimmt [newSteps] neue Schritte des Sensors an (Zeit: Empfang in
+  /// Sitzungszeit, wie die Anzeige). Nur im laufenden Lauf (auch in der
+  /// erkannten Pause); weniger als ein Schritt ändert nichts.
+  Intake addSteps(int newSteps) {
+    final time = _now();
+    final gate = _gate(time);
+    if (gate != null) return gate;
+    if (newSteps < 1) return Intake.ignoredNotActive;
+    _stepCount += newSteps;
+    _lastStepsTime = time;
+    _pre!.addSteps(
+      RawSteps(time: time, source: stepsSource, count: _stepCount),
     );
     return Intake.processed;
   }
