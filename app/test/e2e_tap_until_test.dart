@@ -190,17 +190,20 @@ void main() {
 
   testWidgets('tapDialog: schliessende Taste -> zurück, sobald der Dialog '
       'weg ist, ohne feste Pause', (t) async {
-    await t.pumpWidget(const _MitDialog());
+    // Uebergang ohne Dauer: der Dialog ist nach dem ersten Frame weg, also
+    // genau einen Abfrageschritt (100 ms Testzeit) nach dem Tipp.
+    await t.pumpWidget(const _MitDialog(uebergang: Duration.zero));
     await t.tap(find.byKey(const Key('dialog_auf')));
     await t.pumpAndSettle();
     final vorher = t.binding.clock.now();
     await tapDialog(t, 'dialog_zu');
     expect(find.byKey(const Key('dialog')), findsNothing);
     expect(find.byKey(const Key('dialog_zu')), findsNothing);
-    // Testuhr: nur der Uebergang, keine Pause von 300 ms je Tipp danach.
+    // Testuhr: genau ein Abfrageschritt. Eine feste Pause von 300 ms nach dem
+    // Tipp (statt oder zusaetzlich zum Warten) laege darueber.
     expect(
       t.binding.clock.now().difference(vorher),
-      lessThan(const Duration(seconds: 1)),
+      lessThanOrEqualTo(const Duration(milliseconds: 100)),
     );
   });
 
@@ -471,7 +474,11 @@ class _ZweiSeiten extends StatelessWidget {
 /// Seite mit Taste `dialog_auf`; der Dialog `dialog` hat eine schliessende
 /// Taste `dialog_zu` und eine Taste `dialog_bleibt`, die ihn offen laesst.
 class _MitDialog extends StatelessWidget {
-  const _MitDialog();
+  const _MitDialog({this.uebergang});
+
+  /// `null`: Dialog mit dem ueblichen Uebergang (showDialog). Sonst ein Dialog,
+  /// dessen Uebergang genau so lange dauert (fuer enge Zeitschranken).
+  final Duration? uebergang;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -480,30 +487,40 @@ class _MitDialog extends StatelessWidget {
         body: Center(
           child: TextButton(
             key: const Key('dialog_auf'),
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (context) => AlertDialog(
-                key: const Key('dialog'),
-                content: const Text('d'),
-                actions: [
-                  TextButton(
-                    key: const Key('dialog_bleibt'),
-                    onPressed: () {},
-                    child: const Text('bleibt'),
-                  ),
-                  TextButton(
-                    key: const Key('dialog_zu'),
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('zu'),
-                  ),
-                ],
-              ),
-            ),
+            onPressed: () {
+              final u = uebergang;
+              if (u == null) {
+                showDialog<void>(context: context, builder: _dialog);
+              } else {
+                showGeneralDialog<void>(
+                  context: context,
+                  transitionDuration: u,
+                  pageBuilder: (context, _, _) => _dialog(context),
+                );
+              }
+            },
             child: const Text('auf'),
           ),
         ),
       ),
     ),
+  );
+
+  Widget _dialog(BuildContext context) => AlertDialog(
+    key: const Key('dialog'),
+    content: const Text('d'),
+    actions: [
+      TextButton(
+        key: const Key('dialog_bleibt'),
+        onPressed: () {},
+        child: const Text('bleibt'),
+      ),
+      TextButton(
+        key: const Key('dialog_zu'),
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('zu'),
+      ),
+    ],
   );
 }
 
