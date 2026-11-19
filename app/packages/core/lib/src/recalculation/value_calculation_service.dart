@@ -547,6 +547,16 @@ class ValueCalculationService {
     await session.values.writeAll(create: plan.create, swap: plan.swap);
   }
 
+  /// Die Tage, deren gespeicherte Tageswerte [buildSnapshot] neu rechnet: alle
+  /// Tage mit einem beendeten Lauf. Ein Tageswert an einem anderen Tag wird
+  /// bei einer Neuberechnung nicht getauscht.
+  Future<Set<String>> recalculableDays() async =>
+      _daysWithRun(await _finishedRuns());
+
+  static Set<String> _daysWithRun(List<StoredRun> runs) => {
+    for (final r in runs) dayOfRun(r),
+  };
+
   /// Rechnet alle Läufe mit gespeichertem Laufwert und deren Tageswerte mit
   /// der aktuellen Profilbasis neu, ohne etwas zu speichern (Zwischenstand der
   /// Neuberechnung). Tageswerte nur für Tage, die schon einen haben.
@@ -602,7 +612,7 @@ class ValueCalculationService {
       ];
     }
     final dayOwners = <ValueOwner, List<ComputedValue>>{};
-    final days = <String>{for (final r in runs) dayOfRun(r)};
+    final days = _daysWithRun(runs);
     for (final day in days.toList()..sort()) {
       final existing = {
         for (final p in await session.values.read(ValueOwner.day(day)))
