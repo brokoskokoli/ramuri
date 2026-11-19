@@ -52,7 +52,7 @@ grep -qx 'integration_test/e2e_treadmill_test.dart' "$FAKE_LOG" || { echo "FAIL 
 run "Shard stufen: Mehrphasen-Stufen, m2-flow und readiness" 0 6 E2E_SHARD=stufen
 grep -q all_test "$FAKE_LOG" && { echo "FAIL Shard stufen fuehrt all_test aus"; fails=$((fails + 1)); }
 run "ohne Auswahl: alle acht Stufen"          0 8 X=1
-run "Shard unbekannt (Tippfehler) -> Fehler"   1 0 E2E_STUFEN=sammlungx
+run "Shard unbekannt (Tippfehler) -> Fehler"   1 0 E2E_SHARD=sammlungx
 run "Stufe unbekannt -> Fehler"                1 0 E2E_STUFEN=recover-x
 run "eine bekannte, eine unbekannte -> Fehler" 1 0 "E2E_STUFEN=sammlung recover-x"
 run "Shard und Stufen zusammen -> Fehler"      1 0 E2E_SHARD=stufen E2E_STUFEN=sammlung
