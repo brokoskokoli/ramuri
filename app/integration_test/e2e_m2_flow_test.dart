@@ -341,6 +341,22 @@ void main() {
         reason: 'Karten-Frage im Lauf',
       );
       log('M2 section_changed');
+      // Der Sprung verkürzt den Lauf auf wenige Sekunden. Damit die
+      // Zusammenfassung eine Route hat (sonst keine Karte und keine
+      // Karten-Frage), laufen, bis genug Positionen gespeichert sind.
+      final routeDl = DateTime.now().add(const Duration(seconds: 90));
+      while ((await countRuns(t, w)).first.positions < 15) {
+        if (DateTime.now().isAfter(routeDl)) {
+          fail('keine Positionen fuer die Route in 90 s');
+        }
+        expect(
+          has('map_consent_dialog'),
+          isFalse,
+          reason: 'Karten-Frage im Lauf',
+        );
+        await pumpFor(t, const Duration(seconds: 1));
+      }
+      log('M2 route_recorded');
 
       step('M2 beenden');
       // Beenden: kein Karten-Dialog davor oder darueber.
