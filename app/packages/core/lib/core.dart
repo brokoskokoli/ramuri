@@ -182,6 +182,7 @@ export 'src/profile/profile_parameters.dart';
 export 'src/profile/profile_service.dart';
 export 'src/profile/resting_hr_origin.dart';
 export 'src/profile/profile_validation.dart';
+export 'src/recalculation/calculation_failures.dart';
 export 'src/recalculation/recalculation_service.dart';
 export 'src/recalculation/run_analysis.dart';
 export 'src/recalculation/run_load_values.dart';

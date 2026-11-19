@@ -570,6 +570,14 @@ class RecalculationService {
     } on Object {
       cleared = false;
     }
+    // Läufe, deren Berechnung beim Nachholen dauerhaft scheiterte, erneut
+    // versuchen (FR-0219). Scheitert das, bleibt die Neuberechnung gültig; der
+    // Lauf wird beim nächsten Start wieder versucht.
+    try {
+      await _calc.retryUncomputable();
+    } on Object {
+      // Kein Inhalt in Meldungen; der Zähler hält den neuen Fehlversuch.
+    }
     return RecalculationResult(
       runCount: snapshot.runValues.length,
       dayCount: snapshot.dayValues.length,

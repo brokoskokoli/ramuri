@@ -213,6 +213,7 @@ void main() {
           ..['settings'] = [
             for (final k in [
               ValueCalculationService.calculationPendingKey,
+              CalculationFailures.key,
               ValueCalculationService.refreshPendingKey,
               RecalculationService.pendingKey,
               SettingKeys.loadProfilePending,

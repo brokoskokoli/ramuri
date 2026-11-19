@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import '../../ports/archive_source.dart';
 import '../../ports/clock.dart';
 import '../health/health_import.dart';
+import '../recalculation/calculation_failures.dart';
 import '../recalculation/recalculation_service.dart';
 import '../recalculation/value_calculation_service.dart';
 import '../settings/display_settings.dart';
@@ -14,6 +15,7 @@ import 'archive_schema.dart';
 /// Technische Merker in `settings`, die nicht ins Archiv gehören (Vertrag 4.3).
 const Set<String> archiveExcludedSettingKeys = {
   ValueCalculationService.calculationPendingKey,
+  CalculationFailures.key,
   ValueCalculationService.refreshPendingKey,
   RecalculationService.pendingKey,
   SettingKeys.loadProfilePending,

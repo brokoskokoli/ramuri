@@ -13,6 +13,7 @@ import '../statistics/run_overview.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
 import '../settings/load_settings.dart';
 import '../settings/reserve_zone_settings.dart';
+import 'calculation_failures.dart';
 import 'run_analysis.dart';
 import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'run_load_values.dart';
@@ -263,6 +264,14 @@ class ValueCalculationService {
     }
   }
 
+  /// Zähler der gescheiterten Versuche beim Nachholen (FR-0219).
+  CalculationFailures get failures => CalculationFailures(
+    settings: session.settings,
+    clock: clock,
+    fitness: fitness,
+    preprocessing: preprocessing,
+  );
+
   /// Rechnet beim Start alle beendeten Läufe ohne Laufwert nach, gemerkte oder
   /// nicht: [calculateAfterRun] schreibt immer einen Laufwert (notfalls „nicht
   /// bestimmbar“ mit Grund), ein beendeter Lauf ohne Laufwert ist also offen,
@@ -271,12 +280,21 @@ class ValueCalculationService {
   /// ausgetragen; ein Lauf, dessen Werte nicht gelesen werden konnten, bleibt
   /// gemerkt. Der erste Fehler wird nach den übrigen Läufen weitergegeben;
   /// die betroffenen Einträge bleiben.
+  ///
+  /// Fehlversuche (FR-0219): Jede gescheiterte Berechnung zählt für den Lauf
+  /// ([CalculationFailures]); ein Lesefehler zählt nicht. Nach
+  /// [uncomputableAfterFailures] Fehlversuchen wird der Lauf nicht mehr
+  /// versucht (er bleibt gemerkt), bis die Zähler zurückgesetzt sind
+  /// ([retryUncomputable]) oder der Stand der Berechnung sich ändert. Gelingt
+  /// die Berechnung oder fehlt der Lauf, wird sein Zähler entfernt. Scheitert
+  /// nur das Zählen, wird der Lauf beim nächsten Start erneut versucht.
   Future<void> completePendingCalculations() async {
     Object? failure;
     final marked = await _pendingCalculations();
     final open = <int>{};
     final unread = <int>{};
-    for (final r in await _finishedRuns()) {
+    final finished = await _finishedRuns();
+    for (final r in finished) {
       try {
         if ((await session.values.read(ValueOwner.run(r.id))).isEmpty) {
           open.add(r.id);
@@ -287,10 +305,84 @@ class ValueCalculationService {
         failure ??= e;
       }
     }
+    final counter = failures;
+    var counts = const <int, int>{};
+    try {
+      counts = await counter.read();
+      // Gelöschte Läufe und Läufe mit Laufwert brauchen keinen Zähler mehr.
+      await counter.remove({
+        for (final id in counts.keys)
+          if (!open.contains(id) && !unread.contains(id)) id,
+      });
+    } on Object {
+      // Ohne Zähler wird jeder offene Lauf versucht.
+    }
     for (final id in ({...marked, ...open}).toList()..sort()) {
+      if (open.contains(id) && (counts[id] ?? 0) >= uncomputableAfterFailures) {
+        continue;
+      }
       try {
-        if (open.contains(id)) await calculateAfterRun(id);
+        if (open.contains(id)) {
+          try {
+            await calculateAfterRun(id);
+          } on Object {
+            await _recordFailure(counter, id);
+            rethrow;
+          }
+          if (counts.containsKey(id)) await _forget(counter, id);
+        }
         if (marked.contains(id) && !unread.contains(id)) await _unmark(id);
+      } on Object catch (e) {
+        failure ??= e;
+      }
+    }
+    if (failure != null) throw failure;
+  }
+
+  Future<void> _recordFailure(CalculationFailures counter, int runId) async {
+    try {
+      await counter.recordFailure(runId);
+    } on Object {
+      // Nicht gezählt: der Lauf wird beim nächsten Start erneut versucht.
+    }
+  }
+
+  Future<void> _forget(CalculationFailures counter, int runId) async {
+    try {
+      await counter.remove({runId});
+    } on Object {
+      // Der Lauf hat jetzt Werte; der Eintrag wird beim nächsten Start entfernt.
+    }
+  }
+
+  /// Versucht die nicht berechenbaren Läufe ([CalculationFailures.uncomputable])
+  /// erneut, mit zurückgesetztem Zähler („Neu berechnen“, FR-0219). Gelingt
+  /// die Berechnung, ist der Lauf ausgetragen; ein neuer Fehlschlag zählt als
+  /// erster Versuch, der Start versucht ihn dann wieder. Andere offene Läufe
+  /// bleiben dem Nachholen beim Start ([completePendingCalculations]). Der
+  /// erste Fehler wird nach den übrigen Läufen weitergegeben.
+  Future<void> retryUncomputable() async {
+    final counter = failures;
+    final ids = await counter.uncomputable();
+    if (ids.isEmpty) return;
+    await counter.remove(ids);
+    Object? failure;
+    for (final id in ids.toList()..sort()) {
+      try {
+        final run = await session.runs.get(id);
+        if (run == null ||
+            run.state != RunState.finished ||
+            run.endedAt == null ||
+            (await session.values.read(ValueOwner.run(id))).isNotEmpty) {
+          continue;
+        }
+        try {
+          await calculateAfterRun(id);
+        } on Object {
+          await _recordFailure(counter, id);
+          rethrow;
+        }
+        if ((await _pendingCalculations()).contains(id)) await _unmark(id);
       } on Object catch (e) {
         failure ??= e;
       }
