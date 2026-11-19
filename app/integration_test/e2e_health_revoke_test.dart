@@ -49,6 +49,7 @@ void main() {
     testWidgets('D1 Debug-Quelle: Schlaf einwilligen und importieren', (
       t,
     ) async {
+      step('HCD1 start');
       final debug = AppDependencies.create(
         heartRateSensor: DebugTestSensor(const SystemClock()),
         healthConnect: DebugTestHealthConnect(
@@ -66,6 +67,7 @@ void main() {
       await tapKey(t, 'settings_health');
       await waitFor(t, () => has('health_main'), 'Health-Seite');
       await tapKey(t, 'health_switch_sleep');
+      step('HCD1 einwilligen');
       await tapKey(t, 'health_continue');
       await pumpFor(t, const Duration(milliseconds: 500));
       await tapKey(t, 'health_fetch');
@@ -81,6 +83,7 @@ void main() {
   }
   if (phase == '2') {
     testWidgets('D2 echter Adapter, Recht erteilt: keine Frage', (t) async {
+      step('HCD2 start');
       final d = real();
       await restart(t, d);
       await waitFor(t, () => has('home_start_run'), 'Heute');
@@ -95,6 +98,7 @@ void main() {
   }
   if (phase == '3') {
     testWidgets('D3 Recht entzogen: Frage beim Oeffnen von Heute', (t) async {
+      step('HCD3 start');
       final d = real();
       await restart(t, d);
       await waitFor(t, () => has('health_delete_dialog'), 'Loeschfrage');
@@ -102,6 +106,7 @@ void main() {
       log('HCD3 entzogen: Frage sichtbar=true Schlaf=$n');
       await shot(t, 'd3_question');
       if (answer == 'keep') {
+        step('HCD3 behalten');
         await tapDialog(t, 'health_delete_keep');
         await waitFor(t, () => !has('health_delete_dialog'), 'Dialog zu');
         final k = await count(t, d, HealthDataKind.sleep);
@@ -116,6 +121,7 @@ void main() {
         expect(has('health_delete_dialog'), isFalse);
       } else {
         // Abbrechen laesst die Frage offen; beim naechsten Oeffnen kommt sie wieder; dann Loeschen.
+        step('HCD3 abbrechen');
         await tapDialog(t, 'health_delete_cancel');
         await waitFor(t, () => !has('health_delete_dialog'), 'Dialog zu');
         log(
@@ -129,6 +135,7 @@ void main() {
           'Loeschfrage erneut',
         );
         log('HCD3 beim naechsten Oeffnen wieder gefragt');
+        step('HCD3 loeschen');
         await tapDialog(t, 'health_delete_confirm');
         await waitFor(t, () => !has('health_delete_dialog'), 'Dialog zu 2');
         await pumpFor(t, const Duration(seconds: 1));
@@ -142,6 +149,7 @@ void main() {
     testWidgets(
       'B Debug-Quelle: Ruhepuls, HRV, VO2max, Schlaf landen im Speicher',
       (t) async {
+        step('HCB start');
         final debug = AppDependencies.create(
           heartRateSensor: DebugTestSensor(const SystemClock()),
           healthConnect: DebugTestHealthConnect(
@@ -166,6 +174,7 @@ void main() {
                   .value;
           if (!on) await tapKey(t, 'health_switch_$k');
         }
+        step('HCB einwilligen');
         await tapKey(t, 'health_continue');
         await pumpFor(t, const Duration(milliseconds: 500));
         await tapKey(t, 'health_fetch');
@@ -174,6 +183,7 @@ void main() {
           () => find.byType(SnackBar).evaluate().isNotEmpty,
           'Rueckmeldung',
         );
+        step('HCB zaehlen');
         await shot(t, 'b_after_fetch');
         for (final k in [
           HealthDataKind.restingHeartRate,

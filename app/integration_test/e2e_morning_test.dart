@@ -181,6 +181,7 @@ void main() {
     t,
   ) async {
     final cam = DebugTestPpgCamera(speed: 30);
+    step('MORNING S0 start');
     final w = buildFastWorld(cam);
     await startApp(t, w);
     await setupIfShown(t);
@@ -189,6 +190,7 @@ void main() {
       'S0 Fenster=${(await t.runAsync(() => SettingsMorningWindowStore(s.settings, w.deps.clock).read()))!.format()}',
     );
 
+    step('MORNING S1 ohne_entwicklermodus');
     // 1) ohne Entwicklermodus: weder Karte noch Eintrag. Das Fehlen gilt erst,
     // wenn Heute steht und der Einstieg seinen Zustand geladen hat.
     await waitFor(t, () => has('home_start_run'), 'S1 Heute (home_start_run)');
@@ -204,6 +206,7 @@ void main() {
     await shot(t, 's1_uebersicht_ohne');
     log('S1 ok');
 
+    step('MORNING S2 entwicklermodus_an');
     // 2) neun Tipps nicht, zehn ja.
     await tapKey(t, 'overview_about');
     await waitFor(t, () => has('about_version'), 'Ueber');
@@ -285,6 +288,7 @@ void main() {
     );
     await shot(t, 's2_heute_an');
 
+    step('MORNING S3 fenster');
     // Das Fenster liegt fuer die Faelle 3 bis 6 immer um der Systemzeit (die Uhr
     // der App ist die Systemuhr), auch wenn das Vorgabefenster passen wuerde: ein
     // Lauf ueber eine Stundengrenze bleibt so im Fenster.
@@ -321,6 +325,7 @@ void main() {
     final gain = baseToday == 0 ? 1 : 0;
     log('S3 ausgang=$base zaehlt_heute_vorher=$baseToday gain=$gain');
 
+    step('MORNING S3 liegend_sitzend');
     // 3) liegend gut, dann sitzend gut am selben Morgen. Eine Reihe je Geraet
     // (K67): nur die erste gueltige des Morgens zaehlt, die zweite wird
     // gespeichert und als „zaehlt nicht“ vermerkt. Hatte das Geraet heute schon
@@ -373,6 +378,7 @@ void main() {
     await closeResultToHome(t);
     await shot(t, 's3_heute_karte');
 
+    step('MORNING S4 schlecht_dann_gueltig');
     // 4) schlechte Qualitaet -> Noch einmal -> gueltig; die schlechte wird im
     // Entwicklermodus gespeichert (K68), zaehlt aber nirgends.
     cam.scenario = DebugPpgScenario.weakSignal;
@@ -431,6 +437,7 @@ void main() {
     await closeResultToHome(t);
     log('S4 ok');
 
+    step('MORNING S5 ausserhalb_fenster');
     // 5) ausserhalb des Fensters (Fenster ueber den Speicher verlegt, Systemuhr).
     final away = hNow < 12
         ? MorningWindow(hNow + 2, 24)
@@ -457,6 +464,7 @@ void main() {
     );
     log('S5 ok');
 
+    step('MORNING morgenwerte');
     // Morgenwerte (Verlauf) hell/dunkel Sicht.
     await tapKey(t, 'home_overview');
     await tapKey(t, 'overview_morning_values');
@@ -527,6 +535,7 @@ void main() {
     await tapKey(t, 'measure_back');
     await back(t);
 
+    step('MORNING S5b ohne_gurt');
     // 5b) Gurtzeile ohne bekannten Gurt. Frueher laufende Gruppen der Sammlung
     // (Lauf) haben einen Gurt verbunden und bekannt gemacht, und die App kann
     // einzelne bekannte Geraete nicht entfernen. Deshalb bekommt der
@@ -569,6 +578,7 @@ void main() {
     await tapKey(t, 'measure_back');
     await back(t);
 
+    step('MORNING S6 gurt_paar');
     // 6) Gurt mit RR: Paar gespeichert, Zaehler, Teilen mit Warnung. Der Gurt
     // ist bekannt, aber getrennt; das Oeffnen des Einstiegs verbindet ihn
     // selbst (Autoverbinden, WP37 C2), ohne dass der Test verbindet.
@@ -677,6 +687,7 @@ void main() {
     );
     await shot(t, 's6_nach_teilen');
 
+    step('MORNING S7 ruhephase_ueberspringen');
     // 7) Ruhephase ueberspringen: die Messung startet sofort, der Fortschritt
     // zeigt „Gutes Signal“, das Ergebnis kommt, der Vermerk ist gespeichert.
     // Zeitraffer langsamer, damit der Fortschritt sichtbar bleibt.
@@ -737,6 +748,7 @@ void main() {
       'S7 Entwicklereinstellungen',
     );
 
+    step('MORNING S8 entwicklermodus_aus');
     // 8) Entwicklermodus aus: Seite zu, Eintraege weg.
     await tapKey(t, 'about_dev_switch');
     await waitFor(

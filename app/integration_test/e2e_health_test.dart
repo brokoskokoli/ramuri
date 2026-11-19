@@ -128,6 +128,7 @@ void main() {
   test(
     '0 Debug-Quelle: jeder Einzelwert hat eine Einheit (Speicher verlangt sie)',
     () async {
+      step('HC0 einheiten');
       final raw = DebugTestHealthConnect(now: () => const SystemClock().now());
       for (final k in [
         HealthDataKind.hrvRmssd,
@@ -153,6 +154,7 @@ void main() {
   );
 
   testWidgets('1 Einwilligung fuer zwei Arten und Jetzt abrufen', (t) async {
+    step('HC1 start');
     log('HC1 Ausgangszustand: frische Installation, Einrichtung uebersprungen');
     await _start(t, d);
     final store = await _store(t, d);
@@ -161,6 +163,7 @@ void main() {
     expect(before.values.every((v) => v == 0), isTrue);
     await _openHealth(t);
     expect(has('health_main'), isTrue);
+    step('HC1 schalter');
     // Ausgangslage: nichts eingeschaltet, Weiter-Knopf gesperrt.
     for (final k in HealthDataKind.values) {
       expect(_on(k.key), isFalse, reason: 'Schalter ${k.key} anfangs aus');
@@ -170,11 +173,13 @@ void main() {
     await tapKey(t, 'health_switch_vo2_max');
     expect(_on('exercise') && _on('vo2_max'), isTrue);
     expect(await hc.grantedKinds(), isEmpty);
+    step('HC1 einwilligen');
     await tapKey(t, 'health_continue');
     await pumpFor(t, const Duration(milliseconds: 500));
     final granted = await t.runAsync(hc.grantedKinds);
     log('HC1 Rechte ${granted!.map((k) => k.key).toList()..sort()}');
     expect(granted, {HealthDataKind.exercise, HealthDataKind.vo2Max});
+    step('HC1 abrufen');
     await tapKey(t, 'health_fetch');
     await waitFor(
       t,
@@ -203,6 +208,7 @@ void main() {
   });
 
   testWidgets('2 Quelle sichtbar im Verlauf und auf Fortschritt', (t) async {
+    step('HC2 verlauf');
     await _start(t, d);
     await tapKey(t, 'home_history');
     await pumpFor(t, const Duration(seconds: 1));
@@ -223,6 +229,7 @@ void main() {
     );
     expect(has('health_exercise_taken_debug-exercise-0'), isFalse);
     await shot(t, 'history_imported');
+    step('HC2 fortschritt');
     await tapKey(t, 'home_statistics');
     await waitFor(t, () => has('health_vo2_card'), 'VO2max-Vergleichskarte');
     expect(has('health_vo2_row_debug.app.a'), isTrue);
@@ -236,6 +243,7 @@ void main() {
   });
 
   testWidgets('3 Training uebernehmen zaehlt einmal', (t) async {
+    step('HC3 start');
     await _start(t, d);
     final session = await _session(t, d);
     final units0 = await _loadUnits(t, d);
@@ -248,6 +256,7 @@ void main() {
       () => has('health_exercise_debug-exercise-0'),
       'importierte Einheit',
     );
+    step('HC3 detail');
     await tapKey(t, 'health_exercise_debug-exercise-0');
     await waitFor(t, () => has('health_take'), 'Detail mit Uebernehmen');
     expect(has('health_detail_origin'), isTrue);
@@ -262,6 +271,7 @@ void main() {
       units0,
       reason: 'Belastung vor Uebernahme unveraendert',
     );
+    step('HC3 uebernehmen');
     await tapKey(t, 'health_take');
     await waitFor(t, () => has('manual_save'), 'Nachtrag-Formular');
     // Dauer ist vorausgefuellt (40 min), RPE fragt die App.
@@ -298,6 +308,7 @@ void main() {
     log('HC3 nachher Einheiten=$units1 Nachtraege=$manual1');
     expect(manual1, manual0 + 1);
     expect(units1, units0 + 1, reason: 'genau einmal gezaehlt');
+    step('HC3 verlauf');
     // Zurueck: Verlauf zeigt "uebernommen" an der Einheit, genau ein Nachtrag mit dieser Quelle.
     await back(t);
     await pumpFor(t, const Duration(seconds: 1));
@@ -309,6 +320,7 @@ void main() {
   });
 
   testWidgets('4 Widerruf mit Loeschfrage leert nur diese Art', (t) async {
+    step('HC4 start');
     await _start(t, d);
     final store = await _store(t, d);
     final before = await _counts(t, store);
@@ -319,6 +331,7 @@ void main() {
       isTrue,
       reason: 'Einwilligung blieb ueber den Neustart',
     );
+    step('HC4 abbrechen');
     // Abbrechen: schaltet wieder ein, nichts geloescht.
     await tapKey(t, 'health_switch_vo2_max');
     await waitFor(t, () => has('health_delete_dialog'), 'Loeschfrage');
@@ -327,6 +340,7 @@ void main() {
     await waitFor(t, () => !has('health_delete_dialog'), 'Dialog zu');
     expect(_on('vo2_max'), isTrue, reason: 'Abbrechen schaltet wieder ein');
     expect(await _counts(t, store), before);
+    step('HC4 loeschen');
     // Widerruf und Loeschen.
     await tapKey(t, 'health_switch_vo2_max');
     await waitFor(t, () => has('health_delete_dialog'), 'Loeschfrage 2');
@@ -341,6 +355,7 @@ void main() {
     expect(_on('exercise'), isTrue);
     expect(_on('vo2_max'), isFalse);
     await shot(t, 'health_page_after_delete');
+    step('HC4 fortschritt');
     // Die Uebernahme als Training bleibt (eigene Daten), Vergleichskarte weg.
     await back(t);
     await back(t);
@@ -352,6 +367,7 @@ void main() {
       isFalse,
       reason: 'Karte ohne Daten unsichtbar',
     );
+    step('HC4 behalten');
     // Behalten-Pfad: Widerruf der Einheiten mit "Behalten" loescht nichts.
     await tapKey(t, 'home_today');
     await _openHealth(t);
@@ -367,6 +383,7 @@ void main() {
   });
 
   testWidgets('6 Health Connect installieren: updateRequired', (t) async {
+    step('HC6 start');
     final fake = DebugTestHealthConnect(
       now: () => const SystemClock().now(),
       status: HealthSdkStatus.updateRequired,
@@ -376,11 +393,13 @@ void main() {
     expect(has('health_unavailable_install'), isTrue);
     expect(has('health_install'), isTrue);
     await shot(t, 'unavailable_install');
+    step('HC6 installieren');
     await tapKey(t, 'health_install');
     await pumpFor(t, const Duration(milliseconds: 500));
     expect(fake.installOpened, 1);
     await tapKey(t, 'health_without');
     await pumpFor(t, const Duration(seconds: 1));
+    step('HC6 rest_der_app');
     // Rest der App normal.
     await back(t);
     await back(t);
@@ -402,6 +421,7 @@ class _Lifecycle with WidgetsBindingObserver {
 
 void _realScenario() {
   testWidgets('5 echter Berechtigungsdialog ohne Daten', (t) async {
+    step('HC5 start');
     final d = _deps(null);
     log('HC5 echter Adapter (Plattformkanal), keine Debug-Quelle');
     await _start(t, d);
@@ -410,6 +430,7 @@ void _realScenario() {
     final available = has('health_main');
     log('HC5 Seite=${available ? 'main' : 'unavailable'}');
     if (!available) {
+      step('HC6 echter_adapter_ohne_hc');
       // Echter Adapter ohne Health Connect (API 31: Paket fehlt): Installieren-Seite, Knopf ohne Absturz.
       log(
         'HC6 echter Adapter: install=${has('health_unavailable_install')} unsupported=${has('health_unavailable_unsupported')}',
@@ -435,6 +456,7 @@ void _realScenario() {
       log('HC6 Rest der App normal (Heute, Verlauf)');
       return;
     }
+    step('HC5 dialog');
     await tapKey(t, 'health_switch_sleep');
     await shot(t, 'real_before_dialog');
     final seen = <AppLifecycleState>[];
@@ -458,6 +480,7 @@ void _realScenario() {
       reason: 'Berechtigungsdialog von Health Connect erschien nicht',
     );
     expect(find.byType(ErrorWidget), findsNothing);
+    step('HC5 nach_abbruch');
     final c = await _counts(t, store);
     log('HC5 nach Abbruch ${_fmt(c)}');
     expect(

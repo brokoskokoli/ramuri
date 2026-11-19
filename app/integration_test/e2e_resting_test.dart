@@ -64,10 +64,12 @@ void main() {
   testWidgets('guter Puls: Ergebnis uebernehmen speichert den Ruhepuls', (
     t,
   ) async {
+    step('RESTING_GUT start');
     final cam = DebugTestPpgCamera(speed: 30);
     final w = buildWorld(camera: cam);
     await _openMeasure(t, w);
     final s = await session(t, w);
+    step('RESTING_GUT messung');
     // Ausgangswert ist ein anderer als das Ergebnis (sonst waere "gespeichert" nicht belegt).
     final prior = await _resting(t, s);
     expect(
@@ -92,9 +94,11 @@ void main() {
       prior,
       reason: 'vor Uebernahme nichts gespeichert',
     );
+    step('RESTING_GUT uebernehmen');
     await tapKey(t, 'measure_adopt');
     await waitFor(t, () => !has('measure_start'), 'Messung geschlossen');
     // Das Speichern laeuft ueber echte Ein-/Ausgabe: warten, bis es ankommt.
+    step('RESTING_GUT gespeichert_pruefen');
     final end = DateTime.now().add(const Duration(seconds: 30));
     var saved = await _resting(t, s);
     while (saved == prior && DateTime.now().isBefore(end)) {
@@ -116,6 +120,7 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 3)));
 
   testWidgets('kein Finger: kein Wert, nichts gespeichert', (t) async {
+    step('RESTING_KEIN_FINGER start');
     final cam = DebugTestPpgCamera(
       speed: 30,
       scenario: DebugPpgScenario.noFinger,
@@ -132,6 +137,7 @@ void main() {
     );
     expect(has('measure_adopt'), isFalse, reason: 'ohne Finger kein Wert');
     expect(has('measure_manual'), isTrue, reason: 'Eingabe von Hand angeboten');
+    step('RESTING_KEIN_FINGER von_hand');
     await tapKey(t, 'measure_manual');
     await waitFor(t, () => !has('measure_start'), 'Messung geschlossen');
     expect(await _resting(t, s), prior, reason: 'nichts uebernommen');
@@ -145,6 +151,7 @@ void main() {
       speed: 30,
       scenario: DebugPpgScenario.weakSignal,
     );
+    step('RESTING_KAMERAWAHL start');
     const second = PpgCameraRef('0', '2');
     expect(cam.scenarioOf(second), DebugPpgScenario.goodPulse);
     final w = buildWorld(camera: cam);
@@ -155,8 +162,10 @@ void main() {
     final mode = SettingsDeveloperModeStore(s.settings, w.deps.clock);
     final wasOn = await t.runAsync(mode.read);
     try {
+      step('RESTING_KAMERAWAHL kamera_waehlen');
       await _chooseCamera(t, '0/2');
       expect(await t.runAsync(choice.readManual), second);
+      step('RESTING_KAMERAWAHL messung');
       await tapKey(t, 'home_profile');
       await waitFor(
         t,
@@ -183,6 +192,7 @@ void main() {
         isTrue,
         reason: 'zweite Kamera (guter Puls) liefert einen Wert',
       );
+      step('RESTING_KAMERAWAHL verwerfen');
       await tapKey(t, 'measure_discard');
       await waitFor(t, () => !has('measure_start'), 'Messung geschlossen');
       expect(cam.torchOn, isFalse, reason: 'Kamera wieder frei');

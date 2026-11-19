@@ -44,4 +44,12 @@ Die Debug-Quelle liefert je Nacht einen HRV-Wert 20 min nach dem Ende der Schlaf
 - Sichtprüfungen (Layout, Lesbarkeit): Sache des E2E-Agenten.
 - Nur im Feld: Hintergrundbetrieb, Akku, echter Brustgurt.
 
-Tests geben nur Zähler, Schlüssel und Längen aus, nie Werte (SEC-0001..0010); `ci_e2e.sh` filtert `E2E_`-Zeilen aus Log und Artefakt.
+## Ausgabe der Tests: `log`, `logPub`, `step`
+
+Tests geben nur Zähler, Schlüssel und Längen aus, nie Werte (SEC-0001..0010); `ci_e2e.sh` filtert `E2E_`-Zeilen aus Log und Artefakt. Hilfen in `support/e2e_support.dart`:
+
+- `log(...)` schreibt `E2E_<zeit> ...`: alles, was Zähler, Zustände oder Werte trägt (z. B. `S5 reihen=...`). Diese Zeilen sieht nur, wer lokal testet; im öffentlichen CI-Log fehlen sie.
+- `step('<name>')` schreibt `PUB_<zeit> SCHRITT <name>` ins öffentliche CI-Log. Jeder Test markiert damit seine Abschnitte (z. B. `READINESS S3 detail`, `HC4 loeschen`, `M2 abschnittswechsel`); Präfix nach Ablauf (`RUN`, `PLAN`, `WARNING`, `ARCHIVE`, `TREADMILL`, `RESTING_…`, `MORNING`, `HC…`, `RECALC`, `RECOVER_…`, `STORAGE`, `M2`, `READINESS`), damit der Ort in der Sammlung eindeutig ist. Der Name ist immer ein einzelnes Literal, nie aus Daten gebildet; `test/e2e_step_test.dart` weist jeden anderen Aufruf ab (Variable, Interpolation, Verkettung, bedingter Ausdruck) und prüft, dass jede `e2e_*_test.dart` Marken setzt. Unterschiedliche Fälle bekommen je ein eigenes Literal (`if`/`else`).
+- `logPub(...)` schreibt `PUB_<zeit> ...` für Zustandsmarker mit Schlüsselnamen (`tap_vor`, `im_baum=ja|nein`) und den Fehlertext ohne Werte (`reportingFailures`); nie Werte.
+
+Ist eine Stufe rot, zeigt der Fehlerabschnitt von `ci_e2e.sh` die letzten `PUB_`-Zeilen und die Zeile `letzter Schritt vor dem Fehler: ...` (letzte Schrittmarke vor dem ersten fehlgeschlagenen Test der Stufe).
