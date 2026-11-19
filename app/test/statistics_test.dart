@@ -348,6 +348,37 @@ void main() {
       }
     });
 
+    testWidgets('VO₂max des Laufs ohne Puls und ohne Profil: kein Puls '
+        '(FR-0057)', (tester) async {
+      final d = await started(tester);
+      // Profil ohne Ruhepuls und HFmax.
+      d.clock.set(DateTime.utc(2026, 6, 3, 12));
+      final id = await seedRun(
+        d.session,
+        DateTime.utc(2026, 6, 1, 8),
+        bpm: null,
+      );
+      await calc(d, id);
+      await openStats(d, tester);
+      expect(text('stat_vo2_run_value'), contains('kein Puls'));
+      expect(text('stat_vo2_run_value'), isNot(contains('im Profil prüfen')));
+    });
+
+    testWidgets('VO₂max des Laufs mit Puls, Profil unvollständig: '
+        'Profilgrund bleibt (FR-0055)', (tester) async {
+      final d = await started(tester);
+      // Profil ohne Ruhepuls und HFmax.
+      d.clock.set(DateTime.utc(2026, 6, 3, 12));
+      final id = await seedRun(d.session, DateTime.utc(2026, 6, 1, 8));
+      await calc(d, id);
+      await openStats(d, tester);
+      expect(
+        text('stat_vo2_run_value'),
+        contains('Ruhepuls und HFmax im Profil prüfen'),
+      );
+      expect(text('stat_vo2_run_value'), isNot(contains('kein Puls')));
+    });
+
     testWidgets('mit Puls, Profil unvollständig: Profilgrund bleibt', (
       tester,
     ) async {

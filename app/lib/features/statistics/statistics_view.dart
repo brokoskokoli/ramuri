@@ -459,22 +459,11 @@ class _Body extends StatelessWidget {
     for (final r in runs) {
       final why = reason(r.load);
       if (why == null) continue;
-      if (r.averageHeartRateBpm == null && _isProfileBasis(why)) {
-        return l10n.sumNoHeartRate;
-      }
-      return reasonText(l10n, why);
+      return reasonText(l10n, why, hasHeartRate: r.averageHeartRateBpm != null);
     }
     if (runs.isNotEmpty && !runs.any((r) => stored(r.load))) {
       return l10n.sumLoadNotStored;
     }
     return l10n.statNoValue;
   }
-
-  static bool _isProfileBasis(UnavailableReason why) => switch (why) {
-    UnavailableReason.missingMaxHeartRate ||
-    UnavailableReason.missingRestingHeartRate ||
-    UnavailableReason.maxNotAboveResting ||
-    UnavailableReason.reserveTooSmall => true,
-    _ => false,
-  };
 }
