@@ -35,6 +35,12 @@
 # den github-Reporter, der die Ausgabe eines Tests erst an dessen Ende ausgibt
 # (NEED_KILL kaeme zu spaet). Zusaetzlich alle 2 s ein Foto, solange die App vorn
 # liegt; bei Fehlern haelt der Test die App 20 s offen.
+# Zeitlimit je Stufe (grenze_s unten, Herleitung dort): Laeuft flutter test laenger (Wanduhr ab Start der Stufe),
+# beendet der Host flutter test samt Kindprozessen, fuehrt `am force-stop` aus und meldet
+# "Zeitlimit in Stufe <name> nach <s> s"; die Stufe ist rot (Log, Logcat, Foto wie bei jedem Rot), die folgenden
+# Stufen laufen weiter. So endet eine haengende Stufe rot mit Artefakt statt mit dem Abbruch des Jobs.
+# E2E_STUFE_LIMIT_S=<s> (positive ganze Zahl) ersetzt die Grenze aller Stufen (lokal, Selbsttest); ein anderer
+# Wert ist ein Fehler vor der ersten Stufe.
 set -u
 out="${1:-e2e-out}"
 mkdir -p "$out"
@@ -55,9 +61,25 @@ done
 shard_sammlung="sammlung treadmill-plan"
 shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness"
 alle_stufen="$shard_sammlung $shard_stufen"
-# Waechter: Jede Zeile `stufe <name> ...` unten muss in einem Shard stehen, sonst liefe sie in der CI nie.
+# Zeitlimit je Stufe in s, fuer die gesamte Laufzeit von flutter test (Build, Install, Tests).
+# Herleitung: das Doppelte der laengsten gemessenen Dauer (Zeilen "STUFE ... dauer=") aus sechs gruenen Laeufen
+# des Workflows e2e auf main, je API 31 und 36 (Messtabelle in PR #69), aufgerundet auf volle Minuten,
+# mindestens 5 min. Gemessene Hoechstwerte: sammlung 733 s, treadmill-plan 376 s, storage-a 319 s,
+# storage-b 43 s, recover-a 73 s, recover-b 57 s, m2-flow 101 s, readiness 106 s.
+# Waechst eine Stufe deutlich, hier neu messen und nachziehen.
+grenze_s() {
+  case "$1" in
+    sammlung) echo 1500 ;;
+    treadmill-plan) echo 780 ;;
+    storage-a) echo 660 ;;
+    storage-b | recover-a | recover-b | m2-flow | readiness) echo 300 ;;
+  esac
+}
+# Waechter: Jede Zeile `stufe <name> ...` unten muss in einem Shard stehen, sonst liefe sie in der CI nie,
+# und ein Zeitlimit haben.
 for n in $(grep '^stufe [^ ]* [01] ' "$0" | cut -d' ' -f2); do
   case " $alle_stufen " in *" $n "*) ;; *) echo "Stufe $n steht in keinem Shard"; exit 1 ;; esac
+  [ -n "$(grenze_s "$n")" ] || { echo "Stufe $n hat kein Zeitlimit (grenze_s)"; exit 1; }
 done
 if [ -n "${E2E_SHARD:-}" ] && [ -n "${E2E_STUFEN:-}" ]; then echo "E2E_SHARD und E2E_STUFEN zusammen"; exit 1; fi
 case "${E2E_SHARD:-}" in
@@ -74,6 +96,13 @@ case "${E2E_SHOTS:-}" in
   "") shots_define="" ;;
   1) shots_define="--dart-define=E2E_SHOTS=true" ;;
   *) echo "E2E_SHOTS nur 1 oder leer"; exit 1 ;;
+esac
+
+# Leer wie nicht gesetzt (Grenzen aus grenze_s); sonst nur Ziffern und groesser als 0.
+case "${E2E_STUFE_LIMIT_S:-}" in
+  "") ;;
+  *[!0-9]*) echo "E2E_STUFE_LIMIT_S keine positive ganze Zahl"; exit 1 ;;
+  *) [ "$E2E_STUFE_LIMIT_S" -gt 0 ] 2>/dev/null || { echo "E2E_STUFE_LIMIT_S keine positive ganze Zahl"; exit 1; } ;;
 esac
 
 # shot_watch <testlog> <stufe>: je neue vollstaendige Zeile "E2E_<zeit> SHOT <name>" genau ein Foto
@@ -124,6 +153,21 @@ grant_until_done() {
   done
 }
 
+# baum <pid>: die PID und alle Nachfahren (flutter test startet Tool, adb usw.).
+baum() {
+  for c in $(pgrep -P "$1" 2>/dev/null); do baum "$c"; done
+  echo "$1"
+}
+
+# beende_baum <pid>: haelt den Prozessbaum an (keine neuen Kinder mehr), liest ihn erneut und beendet alle.
+# Nicht nur die PID der Subshell: verwaiste Kinder (flutter_tester, adb) liefen sonst weiter.
+beende_baum() {
+  # shellcheck disable=SC2046
+  kill -STOP $(baum "$1") 2>/dev/null
+  # shellcheck disable=SC2046
+  kill -KILL $(baum "$1") 2>/dev/null
+}
+
 rc_all=0
 ran=0
 
@@ -133,6 +177,7 @@ stufe() {
   case " $auswahl " in *" $name "*) ;; *) return 0 ;; esac
   ran=$((ran + 1))
   log="$out/flutter-test-$name.log"
+  limit="${E2E_STUFE_LIMIT_S:-$(grenze_s "$name")}"
   t0=$(date +%s)
   a logcat -c
   : >"$log"
@@ -149,7 +194,16 @@ stufe() {
   grant_until_done &
   gpid=$!
   killed=1
+  zeitlimit=0
   while kill -0 "$pid" 2>/dev/null; do
+    el=$(($(date +%s) - t0))
+    if [ "$el" -ge "$limit" ]; then
+      echo "Zeitlimit in Stufe $name nach $el s"
+      zeitlimit=1
+      beende_baum "$pid"
+      a shell am force-stop "$pkg"
+      break
+    fi
     # Ab dem ersten fehlgeschlagenen Test ("[E]" im expanded-Reporter) kein neues Foto mehr:
     # Sonst zeigt es am Ende einen spaeteren Test der Sammlung statt der Fehlerstelle.
     if grep -q '\[E\]' "$log" 2>/dev/null; then :
@@ -174,6 +228,8 @@ stufe() {
     # Das Testende nach dem Prozessende ist erwartet; fehlt das Zeichen, ist die Stufe rot.
     if [ "$killed" = 0 ]; then rc=0; else rc=1; echo "kein NEED_KILL in Stufe $name"; fi
   fi
+  # Nach dem Zeitlimit immer rot, auch wenn NEED_KILL schon kam.
+  [ "$zeitlimit" = 0 ] || rc=1
   echo "STUFE $name rc=$rc dauer=$(($(date +%s) - t0))s"
   # Nur Zeilen ohne "E2E_" (Wertausgaben der Tests) in das oeffentliche Log.
   grep -v 'E2E_' "$log" >"$log.pub"
