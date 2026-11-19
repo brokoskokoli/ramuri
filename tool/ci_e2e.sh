@@ -4,6 +4,9 @@
 #
 # Stufen (je ein `flutter test` = ein Build und Install):
 #   sammlung        integration_test/all_test.dart: alle Ablaeufe ohne Prozessende
+#   treadmill-plan  e2e_treadmill_test.dart TREADMILL_PLAN=true: gefuehrte Einheit aus dem Plan auf dem Laufband
+#                   in Echtzeit (~5 min Abschnitt); eigene Stufe wegen frischem Speicher ohne Ziel und der Dauer,
+#                   im Shard sammlung (der kuerzere), kein Prozessende
 #   storage-a/-b    e2e_storage_test.dart PHASE=write, Prozessende, PHASE=read
 #   recover-a/-b    e2e_recover_test.dart PHASE=a (Lauf laeuft), Prozessende, PHASE=b
 #   m2-flow         e2e_m2_flow_test.dart: Plan, gefuehrte Einheit in Echtzeit (~5,5 min), Anpassung;
@@ -44,7 +47,7 @@ for f in app/integration_test/e2e_*_test.dart; do
   grep -q "^import '$b'" app/integration_test/all_test.dart || { echo "FEHLT in all_test.dart und als Stufe: $b"; exit 1; }
 done
 
-shard_sammlung="sammlung"
+shard_sammlung="sammlung treadmill-plan"
 shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness"
 alle_stufen="$shard_sammlung $shard_stufen"
 # Waechter: Jede Zeile `stufe <name> ...` unten muss in einem Shard stehen, sonst liefe sie in der CI nie.
@@ -159,6 +162,7 @@ fpid=$!
 trap 'kill "$fpid" 2>/dev/null' EXIT
 
 stufe sammlung 0 integration_test/all_test.dart
+stufe treadmill-plan 0 integration_test/e2e_treadmill_test.dart --dart-define=TREADMILL_PLAN=true
 stufe storage-a 1 integration_test/e2e_storage_test.dart --no-uninstall --dart-define=PHASE=write --dart-define=MARKER=ci-marker-7f3a
 stufe storage-b 0 integration_test/e2e_storage_test.dart --dart-define=PHASE=read --dart-define=MARKER=ci-marker-7f3a
 stufe recover-a 1 integration_test/e2e_recover_test.dart --no-uninstall --dart-define=PHASE=a
