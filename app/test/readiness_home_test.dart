@@ -5,6 +5,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/home/home_recovery.dart';
+import 'package:running_app/features/home/home_screen.dart';
 import 'package:running_app/features/measure/morning_trend_screen.dart';
 import 'package:running_app/features/readiness/readiness_service.dart';
 import 'package:running_app/features/readiness/readiness_texts.dart';
@@ -201,6 +202,54 @@ Future<void> _seedFactorRuns(StorageSession s) async {
       RunSubjective(rpe: rpe),
       srpe: SrpeLoad.compute(duration: const Duration(minutes: 30), rpe: rpe),
     );
+  }
+}
+
+/// Hält die Übergabe des [call]-ten Ladelaufs der Erholung auf „Heute“ zurück
+/// ([HomeScreen.debugWrapReadiness]), bis der Test [release] ruft. Der Lauf
+/// rechnet sofort; nur sein Ergebnis wartet. Setzt den Haken beim Abbau zurück.
+class _ReadinessHold {
+  _ReadinessHold(this.call) {
+    HomeScreen.debugWrapReadiness = (n, load) {
+      calls = n;
+      if (n != call) return load;
+      load.then(
+        (_) => loaded.complete(true),
+        onError: (Object _) {
+          loaded.complete(false);
+        },
+      );
+      return _gate.future.then((_) => load);
+    };
+    addTearDown(() => HomeScreen.debugWrapReadiness = null);
+  }
+
+  final int call;
+  final Completer<void> _gate = Completer<void>();
+
+  /// Ergebnis des zurückgehaltenen Laufs liegt vor (`false` bei Fehler).
+  final Completer<bool> loaded = Completer<bool>();
+  int calls = 0;
+
+  /// Lauf [call] hat begonnen und ist noch nicht freigegeben.
+  bool get held => calls >= call && !_gate.isCompleted;
+  void release() => _gate.complete();
+}
+
+/// Beantwortet die offenen Löschfragen mit „Behalten“ (widerruft je Art).
+Future<void> _keepAll(WidgetTester tester) async {
+  for (
+    var i = 0;
+    i < 3 && _key('health_delete_keep').evaluate().isNotEmpty;
+    i++
+  ) {
+    await tester.tap(_key('health_delete_keep'));
+    for (var j = 0; j < 20; j++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+    }
   }
 }
 
@@ -905,6 +954,74 @@ void main() {
       }
       // Ohne Einwilligung und ohne Kamera/Entwicklermodus: Basisstufe.
       expect(_key('readiness_card'), findsNothing);
+    });
+
+    testWidgets('Löschfrage auf Heute: älterer Erholungslauf endet zuletzt '
+        'und bringt keine widerrufenen Werte zurück (SEC-0007)', (
+      tester,
+    ) async {
+      final hold = _ReadinessHold(2);
+      final d = Device();
+      final s = await _preopen(d, granted: const {});
+      await _seedHealth(s);
+      await _grant(s, _allKinds);
+      await _start(tester, d);
+      // Lauf A (nach dem Import, mit Einwilligung) hängt an der Übergabe.
+      expect(hold.calls, 2, reason: 'Öffnen, Lauf A nach dem Import');
+      expect(hold.held, isTrue, reason: 'Lauf A zurückgehalten');
+      // Lauf A hat den Lauf beim Öffnen abgelöst; einen Kartenstand mit
+      // Einwilligung gibt es nur über ihn.
+      expect(_key('health_delete_dialog'), findsOneWidget);
+      await _keepAll(tester);
+      expect(_key('health_delete_dialog'), findsNothing);
+      // Lauf B (ohne Einwilligung) ist durch: Basisstufe.
+      expect(hold.calls, 3, reason: 'Lauf B nach der Löschfrage');
+      expect(_key('readiness_card'), findsNothing);
+      // Vor der Freigabe: Lauf A hängt noch, sein Ergebnis liegt vor.
+      expect(hold.held, isTrue, reason: 'Lauf A noch zurückgehalten');
+      expect(
+        await tester.runAsync(() => hold.loaded.future),
+        isTrue,
+        reason: 'Lauf A hat zu seinem Start gerechnet',
+      );
+      hold.release();
+      var card = 0;
+      var value = 0;
+      for (var i = 0; i < 20; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        if (_key('readiness_card').evaluate().isNotEmpty) card++;
+        if (_key('readiness_value').evaluate().isNotEmpty) value++;
+      }
+      expect(hold.held, isFalse, reason: 'Lauf A freigegeben');
+      expect(card, 0, reason: 'erweiterte Karte in $card Frames zurück');
+      expect(value, 0, reason: 'Zahl in $value Frames zurück');
+      expect(_key('readiness_card'), findsNothing);
+    });
+
+    testWidgets('Löschfrage auf Heute: Erholungslauf endet erst nach dem '
+        'Verlassen von Heute, ohne Ausnahme', (tester) async {
+      final hold = _ReadinessHold(2);
+      final d = Device();
+      final s = await _preopen(d, granted: const {});
+      await _seedHealth(s);
+      await _grant(s, _allKinds);
+      await _start(tester, d);
+      expect(hold.held, isTrue, reason: 'Lauf A zurückgehalten');
+      // „Heute“ verlassen (dispose), solange Lauf A hängt.
+      await tester.pumpWidget(const SizedBox());
+      expect(find.byKey(const Key('health_delete_dialog')), findsNothing);
+      hold.release();
+      for (var i = 0; i < 20; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(hold.held, isFalse, reason: 'Lauf A freigegeben');
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('Entwicklermodus an: nur der Hinweis, Zahl unverändert', (

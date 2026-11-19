@@ -246,6 +246,28 @@ void main() {
     },
   );
 
+  test('Schritte (raw_steps, FR-0202): deleteRun entfernt nur die des Laufs, deleteAll alle', () async {
+    final (s, a, b) = await setup();
+    Future<int> count(int runId) async =>
+        (await s.rawData.read(runId)).steps.length;
+    Future<int> total() async =>
+        (await s.database
+                    .customSelect('SELECT COUNT(*) AS n FROM raw_steps')
+                    .get())
+                .single
+                .data['n']
+            as int;
+    expect(await count(a), 20, reason: 'Positivkontrolle');
+    expect(await count(b), 20);
+    await s.deleteRun(a);
+    expect(await count(a), 0);
+    expect(await count(b), 20, reason: 'anderer Lauf bleibt');
+    expect(await total(), 20, reason: 'keine verwaisten Zeilen');
+    await s.deleteAll();
+    expect(await total(), 0);
+    await s.close();
+  });
+
   test('Laufbandeinstellungen: deleteRun entfernt nur die des Laufs, deleteAll alle', () async {
     final (s, a, b) = await setup();
     Future<int> count(int runId) async =>

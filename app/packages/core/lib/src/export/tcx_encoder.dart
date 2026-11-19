@@ -3,6 +3,7 @@ import 'xml_text.dart';
 
 const String _tcxNs =
     'http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2';
+const String _tpxNs = 'http://www.garmin.com/xmlschemas/ActivityExtension/v2';
 
 /// TCX (TrainingCenterDatabase v2, `docs/contracts/file-export.md`). Jede
 /// Runde wird ein `Lap`, jeder Abschnitt darin mit Punkten ein `Track`. Ein
@@ -13,13 +14,21 @@ const String _tcxNs =
 /// (FR-0196): Trackpoints ohne `Position`, mit der kumulierten
 /// `DistanceMeters` aus den Bandeinstellungen; die Rundenstrecke ist deren
 /// Zuwachs. TCX kennt keine Laufbandkennzeichnung (Sport nur Running, Biking,
-/// Other).
+/// Other). Schrittfrequenz: `Extensions/TPX/RunCadence` der ActivityExtension
+/// v2 (Doppelschritte je Minute); der Namensraum steht nur in Dateien mit
+/// Schrittfrequenz.
 String encodeTcx(ExportRun run) {
   final distances = run.lapDistancesMeters();
+  final withCadence = run.segments.any(
+    (s) => s.points.any(
+      (p) => exportStrideCadence(p.cadenceStepsPerMinute) != null,
+    ),
+  );
   final b = StringBuffer()
     ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
     ..writeln(
       '<TrainingCenterDatabase xmlns="$_tcxNs" '
+      '${withCadence ? 'xmlns:tpx="$_tpxNs" ' : ''}'
       'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
       'xsi:schemaLocation="$_tcxNs '
       'https://www8.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">',
@@ -86,6 +95,16 @@ String encodeTcx(ExportRun run) {
           b.writeln(
             '            <HeartRateBpm><Value>$hr</Value></HeartRateBpm>',
           );
+        }
+        final cadence = exportStrideCadence(p.cadenceStepsPerMinute);
+        if (cadence != null) {
+          b
+            ..writeln('            <Extensions>')
+            ..writeln(
+              '              <tpx:TPX><tpx:RunCadence>$cadence'
+              '</tpx:RunCadence></tpx:TPX>',
+            )
+            ..writeln('            </Extensions>');
         }
         b.writeln('          </Trackpoint>');
       }

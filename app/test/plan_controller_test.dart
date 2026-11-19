@@ -1836,6 +1836,77 @@ void main() {
       expect(reopened.controller.state.warning, isNotNull);
     });
 
+    test('Nachholen unter gespeichertem Signal: warningRecalculating, '
+        'solange die Rechnung läuft; danach die Ruhetag-Fassung', () async {
+      final e = await opened();
+      await warningOf(e)
+          .set(WarningSignal(reportedOn: _today, source: WarningSource.manual));
+      final gate = Completer<List<RunFigures>>();
+      final reopened = _Env(e.session, loadRuns: () => gate.future);
+      expect(reopened.controller.warningRecalculating, isFalse);
+      final opening = reopened.controller.open();
+      while (reopened.controller.state.warning == null) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(reopened.controller.warningRecalculating, isTrue);
+      expect(gate.isCompleted, isFalse);
+      gate.complete(const []);
+      await opening;
+      expect(reopened.controller.warningRecalculating, isFalse);
+      final last = (await e.plans.history()).last;
+      expect(last.reason, planReasonWarning);
+      expect(warningHeldFromSummary(last.summary), isNotNull);
+      // Die Seite hat die Ruhetag-Fassung geladen.
+      final loaded = reopened.controller.state.version!;
+      expect(loaded.id, last.id);
+      expect(loaded.reason, planReasonWarning);
+      final week = reopened.controller.state.weekUnits
+          .where((u) => !u.day.isBefore(_today))
+          .toList();
+      expect(week.every((u) => u.kind == PlanUnitKind.rest), isTrue);
+    });
+
+    test('Nachholen unter gespeichertem Signal scheitert: '
+        'warningRecalculating danach false, Signal bleibt', () async {
+      final e = await opened();
+      await warningOf(e)
+          .set(WarningSignal(reportedOn: _today, source: WarningSource.manual));
+      final versions = (await e.plans.history()).length;
+      final reopened = _Env(
+        e.session,
+        loadRuns: () async => throw StateError('Lesefehler'),
+      );
+      await reopened.controller.open();
+      expect(reopened.controller.warningRecalculating, isFalse);
+      expect(await warningOf(e).read(), isNotNull);
+      expect(await e.plans.history(), hasLength(versions));
+      expect(reopened.controller.state.warning, isNotNull);
+    });
+
+    test(
+      'Nachholen nach aufgehobenem Signal: keine Fortschrittsanzeige',
+      () async {
+        final e = await opened();
+        await e.controller.reportWarning();
+        await warningOf(e).lift(); // Schreiben der Fassung scheiterte
+        final gate = Completer<List<RunFigures>>();
+        final reopened = _Env(e.session, loadRuns: () => gate.future);
+        final seen = <bool>[];
+        reopened.controller.addListener(
+          () => seen.add(reopened.controller.warningRecalculating),
+        );
+        final opening = reopened.controller.open();
+        while (seen.isEmpty) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        expect(reopened.controller.warningRecalculating, isFalse);
+        gate.complete(const []);
+        await opening;
+        expect(seen, everyElement(isFalse));
+        expect((await e.plans.history()).last.reason, planReasonWarningLifted);
+      },
+    );
+
     test('Heilung setzt den Prüftag nicht: eine fällige Wochenprüfung bleibt '
         'fällig', () async {
       final e = await opened();
@@ -1856,5 +1927,63 @@ void main() {
         reason: 'der Prüftag bleibt in der Vorwoche',
       );
     });
+  });
+
+  group('Zieldatum gegen den Ortstag (FR-0136), auch westlich von UTC', () {
+    /// Lokaler Kalendertag (lokale Mitternacht) [days] Tage nach dem Ortstag
+    /// der Uhr, so wie ihn Formular und Speicher liefern.
+    DateTime localDay(_Env e, int days) {
+      final l = e.clock.now().toLocal();
+      return DateTime(l.year, l.month, l.day + days);
+    }
+
+    test('saveGoal: gestern abgelehnt, heute angenommen', () async {
+      final e = await _Env.open();
+      expect(
+        await e.controller.saveGoal(_goal(target: localDay(e, -1))),
+        PlanActionResult.rejected,
+      );
+      expect(await e.goals.goal(), isNull);
+      expect(
+        await e.controller.saveGoal(_goal(target: localDay(e, 0))),
+        PlanActionResult.done,
+      );
+      expect((await e.goals.goal())!.targetDate, localDay(e, 0));
+    });
+
+    /// Lange Pause mit anstehendem neuem Einstieg (PAR-181).
+    Future<_Env> pausing() async {
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      await e.controller.saveGoal(_goal());
+      e.clock.set(_now);
+      await _finishedRun(e.session, 70);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      expect(await e.controller.newStartPossible(), isTrue);
+      return e;
+    }
+
+    test(
+      'restartAfterLongPause: gestern abgelehnt, heute angenommen',
+      () async {
+        final past = await pausing();
+        final before = await past.goals.goal();
+        expect(
+          await past.controller.restartAfterLongPause(
+            _goal(target: localDay(past, -1)),
+          ),
+          PlanActionResult.rejected,
+        );
+        expect((await past.goals.goal())!.targetDate, before!.targetDate);
+        final ok = await pausing();
+        expect(
+          await ok.controller.restartAfterLongPause(
+            _goal(target: localDay(ok, 0)),
+          ),
+          isNot(PlanActionResult.rejected),
+        );
+        expect((await ok.goals.goal())!.targetDate, localDay(ok, 0));
+      },
+    );
   });
 }
