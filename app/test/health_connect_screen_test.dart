@@ -63,7 +63,7 @@ HealthRecord _rec(HealthDataKind kind, String id) => HealthRecord(
 /// Einwilligungsspeicher, der das Lesen der Löschfragen zurückhalten kann: Solange [hold] gesetzt ist, liefert jedes
 /// Lesen eines Eintrags „Löschfrage offen“ den Stand vom Aufruf erst, wenn [hold] erfüllt ist.
 class _HeldConsentStore extends FakeConsentStore {
-  _HeldConsentStore(FakeStorageData d) : super(d);
+  _HeldConsentStore(super.d);
   Completer<void>? hold;
   int held = 0;
 
