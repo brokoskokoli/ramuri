@@ -32,7 +32,10 @@ TrainingGoal _goal() => TrainingGoal(
 /// das neu und plant (Lifecycle `resumed`).
 Future<(Device, FakeReminderScheduler)> _started(WidgetTester tester) async {
   final reminders = FakeReminderScheduler(granted: true);
-  final d = Device()..reminders = reminders;
+  // Montag, 1.6.2026, mittags Ortszeit.
+  final d = Device()
+    ..reminders = reminders
+    ..clock.set(DateTime(2026, 6, 1, 12));
   await d.start(tester, const Locale('de'));
   await d.skipSetup(tester);
   final c = PlanController(
