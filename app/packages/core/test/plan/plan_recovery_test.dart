@@ -538,4 +538,71 @@ void main() {
       });
     }
   });
+
+  group('Empfehlung bei „fix“ (recoveryRecommendsEasy)', () {
+    PlanUnit unit({
+      int n = 0,
+      PlanUnitKind kind = PlanUnitKind.intervals,
+      int? runId,
+      PlanUnitFixed fixed = PlanUnitFixed.none,
+    }) => PlanUnit(
+      day: _day(n),
+      kind: kind,
+      phase: PlanPhase.build,
+      weekIndex: 1,
+      minutes: 40,
+      segments: const [],
+      runId: runId,
+      fixed: fixed,
+    );
+
+    bool rec({
+      PlanAdaptationMode mode = PlanAdaptationMode.fixed,
+      PlanReadinessDay? readiness,
+      PlanUnit? u,
+      bool noReadiness = false,
+      bool noUnit = false,
+    }) => recoveryRecommendsEasy(
+      mode: mode,
+      readiness: noReadiness ? null : readiness ?? _value(0, 30),
+      unit: noUnit ? null : u ?? unit(),
+      today: _now(0),
+    );
+
+    test('„fix“, niedriger Wert heute, harte Einheit heute: Empfehlung', () {
+      expect(rec(), isTrue);
+      expect(rec(readiness: _value(0, 10)), isTrue);
+      expect(rec(u: unit(kind: PlanUnitKind.tempo)), isTrue);
+    });
+
+    test('keine Empfehlung bei „adaptiv“ (dort lockert der Plan)', () {
+      expect(rec(mode: PlanAdaptationMode.adaptive), isFalse);
+    });
+
+    test('keine Empfehlung ohne Wert, ohne Zahl oder mit hohem Wert', () {
+      expect(rec(noReadiness: true), isFalse);
+      expect(
+        rec(readiness: PlanReadinessDay(day: _day(0), band: null)),
+        isFalse,
+      );
+      expect(rec(readiness: _value(0, 60)), isFalse);
+      expect(rec(readiness: _value(0, 95)), isFalse);
+    });
+
+    test('keine Empfehlung für Wert oder Einheit eines anderen Tags', () {
+      expect(rec(readiness: _value(-1, 30)), isFalse);
+      expect(rec(u: unit(n: 1)), isFalse);
+      expect(rec(readiness: _value(1, 30), u: unit(n: 1)), isFalse);
+    });
+
+    test('keine Empfehlung ohne Einheit, für lockere, gelaufene oder vom '
+        'Nutzer festgelegte Einheit', () {
+      expect(rec(noUnit: true), isFalse);
+      expect(rec(u: unit(kind: PlanUnitKind.easy)), isFalse);
+      expect(rec(u: unit(kind: PlanUnitKind.rest)), isFalse);
+      expect(rec(u: unit(runId: 7)), isFalse);
+      expect(rec(u: unit(fixed: PlanUnitFixed.kind)), isFalse);
+      expect(rec(u: unit(fixed: PlanUnitFixed.easyForHard)), isFalse);
+    });
+  });
 }
