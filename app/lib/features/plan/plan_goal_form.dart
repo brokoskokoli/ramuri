@@ -12,6 +12,7 @@ import '../../offload_scope.dart';
 import '../statistics/prediction_card.dart';
 import '../statistics/prediction_controller.dart';
 import '../statistics/reference_form.dart';
+import '../statistics/reference_run_picker.dart';
 import '../statistics/reference_suggestion_box.dart';
 import 'plan_controller.dart';
 import 'plan_texts.dart';
@@ -454,13 +455,11 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
       context,
       now: widget.clock.now(),
       formatter: AppSettingsScope.formatterOf(context),
-      // „Aus einem Lauf übernehmen“ liest die Lauf-Übersicht (Distanz,
-      // Bewegungszeit, RPE); Tempowerte braucht die Liste nicht.
-      loadRuns: () => PredictionRunReader(
+      loadRuns: storedReferenceRuns(
         session: widget.session,
         clock: widget.clock,
         offload: offload,
-      ).load(withPaceSamples: false),
+      ),
     );
     if (reference == null || !mounted) return;
     final store = (widget.session as PredictionStorage).prediction;

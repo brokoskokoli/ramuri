@@ -11,7 +11,7 @@ Läuft auf GitHub im Workflow `e2e` (je API 31 und 36, zwei Shards) über `tool/
 | Laufband | `e2e_treadmill_test.dart` | `sammlung` / sammlung |
 | Laufband: geführte Einheit aus dem Plan in Echtzeit (~5 min Abschnitt), Bandwerte, Abschnittswechsel, „Aus dem Plan“, Einheit erledigt (`--dart-define=TREADMILL_PLAN=true`, frischer Speicher ohne Ziel) | `e2e_treadmill_test.dart` | `treadmill-plan` / sammlung |
 | Kamera-Ruhepuls (Fake-Kamera, guter Puls und kein Finger; Kamerawahl in den Entwicklereinstellungen, FR-0220) | `e2e_resting_test.dart` | `sammlung` / sammlung |
-| Morgenmessung (Entwicklermodus, K67/K68, Gurtzeile, Ruhephase überspringen, Haltungsmarke, Fake-Kamera, Gurt-RR, Messpaare, Uhrzeit der Morgen-Erinnerung über den Zeitwähler mit geplantem Zeitpunkt am Plattformkanal, feste Uhr 23:58/00:02: zwei Ortstage (FR-0215), Ausschalten in den Entwicklereinstellungen) | `e2e_morning_test.dart` | `sammlung` / sammlung |
+| Morgenmessung (Entwicklermodus, K67/K68, Gurtzeile, Ruhephase überspringen, Haltungsmarke, Fake-Kamera, Gurt-RR, Messpaare, Kamera gegen Gurt (Zeile und Detail, FR-0217), Uhrzeit der Morgen-Erinnerung über den Zeitwähler mit geplantem Zeitpunkt am Plattformkanal, feste Uhr 23:58/00:02: zwei Ortstage (FR-0215), Ausschalten in den Entwicklereinstellungen) | `e2e_morning_test.dart` | `sammlung` / sammlung |
 | Health-Connect-Import (Debug-Quelle: Rechte, Abruf, Verlauf, Übernehmen, Widerruf mit Löschfrage, Installieren); echter Dialog nur lokal mit `--dart-define=HC_REAL=true` | `e2e_health_test.dart` | `sammlung` / sammlung |
 | Englisch und Meilen (NFR-0006): Gerätesprache Englisch im Test, Meilen über die Einstellungen; Lauf mit Test-Gurt und GPS, Zusammenfassung in `mi` und `min/mi`, Verlauf und Fortschritt in Meilen, geprüfte Texte aus der englischen Übersetzung und nicht der deutschen; danach wieder Kilometer | `e2e_locale_test.dart` | `sammlung` / sammlung |
 | Wiederanlauf eines laufenden Laufs nach Prozessende | `e2e_recover_test.dart` | `recover-a`, `recover-b` / stufen |
@@ -36,9 +36,9 @@ Nur der E2E-Agent mit Emulator, je Phase ein Lauf `flutter test integration_test
   1. `HC_PHASE=1`: Debug-Quelle, Schlaf einwilligen und importieren (erste Phase, mit Neuinstallation ist ok).
   2. Host: `adb shell pm grant io.github.brokoskokoli.ramuri android.permission.health.READ_SLEEP`, dann `HC_PHASE=2 --no-uninstall` (echter Adapter, Recht erteilt: keine Frage).
   3. Host: `adb shell pm revoke io.github.brokoskokoli.ramuri android.permission.health.READ_SLEEP` (beendet den App-Prozess, daher eigene Phase), dann `HC_PHASE=3 --no-uninstall HC_ANSWER=delete|keep` (Frage erscheint; Abbrechen lässt sie offen; Löschen entfernt die Daten, Behalten lässt sie und beendet die Einwilligung).
-  4. `HC_PHASE=B`: Debug-Quelle, Zähler je Art im Speicher (Ruhepuls, HRV, VO2max, Schlaf; nicht eingewilligte Art 0). Die Zahl hängt von der UTC-Tageszeit ab (siehe unten).
+  4. `HC_PHASE=B`: Debug-Quelle, Zähler je Art im Speicher (Ruhepuls, HRV, VO2max, Schlaf; nicht eingewilligte Art 0). Die Zahl hängt von der Tageszeit in Ortszeit des Geräts ab (siehe unten).
 
-Die Debug-Quelle liefert je Nacht einen HRV-Wert 20 min nach dem Ende der Schlafphase (06:30 UTC); vor 06:50 UTC liegt der der letzten Nacht in der Zukunft und wird nicht gelesen: HRV 11 statt 12 gespeicherter Werte.
+Die Debug-Quelle liefert je Nacht einen HRV-Wert 20 min nach dem Ende der Schlafphase (06:30 Ortszeit, also in der Zeitzone des Geräts bzw. Emulators); vor 06:50 Ortszeit liegt der der letzten Nacht in der Zukunft und wird nicht gelesen: HRV 11 statt 12 gespeicherter Werte. Der Emulator der CI läuft in UTC, dort ist Ortszeit gleich UTC.
 
 ## Bleibt lokal oder offen, und warum
 
