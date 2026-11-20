@@ -949,6 +949,28 @@ void main() {
       },
     );
 
+    test('sauberes Signal: laufende Stufe gut, obwohl das Zwischenfenster zu wenige HRV-Differenzen hat', () async {
+      final live = <PpgMeasurement>[];
+      final r = await Rig.make(
+        evaluate: (f, w) async {
+          final m = evaluatePpg(f, window: w);
+          if (!identical(w, ppgStandardWindow)) live.add(m);
+          return m;
+        },
+      );
+      await r.c.startNow();
+      await FrameSource().emitUntil(r.cam, 20);
+      await pump();
+      expect(r.c.phase, RestingMeasurePhase.measuring);
+      // Die Auswertung selbst bleibt bei PAR-230: eingeschränkt, allein
+      // wegen zu weniger Differenzen für die HRV.
+      expect(live.last.quality, PpgQuality.limited);
+      expect(live.last.reasons, [PpgQualityReason.fewConsistentBeats]);
+      expect(r.c.liveQuality, PpgQuality.good);
+      expect(r.c.liveHint, isNull);
+      expect(r.c.livePulse, inInclusiveRange(66, 75));
+    });
+
     test(
       'Standardauswertung läuft auf eigenem Isolate und liefert einen Wert',
       () async {

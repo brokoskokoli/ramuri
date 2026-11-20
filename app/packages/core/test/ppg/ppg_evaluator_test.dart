@@ -502,6 +502,31 @@ void main() {
     });
   });
 
+  group('ppgSignalStage: laufende Anzeige ohne HRV-Bedingung (PAR-230)', () {
+    test('allein zu wenige HRV-Differenzen: Endergebnis eingeschränkt, Anzeige gut', () {
+      final m = ratePpg(channel(hrvDiffs: 19));
+      expect(m.quality, PpgQuality.limited);
+      expect(m.reasons, [PpgQualityReason.fewConsistentBeats]);
+      expect(ppgSignalStage(m), PpgQuality.good);
+    });
+
+    test('Signalbedingungen gelten weiter', () {
+      for (final c in [
+        channel(quality: 0.28, hrvDiffs: 19),
+        channel(valid: 45, hrvDiffs: 19),
+        channel(noise: 30, hrvDiffs: 19),
+        channel(noise: double.nan, hrvDiffs: 19),
+      ]) {
+        expect(ppgSignalStage(ratePpg(c)), PpgQuality.limited);
+      }
+      expect(
+        ppgSignalStage(ratePpg(channel(quality: 0.2))),
+        PpgQuality.unusable,
+      );
+      expect(ppgSignalStage(ratePpg(channel())), PpgQuality.good);
+    });
+  });
+
   group('intervals: Ausreißerprüfung und Störabschnitte (Abschn. 6 und 7)', () {
     List<double> regular({int skip = -1}) => [
       for (var k = 0; k < 60; k++)

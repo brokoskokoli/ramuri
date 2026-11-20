@@ -739,7 +739,7 @@ class RestingMeasureController extends ChangeNotifier {
       ], window);
       if (run != _run || _phase != RestingMeasurePhase.measuring) return;
       _livePulse = m.hasResult ? m.bpm!.round() : null;
-      _liveQuality = m.quality;
+      _liveQuality = ppgSignalStage(m);
       _liveHint = _hintOf(m);
       _notify();
     } catch (_) {

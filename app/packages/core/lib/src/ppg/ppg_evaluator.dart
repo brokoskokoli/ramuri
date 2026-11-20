@@ -261,3 +261,14 @@ PpgMeasurement ratePpg(PpgChannelResult r) {
           ]),
   );
 }
+
+/// Stufe nur aus den Signalbedingungen, für die laufende Anzeige beim Messen (FR-0214, FR-0215):
+/// wie [PpgMeasurement.quality], aber ohne die HRV-Bedingung aus PAR-230
+/// ([PpgQualityReason.fewConsistentBeats]). Ein kurzes Fenster hat nie genug Differenzen für die
+/// HRV; die Anzeige soll dennoch „gut“ zeigen, wenn das Signal sauber ist. Das Endergebnis
+/// bewertet weiter [ratePpg] (unverändert).
+PpgQuality ppgSignalStage(PpgMeasurement m) {
+  if (m.quality != PpgQuality.limited) return m.quality;
+  final rest = m.reasons.where((r) => r != PpgQualityReason.fewConsistentBeats);
+  return rest.isEmpty ? PpgQuality.good : PpgQuality.limited;
+}
