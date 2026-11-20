@@ -88,9 +88,15 @@ enum ReadinessMissingCode {
 
 /// Weg zum Nachholen eines fehlenden Faktors.
 enum ReadinessCatchUp {
-  /// Knopf „Morgenmessung starten“ (Morgenmessung erreichbar, heute keine
-  /// zählende Messung).
+  /// Knopf „Morgenmessung starten“ (Morgenmessung erreichbar, Morgenfenster
+  /// offen, heute keine zählende Messung).
   startMorning,
+
+  /// Hinweis statt [startMorning], wenn das Morgenfenster gerade nicht offen
+  /// ist: ab wann die nächste Messung zählt
+  /// ([ReadinessMissingReason.nextWindowStartHour],
+  /// [ReadinessMissingReason.nextWindowToday]).
+  nextMorningWindow,
 
   /// Knopf „Schlaf angeben“ an der ersten Morgenmessung des Ortstags
   /// (PAR-164K).
@@ -117,6 +123,8 @@ class ReadinessMissingReason {
     this.windowEndHour,
     this.laterIgnored = false,
     this.catchUp = const [],
+    this.nextWindowStartHour,
+    this.nextWindowToday = false,
   });
 
   final ReadinessMissingCode code;
@@ -138,6 +146,14 @@ class ReadinessMissingReason {
   /// Wege zum Nachholen in der Reihenfolge der Anzeige.
   final List<ReadinessCatchUp> catchUp;
 
+  /// Bei [ReadinessCatchUp.nextMorningWindow]: Beginn des nächsten
+  /// Morgenfensters (Stunde Ortszeit), sonst `null`.
+  final int? nextWindowStartHour;
+
+  /// Bei [ReadinessCatchUp.nextMorningWindow]: das nächste Fenster beginnt
+  /// heute (jetzt vor dem Beginn), sonst morgen (jetzt nach dem Ende).
+  final bool nextWindowToday;
+
   /// Noch fehlende Menge (`required − count`), sonst `null`.
   int? get remaining =>
       count == null || required == null ? null : required! - count!;
@@ -151,7 +167,9 @@ class ReadinessMissingReason {
       other.windowStartHour == windowStartHour &&
       other.windowEndHour == windowEndHour &&
       other.laterIgnored == laterIgnored &&
-      _sameList(other.catchUp, catchUp);
+      _sameList(other.catchUp, catchUp) &&
+      other.nextWindowStartHour == nextWindowStartHour &&
+      other.nextWindowToday == nextWindowToday;
 
   @override
   int get hashCode => Object.hash(
@@ -162,6 +180,8 @@ class ReadinessMissingReason {
     windowEndHour,
     laterIgnored,
     Object.hashAll(catchUp),
+    nextWindowStartHour,
+    nextWindowToday,
   );
 
   @override
@@ -188,13 +208,18 @@ DateTime _day(DateTime d) => DateTime.utc(d.year, d.month, d.day);
 /// * [cameraDeviations], [morningMeasurements]: Kamerareihen und alle
 ///   gespeicherten Morgenmessungen; beide zählen nur bei
 ///   [CameraRelease.cameraValuesAllowed] (K62 Punkt 1: sonst kein Kamerabezug).
-/// * [window]: Morgenfenster für den Text bei Messungen außerhalb.
+/// * [window]: Morgenfenster für den Text bei Messungen außerhalb und für den
+///   Weg zum Nachholen: „Morgenmessung starten“ nur, solange [window] zum
+///   Zeitpunkt [now] (UTC) mit dem Versatz [utcOffset] des Ortes offen ist;
+///   sonst der Hinweis [ReadinessCatchUp.nextMorningWindow].
 /// * [loadRequested]: die Belastung wurde berechnet (erweiterte Stufe);
 ///   [loadDay] ist dann ihr letzter Tag.
 Map<ReadinessFactorId, ReadinessMissingReason> readinessMissingReasons({
   required List<ReadinessFactorId> missing,
   required DateTime today,
   required CameraRelease release,
+  required DateTime now,
+  required Duration utcOffset,
   DeviationResult? hrvHealthConnect,
   DeviationResult? restingHrHealthConnect,
   Iterable<DeviationResult> cameraDeviations = const [],
@@ -219,6 +244,18 @@ Map<ReadinessFactorId, ReadinessMissingReason> readinessMissingReasons({
             if (morningLocalDay(m) == day) m,
         ]
       : <MorningMeasurement>[];
+
+  // Weg zur Morgenmessung: im offenen Fenster der Knopf, sonst der Hinweis,
+  // ab wann die nächste Messung zählt (vor dem Beginn heute, nach dem Ende
+  // morgen). Ohne Freigabe der Kamerawerte keiner von beiden.
+  final windowOpen = window.contains(now, utcOffset);
+  final localNow = now.toUtc().add(utcOffset);
+  final beforeStart = localNow.hour < window.startHour;
+  final morningWay = windowOpen
+      ? ReadinessCatchUp.startMorning
+      : ReadinessCatchUp.nextMorningWindow;
+  final nextStart = windowOpen ? null : window.startHour;
+  final nextToday = !windowOpen && beforeStart;
 
   ReadinessMissingReason deviation(
     ReadinessFactor factor,
@@ -270,9 +307,10 @@ Map<ReadinessFactorId, ReadinessMissingReason> readinessMissingReasons({
         _ => const ReadinessMissingReason(ReadinessMissingCode.madTooSmall),
       };
     }
-    final startMorning = allowed && countingToday.isEmpty
-        ? const [ReadinessCatchUp.startMorning]
-        : const <ReadinessCatchUp>[];
+    final morning = allowed && countingToday.isEmpty;
+    final startMorning = morning ? [morningWay] : const <ReadinessCatchUp>[];
+    final nextHour = morning ? nextStart : null;
+    final nextIsToday = morning && nextToday;
     // c. Heute eine Kamera-Messung, die für diesen Faktor nichts liefert. Es
     // gilt die erste zählende Messung des Ortstags; ohne zählende die erste.
     if (countingToday.isNotEmpty) {
@@ -303,10 +341,14 @@ Map<ReadinessFactorId, ReadinessMissingReason> readinessMissingReasons({
               windowStartHour: window.startHour,
               windowEndHour: window.endHour,
               catchUp: startMorning,
+              nextWindowStartHour: nextHour,
+              nextWindowToday: nextIsToday,
             )
           : ReadinessMissingReason(
               ReadinessMissingCode.cameraQualityUnusable,
               catchUp: startMorning,
+              nextWindowStartHour: nextHour,
+              nextWindowToday: nextIsToday,
             );
     }
     // d./e. Kein Wert heute bzw. gar keiner.
@@ -324,6 +366,8 @@ Map<ReadinessFactorId, ReadinessMissingReason> readinessMissingReasons({
           ? ReadinessMissingCode.noMeasurementToday
           : ReadinessMissingCode.noMeasurement,
       catchUp: catchUp,
+      nextWindowStartHour: nextHour,
+      nextWindowToday: nextIsToday,
     );
   }
 
@@ -333,14 +377,17 @@ Map<ReadinessFactorId, ReadinessMissingReason> readinessMissingReasons({
         ReadinessMissingCode.sleepNoHealthConnect,
       );
     }
+    if (countingToday.isNotEmpty) {
+      return const ReadinessMissingReason(
+        ReadinessMissingCode.sleepNoEntry,
+        catchUp: [ReadinessCatchUp.enterSleep],
+      );
+    }
     return ReadinessMissingReason(
       ReadinessMissingCode.sleepNoEntry,
-      catchUp: countingToday.isNotEmpty
-          ? const [ReadinessCatchUp.enterSleep]
-          : const [
-              ReadinessCatchUp.sleepAtMorning,
-              ReadinessCatchUp.startMorning,
-            ],
+      catchUp: [ReadinessCatchUp.sleepAtMorning, morningWay],
+      nextWindowStartHour: nextStart,
+      nextWindowToday: nextToday,
     );
   }
 

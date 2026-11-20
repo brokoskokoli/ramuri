@@ -42,6 +42,7 @@ class ReadinessInputs {
   const ReadinessInputs({
     required this.today,
     required this.now,
+    this.utcOffset = Duration.zero,
     this.dayStart,
     this.hrvHealthConnect,
     this.restingHrHealthConnect,
@@ -64,6 +65,11 @@ class ReadinessInputs {
   /// Zeitpunkt für die Hauptschlafphase (PAR-164: Ende am Ortstag, nicht
   /// in der Zukunft).
   final DateTime now;
+
+  /// Versatz des Ortes zu UTC bei [now] (Sommerzeit eingerechnet); nur für
+  /// den Weg „Morgenmessung starten“ im Morgenfenster
+  /// ([readinessMissingReasons]).
+  final Duration utcOffset;
 
   /// Beginn des Ortstags (lokale Mitternacht) als UTC-Zeitpunkt; die
   /// Hauptschlafphase gilt bis Mitternacht ihres Endtags (PAR-164). Ohne
@@ -320,6 +326,8 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
     missing: missing,
     today: input.today,
     release: input.release,
+    now: input.now,
+    utcOffset: input.utcOffset,
     hrvHealthConnect: input.hrvHealthConnect,
     restingHrHealthConnect: input.restingHrHealthConnect,
     cameraDeviations: cams,
