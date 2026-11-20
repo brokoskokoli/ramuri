@@ -27,6 +27,7 @@ Future<void> _seed(
   ),
   LoadCoefficients? coefficients,
   bool runs = true,
+  LoadProfile? active,
 }) async {
   final s = await d.storage.open(_key);
   await s.profile.save(profile);
@@ -34,6 +35,13 @@ Future<void> _seed(
     await LoadSettings.writeCoefficients(
       s.settings,
       coefficients,
+      at: d.clock.now(),
+    );
+  }
+  if (active != null) {
+    await LoadSettings.writeActiveProfile(
+      s.settings,
+      active,
       at: d.clock.now(),
     );
   }
@@ -86,9 +94,16 @@ Future<Device> _start(
   ),
   LoadCoefficients? coefficients,
   bool runs = true,
+  LoadProfile? active,
 }) async {
   final d = Device();
-  await _seed(d, profile: profile, coefficients: coefficients, runs: runs);
+  await _seed(
+    d,
+    profile: profile,
+    coefficients: coefficients,
+    runs: runs,
+    active: active,
+  );
   await d.start(tester, locale);
   await d.skipSetup(tester);
   return d;
@@ -488,6 +503,9 @@ void main() {
       const coefficients =
           'Belastungsprofil auf Edwards umgestellt: Für Banister fehlt die '
           'Koeffizienten-Angabe.';
+      const reserve =
+          'Belastungsprofil auf Edwards umgestellt: Ruhepuls und maximale '
+          'Herzfrequenz ergeben keine brauchbare Reserve.';
 
       /// Banister ohne Läufe wählen (gilt sofort), dann ins Profil.
       Future<Device> banisterWithoutRuns(WidgetTester tester) async {
@@ -569,6 +587,85 @@ void main() {
         expect(find.textContaining('auf Edwards umgestellt'), findsNothing);
       });
 
+      testWidgets('HFmax gesenkt, Reserve unter PAR-019 (Ruhepuls bleibt): '
+          'Edwards aktiv, Reserve-Hinweis', (tester) async {
+        final d = await banisterWithoutRuns(tester);
+        // 100 - 60 = 40 bpm Reserve, unter PAR-019; HFmax <= Ruhepuls weist
+        // das Profil schon beim Speichern ab (PAR-018).
+        await tester.enterText(find.byKey(const Key('profile_max')), '100');
+        await _tap(tester, 'profile_save');
+        expect(find.textContaining('Profil gespeichert.'), findsOneWidget);
+        expect(find.textContaining(reserve), findsOneWidget);
+        expect(find.textContaining(resting), findsNothing);
+        expect(await _active(d), LoadProfile.edwards);
+        expect(await LoadSettings.pendingProfile(d.session.settings), isNull);
+      });
+
+      testWidgets('HFmax entfernt, Ruhepuls bleibt: Reserve-Hinweis', (
+        tester,
+      ) async {
+        final d = await banisterWithoutRuns(tester);
+        await tester.enterText(find.byKey(const Key('profile_max')), '');
+        await _tap(tester, 'profile_save');
+        expect(find.textContaining(reserve), findsOneWidget);
+        expect(find.textContaining(resting), findsNothing);
+        expect(await _active(d), LoadProfile.edwards);
+      });
+
+      testWidgets('HFmax gesenkt, Banister mit Läufen: Angebot, kein Hinweis', (
+        tester,
+      ) async {
+        final d = await _start(
+          tester,
+          coefficients: LoadCoefficients.male,
+          active: LoadProfile.banister,
+        );
+        await _openProfile(tester);
+        await tester.enterText(find.byKey(const Key('profile_max')), '100');
+        await _tap(tester, 'profile_save');
+        expect(find.textContaining('Profil gespeichert.'), findsOneWidget);
+        expect(find.textContaining('auf Edwards umgestellt'), findsNothing);
+        expect(await _active(d), LoadProfile.banister);
+        expect(
+          await LoadSettings.pendingProfile(d.session.settings),
+          LoadProfile.edwards,
+        );
+      });
+
+      testWidgets('Edwards aktiv, HFmax gesenkt: kein Hinweis', (tester) async {
+        final d = await _start(
+          tester,
+          coefficients: LoadCoefficients.male,
+          runs: false,
+        );
+        await _openProfile(tester);
+        await tester.enterText(find.byKey(const Key('profile_max')), '100');
+        await _tap(tester, 'profile_save');
+        expect(find.textContaining('Profil gespeichert.'), findsOneWidget);
+        expect(find.textContaining('auf Edwards umgestellt'), findsNothing);
+        expect(await _active(d), LoadProfile.edwards);
+      });
+
+      testWidgets('englisch: Reserve-Hinweis übersetzt', (tester) async {
+        await _start(
+          tester,
+          locale: const Locale('en'),
+          coefficients: LoadCoefficients.male,
+          runs: false,
+          active: LoadProfile.banister,
+        );
+        await _openProfile(tester);
+        await tester.enterText(find.byKey(const Key('profile_max')), '');
+        await _tap(tester, 'profile_save');
+        expect(
+          find.textContaining(
+            'Load profile switched to Edwards: resting and maximum heart rate '
+            'do not give a usable reserve.',
+          ),
+          findsOneWidget,
+        );
+      });
+
       testWidgets('englisch: Hinweis übersetzt', (tester) async {
         await _start(
           tester,
@@ -593,6 +690,49 @@ void main() {
       });
     },
   );
+
+  group('Grund der Umstellung aus der Auflösung', () {
+    test('Abbildung je Issue', () {
+      expect(
+        edwardsSwitchReasonOf([LoadProfileIssue.missingRestingHeartRate]),
+        EdwardsSwitchReason.restingHeartRate,
+      );
+      expect(
+        edwardsSwitchReasonOf([LoadProfileIssue.heartRateReserveUnusable]),
+        EdwardsSwitchReason.heartRateReserve,
+      );
+      expect(
+        edwardsSwitchReasonOf([LoadProfileIssue.missingCoefficients]),
+        EdwardsSwitchReason.coefficients,
+      );
+      expect(edwardsSwitchReasonOf(const []), isNull);
+    });
+
+    test('Reihenfolge: Ruhepuls vor Reserve vor Koeffizienten', () {
+      expect(
+        edwardsSwitchReasonOf([
+          LoadProfileIssue.missingCoefficients,
+          LoadProfileIssue.heartRateReserveUnusable,
+          LoadProfileIssue.missingRestingHeartRate,
+        ]),
+        EdwardsSwitchReason.restingHeartRate,
+      );
+      expect(
+        edwardsSwitchReasonOf([
+          LoadProfileIssue.missingCoefficients,
+          LoadProfileIssue.heartRateReserveUnusable,
+        ]),
+        EdwardsSwitchReason.heartRateReserve,
+      );
+      expect(
+        edwardsSwitchReasonOf([
+          LoadProfileIssue.missingCoefficients,
+          LoadProfileIssue.missingRestingHeartRate,
+        ]),
+        EdwardsSwitchReason.restingHeartRate,
+      );
+    });
+  });
 
   group('Karte Belastung lädt neu', () {
     test(

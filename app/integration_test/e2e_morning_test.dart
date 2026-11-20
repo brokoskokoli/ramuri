@@ -90,10 +90,6 @@ Future<void> entryLoaded(WidgetTester t, Type owner, String what) async {
   await t.pump();
 }
 
-/// Helligkeit des Themas, das auf der Seite mit [key] gilt.
-Brightness themeAt(WidgetTester t, String key) =>
-    Theme.of(t.element(find.byKey(Key(key)))).brightness;
-
 Future<List<MorningMeasurement>> stored(
   WidgetTester t,
   StorageSession s,
@@ -319,7 +315,7 @@ Future<void> reminderTimeViaUi(WidgetTester t, StorageSession s) async {
     findsOneWidget,
     reason: 'S7b Zeile zeigt die neue Uhrzeit',
   );
-  await shot(t, 's7b_erinnerung_neu');
+  await shotHellDunkel(t, 's7b_erinnerung_neu', 'morning_reminder_time');
   // Wieder aus: gestrichen und gespeichert.
   calls.clear();
   await tapKey(t, 'morning_reminder_switch');
@@ -497,14 +493,14 @@ void main() {
     await waitFor(t, () => has('home_start_run'), 'S1 Heute (home_start_run)');
     await entryLoaded(t, MorningCard, 'S1 Heute');
     expect(has('morning_card'), isFalse, reason: 'S1 keine Karte');
-    await shot(t, 's1_heute_ohne');
+    await shotHellDunkel(t, 's1_heute_ohne', 'home_screen');
     await tapKey(t, 'home_overview');
     await waitFor(t, () => has('overview_about'), 'S1 Uebersicht');
     await entryLoaded(t, MorningTile, 'S1 Uebersicht');
     expect(has('overview_morning'), isFalse, reason: 'S1 kein Eintrag');
     expect(has('overview_morning_values'), isFalse, reason: 'S1 kein Verlauf');
     expect(has('overview_developer'), isFalse, reason: 'S1 keine Entw.-Seite');
-    await shot(t, 's1_uebersicht_ohne');
+    await shotHellDunkel(t, 's1_uebersicht_ohne', 'overview_about');
     log('S1 ok');
 
     step('MORNING S2 entwicklermodus_an');
@@ -562,7 +558,7 @@ void main() {
       )),
       isTrue,
     );
-    await shot(t, 's2_ueber_an_hell');
+    await shotHellDunkel(t, 's2_ueber_an', 'about_dev_link');
     log('S2 ok');
     await back(t);
     // Uebersicht: der Eintrag erscheint beim Zurueckkehren, ohne erneutes Oeffnen.
@@ -636,7 +632,7 @@ void main() {
     log(
       'S3 liegend note_not_counted=${has('morning_note_not_counted')} outside=${has('morning_note_outside')}',
     );
-    await shot(t, 's3_ergebnis_liegend');
+    await shotHellDunkel(t, 's3_ergebnis_liegend', 'morning_done');
     var l = await storedCount(t, s, base + 1);
     expect(l.length, base + 1, reason: 'S3 eine gespeichert');
     expect(
@@ -677,7 +673,7 @@ void main() {
       reason: 'S3 nur die erste gueltige des Morgens zaehlt (K67)',
     );
     await closeResultToHome(t);
-    await shot(t, 's3_heute_karte');
+    await shotHellDunkel(t, 's3_heute_karte', 'home_screen');
 
     step('MORNING S4 schlecht_dann_gueltig');
     // 4) schlechte Qualitaet -> Noch einmal -> gueltig; die schlechte wird im
@@ -693,7 +689,7 @@ void main() {
       reason: 'S4 schlecht bietet Noch einmal',
     );
     expect(has('morning_done'), isFalse);
-    await shot(t, 's4_ergebnis_schlecht');
+    await shotHellDunkel(t, 's4_ergebnis_schlecht', 'morning_again');
     // Entwicklermodus (S2): die unbrauchbare Messung wird gespeichert (K68),
     // zaehlt aber nirgends.
     final afterBad = await storedCount(t, s, base + 3);
@@ -818,21 +814,7 @@ void main() {
     );
     sem.dispose();
     // Bildschirmfotos dunkel und hell (Systemhelligkeit der Testumgebung).
-    t.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
-    await waitFor(
-      t,
-      () => themeAt(t, 'morning_legend') == Brightness.dark,
-      'Morgenwerte dunkel (morning_legend)',
-    );
-    await shot(t, 's3_morgenwerte_marken_dunkel');
-    t.platformDispatcher.platformBrightnessTestValue = Brightness.light;
-    await waitFor(
-      t,
-      () => themeAt(t, 'morning_legend') == Brightness.light,
-      'Morgenwerte hell (morning_legend)',
-    );
-    await shot(t, 's3_morgenwerte_marken_hell');
-    t.platformDispatcher.clearPlatformBrightnessTestValue();
+    await shotHellDunkel(t, 's3_morgenwerte_marken', 'morning_legend');
     await tapKey(t, 'measure_back');
     await back(t);
 

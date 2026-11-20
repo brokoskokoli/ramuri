@@ -164,7 +164,11 @@ class _MorningCardState extends State<MorningCard> {
       device: widget.device,
       belt: widget.beltFactory?.call(),
     );
-    if (mounted) setState(() => _future = _load());
+    if (!mounted) return;
+    // Block statt Pfeil: setState darf keine Future zurückgeben.
+    setState(() {
+      _future = _load();
+    });
   }
 
   @override
