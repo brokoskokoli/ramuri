@@ -38,6 +38,7 @@ class PredictionParameters {
     this.goodLongestRunShare = 0.6,
     this.suggestionMinimumRpe = 8,
     this.suggestionMinimumMeters = 3000,
+    this.runPickerWindowDays = 84,
     this.testHintWindowDays = 28,
     this.testHintMinimumRuns = 12,
     this.testHintMinimumContinuousMinutes = 30,
@@ -111,6 +112,10 @@ class PredictionParameters {
 
   /// PAR-185: Mindeststrecke (Meter) des Vorschlags (Annahme, Festlegung WP20).
   final double suggestionMinimumMeters;
+
+  /// FR-0129: Läufe zur Übernahme als Referenz stammen höchstens so viele
+  /// Tage zurück (12 Wochen); Mindeststrecke wie [suggestionMinimumMeters].
+  final int runPickerWindowDays;
 
   /// PAR-117, PAR-143: Ersatzfenster (Tage) für den Testhinweis, solange es
   /// keinen Plan gibt (Annahme, Festlegung WP20; WP21 ersetzt sie).
