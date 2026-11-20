@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
 import 'plan_data_reader.dart';
+import 'plan_started_unit.dart';
 
 enum PlanLoadPhase { loading, ready, failed }
 
@@ -292,6 +293,8 @@ class PlanController extends ChangeNotifier {
       // Die Prüfung holt der nächste Start nach; die Seite zeigt den
       // gespeicherten Plan.
     }
+    // Läufe der Woche bis heute zählen für ihre offenen Einheiten (PAR-207).
+    await _autoAssignQuietly();
     await _load();
   });
 
@@ -742,6 +745,9 @@ class PlanController extends ChangeNotifier {
     } on Object {
       throw const _SavedNotPlanned();
     }
+    // Auch ein Lauf vor dem Anlegen des Plans zählt für die heutige Einheit
+    // (PAR-207).
+    await _autoAssignQuietly();
   });
 
   /// Ausdrückliche Neuberechnung durch den Nutzer (`manual`).
@@ -765,7 +771,70 @@ class PlanController extends ChangeNotifier {
   /// Ordnet der Einheit den Lauf zu (`null` hebt die Zuordnung auf) und
   /// rechnet danach ab heute neu (Auslöser `run`; die Zuordnung zählt für
   /// „locker“, PAR-205, und friert die Einheit ein).
-  Future<PlanActionResult> assignRun(int unitId, int? runId) => _act(() async {
+  Future<PlanActionResult> assignRun(int unitId, int? runId) =>
+      _act(() => _assignAndRecalculate(unitId, runId));
+
+  /// Ordnet beendete Läufe den offenen Einheiten ihres Ortstags zu (PAR-207,
+  /// [planAutoAssignments]): Einheiten von Montag dieser Woche (oder dem
+  /// früheren Tag [since], etwa dem Starttag eines Laufs über Mitternacht)
+  /// bis heute. Jede Zuordnung rechnet wie [assignRun] neu; gibt es nichts
+  /// zuzuordnen, ändert sich nichts und es wird nicht gerechnet.
+  Future<PlanActionResult> autoAssignRuns({DateTime? since}) =>
+      _act(() => _autoAssign(since: since));
+
+  /// Wie [autoAssignRuns], innerhalb einer laufenden Aktion; ein Fehler bleibt
+  /// still (das nächste Öffnen holt die Zuordnung nach).
+  Future<void> _autoAssignQuietly() async {
+    try {
+      await _autoAssign();
+    } on Object {
+      // Siehe oben.
+    }
+  }
+
+  Future<void> _autoAssign({DateTime? since}) async {
+    final today = _today();
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    final s = since == null ? null : planDay(since);
+    final from = s != null && s.isBefore(monday) ? s : monday;
+    // Jede Zuordnung rechnet neu und kann Einheiten ab heute ersetzen (neue
+    // Kennung): darum nach jeder Zuordnung neu lesen. Jede Runde füllt eine
+    // offene Einheit; mehr Runden als Einheiten gibt es nicht.
+    var rounds = 0;
+    while (true) {
+      final units = await _plans.unitsBetween(
+        DateTime.utc(2000),
+        planFarFuture,
+      );
+      if (rounds++ > units.length) return;
+      final overviews = await session.preprocessing.readOverviews();
+      // Läufe ab dem Start über „Einheit starten“ ordnet der Merker zu
+      // (`PlanStartedUnitStore.settle`, auch der Nachholversuch nach einer
+      // gescheiterten Neuberechnung); erst danach zählen sie hier.
+      final started = PlanStartedUnit.decode(
+        await session.settings.get(SettingKeys.planStartedUnit),
+      );
+      final runs = [
+        for (final r in await session.runs.list())
+          if (started == null || r.startedAt.isBefore(started.since))
+            ?PlanRunCandidate.of(
+              r,
+              movingTime: overviews[r.id]?.summary.movingTime,
+              fallbackOffset: clock.utcOffsetAt(r.startedAt),
+            ),
+      ];
+      final next = planAutoAssignments(
+        units: units,
+        runs: runs,
+        today: today,
+        from: from,
+      ).firstOrNull;
+      if (next == null) return;
+      await _assignAndRecalculate(next.unitId, next.runId);
+    }
+  }
+
+  Future<void> _assignAndRecalculate(int unitId, int? runId) async {
     await _plans.assignRun(unitId, runId);
     _fresh = null;
     onChanged?.call();
@@ -784,7 +853,7 @@ class PlanController extends ChangeNotifier {
       // NB7 1). `goalChange` bewertet bei Fälligkeit selbst.
       markChecked: goalChanged,
     );
-  });
+  }
 
   /// Verschiebt die Einheit nach Bestätigung des Nutzers auf [day] (setzt
   /// `pinned`, OQ-0011), mit „heute“. Keine Neuberechnung.
@@ -793,6 +862,8 @@ class PlanController extends ChangeNotifier {
         await _plans.confirmMove(unitId, day, today: _today());
         _fresh = null;
         onChanged?.call();
+        // Ein Lauf am neuen Tag zählt für die verschobene Einheit (PAR-207).
+        await _autoAssignQuietly();
       });
 
   /// Prüft vor der Bestätigung, ob [unit] die Art [kind] bekommen kann
@@ -1236,6 +1307,7 @@ class PlanController extends ChangeNotifier {
       } on Object {
         throw const _SavedNotPlanned();
       }
+      await _autoAssignQuietly();
     },
   );
 
