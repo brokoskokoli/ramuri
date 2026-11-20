@@ -36,9 +36,9 @@ Nur der E2E-Agent mit Emulator, je Phase ein Lauf `flutter test integration_test
   1. `HC_PHASE=1`: Debug-Quelle, Schlaf einwilligen und importieren (erste Phase, mit Neuinstallation ist ok).
   2. Host: `adb shell pm grant io.github.brokoskokoli.ramuri android.permission.health.READ_SLEEP`, dann `HC_PHASE=2 --no-uninstall` (echter Adapter, Recht erteilt: keine Frage).
   3. Host: `adb shell pm revoke io.github.brokoskokoli.ramuri android.permission.health.READ_SLEEP` (beendet den App-Prozess, daher eigene Phase), dann `HC_PHASE=3 --no-uninstall HC_ANSWER=delete|keep` (Frage erscheint; Abbrechen lässt sie offen; Löschen entfernt die Daten, Behalten lässt sie und beendet die Einwilligung).
-  4. `HC_PHASE=B`: Debug-Quelle, Zähler je Art im Speicher (Ruhepuls, HRV, VO2max, Schlaf; nicht eingewilligte Art 0). Die Zahl hängt von der UTC-Tageszeit ab (siehe unten).
+  4. `HC_PHASE=B`: Debug-Quelle, Zähler je Art im Speicher (Ruhepuls, HRV, VO2max, Schlaf; nicht eingewilligte Art 0). Die Zahl hängt von der Tageszeit in Ortszeit des Geräts ab (siehe unten).
 
-Die Debug-Quelle liefert je Nacht einen HRV-Wert 20 min nach dem Ende der Schlafphase (06:30 UTC); vor 06:50 UTC liegt der der letzten Nacht in der Zukunft und wird nicht gelesen: HRV 11 statt 12 gespeicherter Werte.
+Die Debug-Quelle liefert je Nacht einen HRV-Wert 20 min nach dem Ende der Schlafphase (06:30 Ortszeit, also in der Zeitzone des Geräts bzw. Emulators); vor 06:50 Ortszeit liegt der der letzten Nacht in der Zukunft und wird nicht gelesen: HRV 11 statt 12 gespeicherter Werte. Der Emulator der CI läuft in UTC, dort ist Ortszeit gleich UTC.
 
 ## Bleibt lokal oder offen, und warum
 

@@ -10,6 +10,20 @@ import 'prediction_card.dart' show clockTimeText;
 /// Liest die beendeten Läufe (Lauf-Übersicht mit Distanz und Bewegungszeit).
 typedef ReferenceRunLoader = Future<List<PredictionRun>> Function();
 
+/// Lader für „Aus einem Lauf übernehmen“ (FR-0129) aus der Lauf-Übersicht
+/// (Distanz, Bewegungszeit, RPE); Tempowerte braucht die Liste nicht. Der
+/// Aufrufer liest [offload] vor dem ersten `await` (`OffloadScope.of`).
+ReferenceRunLoader storedReferenceRuns({
+  required StorageSession session,
+  required Clock clock,
+  required Offload offload,
+}) =>
+    () => PredictionRunReader(
+      session: session,
+      clock: clock,
+      offload: offload,
+    ).load(withPaceSamples: false);
+
 /// Wahl eines gespeicherten Laufs als Referenz (FR-0129): beendete Läufe ab
 /// 3 km der letzten 12 Wochen ([referenceRunChoices]), neueste zuerst, je
 /// Zeile Datum, Distanz, Zeit, Tempo und Anstrengung (falls angegeben).

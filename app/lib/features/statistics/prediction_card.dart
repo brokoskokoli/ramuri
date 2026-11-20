@@ -10,6 +10,7 @@ import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
 import 'prediction_controller.dart';
 import 'reference_form.dart';
+import 'reference_run_picker.dart';
 import 'reference_suggestion_box.dart';
 
 /// Karte „Prognose“ auf Fortschritt (WP20 Teil C, FR-0128 bis FR-0134).
@@ -105,11 +106,19 @@ class _PredictionCardState extends State<PredictionCard> {
     }
   }
 
+  /// Von Hand oder „Aus einem Lauf übernehmen“ (FR-0129) wie im
+  /// Zielformular. Nach dem Speichern lädt der Controller neu; ein Vorschlag
+  /// zum übernommenen Lauf verschwindet damit (PAR-185).
   Future<void> _add() async {
     final reference = await showReferenceForm(
       context,
       now: widget.clock.now(),
       formatter: AppSettingsScope.formatterOf(context),
+      loadRuns: storedReferenceRuns(
+        session: widget.session,
+        clock: widget.clock,
+        offload: OffloadScope.of(context),
+      ),
     );
     if (reference != null) await _run(_c.addReference(reference));
   }
