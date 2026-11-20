@@ -2134,5 +2134,55 @@ void main() {
         expect((await e.controller.unitOn(_today))!.runId, isNull);
       },
     );
+
+    test(
+      'Lauf Sonntag 23:50 bis Montag 00:20: die Einheit vom Sonntag '
+      'trägt den Lauf, auch wenn die Zuordnung erst am Montag läuft',
+      () async {
+        final e = await _Env.open();
+        final sunday = _day(4);
+        expect(sunday.weekday, DateTime.sunday);
+        await e.controller.saveGoal(_goal(days: {3, 5, 7}));
+        expect((await e.controller.unitOn(sunday))?.runId, isNull);
+        final run = await runAt(e.session, sunday, 23, 50, minutes: 30);
+        // Uhr am Montag kurz nach Mitternacht: die Woche beginnt heute, der
+        // Starttag des Laufs liegt davor.
+        e.clock.set(_day(5).add(const Duration(minutes: 25)));
+        expect(
+          await e.controller.autoAssignRuns(since: sunday),
+          PlanActionResult.done,
+        );
+        expect((await e.controller.unitOn(sunday))!.runId, run);
+        expect((await e.controller.unitOn(_day(5)))?.runId, isNull);
+      },
+    );
+
+    test('Neustart nach langer Pause ordnet den Lauf des Tages zu', () async {
+      // Lange Pause (PAR-181) mit anstehendem neuem Einstieg.
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      await e.controller.saveGoal(_goal());
+      e.clock.set(_now);
+      await _finishedRun(e.session, 70);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      // Ein Lauf, der heute nach Ortszeit des Laufs (UTC+14) um 22:00
+      // beginnt und nach Mitternacht endet: Die Pausenprüfung zählt ihn
+      // für morgen (Tag des Laufendes), die Pause besteht also heute
+      // noch; für den Plan zählt der Starttag (PAR-231), also heute.
+      final start = _today.add(const Duration(hours: 8));
+      final r = await e.session.runs.create(startedAt: start);
+      await e.session.runs.setState(
+        r.id,
+        RunState.finished,
+        endedAt: start.add(const Duration(hours: 3)),
+        endedUtcOffset: const Duration(hours: 14),
+      );
+      expect(await e.controller.newStartPossible(), isTrue);
+      expect(
+        await e.controller.restartAfterLongPause(_goal(days: {1, 3, 5})),
+        PlanActionResult.done,
+      );
+      expect((await e.controller.unitOn(_today))!.runId, r.id);
+    });
   });
 }
