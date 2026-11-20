@@ -472,6 +472,43 @@ void main() {
       );
     });
 
+    test('Messung um 2:00 außerhalb, jetzt 3:00: Hinweis heute ab 4', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, hour: 2, outside: true),
+      ], nowHour: 3);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.cameraOutsideWindow,
+          windowStartHour: 4,
+          windowEndHour: 11,
+          catchUp: [ReadinessCatchUp.nextMorningWindow],
+          nextWindowStartHour: 4,
+          nextWindowToday: true,
+        ),
+      );
+    });
+
+    test('unbrauchbare Messung um 5:00, Fenster danach 6–9, jetzt 5:30: '
+        'Hinweis heute ab 6', () {
+      final r = _run(
+        [..._history(1, 20), _m(_today, hour: 5, quality: PpgQuality.unusable)],
+        window: const MorningWindow(6, 9),
+        nowHour: 5,
+        nowMinute: 30,
+      );
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.cameraQualityUnusable,
+          catchUp: [ReadinessCatchUp.nextMorningWindow],
+          nextWindowStartHour: 6,
+          nextWindowToday: true,
+        ),
+      );
+    });
+
     test('eigenes Fenster 6–9 wirkt auf Knopf und Hinweis', () {
       const w = MorningWindow(6, 9);
       ReadinessMissingReason at(int hour, {int minute = 0}) => _hrv(

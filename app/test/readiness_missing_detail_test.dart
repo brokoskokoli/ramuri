@@ -196,7 +196,9 @@ void main() {
         );
       });
 
-      for (final (hour, today) in [(14, false), (3, true)]) {
+      // 11 Uhr Ortszeit ist 10 Uhr UTC: ohne den Versatz des Ortes wäre das
+      // Fenster noch offen.
+      for (final (hour, today) in [(11, false), (14, false), (3, true)]) {
         testWidgets('außerhalb des Morgenfensters ($hour Uhr): Hinweis statt '
             'Knopf', (tester) async {
           final env = (await tester.runAsync(() => _env(hour: hour)))!;
