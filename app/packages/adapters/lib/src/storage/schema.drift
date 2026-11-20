@@ -748,7 +748,11 @@ CREATE INDEX morning_rr_packets_measurement ON morning_rr_packets (measurement_i
 -- SENSOR_INFO_TIMESTAMP_SOURCE), rolling_shutter_skew_ns, torch_strength
 -- (Android Torch-Stärkestufe), saturated_fraction (Anteil gesättigter Pixel,
 -- 0 bis 1). Bildlücken (Abstand über der Grenze der Auswertung): Anzahl und
--- Gesamtdauer in Sekunden. Abschnitt 34 des Archivs.
+-- Gesamtdauer in Sekunden. Verwendete Kamera (Version 15, FR-0220), NULL =
+-- nicht bekannt: camera_id (Camera2-ID der geöffneten Kamera),
+-- physical_camera_id (physische Kamera einer logischen Mehrfachkamera, nur mit
+-- camera_id), focal_length_mm (kleinste Brennweite in mm). Abschnitt 34 des
+-- Archivs.
 CREATE TABLE morning_raw_signals (
   measurement_id INTEGER NOT NULL PRIMARY KEY REFERENCES morning_measurements (id) ON DELETE CASCADE,
   frame_count INTEGER NOT NULL CHECK (frame_count >= 0),
@@ -760,5 +764,8 @@ CREATE TABLE morning_raw_signals (
   torch_strength INTEGER CHECK (torch_strength >= 0),
   frame_gap_count INTEGER NOT NULL CHECK (frame_gap_count >= 0),
   frame_gap_total_s REAL NOT NULL CHECK (frame_gap_total_s >= 0),
-  saturated_fraction REAL CHECK (saturated_fraction BETWEEN 0 AND 1)
+  saturated_fraction REAL CHECK (saturated_fraction BETWEEN 0 AND 1),
+  camera_id TEXT,
+  physical_camera_id TEXT CHECK (physical_camera_id IS NULL OR camera_id IS NOT NULL),
+  focal_length_mm REAL CHECK (focal_length_mm > 0)
 ) AS MorningRawSignalRow;
