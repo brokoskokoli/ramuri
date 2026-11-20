@@ -234,6 +234,38 @@ void main() {
         expect(s.openSessions, 0);
       },
     );
+
+    test('failAssignRun: assignRun wirft failed und ändert nichts', () async {
+      final s = FakeStorage();
+      final plans = ((await s.open(k1)) as PlanStorage).plans;
+      final unit = PlanUnit(
+        id: 1,
+        day: DateTime.utc(2026, 11, 11),
+        kind: PlanUnitKind.easy,
+        phase: PlanPhase.entry,
+        weekIndex: 0,
+        minutes: 30,
+        segments: const [],
+        runId: 5,
+      );
+      s.data.planUnits[1] = unit;
+      expect(s.data.failAssignRun, isFalse);
+      s.data.failAssignRun = true;
+      await expectLater(
+        plans.assignRun(1, null),
+        throwsA(
+          isA<StorageException>().having(
+            (e) => e.failure,
+            'failure',
+            StorageFailure.failed,
+          ),
+        ),
+      );
+      expect(s.data.planUnits[1]!.runId, 5);
+      s.data.failAssignRun = false;
+      await plans.assignRun(1, null);
+      expect(s.data.planUnits[1]!.runId, isNull);
+    });
   });
 
   group('FakeKeyStore', () {
