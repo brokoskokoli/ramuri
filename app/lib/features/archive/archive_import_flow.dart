@@ -104,7 +104,7 @@ Future<bool> confirmArchiveImport(
 /// Vorprüfung der gewählten Datei [path] mit [check], bevor nach dem Passwort
 /// gefragt wird (FR-0198): Eine fremde Datei, eine zu kurze oder eine nicht
 /// lesbare Version meldet der Fehlerdialog; es wurde nichts geändert. `true`:
-/// weiter zur Passwortabfrage.
+/// weiter zum Versuch mit dem leeren Passwort bzw. zur Passwortabfrage.
 Future<bool> precheckPickedArchive(
   BuildContext context,
   ArchiveHeaderCheck check,
@@ -118,6 +118,36 @@ Future<bool> precheckPickedArchive(
     return false;
   }
 }
+
+/// Stufe der Passwortsuche beim Reimport (FR-0198, SEC-0011).
+enum ArchivePasswordAttempt {
+  /// Erster Versuch: das leere Passwort, ohne Abfrage.
+  empty,
+
+  /// Abfrage ohne Fehlertext (das leere Passwort passte nicht).
+  ask,
+
+  /// Abfrage mit Fehler (das eingegebene Passwort passte nicht).
+  askAgain;
+
+  /// Die Stufe nach einem falschen Passwort.
+  ArchivePasswordAttempt get next => switch (this) {
+    empty => ask,
+    ask || askAgain => askAgain,
+  };
+}
+
+/// Das Passwort für den Versuch [attempt]: bei [ArchivePasswordAttempt.empty]
+/// das leere Passwort ohne Abfrage, sonst die Abfrage (mit Fehlertext erst
+/// nach einem falsch eingegebenen Passwort). `null`: abgebrochen.
+Future<String?> nextArchivePassword(
+  BuildContext context,
+  ArchivePasswordAttempt attempt,
+) async => switch (attempt) {
+  ArchivePasswordAttempt.empty => '',
+  ArchivePasswordAttempt.ask => askArchivePassword(context),
+  ArchivePasswordAttempt.askAgain => askArchivePassword(context, wrong: true),
+};
 
 /// Fragt das Passwort einmal ab (verdeckt, ohne Autofill). `null`: abgebrochen.
 /// [wrong]: zeigt den Fehler "falsches Passwort oder beschädigter Anfang".

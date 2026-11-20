@@ -92,6 +92,9 @@ MorningRawSignal _raw({
   int gaps = 2,
   double gapS = 0.35,
   double? saturated = 0.0125,
+  String? cameraId = '0',
+  String? physicalCameraId = '2',
+  double? focal = 2.2,
 }) => MorningRawSignal(
   frames: frames ?? [_frame(0.033), _frame(0.0667), _frame(0.1)],
   exposureTimeNs: exposure,
@@ -102,6 +105,9 @@ MorningRawSignal _raw({
   frameGapCount: gaps,
   frameGapTotalS: gapS,
   saturatedFraction: saturated,
+  cameraId: cameraId,
+  physicalCameraId: physicalCameraId,
+  focalLengthMm: focal,
 );
 
 String _rawFields(MorningRawSignal r) => [
@@ -114,6 +120,9 @@ String _rawFields(MorningRawSignal r) => [
   r.frameGapCount,
   r.frameGapTotalS,
   r.saturatedFraction,
+  r.cameraId,
+  r.physicalCameraId,
+  r.focalLengthMm,
 ].join('|');
 
 RrPacket _packet(int seconds, List<int> rr, [String source = 'gurt-1']) =>
@@ -234,6 +243,9 @@ Future<void> _extended(StorageContractHarness h) async {
     gaps: 0,
     gapS: 0,
     saturated: null,
+    cameraId: null,
+    physicalCameraId: null,
+    focal: null,
   );
   final idB = await _m(s).add(b, rawSignal: rawB);
   final idC = await _m(s).add(_measurement(200));
@@ -367,6 +379,10 @@ Future<void> _extendedRejected(StorageContractHarness h) async {
     'Lücken negativ': _raw(gaps: -1),
     'Lückendauer negativ': _raw(gapS: -0.1),
     'Sättigung über 1': _raw(saturated: 1.5),
+    'physische Kamera ohne Kamera-ID': _raw(cameraId: null),
+    'Brennweite 0': _raw(focal: 0),
+    'Brennweite negativ': _raw(focal: -1.5),
+    'Brennweite nicht endlich': _raw(focal: double.nan),
     'mehr Bilder als morningRawMaxFrames': _raw(
       frames: List.filled(morningRawMaxFrames + 1, _frame(0.5)),
     ),

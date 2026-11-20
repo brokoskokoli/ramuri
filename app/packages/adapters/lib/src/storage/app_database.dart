@@ -30,11 +30,13 @@ class AppDatabase extends _$AppDatabase {
   /// Morgenmessungen und ihre Gurt-RR (`morning_measurements`,
   /// `morning_rr_packets`, WP33). Version 14: Morgenmessung mit Fenster, Stufe
   /// unbrauchbar und übersprungener Ruhephase, Kamera-Rohsignal
-  /// (`morning_raw_signals`) und `known_devices.last_used_at_us` (WP37). Jede spätere Änderung erhöht die
+  /// (`morning_raw_signals`) und `known_devices.last_used_at_us` (WP37).
+  /// Version 15: verwendete Kamera im Rohsignal (`morning_raw_signals.camera_id`,
+  /// `physical_camera_id`, `focal_length_mm`, FR-0220). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -241,6 +243,21 @@ class AppDatabase extends _$AppDatabase {
         );
       }
       await m.create(morningRawSignals);
+    },
+    // 14 -> 15: verwendete Kamera im Rohsignal (FR-0220); bestehende Zeilen
+    // bekommen NULL (nicht bekannt), das Rohsignal selbst bleibt unverändert.
+    14: (Migrator m) async {
+      // Kommt die Datei von Version 13 oder älter, hat Schritt 13 die Tabelle
+      // schon mit der aktuellen Definition (samt der neuen Spalten) angelegt.
+      final columns = await m.database
+          .customSelect(
+            "SELECT name FROM pragma_table_info('morning_raw_signals')",
+          )
+          .get();
+      if (columns.any((r) => r.data['name'] == 'camera_id')) return;
+      await m.addColumn(morningRawSignals, morningRawSignals.cameraId);
+      await m.addColumn(morningRawSignals, morningRawSignals.physicalCameraId);
+      await m.addColumn(morningRawSignals, morningRawSignals.focalLengthMm);
     },
   };
 

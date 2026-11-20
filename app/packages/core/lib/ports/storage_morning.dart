@@ -220,6 +220,9 @@ class MorningRawSignal {
     this.rollingShutterSkewNs,
     this.torchStrength,
     this.saturatedFraction,
+    this.cameraId,
+    this.physicalCameraId,
+    this.focalLengthMm,
   });
 
   final List<PpgFrame> frames;
@@ -243,6 +246,17 @@ class MorningRawSignal {
   /// Anteil gesättigter Pixel (0 bis 1); `null`, wenn die Kamera ihn nicht
   /// liefert.
   final double? saturatedFraction;
+
+  /// Verwendete Kamera (FR-0220): Camera2-ID der geöffneten Kamera und, bei
+  /// einer physischen Kamera einer logischen Mehrfachkamera, deren ID
+  /// (`PpgCameraRef`); `null` = nicht bekannt (ältere Messungen). Eine
+  /// physische Kamera gibt es nur mit [cameraId].
+  final String? cameraId;
+  final String? physicalCameraId;
+
+  /// Kleinste Brennweite der verwendeten Kamera in mm (größer 0); `null` = nicht
+  /// bekannt.
+  final double? focalLengthMm;
 
   /// Ohne Inhalte (Gesundheitsdaten gehören nicht in Logs).
   @override
@@ -402,6 +416,9 @@ void checkMorningForStorage(
               (raw.torchStrength != null && raw.torchStrength! < 0) ||
               (raw.saturatedFraction != null &&
                   !(raw.saturatedFraction! >= 0 &&
-                      raw.saturatedFraction! <= 1))));
+                      raw.saturatedFraction! <= 1)) ||
+              (raw.physicalCameraId != null && raw.cameraId == null) ||
+              (raw.focalLengthMm != null &&
+                  !(raw.focalLengthMm!.isFinite && raw.focalLengthMm! > 0))));
   if (invalid) throw const StorageException(StorageFailure.rejected);
 }

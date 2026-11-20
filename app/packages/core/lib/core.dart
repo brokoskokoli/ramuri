@@ -149,6 +149,7 @@ export 'src/prediction/prediction_registry.dart';
 export 'src/prediction/prediction_run.dart';
 export 'src/prediction/prediction_run_reader.dart';
 export 'src/prediction/reference_performance.dart';
+export 'src/prediction/reference_run_choice.dart';
 export 'src/prediction/reference_suggestion.dart';
 export 'src/prediction/riegel.dart';
 export 'src/prediction/test_hint.dart';

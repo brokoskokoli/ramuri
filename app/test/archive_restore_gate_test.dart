@@ -29,6 +29,13 @@ class _Fakes {
   final List<Object> restoreErrors = [];
   Completer<void>? verifyGate;
   StorageSession? freshSeen;
+
+  /// Das Archiv hat ein Passwort: die Prüfung mit dem leeren Passwort scheitert
+  /// wie beim echten Leser am ersten Stück (vor [verifyGate] und Fehlern).
+  bool protected = true;
+
+  /// Abgewiesene Prüfungen mit dem leeren Passwort.
+  int emptyRejected = 0;
   late StorageSession restored;
 
   /// Vorprüfung des Kopfes (FR-0198): geprüfte Pfade, Fehler (Fremddatei).
@@ -45,6 +52,12 @@ class _Fakes {
     required String password,
     ArchiveCancel? cancel,
   }) async {
+    if (protected && password.isEmpty) {
+      emptyRejected++;
+      throw const ArchiveImportException(
+        ArchiveImportFailure.wrongPasswordOrDamaged,
+      );
+    }
     events.add('verify(delete=${w.files.deleteCalls})');
     verifies.add((path: path, password: password));
     await verifyGate?.future;
@@ -194,6 +207,50 @@ void main() {
     expect(find.textContaining('Archiv importiert'), findsOneWidget);
     expect(find.byKey(const Key('home_screen')), findsOneWidget);
     expect(w.violations, isEmpty);
+  });
+
+  testWidgets('Archiv ohne Passwort: keine Passwortabfrage, Prüfung und '
+      'Einspielen mit leerem Passwort (FR-0198, SEC-0011)', (tester) async {
+    final (w, f, h, c) = await _pump(tester);
+    f.protected = false;
+    await _tap(tester, 'not_openable_restore');
+    expect(
+      find.byKey(const Key('archive_import_password_dialog')),
+      findsNothing,
+    );
+    expect(f.verifies.single.password, '');
+    expect(find.byKey(const Key('restore_confirm_dialog')), findsOneWidget);
+    _untouched(w);
+
+    await _tap(tester, 'restore_confirm_action');
+    expect(f.events, ['verify(delete=0)', 'restore(delete=1)']);
+    expect(f.restores.single.password, '');
+    expect((c.state as StorageReady).session, same(f.restored));
+    expect(h.discardCount, 1);
+  });
+
+  testWidgets('Archiv mit Passwort: genau eine Abfrage ohne Fehlertext, dann '
+      'Bestätigung', (tester) async {
+    final (w, f, _, _) = await _pump(tester);
+    await _tap(tester, 'not_openable_restore');
+    expect(f.emptyRejected, 1);
+    expect(
+      find.byKey(const Key('archive_import_password_dialog')),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Falsches Passwort oder beschädigter Anfang'),
+      findsNothing,
+    );
+    await _password(tester);
+    expect(
+      find.byKey(const Key('archive_import_password_dialog')),
+      findsNothing,
+    );
+    expect(f.emptyRejected, 1);
+    expect(f.verifies.map((v) => v.password), [_pw]);
+    expect(find.byKey(const Key('restore_confirm_dialog')), findsOneWidget);
+    _untouched(w);
   });
 
   testWidgets('Dateiwahl abgebrochen: nichts geschieht, Kopie entsorgt', (

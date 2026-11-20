@@ -165,7 +165,9 @@ class _Case {
     }
     expect(error, isA<ArchiveImportException>(), reason: 'kein Fehler');
     expect((error! as ArchiveImportException).failure, failure);
-    expect(error.toString(), isNot(contains(password)));
+    if (password.isNotEmpty) {
+      expect(error.toString(), isNot(contains(password)));
+    }
     expect(sink.commits, commits, reason: 'commit trotz Fehler');
     expect(sink.aborts, 1);
     expect(sink.calls.first, 'begin');
@@ -242,6 +244,46 @@ void main() {
   });
 
   group('Rundgang Export -> Leser', () {
+    test('ohne Passwort: Export und Reimport mit leerem Passwort, alle '
+        'Abschnitte gleich (SEC-0011, FR-0198)', () async {
+      final db = _fullDb(rowsPer: 2, schema: archiveSchemaVersion);
+      final handoff = FakeFileHandoff()..directory = dir.path;
+      final file = await ArchiveExporter(
+        source: FakeArchiveSource(db),
+        handoff: handoff,
+        clock: FakeClock(DateTime.utc(2026, 11, 18, 12)),
+        cipherFactory: _fakeCipher,
+      ).export(password: '');
+      final bytes = File(file.path!).readAsBytesSync();
+      // Gleiches Format wie mit Passwort (Kopf mit Salz, kein Formatwechsel).
+      expect(bytes.sublist(0, 8), ArchiveHeader.magic);
+      expect(ArchiveHeader.parse(bytes).format, ArchiveHeader.formatVersion);
+
+      await c.run(bytes, password: '');
+      expect(c.sink.rows, db);
+      expect(c.sink.commits, 1);
+
+      // Ein anderes Passwort öffnet das Archiv ohne Passwort nicht.
+      c.sink = FakeArchiveSink();
+      await c.rejects(
+        bytes,
+        ArchiveImportFailure.wrongPasswordOrDamaged,
+        password: _password,
+      );
+    });
+
+    test(
+      'Archiv mit Passwort: leeres Passwort scheitert am ersten Stück',
+      () async {
+        final bytes = await _archive(valid());
+        await c.rejects(
+          bytes,
+          ArchiveImportFailure.wrongPasswordOrDamaged,
+          password: '',
+        );
+      },
+    );
+
     test('alle Zeilen gleich, commit genau einmal am Ende', () async {
       // Der Schreiber erzeugt das neueste Schema (mit `runs.mode`).
       final db = _fullDb(rowsPer: 3, schema: archiveSchemaVersion);
@@ -474,12 +516,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 14: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 15: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 15);
+        final lines = valid()..[0] = _manifest(schema: 16);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":15,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":16,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -1346,8 +1388,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 14 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 15, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 15 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 16, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -2145,6 +2187,136 @@ void main() {
       }
     });
 
+    test('Schema 15: verwendete Kamera am Ende von Abschnitt 34; Schema 14 liest sich mit null', () async {
+      Map<String, Object?> mm(int id, {bool v14 = true, Object? hr = 52.3}) => {
+        'id': id,
+        'measured_at_us': 5000 + id,
+        'utc_offset_s': 0,
+        'posture': 'lying',
+        'device_manufacturer': 'Testhersteller',
+        'device_model': 'Testmodell',
+        'method': 'camera-ppg',
+        'method_version': 2,
+        'quality': hr == null ? 'unusable' : 'good',
+        'resting_hr_bpm': hr,
+        'rmssd_ms': null,
+        'timing_noise_ms': null,
+        'sleep_band': null,
+        'before_validation': 0,
+        'outside_window': 0,
+        'camera_ibi': '',
+        if (v14) ...{
+          'window_start_s': hr == null ? null : 5.0,
+          'window_end_s': hr == null ? null : 65.0,
+          'rest_skipped_after_s': null,
+          'unusable_reason': hr == null ? 'noFinger' : null,
+        },
+      };
+      Map<String, Object?> raw(
+        int id, {
+        Object? frames = '00',
+        Object? count = 0,
+      }) => {
+        'measurement_id': id,
+        'frame_count': count,
+        'frames': frames,
+        'exposure_time_ns': 16666666,
+        'iso': null,
+        'timestamp_source': 'realtime',
+        'rolling_shutter_skew_ns': null,
+        'torch_strength': 1,
+        'frame_gap_count': 0,
+        'frame_gap_total_s': 0.0,
+        'saturated_fraction': null,
+      };
+      Map<String, Object?> cam(
+        int id, {
+        Object? camera = '0',
+        Object? physical = '2',
+        Object? focal = 2.2,
+      }) => raw(id)
+        ..['camera_id'] = camera
+        ..['physical_camera_id'] = physical
+        ..['focal_length_mm'] = focal;
+      expect(
+        [
+          for (final col in archiveSectionsFor(
+            15,
+          ).firstWhere((s) => s.name == 'morning_raw_signals').columns)
+            col.name,
+        ].skip(11),
+        ['camera_id', 'physical_camera_id', 'focal_length_mm'],
+      );
+      await c.run(
+        await file(
+          v2(
+            schema: 15,
+            trainings: [mt()..['hc_id'] = null],
+            extra: {
+              'morning_measurements': [mm(1), mm(2), mm(3)],
+              'morning_raw_signals': [
+                cam(1),
+                cam(2, physical: null, focal: 5),
+                cam(3, camera: null, physical: null, focal: null),
+              ],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      var r = c.sink.rows['morning_raw_signals']!;
+      expect(r.map((e) => e['camera_id']), ['0', '0', null]);
+      expect(r.map((e) => e['physical_camera_id']), ['2', null, null]);
+      expect(r.map((e) => e['focal_length_mm']), [2.2, 5.0, null]);
+      // Schema 14 kennt die Spalten nicht: sie lesen sich als null.
+      c = _Case(dir);
+      await c.run(
+        await file(
+          v2(
+            schema: 14,
+            trainings: [mt()..['hc_id'] = null],
+            extra: {
+              'morning_measurements': [mm(1)],
+              'morning_raw_signals': [raw(1)],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      r = c.sink.rows['morning_raw_signals']!;
+      expect(r.single.containsKey('camera_id'), isTrue);
+      expect(
+        [
+          r.single['camera_id'],
+          r.single['physical_camera_id'],
+          r.single['focal_length_mm'],
+        ],
+        [null, null, null],
+      );
+      // Neue Spalten in Schema 14, fehlende in Schema 15 und falsche Typen:
+      // beschädigt.
+      c = _Case(dir);
+      for (final (schema, bad) in <(int, Map<String, Object?>)>[
+        (14, cam(1)),
+        (15, raw(1)),
+        (15, cam(1)..remove('focal_length_mm')),
+        (15, cam(1, camera: 0)),
+        (15, cam(1, physical: 2)),
+        (15, cam(1, focal: '2.2')),
+      ]) {
+        await rejectsV2(
+          v2(
+            schema: schema,
+            trainings: [mt()..['hc_id'] = null],
+            extra: {
+              'morning_measurements': [mm(1)],
+              'morning_raw_signals': [bad],
+            },
+          ),
+        );
+      }
+    });
+
     test('mode: Schema 9 mit mode oder Schema 10 ohne mode sowie falscher Typ in treadmill_settings: beschädigt', () async {
       await rejectsV2(
         v2(
@@ -2355,9 +2527,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 15: neueres Archiv', () async {
+    test('Schema 16: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":15,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":16,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });
