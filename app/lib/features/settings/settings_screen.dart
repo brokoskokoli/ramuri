@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
@@ -42,6 +44,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   StorageSession get session => widget.session;
   RecalculationController get recalculation => widget.recalculation;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ob ein Lauf nicht berechenbar ist, kann sich seit der letzten
+    // Datenänderung geändert haben (FR-0219).
+    unawaited(recalculation.refreshUncomputable());
+  }
 
   @override
   void dispose() {
