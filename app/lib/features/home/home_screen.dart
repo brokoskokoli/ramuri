@@ -452,7 +452,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Bei „fix“ nur eine Empfehlung unter der Karte „Erholung“, der Plan
       // bleibt (FR-0216, PAR-173); nicht unter Warnsignal (FR-0203 vorn).
       if (extended &&
-          !warning &&
           ready &&
           s.warning == null &&
           readiness.today != null &&
