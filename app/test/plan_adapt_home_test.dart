@@ -206,11 +206,14 @@ void main() {
       final s = await _preopen(d, mode, warning: warning);
       _readiness(value);
       await d.start(tester, const Locale('de'));
-      if (!warning) expect(_key('readiness_card'), findsOneWidget);
+      expect(_key('readiness_card'), findsOneWidget);
       expect(_key('plan_adapt_recommendation'), findsNothing);
-      if (!warning) {
-        expect((await _unitToday(s)).kind, PlanUnitKind.intervals);
-      }
+      // Unter dem Warnsignal ist heute Ruhe (FR-0203), sonst bleibt die
+      // harte Einheit.
+      expect(
+        (await _unitToday(s)).kind,
+        warning ? PlanUnitKind.rest : PlanUnitKind.intervals,
+      );
     });
   }
 }
