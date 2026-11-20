@@ -419,6 +419,13 @@ void main() {
         final s = (await tester.runAsync(env.service.load))!;
         expect(s.sleepEntry!.measurementId, a);
         expect(s.sleepEntry!.band, SleepBand.over8);
+        // Die Einschätzung zählt dieselbe Stufe wie das Blatt.
+        expect(
+          s.result.facts
+              .singleWhere((f) => f.kind == ReadinessFactKind.sleepDuration)
+              .hours,
+          sleepBandHours(SleepBand.over8),
+        );
         await open(tester, s, actions: env.actions());
         await _tap(tester, 'readiness_detail_change_sleep');
         for (final band in SleepBand.values) {
