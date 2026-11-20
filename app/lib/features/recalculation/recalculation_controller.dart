@@ -17,8 +17,28 @@ enum EdwardsSwitchReason {
   /// Der Ruhepuls fehlt (Profil gespeichert).
   restingHeartRate,
 
+  /// Der Ruhepuls ist da, aber Ruhepuls und HFmax ergeben keine brauchbare
+  /// Herzfrequenzreserve (FR-0060; Profil gespeichert).
+  heartRateReserve,
+
   /// Die Koeffizienten-Angabe wurde entfernt.
   coefficients,
+}
+
+/// Der Grund für den Hinweis aus den [issues] der Auflösung, die umgestellt
+/// hat. Bei mehreren gilt: fehlender Ruhepuls vor unbrauchbarer Reserve vor
+/// fehlenden Koeffizienten. Ohne Issues `null`.
+EdwardsSwitchReason? edwardsSwitchReasonOf(Iterable<LoadProfileIssue> issues) {
+  if (issues.contains(LoadProfileIssue.missingRestingHeartRate)) {
+    return EdwardsSwitchReason.restingHeartRate;
+  }
+  if (issues.contains(LoadProfileIssue.heartRateReserveUnusable)) {
+    return EdwardsSwitchReason.heartRateReserve;
+  }
+  if (issues.contains(LoadProfileIssue.missingCoefficients)) {
+    return EdwardsSwitchReason.coefficients;
+  }
+  return null;
 }
 
 /// Hält das Angebot einer Neuberechnung und den Ablauf für die Oberfläche
@@ -76,10 +96,10 @@ class RecalculationController extends ChangeNotifier {
     return r;
   }
 
-  /// Führt [action] aus und merkt sich [reason], wenn das aktive Profil
-  /// dabei von Banister auf Edwards gewechselt ist.
+  /// Führt [action] aus und merkt sich den Grund aus [reason], wenn das
+  /// aktive Profil dabei von Banister auf Edwards gewechselt ist.
   Future<T> _watchEdwardsSwitch<T>(
-    EdwardsSwitchReason reason,
+    EdwardsSwitchReason? Function() reason,
     Future<T> Function() action,
   ) async {
     final store = service.session.settings;
@@ -87,9 +107,22 @@ class RecalculationController extends ChangeNotifier {
     final result = await action();
     if (before == LoadProfile.banister &&
         await LoadSettings.activeProfile(store) == LoadProfile.edwards) {
-      _edwardsSwitch = reason;
+      final r = reason();
+      if (r != null) _edwardsSwitch = r;
     }
     return result;
+  }
+
+  /// Wie [_watchEdwardsSwitch] für Aufrufe, die über die Auflösung des
+  /// Service umstellen: Der Grund kommt aus genau der Auflösung, die
+  /// umgestellt hat ([RecalculationService.takeEdwardsSwitchIssues]).
+  Future<T> _watchResolvedEdwardsSwitch<T>(Future<T> Function() action) {
+    // Gründe einer älteren, nicht abgeholten Umstellung verwerfen.
+    service.takeEdwardsSwitchIssues();
+    return _watchEdwardsSwitch(
+      () => edwardsSwitchReasonOf(service.takeEdwardsSwitchIssues() ?? []),
+      action,
+    );
   }
 
   /// Solange gerechnet wird, darf nichts anderes die Werte ändern oder die
@@ -184,8 +217,7 @@ class RecalculationController extends ChangeNotifier {
   /// die Rückmeldung der Seite zu spät.
   Future<void> profileChanged(ProfileRecord before, ProfileRecord after) async {
     try {
-      final offer = await _watchEdwardsSwitch(
-        EdwardsSwitchReason.restingHeartRate,
+      final offer = await _watchResolvedEdwardsSwitch(
         () => service.profileChanged(before: before, after: after),
       );
       if (offer != null) _onOffer(offer);
@@ -209,7 +241,7 @@ class RecalculationController extends ChangeNotifier {
   Future<void> requestLoadCoefficients(LoadCoefficients? value) =>
       _requestChange(
         () => _watchEdwardsSwitch(
-          EdwardsSwitchReason.coefficients,
+          () => EdwardsSwitchReason.coefficients,
           () => service.requestLoadCoefficients(value),
         ),
       );
@@ -221,10 +253,7 @@ class RecalculationController extends ChangeNotifier {
   Future<void> loadBasisChanged() async {
     try {
       await _requestChange(
-        () => _watchEdwardsSwitch(
-          EdwardsSwitchReason.restingHeartRate,
-          service.loadBasisChanged,
-        ),
+        () => _watchResolvedEdwardsSwitch(service.loadBasisChanged),
       );
     } on Object {
       // Das Profil ist gespeichert; ein Angebot gibt es dann eben nicht.
