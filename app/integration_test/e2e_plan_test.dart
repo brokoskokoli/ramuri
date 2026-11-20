@@ -80,6 +80,11 @@ Future<void> _checkAndSave(WidgetTester t) async {
   await waitFor(t, () => has('plan_form_save'), 'Speichern-Knopf');
   expect(has('plan_form_assessment'), isTrue);
   await tapKey(t, 'plan_form_save');
+  await waitFor(
+    t,
+    () => has('plan_form_care') || has('plan_goal_saved'),
+    'Rueckfrage plan_form_care oder Meldung plan_goal_saved',
+  );
   if (has('plan_form_care')) {
     await tapDialog(t, 'plan_form_care_confirm');
   }
@@ -250,7 +255,16 @@ void main() {
     final reported = await t.runAsync(store.read);
     expect(reported, isNotNull, reason: 'Warnsignal gespeichert');
     expect((await t.runAsync(plans.history))!.length, greaterThan(versions));
-    // Im Menue steht "melden" bei aktivem Warnsignal nicht mehr.
+    // Im Menue steht "melden" bei aktivem Warnsignal nicht mehr. Das Menue
+    // ist gesperrt, bis das Melden ganz abgeschlossen ist; das endet erst
+    // nach der Fortschrittsanzeige.
+    await waitFor(
+      t,
+      () => t
+          .widget<PopupMenuButton<String>>(find.byKey(const Key('plan_menu')))
+          .enabled,
+      'Menue bereit (plan_menu)',
+    );
     await tapKey(t, 'plan_menu');
     await waitFor(t, () => has('plan_menu_feedback'), 'Menue');
     expect(has('plan_menu_report'), isFalse);

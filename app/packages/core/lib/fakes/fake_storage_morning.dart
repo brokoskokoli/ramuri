@@ -42,6 +42,9 @@ class FakeMorningStore implements MorningStore {
         rollingShutterSkewNs: rawSignal.rollingShutterSkewNs,
         torchStrength: rawSignal.torchStrength,
         saturatedFraction: rawSignal.saturatedFraction,
+        cameraId: rawSignal.cameraId,
+        physicalCameraId: rawSignal.physicalCameraId,
+        focalLengthMm: rawSignal.focalLengthMm,
       );
     }
     _d.morningPackets[id] = [

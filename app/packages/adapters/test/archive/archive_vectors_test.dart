@@ -433,6 +433,50 @@ void main() {
     expect(lines.last['rows'], v['row_counts']);
   });
 
+  test('archive_v2_s15: Format 2, Schema 15, verwendete Kamera im Rohsignal (Abschnitt 34)', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s15');
+    final plain = await _collect(
+      createArchiveCipher().decrypt(
+        v['password'] as String,
+        Stream.value(_read(v['file'] as String)),
+      ),
+    );
+    expect(_read(v['file'] as String)[9], 2);
+    final text = utf8.decode(gzip.decode(plain));
+    expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+    final lines = [
+      for (final l in const LineSplitter().convert(text))
+        jsonDecode(l) as Map<String, dynamic>,
+    ];
+    expect(lines.first['schema_version'], 15);
+    final sections = [
+      for (final l in lines)
+        if (l['type'] == 'section') l['name'],
+    ];
+    expect(sections.length, 34);
+    expect(sections.last, 'morning_raw_signals');
+    final raw = [
+      for (final (i, l) in lines.indexed)
+        if (l['type'] == 'row' &&
+            i > lines.lastIndexWhere((l) => l['type'] == 'section'))
+          l['data'] as Map,
+    ];
+    expect(raw.map((r) => r['measurement_id']), [1, 2]);
+    // Die neuen Spalten stehen am Zeilenende (Spalten 12 bis 14).
+    expect(raw.first.keys.toList().sublist(11), [
+      'camera_id',
+      'physical_camera_id',
+      'focal_length_mm',
+    ]);
+    expect(raw.map((r) => r['camera_id']), ['0', '1']);
+    expect(raw.map((r) => r['physical_camera_id']), ['2', null]);
+    expect(raw.map((r) => r['focal_length_mm']), [2.2, null]);
+    // 1 Bild x 35 float64 = 280 Byte = 560 Hex-Zeichen.
+    expect((raw.last['frames'] as String).length, 560);
+    expect(lines.last['rows'], v['row_counts']);
+    expect(lines.last['rows']['morning_raw_signals'], 2);
+  });
+
   test('archive_v2_s11: Format 2, Schema 11, active_warning mit einer Zeile (Abschnitt 21)', () async {
     final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s11');
     final plain = await _collect(

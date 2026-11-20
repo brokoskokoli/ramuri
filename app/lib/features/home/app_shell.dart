@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
@@ -113,14 +115,13 @@ class _AppShellState extends State<AppShell> {
           session: widget.session,
           clock: widget.clock,
           viewState: _planState,
-          readinessToday: (day) async {
-            final r = await loadReadinessToday(
+          readinessToday: planReadinessSource(
+            () => loadReadinessToday(
               session: widget.session,
               clock: widget.clock,
               recalculation: widget.recalculation.service,
-            );
-            return r == null ? null : PlanReadinessDay.of(day, r.result);
-          },
+            ),
+          ),
           onStartUnit: (context, unit) => RunStarter(
             session: widget.session,
             clock: widget.clock,
@@ -168,10 +169,11 @@ class _AppShellState extends State<AppShell> {
   }
 
   /// Größter Schriftfaktor, bei dem die längste Beschriftung der Leiste
-  /// (fett wie im gewählten Bereich) in einer Zeile in ihren Eintrag passt.
-  /// Bei fünf Einträgen und großer Schrift wäre etwa „Fortschritt“ sonst
-  /// umgebrochen und abgeschnitten (FR-0208); passt alles, bleibt der
-  /// Schriftfaktor des Systems unverändert.
+  /// (fett wie im gewählten Bereich) in einer Zeile in ihren Eintrag passt
+  /// (Passfaktor). Bei fünf Einträgen und großer Schrift wäre etwa
+  /// „Fortschritt“ sonst umgebrochen und abgeschnitten (FR-0208); passt
+  /// alles, bleibt der Schriftfaktor des Systems unverändert. Die Untergrenze
+  /// setzt [_labelScaleFloor].
   double _labelScaleLimit(
     BuildContext context,
     AppLocalizations l10n,
@@ -197,6 +199,18 @@ class _AppShellState extends State<AppShell> {
     }
     if (widest <= slot) return double.infinity;
     return scaler.scale(size) / size * slot / widest;
+  }
+
+  /// Untergrenze des Schriftfaktors der Leiste: die Grundschrift (1,0), aber
+  /// nie mehr als der Schriftfaktor des Systems (FR-0208). Passt die längste
+  /// Beschriftung auch mit 1,0 nicht, endet sie mit „…“ (Theme der Leiste).
+  double _labelScaleFloor(BuildContext context) {
+    final size =
+        Theme.of(context).navigationBarTheme.labelTextStyle
+            ?.resolve({WidgetState.selected})
+            ?.fontSize ??
+        12;
+    return math.min(MediaQuery.textScalerOf(context).scale(size) / size, 1.0);
   }
 
   @override
@@ -225,28 +239,31 @@ class _AppShellState extends State<AppShell> {
             child: _body(_tabs[_index].id),
           ),
           bottomNavigationBar: LayoutBuilder(
-            builder: (context, constraints) =>
-                MediaQuery.withClampedTextScaling(
-                  maxScaleFactor: _labelScaleLimit(
-                    context,
-                    l10n,
-                    constraints.maxWidth,
-                  ),
-                  child: NavigationBar(
-                    selectedIndex: _index,
-                    onDestinationSelected: (i) {
-                      if (i != _index) setState(() => _index = i);
-                    },
-                    destinations: [
-                      for (final t in _tabs)
-                        NavigationDestination(
-                          key: t.key,
-                          icon: Icon(t.icon),
-                          label: t.label(l10n),
-                        ),
-                    ],
-                  ),
+            builder: (context, constraints) {
+              // Wirksam: max(min(System, 1,0), min(System, Passfaktor)).
+              final floor = _labelScaleFloor(context);
+              return MediaQuery.withClampedTextScaling(
+                minScaleFactor: floor,
+                maxScaleFactor: math.max(
+                  floor,
+                  _labelScaleLimit(context, l10n, constraints.maxWidth),
                 ),
+                child: NavigationBar(
+                  selectedIndex: _index,
+                  onDestinationSelected: (i) {
+                    if (i != _index) setState(() => _index = i);
+                  },
+                  destinations: [
+                    for (final t in _tabs)
+                      NavigationDestination(
+                        key: t.key,
+                        icon: Icon(t.icon),
+                        label: t.label(l10n),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),

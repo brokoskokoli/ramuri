@@ -81,7 +81,10 @@ jobs:
           script: echo "Snapshot erzeugt"
       # Der Test-Sensor (main_debug.dart) braucht keine Hardware; die
       # Integrationstests starten die App selbst (kein TEST_SENSOR_RR nötig).
+      # E2E_SHOTS=1: Bildschirmfotos hell und dunkel bei jeder SHOT-Marke nach e2e-out/shots/ (tool/ci_e2e.sh).
       - name: E2E-Tests
+        env:
+          E2E_SHOTS: '1'
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ matrix.api }}
@@ -107,11 +110,25 @@ jobs:
       # Bildschirmfoto und Fehlerzeilen. Die Tests nutzen nur synthetische Daten;
       # der Filter verhindert zusätzlich, dass Fremd- oder Gerätedaten
       # mitwandern (SEC-0001..0010: keine Gesundheitswerte in Artefakten/Logs).
+      # Die Fotos der SHOT-Marken (e2e-out/shots/) liegen nur im Artefakt "-fotos" unten.
       - name: Artefakte bei Rot
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-api${{ matrix.api }}-${{ matrix.shard }}-fehler
-          path: e2e-out/
+          path: |
+            e2e-out/
+            !e2e-out/shots/
+          retention-days: 7
+          if-no-files-found: ignore
+      # Bei jedem Lauf, auch bei Grün: nur die Bildschirmfotos hell und dunkel der SHOT-Marken
+      # (e2e-out/shots/<stufe>-<name>.png). Sie zeigen ausschließlich synthetische Daten der Tests,
+      # keine Gesundheits- oder Gerätedaten echter Personen (SEC-0001 bis SEC-0010); Aufbewahrung 7 Tage.
+      - name: Bildschirmfotos
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-api${{ matrix.api }}-${{ matrix.shard }}-fotos
+          path: e2e-out/shots/
           retention-days: 7
           if-no-files-found: ignore

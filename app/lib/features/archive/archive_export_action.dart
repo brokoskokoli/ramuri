@@ -73,9 +73,11 @@ class ArchiveExportAction extends StatelessWidget {
   }
 }
 
-/// Passwort zweimal, Hinweis zum vergessenen Passwort, dann Fortschritt und
-/// Übergabe. Das Passwort steht nur so lange im Eingabefeld, bis der Export
-/// beginnt; Autofill, Vorschläge und Lernen der Tastatur sind aus.
+/// Passwort zweimal (freiwillig; bei leeren Feldern Hinweis, dass das Archiv
+/// dann für jeden lesbar ist), Hinweis zum vergessenen Passwort, dann
+/// Fortschritt und Übergabe. Das Passwort steht nur so lange im Eingabefeld,
+/// bis der Export beginnt; Autofill, Vorschläge und Lernen der Tastatur sind
+/// aus.
 class ArchiveExportDialog extends StatefulWidget {
   const ArchiveExportDialog({
     super.key,
@@ -102,8 +104,25 @@ class _ArchiveExportDialogState extends State<ArchiveExportDialog> {
   bool _working = false;
   ArchiveCancel? _cancel;
 
+  /// Beide Felder leer: Export ohne Passwort, mit Hinweis (SEC-0011).
+  bool _noPassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _password.addListener(_fieldsChanged);
+    _repeat.addListener(_fieldsChanged);
+  }
+
+  void _fieldsChanged() {
+    final empty = _password.text.isEmpty && _repeat.text.isEmpty;
+    if (empty != _noPassword && mounted) setState(() => _noPassword = empty);
+  }
+
   @override
   void dispose() {
+    _password.removeListener(_fieldsChanged);
+    _repeat.removeListener(_fieldsChanged);
     _password.clear();
     _repeat.clear();
     _password.dispose();
@@ -286,6 +305,17 @@ class _ArchiveExportDialogState extends State<ArchiveExportDialog> {
               l10n.archivePasswordRule,
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            if (_noPassword) ...[
+              const SizedBox(height: 8),
+              Text(
+                l10n.archiveExportNoPassword,
+                key: const Key('archive_no_password'),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
             if (_failed) ...[
               const SizedBox(height: 8),
               Text(

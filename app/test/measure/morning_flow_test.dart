@@ -145,6 +145,7 @@ class _Rig {
     bool developerMode = false,
     bool strapConnected = true,
     bool deviceFails = false,
+    Future<PpgCameraRef?> Function()? cameraChoice,
   }) async {
     final cam = HoldingCamera();
     final s = session ?? await FakeStorage().open(testKey);
@@ -178,6 +179,7 @@ class _Rig {
         return (manufacturer: 'Testhersteller', model: 'Modell 1');
       },
       belt: belt,
+      cameraChoice: cameraChoice,
       hooks: MorningMeasureHooks(
         onRestStarted: (t) => rig.restStarts.add(t),
         onMeasurementEnded: (t) => rig.measureEnds.add(t),
@@ -464,9 +466,23 @@ void main() {
     testWidgets(
       'Entwicklermodus: Kamera-Angaben vom Adapter über Rohsignal bis CSV',
       (tester) async {
-        final r = await _Rig.make(developerMode: true);
+        // Gewählt ist die physische Kamera 2 der logischen Kamera 0.
+        const chosen = PpgCameraRef('0', '2');
+        final r = await _Rig.make(
+          developerMode: true,
+          cameraChoice: () async => chosen,
+        );
+        r.cam.cameraList = const [
+          PpgCameraInfo(
+            ref: PpgCameraRef('0'),
+            focalLengthMm: 4.2,
+            isDefault: true,
+          ),
+          PpgCameraInfo(ref: chosen, focalLengthMm: 2.2),
+        ];
         await r.show(tester, dark: false);
         await _startMeasurement(tester, r);
+        expect(r.cam.startedWith.last, chosen);
         // Nachrichten wie Kotlin sie sendet, durch den echten Adapter-Parser: der letzte Stand gilt.
         PpgCameraEvent? msg(Map<String, Object> m) =>
             MethodChannelPpgCamera.parse({'type': 'details', ...m});
@@ -491,6 +507,10 @@ void main() {
         expect(raw.rollingShutterSkewNs, 20000000);
         expect(raw.torchStrength, isNull, reason: 'Gerät lieferte keine');
         expect(raw.saturatedFraction, 0.02);
+        // Verwendete Kamera: gemeldete Kamera, Brennweite aus ihrem Listeneintrag.
+        expect(raw.cameraId, '0');
+        expect(raw.physicalCameraId, '2');
+        expect(raw.focalLengthMm, 2.2);
         final csv = encodeMorningPairsCsv([
           MorningPair(id: id.id, measurement: id.value, rawSignal: raw),
         ]);
@@ -500,6 +520,9 @@ void main() {
         expect(csv, contains(',meta,rolling_shutter_skew,,,,20000000,ns\r\n'));
         expect(csv, contains(',meta,torch_strength,,,,,\r\n'));
         expect(csv, contains(',meta,saturated_fraction,,,,0.02,\r\n'));
+        expect(csv, contains(',meta,camera_id,,,,0,\r\n'));
+        expect(csv, contains(',meta,physical_camera_id,,,,2,\r\n'));
+        expect(csv, contains(',meta,focal_length,,,,2.2,mm\r\n'));
       },
     );
 

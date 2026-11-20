@@ -206,21 +206,9 @@ class PredictionController extends ChangeNotifier {
 
   /// Übernimmt den Vorschlag als bestätigten Lauf (FR-0131).
   Future<bool> acceptSuggestion(ReferenceSuggestion s) {
-    final run = s.run;
-    final meters = run.distanceMeters;
-    if (meters == null) return Future.value(false);
-    return _mutate(
-      () => _store.addReference(
-        ReferencePerformance(
-          kind: ReferenceKind.confirmedRun,
-          distanceMeters: meters,
-          seconds: run.movingSeconds,
-          date: run.date,
-          createdAt: clock.now(),
-          runId: run.id,
-        ),
-      ),
-    );
+    final reference = referenceFromRun(s.run, clock.now());
+    if (reference == null) return Future.value(false);
+    return _mutate(() => _store.addReference(reference));
   }
 
   /// Lehnt den Vorschlag ab; derselbe Lauf kommt nicht wieder.

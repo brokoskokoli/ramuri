@@ -195,6 +195,97 @@ void main() {
       expect(rec[5], 1200); // 12 m in cm
       expect(rec[4], 90);
     });
+
+    // Manuelle Pause [4,4; 4,6): beide Abschnitte enden bzw. beginnen in der
+    // FIT-Sekunde 4. Der record dieser Sekunde trägt die Werte des früheren
+    // Punkts und ergänzt nur fehlende Kanäle aus dem späteren
+    // (docs/contracts/file-export.md, „FIT-Zeit und Zusammenführung“).
+    Future<Map<int, int>> recordAt4(RawBatch batch) async {
+      final s = await xSession();
+      final id = await seedRun(
+        s,
+        batch: batch,
+        gaps: [(RunGapKind.manualPause, 4.4, 4.6)],
+      );
+      final file = await RunFileExportService(session: s)
+          .build(id, ExportFormat.fit);
+      final records = readFit(file!.bytes!)
+          .of(20)
+          .where((r) => r.fields[253] == fitTime(4))
+          .toList();
+      expect(records, hasLength(1));
+      return records.single.fields;
+    }
+
+    int semi(double deg) => (deg * 2147483648 / 180).round();
+
+    test('Pause unter einer Sekunde: record trägt die Schrittfrequenz des '
+        'früheren Punkts', () async {
+      final rec = await recordAt4(
+        RawBatch(
+          positions: [
+            RawPosition(
+              time: xAt(4.2),
+              source: 'gps',
+              latitude: xLat(1),
+              longitude: xLon,
+            ),
+            RawPosition(
+              time: xAt(4.7),
+              source: 'gps',
+              latitude: xLat(2),
+              longitude: xLon,
+            ),
+          ],
+          steps: [
+            // Abschnitt 1: je Sekunde 3 Schritte, bei 4,2 s 180/min.
+            for (var i = 1; i <= 4; i++)
+              RawSteps(time: xAt(i + 0.2), source: 'phone', count: 3 * i),
+            // Abschnitt 2: 1 Schritt in 0,2 s, bei 4,9 s 300/min.
+            RawSteps(time: xAt(4.7), source: 'phone', count: 13),
+            RawSteps(time: xAt(4.9), source: 'phone', count: 14),
+          ],
+        ),
+      );
+      expect(rec[4], 90); // 180 Schritte/min, nicht 150 aus Abschnitt 2
+      expect(rec[0], semi(xLat(1)));
+    });
+
+    test('Pause unter einer Sekunde: früherer Punkt ohne Schrittfrequenz, '
+        'record ergänzt sie aus dem späteren', () async {
+      final rec = await recordAt4(
+        RawBatch(
+          positions: [
+            RawPosition(
+              time: xAt(4.2),
+              source: 'gps',
+              latitude: xLat(1),
+              longitude: xLon,
+            ),
+            RawPosition(
+              time: xAt(4.7),
+              source: 'gps',
+              latitude: xLat(2),
+              longitude: xLon,
+            ),
+          ],
+          heartRates: [
+            RawHeartRate(time: xAt(4.3), source: 's', bpm: 150),
+            RawHeartRate(time: xAt(4.8), source: 's', bpm: 160),
+          ],
+          steps: [
+            // Abschnitt 1: nur ein Zählerwert, also keine Frequenz.
+            RawSteps(time: xAt(4.1), source: 'phone', count: 50),
+            // Abschnitt 2: 1 Schritt in 0,2 s, bei 4,9 s 300/min.
+            RawSteps(time: xAt(4.7), source: 'phone', count: 60),
+            RawSteps(time: xAt(4.9), source: 'phone', count: 61),
+          ],
+        ),
+      );
+      expect(rec[4], 150); // 300 Schritte/min aus Abschnitt 2
+      expect(rec[0], semi(xLat(1)));
+      expect(rec[3], 150);
+    });
   });
 
   group('TCX (Struktur nach TrainingCenterDatabase v2 und ActivityExtension '

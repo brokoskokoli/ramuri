@@ -1,5 +1,5 @@
 /// Abschnitte und Spalten des Archivs (`docs/contracts/archive.md` 4.3,
-/// Schema 14, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
+/// Schema 15, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
 /// Adapter-Test mit der Datenbank.
 library;
 
@@ -126,7 +126,7 @@ class ArchiveSectionSpec {
   bool get isReserved => columns.isEmpty;
 }
 
-/// Die 34 Abschnitte des Schemas 14 (26 bis Schema 11, 31 bis 12, 33 bis 13) in der Reihenfolge des Vertrags;
+/// Die 34 Abschnitte des Schemas 15 (wie 14; 26 bis Schema 11, 31 bis 12, 33 bis 13) in der Reihenfolge des Vertrags;
 /// ältere Schemas haben weniger ([archiveSectionsFor]): Schema 4 die 19 mit
 /// `sinceSchema == 4`, Schema 5 dazu die zwei von WP18.
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
@@ -350,9 +350,16 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     'morning_raw_signals',
     'measurement_id I, frame_count I, frames X, exposure_time_ns I?, iso I?, '
         'timestamp_source T?, rolling_shutter_skew_ns I?, torch_strength I?, '
-        'frame_gap_count I, frame_gap_total_s R, saturated_fraction R?',
+        'frame_gap_count I, frame_gap_total_s R, saturated_fraction R?, '
+        'camera_id T?, physical_camera_id T?, focal_length_mm R?',
     key: 'measurement_id',
     sinceSchema: 14,
+    // Schema 15: verwendete Kamera (FR-0220); ältere Archive: null.
+    addedColumns: {
+      'camera_id': (15, null),
+      'physical_camera_id': (15, null),
+      'focal_length_mm': (15, null),
+    },
   ),
 ]);
 
@@ -363,18 +370,18 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 14;
+const int archiveSchemaVersion = 15;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 14).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 15).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
 /// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7 und 8:
-/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`, ab 14: 34 mit `morning_raw_signals`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
+/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`, ab 14: 34 mit `morning_raw_signals` (ab 15 mit der verwendeten Kamera); ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
 /// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche

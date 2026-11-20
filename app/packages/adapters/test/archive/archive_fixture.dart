@@ -64,11 +64,12 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     "INSERT INTO morning_rr_packets (measurement_id, time_us, source, rr) VALUES (1, 5001, 'strap', x'0004ffff0000'), (1, 5002, 'strap2', x'0004')",
   );
-  // Kamera-Rohsignal (WP37, Schema 14): ein Bild (280 Byte) zur ersten Messung.
+  // Kamera-Rohsignal (WP37, Schema 14): ein Bild (280 Byte) zur ersten Messung,
+  // mit der verwendeten Kamera (Schema 15).
   await sql(
     db,
-    'INSERT INTO morning_raw_signals (measurement_id, frame_count, frames, exposure_time_ns, iso, timestamp_source, rolling_shutter_skew_ns, torch_strength, frame_gap_count, frame_gap_total_s, saturated_fraction) '
-    "VALUES (1, 1, zeroblob(280), 16666666, 100, 'realtime', NULL, 1, 0, 0.0, NULL)",
+    'INSERT INTO morning_raw_signals (measurement_id, frame_count, frames, exposure_time_ns, iso, timestamp_source, rolling_shutter_skew_ns, torch_strength, frame_gap_count, frame_gap_total_s, saturated_fraction, camera_id, physical_camera_id, focal_length_mm) '
+    "VALUES (1, 1, zeroblob(280), 16666666, 100, 'realtime', NULL, 1, 0, 0.0, NULL, '0', '2', 2.2)",
   );
   // Warnsignal (WP23): eine Zeile, kein Fremdschlüssel auf den Lauf.
   await sql(
