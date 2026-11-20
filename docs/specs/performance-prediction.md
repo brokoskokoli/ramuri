@@ -36,6 +36,7 @@ Die Prognose soll bevorzugt auf geeigneten tatsächlichen Leistungen basieren.
 - [ ] Ohne Referenz gibt es keine Prognose, sondern den Grund und einen Hinweis auf einen 5-km-Test, sobald der Plan ihn nach PAR-117 enthalten dürfte (OQ-0034, OQ-0057, DEC-0059).
 - [ ] Ein schneller Lauf wird nach PAR-185 vorgeschlagen und zählt erst nach Bestätigung.
 - [ ] Eine Referenz mit Tempo außerhalb von PAR-208 geht in keine Berechnung ein und wird als „ungültig“ mit Grund angezeigt (K53).
+- [ ] Eine Referenz lässt sich aus einem gespeicherten Lauf übernehmen (Liste der Läufe ab 3 km der letzten 12 Wochen); ist der Lauf nicht als hart angegeben (RPE < 8), weist die App vor dem Übernehmen darauf hin (FR-0131). Entscheidung Maintainer 2026-11-18.
 
 ### FR-0130 — Riegel-Modell
 - **Status:** Approved | **Phase:** 2

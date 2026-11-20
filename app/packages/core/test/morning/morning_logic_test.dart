@@ -373,6 +373,51 @@ void main() {
       expect(raw.timestampSource, CameraTimestampSource.unknown);
       expect(raw.saturatedFraction, 0.5);
     });
+
+    test('verwendete Kamera mit der Brennweite derselben Kamera (FR-0220)', () {
+      const cams = [
+        PpgCameraInfo(
+          ref: PpgCameraRef('0'),
+          focalLengthMm: 5.4,
+          isDefault: true,
+        ),
+        PpgCameraInfo(ref: PpgCameraRef('0', '2'), focalLengthMm: 2.2),
+        PpgCameraInfo(ref: PpgCameraRef('2'), focalLengthMm: 3.1),
+      ];
+      final raw = buildMorningRawSignal(
+        [frame(0)],
+        camera: const PpgCameraRef('0', '2'),
+        cameras: cams,
+      );
+      expect(raw.cameraId, '0');
+      expect(raw.physicalCameraId, '2');
+      expect(raw.focalLengthMm, 2.2);
+      checkMorningForStorage(withExtras(meas())!, rawSignal: raw);
+      final logical = buildMorningRawSignal(
+        [frame(0)],
+        camera: const PpgCameraRef('0'),
+        cameras: cams,
+      );
+      expect(logical.physicalCameraId, isNull);
+      expect(logical.focalLengthMm, 5.4);
+    });
+
+    test('Kamera ohne Eintrag in der Liste: Brennweite unbekannt', () {
+      final raw = buildMorningRawSignal(
+        [frame(0)],
+        camera: const PpgCameraRef('7'),
+        cameras: const [
+          PpgCameraInfo(ref: PpgCameraRef('0'), focalLengthMm: 5.4),
+        ],
+      );
+      expect(raw.cameraId, '7');
+      expect(raw.focalLengthMm, isNull);
+      final none = buildMorningRawSignal([frame(0)]);
+      expect(
+        [none.cameraId, none.physicalCameraId, none.focalLengthMm],
+        [null, null, null],
+      );
+    });
   });
 
   group('Vor der Validierung gemessen', () {

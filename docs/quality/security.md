@@ -118,14 +118,14 @@ System-Backups der App-Daten sind immer aus, es gibt keinen Schalter (OQ-0056). 
 
 ### SEC-0011 — Verschlüsseltes Archiv
 - **Status:** Approved | **Phase:** 1
-- **Quelle:** SRC-003 (OQ-0050)
+- **Quelle:** SRC-003 (OQ-0050); SRC-003 (Maintainer 2026-11-18, OQ-0050 Nachtrag)
 - **Verwandt:** SEC-0009, FR-0192, FR-0198, OQ-0050
 
-Der Gesamtexport ist immer mit einem Passwort des Nutzers verschlüsselt und enthält keine Zugangsdaten und Einwilligungen.
+Der Gesamtexport ist verschlüsselt und enthält keine Zugangsdaten und Einwilligungen. Das Passwort ist freiwillig (Entscheidung Maintainer 2026-11-18, OQ-0050 Nachtrag): Ohne Passwort wird mit dem leeren Passwort verschlüsselt, das schützt nicht; die App weist darauf hin.
 
 **Akzeptanzkriterien:**
-- [ ] Ohne Passwort ist das Archiv nicht lesbar.
-- [ ] Die App weist darauf hin, dass ein vergessenes Passwort das Archiv unbrauchbar macht.
+- [ ] Mit Passwort ist das Archiv ohne das Passwort nicht lesbar.
+- [ ] Die App weist darauf hin, dass ein vergessenes Passwort das Archiv unbrauchbar macht und dass ein Archiv ohne Passwort für jeden lesbar ist.
 
 ## In der Quelle nicht geregelt
 
