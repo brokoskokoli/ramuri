@@ -4,7 +4,7 @@
 **Anforderungen:** FR-0215, FR-0201, SEC-0003.
 **Code:** `app/packages/core/lib/src/export/morning_pairs_csv.dart`; Einstieg `app/lib/features/settings/morning_pairs_section.dart` (Seite „Entwicklereinstellungen“).
 
-Zweck: Der Maintainer vergleicht für die Validierung (K61) die Kamera-Werte einer Morgenmessung mit der Gurt-RR derselben Zeit. Die Datei liefert beide Seiten roh; **die App berechnet und zeigt weder eine Gurt-RMSSD noch Differenzen** (keine Zwischenauswertung). Das Dokument beschreibt das Format so, dass es ohne den Dart-Code gelesen werden kann.
+Zweck: Der Maintainer vergleicht für die Validierung (K61) die Kamera-Werte einer Morgenmessung mit der Gurt-RR derselben Zeit. Die App zeigt den Vergleich nur in den Entwicklereinstellungen (FR-0217); die Datei liefert beide Seiten roh. Das Dokument beschreibt das Format so, dass es ohne den Dart-Code gelesen werden kann.
 
 ## 1. Überblick
 
