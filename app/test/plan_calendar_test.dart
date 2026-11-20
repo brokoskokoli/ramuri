@@ -19,7 +19,7 @@ import 'history_summary_test.dart' show started;
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
 /// Mittwoch, 11.11.2026, mittags; die Woche beginnt am Montag, 9.11.
-final _now = DateTime.utc(2026, 11, 11, 12);
+final _now = DateTime(2026, 11, 11, 12);
 final _mon = DateTime.utc(2026, 11, 9);
 DateTime _d(int n) => _mon.add(Duration(days: n));
 
@@ -169,7 +169,7 @@ Future<(StorageSession, FakeClock)> _seed({
   int walkRunWeeks = 0,
 }) async {
   final session = await FakeStorage().open(_key);
-  final clock = FakeClock(_now);
+  final clock = LocalFakeClock(_now);
   final goal = _goal(
     capMinutes: capMinutes,
     targetDate: targetDate,
@@ -1348,7 +1348,7 @@ void main() {
         ],
       );
       // Heute ist Freitag, 13.11.: der Ruhetag am Mi 11.11. ist vergangen.
-      clock.set(DateTime.utc(2026, 11, 13, 12));
+      clock.set(DateTime(2026, 11, 13, 12));
       final spy = _Spy(session, clock);
       await _pump(tester, session, clock, controller: spy);
       expect(key('calendar_rest_fixed_${_k(2)}'), findsOneWidget);

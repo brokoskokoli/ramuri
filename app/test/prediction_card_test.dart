@@ -20,7 +20,7 @@ import 'statistics_test.dart' show openStats;
 /// Karte „Prognose“ auf Fortschritt (WP20 Teil C): Anzeige je Stufe, Eintragen,
 /// Löschen, Vorschlag bestätigen und ablehnen, Layout.
 
-final DateTime _now = DateTime.utc(2026, 6, 10, 12);
+final DateTime _now = DateTime(2026, 6, 10, 12);
 
 PredictionStore _store(Device d) => (d.session as PredictionStorage).prediction;
 

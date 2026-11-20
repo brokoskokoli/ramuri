@@ -21,7 +21,7 @@ import 'history_summary_test.dart' show started;
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
 /// Mittwoch, 11.11.2026, mittags.
-final _now = DateTime.utc(2026, 11, 11, 12);
+final _now = DateTime(2026, 11, 11, 12);
 final _today = DateTime.utc(2026, 11, 11);
 final _monday = DateTime.utc(2026, 11, 9);
 
@@ -105,7 +105,7 @@ Future<void> _pump(
 /// Speicher mit Ziel und erster Fassung (über den echten Controller).
 Future<(StorageSession, FakeClock)> _withPlan(TrainingGoal goal) async {
   final session = await FakeStorage().open(_key);
-  final clock = FakeClock(_now);
+  final clock = LocalFakeClock(_now);
   final c = PlanController(
     session: session,
     clock: clock,
@@ -393,7 +393,7 @@ void main() {
         await _pump(
           tester,
           session: session,
-          clock: FakeClock(_now),
+          clock: LocalFakeClock(_now),
           brightness: brightness,
           onCreateGoal: () => taps++,
         );
@@ -409,7 +409,7 @@ void main() {
       await _pump(
         tester,
         session: session,
-        clock: FakeClock(_now),
+        clock: LocalFakeClock(_now),
         locale: 'en',
       );
       expect(find.text('No plan yet'), findsOneWidget);
@@ -521,7 +521,7 @@ void main() {
     for (final locale in ['de', 'en']) {
       testWidgets('alle als ruhige Zeilen ($locale)', (tester) async {
         final session = await FakeStorage().open(_key);
-        final clock = FakeClock(_now);
+        final clock = LocalFakeClock(_now);
         await _pump(
           tester,
           session: session,
@@ -639,7 +639,7 @@ void main() {
 
     testWidgets('aktuelle Regelversion: kein Hinweis darauf', (tester) async {
       final session = await FakeStorage().open(_key);
-      final clock = FakeClock(_now);
+      final clock = LocalFakeClock(_now);
       await _pump(
         tester,
         session: session,
@@ -676,7 +676,7 @@ void main() {
       double scale = 1,
     }) async {
       final session = await FakeStorage().open(_key);
-      final clock = FakeClock(_now);
+      final clock = LocalFakeClock(_now);
       await _pump(
         tester,
         session: session,
@@ -888,7 +888,7 @@ void main() {
 
     testWidgets('Wochenzeile: nach „Start“ lädt der Plan neu', (tester) async {
       final session = await FakeStorage().open(_key);
-      final clock = FakeClock(_now);
+      final clock = LocalFakeClock(_now);
       final c = _CountingReload(
         session,
         clock,
@@ -1262,7 +1262,7 @@ void main() {
       tester,
     ) async {
       final session = await FakeStorage().open(_key);
-      final clock = FakeClock(_now);
+      final clock = LocalFakeClock(_now);
       await _pump(
         tester,
         session: session,

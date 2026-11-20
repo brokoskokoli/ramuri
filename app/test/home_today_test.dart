@@ -25,8 +25,8 @@ import 'run_test.dart' show walk;
 
 final Uint8List _appKey = Uint8List.fromList(List.filled(32, 7));
 
-/// Mittwoch, 11.11.2026, mittags (UTC, Versatz 0).
-final _now = DateTime.utc(2026, 11, 11, 12);
+/// Mittwoch, 11.11.2026, mittags Ortszeit (Zone des Testprozesses).
+final _now = DateTime(2026, 11, 11, 12);
 final _today = DateTime.utc(2026, 11, 11);
 
 TrainingGoal _goal(Set<int> days) => TrainingGoal(
@@ -265,13 +265,45 @@ void main() {
   ) async {
     final d = Device();
     await _preopen(d, days: {1, 3, 5});
-    d.clock.set(DateTime.utc(2027, 5, 5, 12));
+    d.clock.set(DateTime(2027, 5, 5, 12));
     await d.start(tester, const Locale('en'));
     expect(key('home_today_plan'), findsOneWidget);
     expect(text('home_today_none'), 'No session is planned for today.');
     expect(key('home_today_rest'), findsNothing);
     expect(key('home_start_unit'), findsNothing);
     expect(key('home_start_run'), findsOneWidget);
+  });
+
+  // Ortstag (PAR-164): Kurz nach Mitternacht Ortszeit liegt der UTC-Tag
+  // östlich von UTC noch auf dem Vortag (Pacific/Auckland: 00:30 am 11.11. ist
+  // 11:30 UTC am 10.11.). „Heute“ und der Plan zeigen beide den Ortstag.
+  testWidgets('00:30 Ortszeit: „Heute“ und Plan zeigen denselben Ortstag, '
+      'nicht den UTC-Vortag', (tester) async {
+    final d = Device();
+    final s = await _preopen(d, days: {1, 3, 5});
+    d.clock.set(localAt(_today, 0, 30));
+    final unit = (await _unitToday(s))!;
+    // Am Dienstag (Vortag) ist keine Einheit geplant.
+    expect(
+      await (s as PlanStorage).plans.unitOn(
+        _today.subtract(const Duration(days: 1)),
+      ),
+      isNull,
+    );
+    await d.start(tester, const Locale('de'));
+    expect(key('home_today_unit'), findsOneWidget);
+    expect(key('home_today_none'), findsNothing);
+    expect(key('home_start_unit'), findsOneWidget);
+    await tester.tap(key('home_plan'));
+    await tester.pumpAndSettle();
+    // „Start“ steht nur am heutigen Tag des Plans, und zwar am 11.11.
+    final today = key('plan_day_${isoDay(unit.day)}');
+    await tester.ensureVisible(today);
+    expect(
+      find.descendant(of: today, matching: key('plan_day_start')),
+      findsOneWidget,
+    );
+    expect(key('plan_day_start'), findsOneWidget);
   });
 
   testWidgets('Einheit starten -> Lauf beendet: Lauf an der Einheit, '
@@ -734,7 +766,7 @@ void main() {
       final s = await _preopen(d, days: {1, 3, 5});
       // Ende der Planwochen, wie Heute sie am Tag [day] sieht.
       Future<DateTime> end(DateTime day) async {
-        d.clock.set(day.add(const Duration(hours: 12)));
+        d.clock.set(localAt(day, 12));
         final c = PlanController(session: s, clock: d.clock);
         await c.reload();
         final weeks = c.state.hints!.weeks;
@@ -745,12 +777,12 @@ void main() {
       final first = await end(_today);
       final lastDay = first.subtract(const Duration(days: 1));
       expect(await end(lastDay), first);
-      d.clock.set(lastDay.add(const Duration(hours: 12)));
+      d.clock.set(localAt(lastDay, 12));
       await d.start(tester, const Locale('de'));
       expect(key('home_today_plan'), findsOneWidget);
       expect(key('home_today_none'), findsNothing);
       await d.stop(tester);
-      d.clock.set(first.add(const Duration(hours: 12)));
+      d.clock.set(localAt(first, 12));
       await d.start(tester, const Locale('de'));
       expect(key('home_today_none'), findsOneWidget);
     });
@@ -778,16 +810,15 @@ void main() {
   // „Datum · Uhrzeit · Art“ wie im Design, die vier Kennzahlen ohne Scrollen
   // über „Fertig“.
   group('Zusammenfassung nach dem Lauf', () {
-    /// Startet um 07:40 Ortszeit (06:40 UTC, Versatz +1 h), läuft 30 s und
-    /// beendet; die Abschlussseite bleibt offen.
+    /// Startet um 07:40 Ortszeit, läuft 30 s und beendet; die
+    /// Abschlussseite bleibt offen.
     Future<void> finishAt0740(
       Device d,
       WidgetTester tester,
       String start, {
       void Function()? whileRunning,
     }) async {
-      d.clock.set(DateTime.utc(2026, 11, 11, 6, 40));
-      d.clock.utcOffset = const Duration(hours: 1);
+      d.clock.set(DateTime(2026, 11, 11, 7, 40));
       await tester.tap(key(start));
       await tester.pumpAndSettle();
       await tester.tap(key('run_start_ready'));

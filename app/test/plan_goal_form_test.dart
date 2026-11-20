@@ -18,7 +18,7 @@ import 'history_summary_test.dart' show seedRun;
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
 /// Mittwoch, 11.11.2026, mittags.
-final _now = DateTime.utc(2026, 11, 11, 12);
+final _now = DateTime(2026, 11, 11, 12);
 final _today = DateTime.utc(2026, 11, 11);
 
 TrainingGoal _goal({
@@ -147,7 +147,7 @@ Future<void> _pump(
 }
 
 Future<(StorageSession, FakeClock)> _empty() async =>
-    (await FakeStorage().open(_key), FakeClock(_now));
+    (await FakeStorage().open(_key), LocalFakeClock(_now));
 
 /// Speicher mit Ziel und erster Fassung, angelegt am Tag von [clock].
 Future<StorageSession> _withPlan(TrainingGoal goal, FakeClock clock) async {
@@ -257,7 +257,7 @@ void main() {
       WidgetTester tester,
     ) async {
       final session = await FakeStorage().open(_key);
-      final clock = FakeClock(localNow);
+      final clock = LocalFakeClock(localNow);
       await session.profile.save(
         const ProfileRecord(
           trainingDaysMask: 0x15,
@@ -323,7 +323,7 @@ void main() {
 
     testWidgets('Gestern als Zieldatum wird als „in der Vergangenheit“ '
         'abgelehnt, auch westlich von UTC', (tester) async {
-      final clock = FakeClock(DateTime(2026, 11, 1, 12));
+      final clock = LocalFakeClock(DateTime(2026, 11, 1, 12));
       final session = await _withPlan(
         _goal(target: DateTime(2026, 11, 10), createdAt: clock.now()),
         clock,
@@ -346,7 +346,7 @@ void main() {
   testWidgets('Ändern: Formular vorbelegt, Änderung rechnet mit goalChange', (
     tester,
   ) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     final session = await _withPlan(_goal(), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
@@ -636,7 +636,7 @@ void main() {
   testWidgets('Zieldatum vor heute wird mit heute geprüft, nicht mit dem '
       'Anlegetag', (tester) async {
     // Angelegt am 1.11. mit Zieldatum 5.11.; heute ist der 11.11.
-    final clock = FakeClock(DateTime.utc(2026, 11, 1, 12));
+    final clock = LocalFakeClock(DateTime.utc(2026, 11, 1, 12));
     final session = await _withPlan(
       _goal(
         target: DateTime(2026, 11, 5),
@@ -739,7 +739,7 @@ void main() {
       'setzt das Datum, schätzt neu ein und speichert den angebotenen Tag', (
     tester,
   ) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     final session = await _withPlan(
       _goal(target: DateTime(2026, 11, 25)),
       clock,
@@ -881,7 +881,7 @@ void main() {
   testWidgets('Ändern: Stand nur Anzeige, keine Frage zu 30 min', (
     tester,
   ) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     final session = await _withPlan(_goal(), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
@@ -905,7 +905,7 @@ void main() {
     'Ändern: checkGoal rechnet mit den Eingaben des Speicherns '
     '(Geh-Lauf der letzten Fassung), Hinweis und Plan stimmen überein',
     () async {
-      final clock = FakeClock(_now);
+      final clock = LocalFakeClock(_now);
       final session = await _withPlan(_goal(), clock);
       final c = _controller(session, clock);
       addTearDown(c.dispose);
@@ -927,7 +927,7 @@ void main() {
   testWidgets('PAR-115 beim Ändern: Geh-Lauf-Plan verlangt die Bestätigung', (
     tester,
   ) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     final session = await _withPlan(_goal(canRun30: ContinuousRun30.no), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
@@ -1088,7 +1088,7 @@ void main() {
   });
 
   testWidgets('Regler: geänderter Wert wird gespeichert', (tester) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     final session = await _withPlan(_goal(), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
@@ -1213,7 +1213,7 @@ void main() {
 
   testWidgets('Ändern ohne Stand am Ziel und ohne Läufe: Einschätzen und '
       'Speichern gehen', (tester) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     // Angelegt mit Stand aus Läufen: weder Wochenumfang noch 30 min.
     final session = await _withPlan(
       _goal(canRun30: ContinuousRun30.unknown),
@@ -1270,7 +1270,7 @@ void main() {
     // außerhalb der Spanne.
     final storage = FakeStorage();
     final session = await storage.open(_key);
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     storage.data.references.add(
       StoredReference(
         id: 1,
@@ -1331,7 +1331,7 @@ void main() {
     testWidgets('englisch, ${brightness.name}: Formular und Einstieg', (
       tester,
     ) async {
-      final clock = FakeClock(_now);
+      final clock = LocalFakeClock(_now);
       final session = await _withPlan(_goal(), clock);
       final c = _controller(session, clock);
       await _pump(

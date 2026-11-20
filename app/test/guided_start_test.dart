@@ -24,7 +24,7 @@ import 'run_test.dart' show walk;
 // Abschnitten, Hauptschalter „Ansagen“, Einzelschalter, „Aus dem Plan“.
 
 final Uint8List _appKey = Uint8List.fromList(List.filled(32, 7));
-final _now = DateTime.utc(2026, 11, 11, 12);
+final _now = DateTime(2026, 11, 11, 12);
 final _today = DateTime.utc(2026, 11, 11);
 
 Future<StorageSession> _open(Device d, {bool plan = true}) async {
