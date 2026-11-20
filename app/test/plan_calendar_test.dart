@@ -760,7 +760,7 @@ void main() {
     });
 
     testWidgets('Lauf am Tag einer offenen Einheit: der Plan zählt ihn '
-        'beim Öffnen als diese Einheit, nicht als Lauf ohne Plan (PAR-207, '
+        'beim Öffnen als diese Einheit, nicht als Lauf ohne Plan (PAR-231, '
         'FR-0171)', (tester) async {
       // Heute (Mi 11.11.) offene Einheit, um 7 Uhr frei gelaufen.
       final (session, clock) = await _seed(

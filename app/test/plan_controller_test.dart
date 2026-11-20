@@ -1988,7 +1988,7 @@ void main() {
     );
   });
 
-  group('PAR-207: Läufe zählen automatisch für die offene Einheit', () {
+  group('PAR-231: Läufe zählen automatisch für die offene Einheit', () {
     /// Beendeter Lauf, der am Tag [d] um [h]:[m] UTC beginnt und [minutes]
     /// dauert (Versatz null, Ortstag = UTC-Tag).
     Future<int> runAt(

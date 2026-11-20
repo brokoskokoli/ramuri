@@ -118,7 +118,7 @@ int _revision() =>
 /// Schliesst die Zusammenfassung und wartet, bis der Ablauf nach dem Lauf
 /// fertig ist (Datenmeldung). Ist heute eine Plan-Einheit offen (Plan aus
 /// frueheren Gruppen der Sammlung), zaehlt der freie Lauf ohne Rueckfrage als
-/// diese Einheit (PAR-207): „Heute“ zeigt danach „Heute erledigt.“ statt der
+/// diese Einheit (PAR-231): „Heute“ zeigt danach „Heute erledigt.“ statt der
 /// offenen Einheit.
 Future<void> _closeSummary(WidgetTester t) async {
   final before = _revision();

@@ -319,7 +319,7 @@ void main() {
 
     testWidgets('Freier Lauf, Absturz, Fortsetzen: „Aus dem Plan“ wie die '
         'Zuordnung in der Datenbank, der Lauf zählt als offene Einheit des '
-        'Tags (NB5, PAR-207)', (tester) async {
+        'Tags (NB5, PAR-231)', (tester) async {
       final d = Device();
       await _open(d);
       await d.start(tester, const Locale('de'));
@@ -335,7 +335,7 @@ void main() {
     });
 
     testWidgets('Lauf begann vor dem Merker: nicht über den Merker, sondern '
-        'als offene Einheit des Tags zugeordnet (NB5, PAR-207)', (
+        'als offene Einheit des Tags zugeordnet (NB5, PAR-231)', (
       tester,
     ) async {
       final d = Device();

@@ -293,7 +293,7 @@ class PlanController extends ChangeNotifier {
       // Die Prüfung holt der nächste Start nach; die Seite zeigt den
       // gespeicherten Plan.
     }
-    // Läufe der Woche bis heute zählen für ihre offenen Einheiten (PAR-207).
+    // Läufe der Woche bis heute zählen für ihre offenen Einheiten (PAR-231).
     await _autoAssignQuietly();
     await _load();
   });
@@ -746,7 +746,7 @@ class PlanController extends ChangeNotifier {
       throw const _SavedNotPlanned();
     }
     // Auch ein Lauf vor dem Anlegen des Plans zählt für die heutige Einheit
-    // (PAR-207).
+    // (PAR-231).
     await _autoAssignQuietly();
   });
 
@@ -774,7 +774,7 @@ class PlanController extends ChangeNotifier {
   Future<PlanActionResult> assignRun(int unitId, int? runId) =>
       _act(() => _assignAndRecalculate(unitId, runId));
 
-  /// Ordnet beendete Läufe den offenen Einheiten ihres Ortstags zu (PAR-207,
+  /// Ordnet beendete Läufe den offenen Einheiten ihres Ortstags zu (PAR-231,
   /// [planAutoAssignments]): Einheiten von Montag dieser Woche (oder dem
   /// früheren Tag [since], etwa dem Starttag eines Laufs über Mitternacht)
   /// bis heute. Jede Zuordnung rechnet wie [assignRun] neu; gibt es nichts
@@ -862,7 +862,7 @@ class PlanController extends ChangeNotifier {
         await _plans.confirmMove(unitId, day, today: _today());
         _fresh = null;
         onChanged?.call();
-        // Ein Lauf am neuen Tag zählt für die verschobene Einheit (PAR-207).
+        // Ein Lauf am neuen Tag zählt für die verschobene Einheit (PAR-231).
         await _autoAssignQuietly();
       });
 

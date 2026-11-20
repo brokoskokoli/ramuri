@@ -290,7 +290,7 @@ void main() {
   });
 
   testWidgets('Frei laufen an einem Tag mit offener Einheit: kein Dialog, '
-      'Einheit danach erledigt (PAR-207, FR-0025)', (tester) async {
+      'Einheit danach erledigt (PAR-231, FR-0025)', (tester) async {
     final d = Device();
     await _preopen(d, days: {1, 3, 5});
     await d.start(tester, const Locale('de'));
@@ -760,7 +760,7 @@ void main() {
           final s = await _preopen(d, days: {1, 3, 5});
           final unit = (await _unitToday(s))!;
           // Ohne Einheit: Tag ohne Einheit. Ein freier Lauf an einem Tag mit
-          // offener Einheit zählt als sie (PAR-207) und trägt dann ihre Art.
+          // offener Einheit zählt als sie (PAR-231) und trägt dann ihre Art.
           if (!fromPlan) await _restToday(s);
           await d.start(tester, Locale(locale));
           await finishAt0740(

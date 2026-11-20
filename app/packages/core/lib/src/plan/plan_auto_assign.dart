@@ -3,7 +3,7 @@ import 'plan_unit.dart';
 import 'weekly_time.dart' show planDay;
 
 /// Ein beendeter Lauf als Kandidat für die Zuordnung zu einer Plan-Einheit
-/// (PAR-207).
+/// (PAR-231).
 class PlanRunCandidate {
   const PlanRunCandidate({
     required this.runId,
@@ -68,7 +68,7 @@ class PlanRunAssignment {
   String toString() => 'PlanRunAssignment($unitId ← $runId)';
 }
 
-/// Zuordnung von Läufen zu Einheiten (PAR-207): Jede offene Einheit (kein
+/// Zuordnung von Läufen zu Einheiten (PAR-231): Jede offene Einheit (kein
 /// Ruhetag, ohne Lauf, mit Kennung) des aktiven Plans, deren Tag zwischen
 /// [from] und [today] liegt (beide eingeschlossen; nach einem Verschieben
 /// zählt der aktuelle Tag), bekommt einen beendeten Lauf desselben Ortstags,

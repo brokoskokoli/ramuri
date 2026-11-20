@@ -78,7 +78,7 @@ PlanRunAssignment _a(int unit, int run) =>
     PlanRunAssignment(unitId: unit, runId: run);
 
 void main() {
-  group('PAR-207 Zuordnung von Läufen zu Einheiten', () {
+  group('PAR-231 Zuordnung von Läufen zu Einheiten', () {
     test('Lauf um 17:30, Plan um 19:00 desselben Tags: heutige Einheit '
         'bekommt den Lauf (FR-0156)', () {
       // Der Plan beginnt heute (Mi); der Lauf lief vor dem Anlegen.

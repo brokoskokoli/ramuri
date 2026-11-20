@@ -12,7 +12,7 @@ import 'data_changes.dart';
 
 /// Startet einen Lauf aus „Heute“ („Frei laufen“, „Einheit starten“) oder
 /// von der Plan-Seite („Start“ an der heutigen Einheit): ein Weg mit
-/// Merker und Zuordnung nach dem Lauf (PAR-207).
+/// Merker und Zuordnung nach dem Lauf (PAR-231).
 class RunStarter {
   const RunStarter({
     required this.session,
@@ -47,7 +47,7 @@ class RunStarter {
   /// Nach dem Schließen wird ein beendeter Lauf ihr zugeordnet, eingereiht
   /// hinter die Wertberechnung des Laufs (auch wenn „Fertig“ vor deren Ende
   /// getippt wurde). „Frei laufen“ löscht den Merker; ist am Starttag eine
-  /// Einheit offen, zählt der Lauf ohne Rückfrage als sie (PAR-207).
+  /// Einheit offen, zählt der Lauf ohne Rückfrage als sie (PAR-231).
   /// Termine ändern sich nie. Die Datenmeldung folgt erst nach der Zuordnung.
   Future<void> start(BuildContext context, {PlanUnit? unit}) async {
     final day = _today;
@@ -140,7 +140,7 @@ class RunStarter {
     changes.changed();
   }
 
-  /// Nach jedem beendeten Lauf (PAR-207): Läufe zählen ohne Rückfrage für
+  /// Nach jedem beendeten Lauf (PAR-231): Läufe zählen ohne Rückfrage für
   /// die offene Einheit ihres Ortstags, ab Montag dieser Woche oder dem
   /// Starttag [day] (Lauf über Mitternacht). Eingereiht hinter die
   /// Wertberechnung des Laufs wie die Zuordnung nach „Einheit starten“.
