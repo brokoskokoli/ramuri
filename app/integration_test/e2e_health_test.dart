@@ -318,6 +318,7 @@ void main() {
     log('HC3 vorausgefuellte Dauer=$minutes');
     expect(minutes, '40');
     expect(has('manual_rpe_error'), isFalse, reason: 'vor manual_save');
+    await tapKey(t, 'manual_save');
     await waitFor(
       t,
       () => has('manual_rpe_error'),
@@ -412,6 +413,7 @@ void main() {
     await back(t);
     await back(t);
     await back(t);
+    await tapKey(t, 'home_statistics');
     await waitFor(
       t,
       () => has('progress_week_title'),
