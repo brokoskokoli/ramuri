@@ -32,3 +32,18 @@ Future<ReadinessSnapshot?> loadReadinessToday({
     return null;
   }
 }
+
+/// Readiness-Quelle für den Plan (FR-0216, PAR-173): lädt mit [load] und
+/// versieht den Wert mit dem Tag, für den er berechnet wurde
+/// ([ReadinessSnapshot.today]), nie mit dem angefragten Tag. So gilt ein
+/// Wert des Vortags (Mitternacht zwischen Anfrage und Rechnung) nicht als
+/// heutiger; der Plan vergleicht den Tag selbst. Ohne Snapshot oder ohne
+/// Tag `null` (keine Lockerung).
+Future<PlanReadinessDay?> Function(DateTime day) planReadinessSource(
+  Future<ReadinessSnapshot?> Function() load,
+) => (day) async {
+  final snapshot = await load();
+  final computed = snapshot?.today;
+  if (snapshot == null || computed == null) return null;
+  return PlanReadinessDay.of(planDay(computed), snapshot.result);
+};

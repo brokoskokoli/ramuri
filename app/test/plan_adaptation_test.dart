@@ -205,6 +205,57 @@ void main() {
       });
     }
 
+    test('Wechsel auf „adaptiv“ mit harter Einheit heute, niedriger Wert '
+        'des Vortags: keine neue Fassung, die harte Einheit bleibt', () async {
+      final e = await _Env.open();
+      final today = _day(e.hardDay);
+      final hard = (await e.plans.unitOn(today))!;
+      expect(hard.isHard, isTrue);
+      // Die Quelle wird für heute gefragt, rechnet aber noch für gestern
+      // (Mitternacht zwischen Anfrage und Rechnung).
+      final asked = <DateTime>[];
+      e.readiness = (d) {
+        asked.add(d);
+        return _low(_day(e.hardDay - 1));
+      };
+      final before = await e.versions();
+      final c = e.controller();
+      expect(
+        await c.setAdaptation(PlanAdaptationMode.adaptive),
+        PlanActionResult.done,
+      );
+      expect(asked, [today]);
+      expect(await e.versions(), before);
+      expect(_sig((await e.plans.unitOn(today))!), _sig(hard));
+      c.dispose();
+    });
+
+    test('Wechsel auf „adaptiv“ mit harter Einheit heute, niedriger Wert '
+        'eines späteren Tags mit harter Einheit: keine neue Fassung, beide '
+        'harten Einheiten bleiben (nur der Wert des angefragten Tags '
+        'zählt)', () async {
+      final e = await _Env.open();
+      final today = _day(e.hardDay);
+      final hard = (await e.plans.unitOn(today))!;
+      PlanUnit? later;
+      for (var n = e.hardDay + 1; n < e.hardDay + 28 && later == null; n++) {
+        final u = await e.plans.unitOn(_day(n));
+        if (u != null && u.isHard) later = u;
+      }
+      expect(later, isNotNull);
+      e.readiness = (_) => _low(later!.day);
+      final before = await e.versions();
+      final c = e.controller();
+      expect(
+        await c.setAdaptation(PlanAdaptationMode.adaptive),
+        PlanActionResult.done,
+      );
+      expect(await e.versions(), before);
+      expect(_sig((await e.plans.unitOn(today))!), _sig(hard));
+      expect(_sig((await e.plans.unitOn(later!.day))!), _sig(later));
+      c.dispose();
+    });
+
     test('Wechsel auf „fix“ nach Lockerung heute: genau eine neue Fassung, '
         'die harte Einheit kehrt zurück; ohne Lockerung keine', () async {
       final e = await _Env.open();
@@ -232,6 +283,59 @@ void main() {
       // Der erste Wechsel auf „fix“ nimmt die zweite Lockerung zurück.
       expect(await e.versions(), n + 1);
       c.dispose();
+    });
+
+    test('Wechsel auf „fix“ ohne heutige Lockerung bei geänderten Eingaben: '
+        'keine neue Fassung', () async {
+      final e = await _Env.open();
+      final today = _day(e.hardDay);
+      final c = e.controller();
+      // „adaptiv“ ohne Wert: heute nichts gelockert, keine Fassung.
+      await c.setAdaptation(PlanAdaptationMode.adaptive);
+      final before = await e.versions();
+      expect(
+        recoveryEasedFromSummary((await e.plans.history()).last.summary),
+        isEmpty,
+      );
+      // Das Ziel ändert sich ohne eigene Neuberechnung: keine harte Einheit
+      // mehr. Eine Neuberechnung ergäbe einen anderen Plan.
+      final changed = TrainingGoal(
+        type: GoalType.distance,
+        distance: GoalDistance.tenKilometers,
+        targetDate: DateTime.utc(2027, 6, 1),
+        runDays: const {2, 4, 6},
+        maxSessionSeconds: 7200,
+        weeklyCapSeconds: 240 * 60.0,
+        createdAt: DateTime.utc(2026, 11, 1),
+        hardSessionEnabled: false,
+        canRun30: ContinuousRun30.yes,
+      );
+      await (e.session as GoalStorage).goals.save(changed, today: today);
+      expect(
+        await c.setAdaptation(PlanAdaptationMode.fixed),
+        PlanActionResult.done,
+      );
+      expect(await e.session.settings.get(planAdaptationKey), 'fixed');
+      expect(await e.versions(), before);
+      expect([
+        for (final v in await e.plans.history())
+          if (v.reason == planReasonAdaptationFixed) v,
+      ], isEmpty);
+      expect((await e.plans.unitOn(today))!.isHard, isTrue);
+      c.dispose();
+      // Die geänderte Eingabe wirkt: eine Neuberechnung ergibt einen anderen
+      // Plan als die letzte Fassung.
+      final r = await recalculatePlan(
+        plans: e.plans,
+        settings: e.session.settings,
+        trigger: PlanTrigger.feedback,
+        today: today,
+        now: e.clock.now(),
+        markChecked: false,
+      );
+      expect(r.wasWritten, isTrue);
+      expect(r.summary!.isEmpty, isFalse);
+      expect((await e.plans.unitOn(today))!.isHard, isFalse);
     });
 
     test('Wechsel am Folgetag ändert den gelockerten Vortag nicht '

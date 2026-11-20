@@ -131,7 +131,7 @@ void main() {
         expect(lines.first, {
           'type': 'manifest',
           'format': 2,
-          'schema_version': 14,
+          'schema_version': 15,
           'created_at_us': DateTime.utc(2026, 11, 7, 12).microsecondsSinceEpoch,
         });
         final sections = [
@@ -426,6 +426,7 @@ void main() {
       final src = FakeArchiveSource(_fullDb());
       for (final (pw, f, ArchiveExportFailure want) in [
         ('kurz', null, ArchiveExportFailure.passwordRejected),
+        ('a' * 14, null, ArchiveExportFailure.passwordRejected),
         (_password, '../x', ArchiveExportFailure.noExportDirectory),
       ]) {
         await expectLater(
@@ -483,7 +484,19 @@ void main() {
         checkArchivePassword('${'a' * 14} ', '${'a' * 14} '),
         ArchivePasswordCheck.ok,
       );
-      expect(checkArchivePassword('', ''), ArchivePasswordCheck.tooShort);
+    });
+
+    test('Passwort freiwillig: leer gültig, 1 bis 14 Zeichen nicht', () {
+      expect(checkArchivePassword('', ''), ArchivePasswordCheck.ok);
+      expect(checkArchivePassword('', 'x'), ArchivePasswordCheck.mismatch);
+      expect(checkArchivePassword('a', 'a'), ArchivePasswordCheck.tooShort);
+      expect(
+        checkArchivePassword('a' * 14, 'a' * 14),
+        ArchivePasswordCheck.tooShort,
+      );
+      expect(checkArchivePassword('a' * 15, 'a' * 15), ArchivePasswordCheck.ok);
+      // Ein Leerzeichen ist nicht leer, sondern ein Zeichen.
+      expect(checkArchivePassword(' ', ' '), ArchivePasswordCheck.tooShort);
     });
   });
 }

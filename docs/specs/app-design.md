@@ -76,10 +76,13 @@ Die App hat unten eine Navigation mit den Bereichen Heute, Verlauf und Fortschri
 
 **Festlegung (OQ-0075):** Profil, Einstellungen, Sensoren, Zonen, Berechtigungen und Daten (Export, Archiv, Löschen) erreicht man über das Profil-Symbol oben rechts auf „Heute“.
 
+**Festlegung (Schrift der Leiste):** Die Beschriftungen der unteren Navigation sind einzeilig. Bei großer Schrift wird nur die Beschriftung der Leiste so weit verkleinert, dass die längste in ihren Eintrag passt, nie unter die Grundschrift. Passt sie auch dann nicht (schmale Geräte), endet sie mit „…“. Der volle Text steht im Tooltip und für Screenreader bereit.
+
 **Akzeptanzkriterien:**
 - [ ] Jede bisher erreichbare Seite ist über die neue Navigation erreichbar.
 - [ ] Die Zurück-Taste führt aus einem Bereich zu „Heute“ und von dort aus der App.
 - [ ] Der Bereich Profil ganz rechts öffnet die Übersicht hinter dem Profil-Symbol; Unterseiten (z. B. Einstellungen) behalten die Leiste wie die anderen Bereiche oder liegen als Vollbild darüber, einheitlich (K69).
+- [ ] Bei 360 dp und Schrift 1,3 sind alle Beschriftungen der Leiste einzeilig und vollständig und nicht kleiner als die Grundschrift.
 
 ### FR-0209 — Startseite „Heute“
 - **Status:** Approved | **Phase:** 1 (Erholung, geplante Einheit und Wochenziel mit ihrer Phase)

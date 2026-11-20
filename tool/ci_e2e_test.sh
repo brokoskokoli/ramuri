@@ -2,7 +2,7 @@
 # Test fuer tool/ci_e2e.sh mit Attrappen fuer adb und flutter (kein Emulator): Shard-Zuordnung,
 # unbekannte Namen, Mindeststufen, Waechter ueber all_test.dart, Rot einer Stufe, NEED_KILL, kein E2E_ im Log,
 # letzte Schrittmarke vor dem Fehler, Bildschirmfotos bei SHOT-Marken (E2E_SHOTS=1), Zeitlimit je Stufe
-# (E2E_STUFE_LIMIT_S, haengende Attrappe).
+# (E2E_STUFE_LIMIT_S, haengende Attrappe), Zeitlimit je adb-Aufruf (E2E_ADB_LIMIT_S, haengende adb-Attrappe).
 # Aufruf: sh tool/ci_e2e_test.sh
 script=$(cd "$(dirname "$0")" && pwd)/ci_e2e.sh
 tmp=$(mktemp -d) || exit 1
@@ -11,9 +11,16 @@ mkdir -p "$tmp/bin" "$tmp/w/app/integration_test"
 cd "$tmp/w" || exit 1
 for f in e2e_a_test.dart e2e_storage_test.dart e2e_recover_test.dart e2e_m2_flow_test.dart; do : > "app/integration_test/$f"; done
 printf "import 'e2e_a_test.dart';\n" > app/integration_test/all_test.dart
-# adb: Rechte gewaehrt, sonst leer.
+# adb: Rechte gewaehrt, sonst leer. Haengen (Aufruf enthaelt $FAKE_ADB_HANG): PID in $FAKE_PIDS, 40 s schlafen;
+# mit FAKE_ADB_HANG_EINMAL=<datei> nur beim ersten passenden Aufruf (Markerdatei).
 cat > "$tmp/bin/adb" <<'X'
 #!/bin/sh
+case "${FAKE_ADB_HANG:+$*}" in *"${FAKE_ADB_HANG:-}"*) [ -z "${FAKE_ADB_HANG:-}" ] ||
+  if [ -z "${FAKE_ADB_HANG_EINMAL:-}" ] || ! [ -e "$FAKE_ADB_HANG_EINMAL" ]; then
+    [ -z "${FAKE_ADB_HANG_EINMAL:-}" ] || : > "$FAKE_ADB_HANG_EINMAL"
+    echo "$$" >> "$FAKE_PIDS"; exec sleep 40
+  fi ;;
+esac
 case "$*" in
   *"dumpsys package"*) echo 'android.permission.ACCESS_FINE_LOCATION: granted=true' ;;
   *"dumpsys window"*) [ -n "${FAKE_NOFOCUS:-}" ] || echo 'mCurrentFocus=Window{x u0 io.github.brokoskokoli.ramuri/.MainActivity}' ;;
@@ -44,7 +51,7 @@ X
 chmod +x "$tmp/bin/adb" "$tmp/bin/flutter"
 export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" FAKE_SHOTS="$tmp/shots" FAKE_ARGS="$tmp/args" FAKE_STOPS="$tmp/stops" \
   FAKE_PIDS="$tmp/pids" ANDROID_SERIAL=emulator-5554
-unset E2E_SHARD E2E_STUFEN E2E_SHOTS E2E_STUFE_LIMIT_S FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP FAKE_STEPS FAKE_SHOT_LINES \
+unset E2E_SHARD E2E_STUFEN E2E_SHOTS E2E_STUFE_LIMIT_S E2E_ADB_LIMIT_S FAKE_ADB_HANG FAKE_ADB_HANG_EINMAL FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP FAKE_STEPS FAKE_SHOT_LINES \
   FAKE_NOFOCUS FAKE_HANG
 fails=0
 # run <Name> <rc> <Aufrufe-der-Testdateien (Anzahl)> [VAR=Wert ...]
@@ -69,6 +76,9 @@ run "Stufe unbekannt -> Fehler"                1 0 E2E_STUFEN=recover-x
 run "eine bekannte, eine unbekannte -> Fehler" 1 0 "E2E_STUFEN=sammlung recover-x"
 run "Shard und Stufen zusammen -> Fehler"      1 0 E2E_SHARD=stufen E2E_STUFEN=sammlung
 run "lokal einzelne Stufe"                     0 1 E2E_STUFEN=recover-a
+# Gruener Lauf mit Standard-adb-Limit (60 s) wartet nicht auf das Limit.
+[ "$dauer" -lt 30 ] && echo "OK   gruener Lauf ohne Warten auf das adb-Limit" || { echo "FAIL gruener Lauf dauerte $dauer s"; fails=$((fails + 1)); }
+grep -q 'adb-Zeitlimit' "$tmp/stdout" && { echo "FAIL adb-Zeitlimit ohne Haengen gemeldet"; fails=$((fails + 1)); }
 run "Stufe m2-flow: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=m2-flow
 grep -qx 'integration_test/e2e_m2_flow_test.dart' "$FAKE_LOG" || { echo "FAIL m2-flow: falsche Datei"; fails=$((fails + 1)); }
 run "Stufe readiness: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=readiness
@@ -136,10 +146,12 @@ grep -q '^STUFE sammlung rc=1 ' "$tmp/stdout" || { echo "FAIL Zeitlimit: STUFE-Z
 [ "$(wc -l < "$FAKE_STOPS" | tr -d ' ')" -eq 1 ] || { echo "FAIL Zeitlimit: kein am force-stop"; fails=$((fails + 1)); }
 run "Zeitlimit: Kill-Stufe ohne NEED_KILL haengt" 1 1 E2E_STUFEN=recover-a E2E_STUFE_LIMIT_S=3 FAKE_NOKILL=1 FAKE_HANG=PHASE=a
 zeitlimit_ok recover-a
-run "Zeitlimit: haengt nach NEED_KILL -> Exit 1" 1 1 E2E_STUFEN=recover-a E2E_STUFE_LIMIT_S=3 FAKE_HANG=PHASE=a
+# Nach NEED_KILL haengt die Attrappe erst nach 3 s (sleep 3 oben): Grenze 6 s, sonst greift sie mitunter vorher
+# (Wettlauf, dann hing die Attrappe nie).
+run "Zeitlimit: haengt nach NEED_KILL -> Exit 1" 1 1 E2E_STUFEN=recover-a E2E_STUFE_LIMIT_S=6 FAKE_HANG=PHASE=a
 zeitlimit_ok recover-a
 grep -q '^STUFE recover-a rc=1 ' "$tmp/stdout" || { echo "FAIL Zeitlimit nach NEED_KILL: STUFE-Zeile mit rc=1 fehlt"; fails=$((fails + 1)); }
-run "Zeitlimit: Folgestufe laeuft weiter"      1 2 "E2E_STUFEN=recover-a recover-b" E2E_STUFE_LIMIT_S=3 FAKE_HANG=PHASE=a
+run "Zeitlimit: Folgestufe laeuft weiter"      1 2 "E2E_STUFEN=recover-a recover-b" E2E_STUFE_LIMIT_S=6 FAKE_HANG=PHASE=a
 zeitlimit_ok recover-a
 grep -q '^STUFE recover-b rc=0 ' "$tmp/stdout" || { echo "FAIL Zeitlimit: recover-b nicht gruen gelaufen"; fails=$((fails + 1)); }
 run "Zeitlimit: Wert abc -> Fehler"            1 0 E2E_STUFEN=sammlung E2E_STUFE_LIMIT_S=abc
@@ -149,6 +161,37 @@ run "Zeitlimit: Wert -5 -> Fehler"             1 0 E2E_STUFEN=sammlung E2E_STUFE
 [ -s "$FAKE_ARGS" ] && { echo "FAIL Zeitlimit: flutter trotz ungueltigem Wert aufgerufen"; fails=$((fails + 1)); }
 run "Zeitlimit: grosse Grenze, Stufe gruen"    0 1 E2E_STUFEN=recover-a E2E_STUFE_LIMIT_S=600
 grep -q 'Zeitlimit in Stufe' "$tmp/stdout" && { echo "FAIL Zeitlimit: Meldung ohne Ueberschreitung"; fails=$((fails + 1)); }
+# Zeitlimit je adb-Aufruf: haengende adb-Attrappe (FAKE_ADB_HANG), adb-Limit 2 s; zeitlimit_ok prueft auch die
+# adb-PIDs in $FAKE_PIDS. adb_ok <unterbefehl>: Meldung mit nur dem Unterbefehl, ohne weitere Argumente.
+adb_ok() {
+  grep -qx "adb-Zeitlimit nach 2 s: $1" "$tmp/stdout" || { echo "FAIL adb-Zeitlimit $1: Meldung fehlt"; fails=$((fails + 1)); }
+}
+run "adb-Zeitlimit: dumpsys window haengt"     1 1 E2E_STUFEN=sammlung "FAKE_ADB_HANG=dumpsys window" FAKE_HANG=all_test E2E_STUFE_LIMIT_S=3 E2E_ADB_LIMIT_S=2
+zeitlimit_ok sammlung
+adb_ok shell
+run "adb-Zeitlimit: screencap haengt"          1 1 E2E_STUFEN=sammlung FAKE_ADB_HANG=screencap FAKE_HANG=all_test E2E_STUFE_LIMIT_S=3 E2E_ADB_LIMIT_S=2
+zeitlimit_ok sammlung
+adb_ok exec-out
+run "adb-Zeitlimit: logcat -d im Rot-Zweig haengt" 1 1 E2E_STUFEN=sammlung "FAKE_ADB_HANG=logcat -d" FAKE_FAIL=1 E2E_ADB_LIMIT_S=2
+adb_ok logcat
+[ "$dauer" -lt 30 ] || { echo "FAIL adb-Zeitlimit logcat: Skript lief $dauer s"; fails=$((fails + 1)); }
+[ -f "$tmp/out/test-output-sammlung.txt" ] || { echo "FAIL adb-Zeitlimit logcat: kein Testlog im Artefakt"; fails=$((fails + 1)); }
+[ -s "$FAKE_PIDS" ] || { echo "FAIL adb-Zeitlimit logcat: Attrappe hing nicht"; fails=$((fails + 1)); }
+for p in $(cat "$FAKE_PIDS"); do kill -0 "$p" 2>/dev/null && { echo "FAIL adb-Zeitlimit logcat: Prozess $p laeuft noch"; fails=$((fails + 1)); kill -9 "$p"; }; done
+grep -q 'E2E_\|geheim123' "$tmp/stdout" && { echo "FAIL adb-Zeitlimit logcat: E2E_-Zeile in der Ausgabe"; fails=$((fails + 1)); }
+grep -rq 'E2E_\|geheim123' "$tmp/out" && { echo "FAIL adb-Zeitlimit logcat: E2E_-Zeile im Artefakt"; fails=$((fails + 1)); }
+rm -f "$tmp/hang-einmal"
+run "adb-Zeitlimit: Folgestufe laeuft weiter"  1 2 "E2E_STUFEN=recover-a recover-b" "FAKE_ADB_HANG=dumpsys window" FAKE_ADB_HANG_EINMAL="$tmp/hang-einmal" FAKE_HANG=PHASE=a E2E_STUFE_LIMIT_S=6 E2E_ADB_LIMIT_S=2
+zeitlimit_ok recover-a
+adb_ok shell
+grep -q '^STUFE recover-b rc=0 ' "$tmp/stdout" || { echo "FAIL adb-Zeitlimit: recover-b nicht gruen gelaufen"; fails=$((fails + 1)); }
+: > "$FAKE_ARGS"
+run "adb-Zeitlimit: Wert abc -> Fehler"        1 0 E2E_STUFEN=sammlung E2E_ADB_LIMIT_S=abc
+grep -q 'E2E_ADB_LIMIT_S keine positive ganze Zahl' "$tmp/stdout" || { echo "FAIL adb-Zeitlimit abc: Meldung fehlt"; fails=$((fails + 1)); }
+run "adb-Zeitlimit: Wert 0 -> Fehler"          1 0 E2E_STUFEN=sammlung E2E_ADB_LIMIT_S=0
+run "adb-Zeitlimit: Wert -5 -> Fehler"         1 0 E2E_STUFEN=sammlung E2E_ADB_LIMIT_S=-5
+[ -s "$FAKE_ARGS" ] && { echo "FAIL adb-Zeitlimit: flutter trotz ungueltigem Wert aufgerufen"; fails=$((fails + 1)); }
+run "adb-Zeitlimit: leer wie nicht gesetzt"    0 1 E2E_STUFEN=recover-a E2E_ADB_LIMIT_S=
 # Waechter: eine Stufe im Shard ohne Zeitlimit in grenze_s ist ein Fehler vor dem ersten Lauf.
 sed 's|^shard_sammlung="sammlung |&neu |; s|^\[ "\$ran" -gt 0 \]|stufe neu 0 integration_test/e2e_a_test.dart\n&|' "$script" > "$tmp/ci_e2e_neu.sh"
 script="$tmp/ci_e2e_neu.sh"

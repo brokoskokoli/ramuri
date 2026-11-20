@@ -44,10 +44,11 @@ Future<Device> _open(
   WidgetTester tester,
   _FakeRunner runner, {
   bool wired = true,
+  Locale locale = const Locale('de'),
 }) async {
   final d = Device();
   if (wired) d.archiveExport = (_) => runner.call;
-  await d.start(tester, const Locale('de'));
+  await d.start(tester, locale);
   await d.skipSetup(tester);
   await openOverview(tester);
   await tester.tap(find.byKey(const Key('overview_data')));
@@ -136,6 +137,81 @@ void main() {
     await tester.tap(find.byKey(const Key('archive_share')));
     await tester.pumpAndSettle();
     expect(runner.passwords, ['123456789012345']);
+    await d.stop(tester);
+  });
+
+  for (final (locale, hint, rule, tooShort) in [
+    (
+      const Locale('de'),
+      'Ohne Passwort kann jeder, der die Datei hat, deine Gesundheitsdaten '
+          'lesen.',
+      'Freiwillig. Wenn du eins vergibst: mindestens 15 Zeichen, zum Beispiel '
+          'ein ganzer Satz.',
+      'Das Passwort braucht mindestens 15 Zeichen.',
+    ),
+    (
+      const Locale('en'),
+      'Without a password, anyone who has the file can read your health data.',
+      'Optional. If you set one: at least 15 characters; a whole sentence '
+          'works well.',
+      'The password needs at least 15 characters.',
+    ),
+  ]) {
+    testWidgets('ohne Passwort (${locale.languageCode}): Hinweis bei leeren '
+        'Feldern, Export mit leerem Passwort; 1–14 Zeichen bleiben Fehler', (
+      tester,
+    ) async {
+      final runner = _FakeRunner();
+      final d = await _open(tester, runner, locale: locale);
+      await _openDialog(tester);
+
+      expect(find.text(rule), findsOneWidget);
+      final notice = find.byKey(const Key('archive_no_password'));
+      expect(notice, findsOneWidget);
+      expect(find.text(hint), findsOneWidget);
+      // Mit Eingabe verschwindet der Hinweis, leer wieder da.
+      await _fill(tester, 'a', '');
+      await tester.pump();
+      expect(notice, findsNothing);
+      await _fill(tester, '', 'a');
+      await tester.pump();
+      expect(notice, findsNothing);
+      // 1 und 14 Zeichen: weiterhin abgelehnt.
+      for (final short in ['a', 'a' * 14]) {
+        await _fill(tester, short, short);
+        await tester.tap(find.byKey(const Key('archive_share')));
+        await tester.pumpAndSettle();
+        expect(find.text(tooShort), findsOneWidget, reason: short);
+      }
+      expect(runner.passwords, isEmpty);
+      await _fill(tester, '', '');
+      await tester.pump();
+      expect(notice, findsOneWidget);
+
+      // Kein Bestätigungsschritt: Speichern exportiert sofort.
+      await tester.tap(find.byKey(const Key('archive_save')));
+      await tester.pumpAndSettle();
+      expect(runner.passwords, ['']);
+      expect(d.fileHandoff.saved, hasLength(1));
+      expect(find.byKey(const Key('archive_dialog')), findsNothing);
+      await d.stop(tester);
+    });
+  }
+
+  testWidgets('leer und Wiederholung nicht leer: Fehler, kein Export', (
+    tester,
+  ) async {
+    final runner = _FakeRunner();
+    final d = await _open(tester, runner);
+    await _openDialog(tester);
+    await _fill(tester, '', _pw);
+    await tester.tap(find.byKey(const Key('archive_share')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Die beiden Eingaben stimmen nicht überein.'),
+      findsOneWidget,
+    );
+    expect(runner.passwords, isEmpty);
     await d.stop(tester);
   });
 

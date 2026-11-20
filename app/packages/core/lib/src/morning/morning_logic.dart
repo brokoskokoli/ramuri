@@ -1,5 +1,6 @@
 import '../../ports/clock.dart';
-import '../../ports/ppg_camera.dart' show PpgCameraDetails;
+import '../../ports/ppg_camera.dart'
+    show PpgCameraDetails, PpgCameraInfo, PpgCameraRef;
 import '../../ports/storage_morning.dart';
 import '../../ports/storage_settings.dart';
 import '../ppg/ppg_evaluator.dart';
@@ -203,10 +204,25 @@ MorningMeasurement? buildMorningMeasurement({
 /// Auswertung). Die übrigen Kamera-Angaben (Belichtung, ISO, Zeitstempelquelle,
 /// Rolling-Shutter-Versatz, Torch-Stärke, gesättigter Anteil) kommen vom Adapter
 /// als [details]; fehlen sie oder liefert das Gerät einzelne nicht, sind sie `null`.
+/// [camera] ist die tatsächlich geöffnete Kamera (`PpgCameraStarted.camera`),
+/// [cameras] die Liste aus `PpgCamera.cameras()`; die Brennweite kommt von dem
+/// Eintrag mit derselben Kamera (FR-0220). Ohne Kamera oder ohne passenden
+/// Eintrag ist die jeweilige Angabe `null`.
 MorningRawSignal buildMorningRawSignal(
   List<PpgFrame> frames, {
   PpgCameraDetails? details,
+  PpgCameraRef? camera,
+  List<PpgCameraInfo> cameras = const [],
 }) {
+  double? focal;
+  if (camera != null) {
+    for (final c in cameras) {
+      if (c.ref == camera) {
+        focal = c.focalLengthMm;
+        break;
+      }
+    }
+  }
   var gaps = 0;
   var total = 0.0;
   for (var i = 1; i < frames.length; i++) {
@@ -226,6 +242,9 @@ MorningRawSignal buildMorningRawSignal(
     rollingShutterSkewNs: details?.rollingShutterSkewNs,
     torchStrength: details?.torchStrength,
     saturatedFraction: details?.saturatedFraction,
+    cameraId: camera?.cameraId,
+    physicalCameraId: camera?.physicalCameraId,
+    focalLengthMm: focal,
   );
 }
 
