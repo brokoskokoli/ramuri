@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:running_app/features/measure/resting_measure_controller.dart';
 import 'package:core/core.dart';
@@ -1203,31 +1204,69 @@ void main() {
       expect(rows.last.q, PpgQuality.good);
     });
 
-    test(
-      '3 s Rauschen: Stufe verlässt „gut“ und kehrt danach zurück',
-      () async {
-        const a = 20.0;
-        const b = 23.0;
-        final rows = await record(
-          PulseSource(periodAt: (_) => 1.0, noisyAt: (t) => t >= a && t < b),
-          40,
+    // 3 s Störung nach sauberem Signal: weg von „gut“ spätestens 3 s nach
+    // Beginn (Rauschen, Bewegung) bzw. 5 s (flaches Signal; ein Abstand wird
+    // erst mit dem nächsten erkannten Schlag ungültig), wieder „gut“
+    // spätestens 7 s nach dem Ende.
+    final disturbances =
+        <
+          String,
+          (PulseSource Function(double bpm, double a, double b), double)
+        >{
+          'Rauschen': (
+            (bpm, a, b) => PulseSource(
+              periodAt: (_) => 60 / bpm,
+              noisyAt: (t) => t >= a && t < b,
+            ),
+            3,
+          ),
+          'Bewegung': (
+            (bpm, a, b) => PulseSource(
+              periodAt: (_) => 60 / bpm,
+              motion: (t) =>
+                  t >= a && t < b ? 25 * math.sin(2 * math.pi * 1.7 * t) : 0,
+            ),
+            3,
+          ),
+          'flaches Signal': (
+            (bpm, a, b) => PulseSource(
+              periodAt: (_) => 60 / bpm,
+              flatAt: (t) => t >= a && t < b,
+            ),
+            5,
+          ),
+        };
+    for (final MapEntry(key: name, value: (make, leave))
+        in disturbances.entries) {
+      for (final bpm in [50.0, 60.0, 80.0]) {
+        test(
+          '3 s $name bei ${bpm.round()}/min: spätestens ${leave.round()} s '
+          'nach Beginn weg von „gut“, spätestens 7 s nach Ende wieder „gut“',
+          () async {
+            for (final a in [20.0, 20.25, 20.5, 20.75]) {
+              final b = a + 3;
+              final rows = await record(make(bpm, a, b), b + 10);
+              final why = 'Störung ab $a s';
+              expect(
+                rows.where((e) => e.t >= full && e.t <= a).map((e) => e.q),
+                everyElement(PpgQuality.good),
+                reason: why,
+              );
+              expect(
+                rows.where((e) => e.t > a && e.t <= a + leave).map((e) => e.q),
+                contains(isNot(PpgQuality.good)),
+                reason: why,
+              );
+              expect(
+                rows.where((e) => e.t >= b + 7).map((e) => e.q),
+                allOf(isNotEmpty, everyElement(PpgQuality.good)),
+                reason: why,
+              );
+            }
+          },
         );
-        expect(
-          rows.where((e) => e.t >= full && e.t <= a).map((e) => e.q),
-          everyElement(PpgQuality.good),
-        );
-        expect(
-          rows.where((e) => e.t > a && e.t <= b).map((e) => e.q),
-          contains(isNot(PpgQuality.good)),
-        );
-        expect(
-          rows
-              .where((e) => e.t >= b + restingLiveStageWindowSeconds + 2)
-              .map((e) => e.q),
-          everyElement(PpgQuality.good),
-        );
-      },
-    );
+      }
+    }
 
     test('Pulswechsel 60 → 80/min: Puls folgt verzögert (12 s), Stufe bleibt '
         '„gut“', () async {
