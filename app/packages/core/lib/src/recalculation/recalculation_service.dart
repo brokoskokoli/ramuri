@@ -154,6 +154,21 @@ class RecalculationService {
   /// verlieren.
   final _offerSeq = <RecalculationCause, int>{};
 
+  /// Gründe der letzten stillen Umstellung von Banister auf Edwards (siehe
+  /// [takeEdwardsSwitchIssues]); `null`, wenn seit dem Abholen keine war.
+  List<LoadProfileIssue>? _edwardsSwitchIssues;
+
+  /// Holt die Gründe ([LoadProfileResolution.issues]) der Auflösung ab, die
+  /// seit dem letzten Abholen in [profileChanged] oder [loadBasisChanged]
+  /// ohne Läufe mit Werten sofort auf Edwards umgestellt hat (FR-0197); einmal,
+  /// danach `null`. Ein Angebot des Rückwegs zählt nicht: Dann ist noch
+  /// nichts umgestellt.
+  List<LoadProfileIssue>? takeEdwardsSwitchIssues() {
+    final issues = _edwardsSwitchIssues;
+    _edwardsSwitchIssues = null;
+    return issues;
+  }
+
   /// Ereignis „Neuberechnung angeboten“.
   Stream<RecalculationOffer> get offers => _controller.stream;
 
@@ -333,7 +348,8 @@ class RecalculationService {
   /// Bietet den Rückweg auf Edwards an, wenn Banister aktiv und nicht mehr
   /// anwendbar ist; sonst `null`. Gibt es keine Läufe mit Werten, ist nichts
   /// neu zu rechnen: Dann gilt Edwards sofort, ohne Angebot (FR-0197); die
-  /// Oberfläche weist auf die Umstellung hin.
+  /// Gründe stehen in [takeEdwardsSwitchIssues], die Oberfläche weist auf die
+  /// Umstellung hin.
   Future<RecalculationOffer?> _offerLoadRevert() async {
     final active = await LoadSettings.activeProfile(session.settings);
     if (active == LoadProfile.banister) {
@@ -352,6 +368,7 @@ class RecalculationService {
             at: clock.now(),
           );
           await _dropLoadChoice();
+          _edwardsSwitchIssues = List.unmodifiable(resolution.issues);
         }
         return offer;
       }
