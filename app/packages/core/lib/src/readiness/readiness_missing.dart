@@ -98,8 +98,8 @@ enum ReadinessCatchUp {
   /// [ReadinessMissingReason.nextWindowToday]).
   nextMorningWindow,
 
-  /// Knopf „Schlaf angeben“ an der ersten Morgenmessung des Ortstags
-  /// (PAR-164K).
+  /// Knopf „Schlaf angeben“ an der Morgenmessung des Ortstags, zu der die
+  /// Angabe gehört ([morningSleepSource], PAR-164K).
   enterSleep,
 
   /// Hinweis: Schlaf bei der Morgenmessung angeben.
