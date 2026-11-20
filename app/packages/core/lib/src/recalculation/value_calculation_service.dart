@@ -357,15 +357,45 @@ class ValueCalculationService {
     } on Object {
       // Ohne Zähler wird jeder offene Lauf versucht.
     }
-    // Zu rechnen sind die offenen Läufe unter der Grenze der Fehlversuche, in
-    // der Reihenfolge ihres Endes: Jeder Lauf rechnet die späteren Tage nur
-    // bis vor den Tag des nächsten (der rechnet sie ohnehin), so wird jeder
-    // spätere Tag höchstens einmal neu gerechnet.
+    // Zu rechnen sind die offenen Läufe unter der Grenze der Fehlversuche.
     final byId = {for (final r in finished) r.id: r};
-    final toCalculate = [
-      for (final id in open)
-        if ((counts[id] ?? 0) < uncomputableAfterFailures) byId[id]!,
-    ]..sort(_byEnd);
+    final calculated = await _calculateInOrder(
+      [
+        for (final id in open)
+          if ((counts[id] ?? 0) < uncomputableAfterFailures) byId[id]!,
+      ],
+      counter: counter,
+      onComputed: (id) async {
+        if (counts.containsKey(id)) await _forget(counter, id);
+      },
+    );
+    failure ??= calculated.failure;
+    final computed = calculated.computed;
+    // Gemerkte Läufe austragen, außer sie sind noch offen oder nicht gelesen.
+    for (final id in marked.toList()..sort()) {
+      if (unread.contains(id)) continue;
+      if (open.contains(id) && !computed.contains(id)) continue;
+      await _unmark(id);
+    }
+    if (failure != null) throw failure;
+  }
+
+  /// Rechnet die offenen Läufe [runs] ([calculateAfterRun]) in der
+  /// Reihenfolge ihres Endes: Jeder Lauf rechnet die späteren Tage nur bis vor
+  /// den Tag des nächsten (der rechnet sie ohnehin), so wird jeder spätere Tag
+  /// höchstens einmal neu gerechnet. Scheitert ein Lauf nach einem gelungenen,
+  /// rechnet der nächste gelungene die Tage ab dem Tag des gescheiterten mit;
+  /// scheitern die letzten, werden diese Tage am Ende in einem Schritt neu
+  /// gerechnet. Jeder Fehlschlag zählt für den Lauf ([_recordFailure]); nach
+  /// jedem gelungenen Lauf folgt [onComputed]. Gibt die gelungenen Läufe und
+  /// den ersten Fehler zurück.
+  Future<({Set<int> computed, Object? failure})> _calculateInOrder(
+    List<StoredRun> runs, {
+    required CalculationFailures counter,
+    required Future<void> Function(int runId) onComputed,
+  }) async {
+    final toCalculate = [...runs]..sort(_byEnd);
+    Object? failure;
     // Tag, ab dem (einschließlich) Tageswerte nach einem gescheiterten Lauf
     // noch einen früher gerechneten Laufwert brauchen.
     String? staleFrom;
@@ -393,9 +423,14 @@ class ValueCalculationService {
         changed = true;
         computed.add(id);
         staleFrom = null;
-        if (counts.containsKey(id)) await _forget(counter, id);
       } on Object catch (e) {
         if (changed) staleFrom ??= dayOfRun(toCalculate[i]);
+        failure ??= e;
+        continue;
+      }
+      try {
+        await onComputed(id);
+      } on Object catch (e) {
         failure ??= e;
       }
     }
@@ -406,13 +441,7 @@ class ValueCalculationService {
         failure ??= e;
       }
     }
-    // Gemerkte Läufe austragen, außer sie sind noch offen oder nicht gelesen.
-    for (final id in marked.toList()..sort()) {
-      if (unread.contains(id)) continue;
-      if (open.contains(id) && !computed.contains(id)) continue;
-      await _unmark(id);
-    }
-    if (failure != null) throw failure;
+    return (computed: computed, failure: failure);
   }
 
   static int _byEnd(StoredRun a, StoredRun b) {
@@ -441,13 +470,16 @@ class ValueCalculationService {
   /// die Berechnung, ist der Lauf ausgetragen; ein neuer Fehlschlag zählt als
   /// erster Versuch, der Start versucht ihn dann wieder. Andere offene Läufe
   /// bleiben dem Nachholen beim Start ([completePendingCalculations]). Der
-  /// erste Fehler wird nach den übrigen Läufen weitergegeben.
+  /// erste Fehler wird nach den übrigen Läufen weitergegeben. Spätere Tage wie
+  /// beim Nachholen ([_calculateInOrder]): jeder höchstens einmal neu gerechnet.
   Future<void> retryUncomputable() async {
     final counter = failures;
     final ids = await counter.uncomputable();
     if (ids.isEmpty) return;
     await counter.remove(ids);
     Object? failure;
+    // Gelöschte, nicht beendete und schon gerechnete Läufe entfallen.
+    final open = <StoredRun>[];
     for (final id in ids.toList()..sort()) {
       try {
         final run = await session.runs.get(id);
@@ -457,17 +489,19 @@ class ValueCalculationService {
             (await session.values.read(ValueOwner.run(id))).isNotEmpty) {
           continue;
         }
-        try {
-          await calculateAfterRun(id);
-        } on Object {
-          await _recordFailure(counter, id);
-          rethrow;
-        }
-        if ((await _pendingCalculations()).contains(id)) await _unmark(id);
+        open.add(run);
       } on Object catch (e) {
         failure ??= e;
       }
     }
+    final calculated = await _calculateInOrder(
+      open,
+      counter: counter,
+      onComputed: (id) async {
+        if ((await _pendingCalculations()).contains(id)) await _unmark(id);
+      },
+    );
+    failure ??= calculated.failure;
     if (failure != null) throw failure;
   }
 
