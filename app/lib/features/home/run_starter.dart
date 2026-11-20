@@ -141,8 +141,8 @@ class RunStarter {
   }
 
   /// Nach jedem beendeten Lauf (PAR-231): Läufe zählen ohne Rückfrage für
-  /// die offene Einheit ihres Ortstags, ab Montag dieser Woche oder dem
-  /// Starttag [day] (Lauf über Mitternacht). Eingereiht hinter die
+  /// die offene Einheit ihres Ortstags, ab dem Sonntag der Vorwoche oder dem
+  /// früheren Starttag [day] (Lauf über Mitternacht). Eingereiht hinter die
   /// Wertberechnung des Laufs wie die Zuordnung nach „Einheit starten“.
   Future<PlanActionResult> _autoAssign(String day) =>
       recalculation.exclusive(() async {

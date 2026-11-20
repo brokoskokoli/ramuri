@@ -68,9 +68,10 @@ run() {
 run "Shard sammlung: all_test und treadmill-plan" 0 2 E2E_SHARD=sammlung
 grep -qx 'integration_test/all_test.dart' "$FAKE_LOG" || { echo "FAIL Shard sammlung: all_test fehlt"; fails=$((fails + 1)); }
 grep -qx 'integration_test/e2e_treadmill_test.dart' "$FAKE_LOG" || { echo "FAIL Shard sammlung: treadmill-plan fehlt"; fails=$((fails + 1)); }
-run "Shard stufen: Mehrphasen-Stufen, m2-flow, readiness und plan-adapt" 0 7 E2E_SHARD=stufen
+run "Shard stufen: Mehrphasen-Stufen, m2-flow, readiness, plan-adapt und m3-flow" 0 8 E2E_SHARD=stufen
+grep -qx 'integration_test/e2e_m3_flow_test.dart' "$FAKE_LOG" || { echo "FAIL Shard stufen: m3-flow fehlt"; fails=$((fails + 1)); }
 grep -q all_test "$FAKE_LOG" && { echo "FAIL Shard stufen fuehrt all_test aus"; fails=$((fails + 1)); }
-run "ohne Auswahl: alle neun Stufen"          0 9 X=1
+run "ohne Auswahl: alle zehn Stufen"          0 10 X=1
 run "Shard unbekannt (Tippfehler) -> Fehler"   1 0 E2E_SHARD=sammlungx
 run "Stufe unbekannt -> Fehler"                1 0 E2E_STUFEN=recover-x
 run "eine bekannte, eine unbekannte -> Fehler" 1 0 "E2E_STUFEN=sammlung recover-x"
@@ -85,6 +86,8 @@ run "Stufe readiness: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=readiness
 grep -qx 'integration_test/e2e_readiness_test.dart' "$FAKE_LOG" || { echo "FAIL readiness: falsche Datei"; fails=$((fails + 1)); }
 run "Stufe plan-adapt: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=plan-adapt
 grep -qx 'integration_test/e2e_plan_adapt_test.dart' "$FAKE_LOG" || { echo "FAIL plan-adapt: falsche Datei"; fails=$((fails + 1)); }
+run "Stufe m3-flow: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=m3-flow
+grep -qx 'integration_test/e2e_m3_flow_test.dart' "$FAKE_LOG" || { echo "FAIL m3-flow: falsche Datei"; fails=$((fails + 1)); }
 run "Stufe treadmill-plan: Laufband-Datei mit Schalter" 0 1 E2E_STUFEN=treadmill-plan
 grep -qx 'integration_test/e2e_treadmill_test.dart' "$FAKE_LOG" || { echo "FAIL treadmill-plan: falsche Datei"; fails=$((fails + 1)); }
 grep -q 'TREADMILL_PLAN=true' "$FAKE_ARGS" || { echo "FAIL treadmill-plan: Schalter fehlt"; fails=$((fails + 1)); }

@@ -67,6 +67,132 @@ class FrameSource {
   }
 }
 
+/// Synthetische Bildstatistik (keine Messdaten) mit wählbarem Schlagabstand
+/// und Störungen, für die laufende Anzeige (PAR-234): [periodAt] liefert den
+/// Abstand (s) zum nächsten Schlag ab Sensorzeit t, leichte Schwankung wie
+/// [FrameSource]. [spikes]: kurze Ausschläge (Sensorzeit in s), je einer
+/// macht den Schlagabstand ungültig, in dessen Mitte er liegt. [noisyAt]:
+/// dort nur Rauschen (gestörtes Signal).
+class PulseSource {
+  PulseSource({
+    required double Function(double t) periodAt,
+    this.spikes = const [],
+    this.noisyAt,
+    this.flatAt,
+    this.motion,
+    this.dropBeats = const {},
+    this.spikeHeight = 4,
+    this.noiseLevel = 30,
+    this.fps = 30,
+  }) {
+    var t = 0.3;
+    var n = 0;
+    while (t < 200) {
+      _beats.add(t + 0.02 * math.sin(2 * math.pi * n / 5.3));
+      t += periodAt(t);
+      n++;
+    }
+  }
+
+  /// Gleichmäßiger Puls mit [bpm] Schlägen je Minute.
+  PulseSource.bpm(double bpm, {List<double> spikes = const []})
+    : this(periodAt: (_) => 60 / bpm, spikes: spikes);
+
+  final int fps;
+  final List<double> spikes;
+  final bool Function(double t)? noisyAt;
+  final bool Function(double t)? flatAt;
+  final double Function(double t)? motion;
+  final Set<int> dropBeats;
+  final double spikeHeight;
+  final double noiseLevel;
+  final List<double> _beats = [];
+  int _n = 0;
+
+  /// Mitte zwischen Schlag [k] und dem folgenden (für [spikes]).
+  double midAfterBeat(int k) => (_beats[k] + _beats[k + 1]) / 2;
+
+  /// Index des ersten Schlags ab Sensorzeit [t].
+  int beatAfter(double t) => _beats.indexWhere((b) => b >= t);
+
+  double _noise(int i) {
+    var x = (i * 2654435761 + 0x9E3779B9) & 0xFFFFFFFF;
+    x = ((x ^ (x >> 15)) * 2246822519) & 0xFFFFFFFF;
+    x = ((x ^ (x >> 13)) * 3266489917) & 0xFFFFFFFF;
+    x = x ^ (x >> 16);
+    return x / 0x7FFFFFFF - 1;
+  }
+
+  double _pulse(double t) {
+    var s = 0.0;
+    for (var b = 0; b < _beats.length; b++) {
+      if (dropBeats.contains(b)) continue;
+      final d = t - _beats[b];
+      if (d < -1 || d > 1.5) continue;
+      s +=
+          math.exp(-((d - 0.12) * (d - 0.12)) / (2 * 0.05 * 0.05)) +
+          0.35 * math.exp(-((d - 0.38) * (d - 0.38)) / (2 * 0.07 * 0.07));
+    }
+    for (final ts in spikes) {
+      final d = t - ts;
+      s += spikeHeight * math.exp(-(d * d) / (2 * 0.02 * 0.02));
+    }
+    return s;
+  }
+
+  PpgFrame next() {
+    final i = _n++;
+    final t = i / fps;
+    final noisy = noisyAt?.call(t) ?? false;
+    final flat = flatAt?.call(t) ?? false;
+    final r = flat
+        ? 200.0
+        : noisy
+        ? 200 + noiseLevel * _noise(i)
+        : 200 - 3 * _pulse(t) + (motion?.call(t) ?? 0) + 0.3 * _noise(i);
+    final g = flat
+        ? 40.0
+        : noisy
+        ? 40 + noiseLevel / 3 * _noise(i + 99991)
+        : 40 -
+              1 * _pulse(t) +
+              (motion?.call(t) ?? 0) / 3 +
+              0.1 * _noise(i + 99991);
+    return PpgFrame(
+      t: t,
+      r: r,
+      g: g,
+      r16: List<double>.filled(16, r),
+      g16: List<double>.filled(16, g),
+    );
+  }
+
+  /// Spielt Bilder bis Sensorzeit [until] (Sekunden) ein.
+  Future<void> emitUntil(FakePpgCamera cam, double until) async {
+    var k = 0;
+    while (_n / fps <= until) {
+      cam.emitFrame(next());
+      if (++k % 60 == 0) await pump();
+    }
+    await pump();
+  }
+
+  /// Spielt Bilder bis [until] ein und ruft [each] nach jeder vollen Sekunde
+  /// Sensorzeit (nach dem Einspielen) mit dieser Sekunde auf.
+  Future<void> emitEachSecond(
+    FakePpgCamera cam,
+    double until,
+    void Function(double t) each,
+  ) async {
+    var s = (_n / fps).floor() + 1;
+    while (s <= until) {
+      await emitUntil(cam, s.toDouble());
+      each(s.toDouble());
+      s++;
+    }
+  }
+}
+
 Future<void> pump() => Future<void>.delayed(Duration.zero);
 
 /// Wertet nur das volle Fenster echt aus; Zwischenauswertungen bleiben billig.
