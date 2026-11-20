@@ -190,16 +190,14 @@ MorningMeasurement _cam(
   required double bpm,
   required double rmssd,
   SleepBand? band,
-  int minutes = 0,
-  String model = 'M1',
 }) {
-  final at = day.add(Duration(hours: 7, minutes: minutes));
+  final at = day.add(const Duration(hours: 7));
   return MorningMeasurement(
     measuredAt: at,
     utcOffset: clock.utcOffsetAt(at),
     posture: RestingPosture.lying,
     deviceManufacturer: 'H',
-    deviceModel: model,
+    deviceModel: 'M1',
     method: 'ppg',
     methodVersion: 1,
     quality: PpgQuality.good,
@@ -488,23 +486,16 @@ void main() {
     testWidgets('Speichern scheitert: keine Prüfung, das Blatt meldet den '
         'Fehler wie bisher', (tester) async {
       final d = Device();
-      // Heute zwei Messungen: die erste (ohne Angabe) trägt „Schlaf
-      // angeben“, eine zweite von einem anderen Gerät hat schon „unter 5 h“.
-      // Der Wert ist darum niedrig, aber seit dem Start lief keine Prüfung:
-      // jede Prüfung würde die Einheit lockern, auch nach dem Fehler unten.
+      // Die heutige Messung trägt schon „unter 5 h“: der Wert ist niedrig,
+      // aber seit dem Start lief keine Prüfung. Jede Prüfung würde die
+      // Einheit darum lockern, auch nach dem Fehler unten.
       final (s, today, id) = (await tester.runAsync(() async {
         final r = await _preopen(d);
-        final id = await _seedCamera(r.$1, d.clock, r.$2);
-        await (r.$1 as MorningStorage).morning.add(
-          _cam(
-            d.clock,
-            r.$2,
-            bpm: 55,
-            rmssd: 46,
-            band: SleepBand.under5,
-            minutes: 10,
-            model: 'M2',
-          ),
+        final id = await _seedCamera(
+          r.$1,
+          d.clock,
+          r.$2,
+          band: SleepBand.under5,
         );
         return (r.$1, r.$2, id);
       }))!;
@@ -512,15 +503,18 @@ void main() {
       await _openDetail(tester, d);
       expect((await _unit(tester, s, today)).isHard, isTrue);
       await _tapKey(tester, 'readiness_detail_change_sleep');
-      // Die Messung verschwindet aus dem Speicher: Speichern scheitert.
-      final kept = d.storage.data.morning.remove(id)!;
+      // Die Messung liegt jetzt unter einer anderen Kennung: der Wert bleibt,
+      // das Speichern an der alten Kennung scheitert.
+      final data = d.storage.data;
+      final moved = data.nextMorningId++;
+      data.morning[moved] = data.morning.remove(id)!;
       await _tapKey(tester, 'readiness_sleep_${SleepBand.over8.code}');
       expect(find.byKey(const Key('readiness_sleep_failed')), findsOneWidget);
       expect((await _history(tester, s)).length, versions);
       expect((await _unit(tester, s, today)).isHard, isTrue);
-      // Gegenprobe im selben Blatt: mit der Messung zurück speichert die
+      // Gegenprobe im selben Blatt: mit der alten Kennung speichert die
       // nächste Auswahl, und die Prüfung läuft genau einmal (neue Fassung).
-      d.storage.data.morning[id] = kept;
+      data.morning[id] = data.morning.remove(moved)!;
       await _tapKey(tester, 'readiness_sleep_${SleepBand.from5to6.code}');
       expect(find.byKey(const Key('readiness_sleep_failed')), findsNothing);
       await _tapKey(tester, 'readiness_sleep_done');
