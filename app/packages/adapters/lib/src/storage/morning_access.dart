@@ -63,6 +63,9 @@ class DriftMorningStore implements MorningStore {
                 frameGapCount: rawSignal.frameGapCount,
                 frameGapTotalS: rawSignal.frameGapTotalS,
                 saturatedFraction: Value(rawSignal.saturatedFraction),
+                cameraId: Value(rawSignal.cameraId),
+                physicalCameraId: Value(rawSignal.physicalCameraId),
+                focalLengthMm: Value(rawSignal.focalLengthMm),
               ),
             );
       }
@@ -133,6 +136,9 @@ class DriftMorningStore implements MorningStore {
       frameGapCount: r.frameGapCount,
       frameGapTotalS: r.frameGapTotalS,
       saturatedFraction: r.saturatedFraction,
+      cameraId: r.cameraId,
+      physicalCameraId: r.physicalCameraId,
+      focalLengthMm: r.focalLengthMm,
     );
   });
 

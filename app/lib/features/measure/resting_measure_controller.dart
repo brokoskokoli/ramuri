@@ -135,6 +135,7 @@ class RestingMeasureResult {
     this.goodStretchSeconds = 0.0,
     this.frames = const [],
     this.cameraDetails,
+    this.camera,
   });
 
   final PpgMeasurement measurement;
@@ -164,6 +165,10 @@ class RestingMeasureResult {
 
   /// Letzte Kamera-Angaben der Aufnahme (nur Fenstersuche; `null`, wenn der Adapter keine meldete).
   final PpgCameraDetails? cameraDetails;
+
+  /// Tatsächlich geöffnete Kamera ([PpgCameraStarted.camera]; nur
+  /// Fenstersuche, `null` ohne Meldung).
+  final PpgCameraRef? camera;
 
   /// Ganzzahliger Puls; `null`: kein Wert (nur bei „unbrauchbar“).
   int? get bpm => measurement.hasResult ? measurement.bpm!.round() : null;
@@ -804,6 +809,7 @@ class RestingMeasureController extends ChangeNotifier {
       goodStretchSeconds: stretch,
       frames: searchWindow ? all : const [],
       cameraDetails: searchWindow ? _details : null,
+      camera: searchWindow ? _startedCamera : null,
     );
     try {
       final p = profile;

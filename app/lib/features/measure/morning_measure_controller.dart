@@ -261,7 +261,12 @@ class MorningMeasureController extends ChangeNotifier {
         return;
       }
       final raw = dev
-          ? buildMorningRawSignal(r.frames, details: r.cameraDetails)
+          ? buildMorningRawSignal(
+              r.frames,
+              details: r.cameraDetails,
+              camera: r.camera,
+              cameras: r.camera == null ? const [] : await _cameraList(),
+            )
           : null;
       if (!m.isUsable) {
         // Unbrauchbar (nur im Entwicklermodus gespeichert, K68): zählt nirgends,
@@ -323,6 +328,16 @@ class MorningMeasureController extends ChangeNotifier {
       _outcome = MorningOutcome.saveFailed;
     }
     _notify();
+  }
+
+  /// Kameraliste für die Brennweite der verwendeten Kamera (FR-0220); ein
+  /// Fehler lässt sie nur unbekannt, die Messung wird trotzdem gespeichert.
+  Future<List<PpgCameraInfo>> _cameraList() async {
+    try {
+      return await engine.camera.cameras();
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// Trägt die Schlafstufe nach; dieselbe Stufe noch einmal wählt sie ab.
