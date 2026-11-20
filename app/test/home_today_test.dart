@@ -631,6 +631,50 @@ void main() {
       expect(key('home_today_done'), findsOneWidget);
     });
 
+    testWidgets('Freier Lauf Sonntag über Mitternacht, App vor der '
+        'Zuordnung beendet, Neustart am Montag: der Kalender zeigt den '
+        'Sonntag als erledigt, nicht als Lauf ohne Plan (PAR-231)', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _preopen(d, days: {3, 7});
+      final sunday = DateTime.utc(2026, 11, 15);
+      expect(sunday.weekday, DateTime.sunday);
+      final plans = (s as PlanStorage).plans;
+      expect((await plans.unitOn(sunday))?.runId, isNull);
+      // Start kurz vor Mitternacht, 30 s Lauf bis in den Montag; die App
+      // endet vor dem Beenden (keine Zuordnung nach dem Lauf).
+      d.clock.set(localAt(sunday, 23, 59).add(const Duration(seconds: 45)));
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      await walk(d, tester, 30);
+      await d.stop(tester);
+      d.clock.set(localAt(DateTime.utc(2026, 11, 16), 0, 25));
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('recover_save'));
+      await tester.pumpAndSettle();
+      final run = (await s.runs.list()).single;
+      expect(run.state, RunState.finished);
+      expect(run.startedAt.toLocal().day, 15);
+      expect(run.endedAt!.toLocal().day, 16, reason: 'über Mitternacht');
+      await tester.tap(key('home_plan'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('plan_open_calendar'));
+      await tester.pumpAndSettle();
+      // Die Wochenansicht beginnt mit der Woche der neuen Fassung (Anker
+      // Montag); der Monat zeigt den Sonntag davor.
+      await tester.tap(key('calendar_mode_month'));
+      await tester.pumpAndSettle();
+      final label = tester.getSemantics(key('calendar_day_2026-11-15')).label;
+      expect(label, contains('erledigt'));
+      expect(label, isNot(contains('ausgefallen')));
+      expect(label, isNot(contains('Lauf ohne Plan')));
+      expect((await plans.unitOn(sunday))!.runId, run.id);
+    });
+
     for (final rest in [false, true]) {
       testWidgets(
         rest
