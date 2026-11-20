@@ -366,7 +366,7 @@ release_rechte() {
 # Fehlen die Zonendaten, fiele TZ still auf UTC zurück; der Test "TZ wirkt" in core/test/health macht das rot.
 GATE_TZ_ZONES="America/Los_Angeles Pacific/Auckland UTC"
 GATE_TZ_CORE_TESTS="test/health test/readiness test/recording test/reminders"
-GATE_TZ_APP_TESTS="test/system_clock_test.dart test/readiness_home_test.dart test/readiness_detail_test.dart"
+GATE_TZ_APP_TESTS="test/system_clock_test.dart test/readiness_home_test.dart test/readiness_detail_test.dart test/manual_training_test.dart"
 zeitzonen_tests() {
   for z in $GATE_TZ_ZONES; do
     echo "== TZ=$z"

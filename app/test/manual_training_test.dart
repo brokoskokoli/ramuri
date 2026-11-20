@@ -1,18 +1,53 @@
+import 'dart:typed_data';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/health/imported_exercise_screen.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show seedRun, started, text;
 
-/// Training nachtragen (WP18, FR-0199). Heute ist Mittwoch, der 17. Juni 2026.
-final DateTime _now = DateTime.utc(2026, 6, 17, 12);
+/// Training nachtragen (WP18, FR-0199). Heute ist Mittwoch, der 17. Juni 2026,
+/// 12 Uhr Ortszeit der laufenden Zone (das Gate wechselt sie über `TZ`).
+final DateTime _now = DateTime(2026, 6, 17, 12);
 
-Future<Device> _start(WidgetTester tester) async {
+/// Stellt [clock] auf die Ortszeit [local] der Prozesszone, mit dem Versatz,
+/// den die Systemuhr der App für diesen Zeitpunkt liefert.
+void _setLocal(FakeClock clock, DateTime local) {
+  assert(!local.isUtc, 'Ortszeit erwartet');
+  clock.set(local);
+  clock.utcOffset = local.timeZoneOffset;
+}
+
+Future<Device> _start(WidgetTester tester, {DateTime? now}) async {
   final d = await started(tester);
-  d.clock.set(_now);
+  _setLocal(d.clock, now ?? _now);
   return d;
+}
+
+/// Angezeigter Tag auf dem Datumsknopf des Formulars.
+String _formDate(WidgetTester tester) => tester
+    .widgetList<Text>(
+      find.descendant(of: key('manual_date'), matching: find.byType(Text)),
+    )
+    .single
+    .data!;
+
+/// [day] so formatiert, wie Formular und Verlauf ihn zeigen.
+String _medium(WidgetTester tester, DateTime day) =>
+    MaterialLocalizations.of(tester.element(find.byType(Scaffold).last))
+        .formatMediumDate(day);
+
+/// Wählt im offenen Formular den Tag [day] des angezeigten Monats.
+Future<void> _pickDay(WidgetTester tester, int day) async {
+  await tester.tap(key('manual_date'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('$day'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OK'));
+  await tester.pumpAndSettle();
 }
 
 Future<void> _openHistory(WidgetTester tester) async {
@@ -187,7 +222,7 @@ void main() {
       await _fill(tester, minutes: '30', rpe: 6);
       // Die Uhr springt zurück: Der gewählte Tag (heute) liegt nun in der
       // Zukunft, der Dienst lehnt ab.
-      d.clock.set(DateTime.utc(2026, 6, 10, 12));
+      _setLocal(d.clock, DateTime(2026, 6, 10, 12));
       await tapKey(tester, 'manual_save');
       expect(
         text('manual_save_failed'),
@@ -242,6 +277,137 @@ void main() {
         await tapKey(tester, 'manual_save');
         expect((await _stored(d)).single.training.isoDay, '2026-06-16');
       });
+    });
+  });
+
+  // Der Tag entsteht als Kalendertag (Jahr, Monat, Tag) des Ortstags, nie über
+  // `toUtc()`/`toLocal()`: Westlich von UTC (Los Angeles) und weit östlich
+  // (Kiritimati UTC+14, Auckland UTC+13 im November) läge der UTC-Tag sonst
+  // einen Tag daneben. Das Gate führt diese Gruppe unter mehreren `TZ` aus.
+  group('Tag in jeder Zeitzone (Ortstag)', () {
+    final november = DateTime(2026, 11, 20, 12);
+
+    testWidgets('Kalenderwahl 14.11.: gespeichert und im Verlauf am 14.11.', (
+      tester,
+    ) async {
+      final d = await _start(tester, now: november);
+      await _openHistory(tester);
+      await tester.tap(key('manual_add'));
+      await tester.pumpAndSettle();
+      await _pickDay(tester, 14);
+      expect(_formDate(tester), _medium(tester, DateTime.utc(2026, 11, 14)));
+      await _fill(tester, minutes: '40', rpe: 4);
+      await tapKey(tester, 'manual_save');
+
+      final stored = (await _stored(d)).single;
+      expect(stored.training.isoDay, '2026-11-14');
+      await _all(tester);
+      expect(
+        text('manual_date_${stored.id}'),
+        _medium(tester, DateTime.utc(2026, 11, 14)),
+      );
+    });
+
+    // 23:30 und 00:30 Ortszeit: In Los Angeles ist um 23:30 der UTC-Tag schon
+    // der nächste, in Kiritimati um 00:30 noch der vorige.
+    for (final (local, today, tomorrow) in [
+      (DateTime(2026, 11, 20, 23, 30), '2026-11-20', 21),
+      (DateTime(2026, 11, 21, 0, 30), '2026-11-21', 22),
+    ]) {
+      testWidgets(
+        'ohne Kalenderwahl um ${local.hour}:${local.minute}: Ortstag $today, '
+        'kein Tag danach wählbar',
+        (tester) async {
+          final d = await _start(tester, now: local);
+          await _openHistory(tester);
+          await tester.tap(key('manual_add'));
+          await tester.pumpAndSettle();
+          final shown = _formDate(tester);
+          expect(shown, _medium(tester, DateTime.parse('${today}T00:00:00Z')));
+          // Morgen ist im Dialog nicht wählbar: Der Tag bleibt.
+          await _pickDay(tester, tomorrow);
+          expect(_formDate(tester), shown);
+          await _fill(tester, minutes: '30', rpe: 3);
+          await tapKey(tester, 'manual_save');
+          expect((await _stored(d)).single.training.isoDay, today);
+        },
+      );
+    }
+
+    // Beginn 23:30 bzw. 00:30 Ortszeit; der Datensatz trägt keinen eigenen
+    // Versatz, es gilt der der Uhr zum Beginn.
+    for (final (start, day) in [
+      (DateTime(2026, 11, 18, 23, 30), '2026-11-18'),
+      (DateTime(2026, 11, 19, 0, 30), '2026-11-19'),
+    ]) {
+      testWidgets(
+        'Übernahme aus Health Connect, Beginn ${start.hour}:${start.minute}: '
+        'Tag des Beginns $day',
+        (tester) async {
+          final clock = FakeClock(november);
+          _setLocal(clock, november);
+          final session = await FakeStorage().open(Uint8List(32));
+          addTearDown(session.close);
+          final exercise = HealthRecord(
+            kind: HealthDataKind.exercise,
+            id: 'hc-test-1',
+            origin: 'com.example.fitness',
+            start: start.toUtc(),
+            end: start.toUtc().add(const Duration(minutes: 50)),
+          );
+          await tester.pumpWidget(
+            localizedApp(
+              home: ImportedExerciseScreen(
+                exercise: exercise,
+                session: session,
+                clock: clock,
+                today: '2026-11-20',
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          await tapKey(tester, 'health_take');
+          expect(
+            _formDate(tester),
+            _medium(tester, DateTime.parse('${day}T00:00:00Z')),
+          );
+          await _fill(tester, rpe: 5);
+          await tapKey(tester, 'manual_save');
+          final stored = (await session.manualTrainings.list()).single;
+          expect(stored.training.isoDay, day);
+          expect(stored.training.hcId, 'hc-test-1');
+          expect(stored.training.duration, const Duration(minutes: 50));
+        },
+      );
+    }
+
+    testWidgets('Ändern ohne Datumswahl verschiebt den Tag nicht', (
+      tester,
+    ) async {
+      // Spät am Abend: In Los Angeles ist der UTC-Tag schon der nächste.
+      final d = await _start(tester, now: DateTime(2026, 11, 20, 23, 30));
+      await _openHistory(tester);
+      await tester.tap(key('manual_add'));
+      await tester.pumpAndSettle();
+      await _pickDay(tester, 14);
+      await _fill(tester, minutes: '40', rpe: 4);
+      await tapKey(tester, 'manual_save');
+      final id = (await _stored(d)).single.id;
+      await _all(tester);
+
+      for (final rpe in [6, 7]) {
+        await tapKey(tester, 'manual_training_$id');
+        expect(_formDate(tester), _medium(tester, DateTime.utc(2026, 11, 14)));
+        await _fill(tester, rpe: rpe);
+        await tapKey(tester, 'manual_save');
+        final now = (await _stored(d)).single;
+        expect(now.training.rpe, rpe);
+        expect(now.training.isoDay, '2026-11-14', reason: 'nach RPE $rpe');
+        expect(
+          text('manual_date_$id'),
+          _medium(tester, DateTime.utc(2026, 11, 14)),
+        );
+      }
     });
   });
 
@@ -308,7 +474,7 @@ void main() {
       final d = Device();
       await d.start(tester, const Locale('en'));
       await d.skipSetup(tester);
-      d.clock.set(_now);
+      _setLocal(d.clock, _now);
       await d.session.manualTrainings.add(
         ManualTraining(
           day: DateTime.utc(2026, 6, 16),
