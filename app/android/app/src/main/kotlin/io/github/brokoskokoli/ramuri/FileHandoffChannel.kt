@@ -24,6 +24,7 @@ import java.io.IOException
  * speichern (`ACTION_CREATE_DOCUMENT`, Inhalt direkt in die gelieferte URI, ohne Temp-Datei).
  * `pickFile` öffnet eine Datei (`ACTION_OPEN_DOCUMENT`) und kopiert sie als Strom nach
  * `cacheDir/imports/` ([ExportFiles.importInto]); `discardPicked` leert den Ordner.
+ * `clearExports` leert `exports/` und `imports/` beim Löschen von Daten (SEC-0004).
  * Der Inhalt kommt als `bytes` oder als `path` einer Datei, die Dart schon unter dem Ordner
  * aus `exportDirectory` angelegt hat (nur dort, [ExportFiles.resolve]). Hängt an der
  * Activity, weil beide Wege einen Systemdialog starten. Geschrieben wird auf dem
@@ -65,6 +66,7 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
                     ExportFiles.clear(importDir)
                     mainHandler.post { result.success(null) }
                 }
+                "clearExports" -> clearExports(result, call.argument<Boolean>("unlessBusy") == true)
                 "share", "save" -> {
                     val name = call.argument<String>("fileName")
                     val type = call.argument<String>("mimeType")
@@ -88,6 +90,25 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
     private val exportDir: File get() = File(activity.cacheDir, ExportFiles.DIR)
 
     private val importDir: File get() = File(activity.cacheDir, ExportFiles.IMPORT_DIR)
+
+    /**
+     * Leert `exports/` und `imports/` (SEC-0004) auf [ExportFiles.io], also nach jedem schon
+     * laufenden Schreiben. Mit [unlessBusy] (Lauf löschen) bleibt alles liegen, solange eine
+     * Übergabe offen ist: Antwort "busy" ohne Fehler. Sonst "cleared" oder Fehler `clear_failed`.
+     */
+    private fun clearExports(result: MethodChannel.Result, unlessBusy: Boolean) {
+        if (!ExportFiles.mayClear(unlessBusy, flow.busy)) {
+            result.success("busy")
+            return
+        }
+        val cache = activity.cacheDir
+        ExportFiles.io.execute {
+            val ok = ExportFiles.clearHandoff(cache)
+            mainHandler.post {
+                if (ok) result.success("cleared") else result.error("clear_failed", null, null)
+            }
+        }
+    }
 
     /** Ordner, in den Dart große Dateien vor der Übergabe schreibt (absolut, kanonisch). */
     private fun exportDirectory(result: MethodChannel.Result) {
