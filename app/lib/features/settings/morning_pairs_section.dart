@@ -10,7 +10,7 @@ import '../export/file_handoff_scope.dart';
 /// Knopf „Messpaare als CSV teilen“. Vor dem Teilen warnt ein Dialog, dass die
 /// Datei unverschlüsselt ist (wie bei der Zusatzmetriken-CSV, K57). Erst „Teilen“
 /// im Dialog erzeugt und übergibt die Datei. Meldungen enthalten weder Werte
-/// noch Pfade. Die App zeigt keine Gurt-RMSSD und keine Differenzen.
+/// noch Pfade. Den Vergleich beider zeigt `BeltCompareSection` (FR-0217).
 class MorningPairsSection extends StatefulWidget {
   const MorningPairsSection({super.key, required this.store, this.clock});
 
