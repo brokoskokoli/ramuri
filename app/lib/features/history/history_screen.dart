@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
+import '../export/file_handoff_scope.dart';
 import '../health/imported_exercise_screen.dart';
 import '../map/map_consent_controller.dart';
 import '../map/map_consent_scope.dart';
@@ -218,6 +219,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       runId,
       serialize: widget.recalculation.exclusive,
       onDeleted: _consent?.deleteRunThumbnails,
+      exports: FileHandoffScope.of(context),
     );
     if (!mounted) return;
     if (result == DeletionResult.deleted ||
