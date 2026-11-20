@@ -190,14 +190,16 @@ MorningMeasurement _cam(
   required double bpm,
   required double rmssd,
   SleepBand? band,
+  int minutes = 0,
+  String model = 'M1',
 }) {
-  final at = day.add(const Duration(hours: 7));
+  final at = day.add(Duration(hours: 7, minutes: minutes));
   return MorningMeasurement(
     measuredAt: at,
     utcOffset: clock.utcOffsetAt(at),
     posture: RestingPosture.lying,
     deviceManufacturer: 'H',
-    deviceModel: 'M1',
+    deviceModel: model,
     method: 'ppg',
     methodVersion: 1,
     quality: PpgQuality.good,
@@ -486,16 +488,23 @@ void main() {
     testWidgets('Speichern scheitert: keine Prüfung, das Blatt meldet den '
         'Fehler wie bisher', (tester) async {
       final d = Device();
-      // Die Angabe „unter 5 h“ steht schon an der Messung: der Wert ist
-      // niedrig, aber seit dem Start lief keine Prüfung. Jede Prüfung würde
-      // die Einheit darum lockern.
+      // Heute zwei Messungen: die erste (ohne Angabe) trägt „Schlaf
+      // angeben“, eine zweite von einem anderen Gerät hat schon „unter 5 h“.
+      // Der Wert ist darum niedrig, aber seit dem Start lief keine Prüfung:
+      // jede Prüfung würde die Einheit lockern, auch nach dem Fehler unten.
       final (s, today, id) = (await tester.runAsync(() async {
         final r = await _preopen(d);
-        final id = await _seedCamera(
-          r.$1,
-          d.clock,
-          r.$2,
-          band: SleepBand.under5,
+        final id = await _seedCamera(r.$1, d.clock, r.$2);
+        await (r.$1 as MorningStorage).morning.add(
+          _cam(
+            d.clock,
+            r.$2,
+            bpm: 55,
+            rmssd: 46,
+            band: SleepBand.under5,
+            minutes: 10,
+            model: 'M2',
+          ),
         );
         return (r.$1, r.$2, id);
       }))!;
