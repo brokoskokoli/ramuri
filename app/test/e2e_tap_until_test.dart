@@ -308,6 +308,67 @@ void main() {
       ),
     );
   });
+
+  testWidgets('waitKeyboardClosed: Tastatur schliesst nach einigen '
+      'Abfrageschritten -> zurück, eine Zeile tastatur_offen', (t) async {
+    addTearDown(t.view.reset);
+    t.view.viewInsets = const FakeViewPadding(bottom: 600);
+    await t.pumpWidget(const MaterialApp(home: SizedBox()));
+    // Schliesst nach 300 ms Testzeit, also nach mehreren Abfrageschritten.
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 300), () {
+        t.view.viewInsets = FakeViewPadding.zero;
+      }),
+    );
+    final zeilen = await _pubZeilen(() => waitKeyboardClosed(t, 'save'));
+    expect(t.view.viewInsets.bottom, 0);
+    expect(zeilen, ['tastatur_offen what=save']);
+  });
+
+  testWidgets('waitKeyboardClosed: Tastatur schon zu -> sofort zurück, '
+      'keine Zeile', (t) async {
+    addTearDown(t.view.reset);
+    t.view.viewInsets = FakeViewPadding.zero;
+    await t.pumpWidget(const MaterialApp(home: SizedBox()));
+    final vorher = t.binding.clock.now();
+    final zeilen = await _pubZeilen(() => waitKeyboardClosed(t, 'save'));
+    expect(t.binding.clock.now().difference(vorher), Duration.zero);
+    expect(zeilen, isEmpty);
+  });
+
+  testWidgets('waitKeyboardClosed: Tastatur bleibt offen -> Tastatur bleibt '
+      'offen vor <key>, nicht Tipp trifft nicht', (t) async {
+    addTearDown(t.view.reset);
+    t.view.viewInsets = const FakeViewPadding(bottom: 600);
+    var taps = 0;
+    await t.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: TextButton(
+            key: const Key('save'),
+            onPressed: () => taps++,
+            child: const Text('s'),
+          ),
+        ),
+      ),
+    );
+    final zeilen = <String>[];
+    await expectLater(
+      _pubIn(zeilen, () async {
+        await waitKeyboardClosed(t, 'save');
+        await tapKey(t, 'save');
+      }),
+      throwsA(
+        isA<TestFailure>().having(
+          (e) => e.message,
+          'message',
+          'Tastatur bleibt offen vor save',
+        ),
+      ),
+    );
+    expect(taps, 0);
+    expect(zeilen, ['tastatur_offen what=save']);
+  });
 }
 
 /// Fuehrt [f] aus und liefert die `logPub`-Zeilen ohne Praefix `PUB_<zeit> `.

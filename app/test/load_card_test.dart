@@ -1124,6 +1124,80 @@ void main() {
       expect(k('load_empty'), findsNothing);
     });
 
+    // FR-0044/FR-0059: Das laufende Jahr kommt aus der Uhr der Seite, nicht
+    // aus der echten Zeit. 2031 liegt bewusst neben dem echten Jahr.
+    for (final locale in ['de', 'en']) {
+      for (final (now, lastUnit, withYear) in [
+        (DateTime.utc(2031, 6, 3, 12), DateTime.utc(2031, 6, 2, 8), false),
+        (DateTime.utc(2031, 2, 10, 12), DateTime.utc(2030, 12, 20, 8), true),
+      ]) {
+        testWidgets('$locale: Jahr aus der Uhr der Seite, letzte Einheit '
+            '${lastUnit.year} ${withYear ? 'mit' : 'ohne'} Jahr', (
+          tester,
+        ) async {
+          final handle = tester.ensureSemantics();
+          final d = await started(tester, locale: locale);
+          d.clock.set(now);
+          final run = await seedRun(d.session, lastUnit);
+          await d.session.values.createOriginals(ValueOwner.run(run), [
+            ComputedValue(
+              key: trimpRunValueKey,
+              value: 55,
+              unit: pointsUnit,
+              computedAt: lastUnit.add(const Duration(hours: 1)),
+              measurementCount: 1,
+              sources: const [],
+              method: 'edwards-trimp',
+              methodVersion: 1,
+              parameterVersion: 1,
+              quality: ValueQuality.good,
+            ),
+          ]);
+          await openStats(d, tester);
+          final list = find.descendant(
+            of: k('stat_list'),
+            matching: find.byType(Scrollable),
+          );
+          await tester.scrollUntilVisible(
+            k('load_basis_toggle'),
+            300,
+            scrollable: list,
+          );
+          await tester.tap(k('load_basis_toggle'));
+          await tester.pumpAndSettle();
+          await tester.scrollUntilVisible(
+            k('load_data'),
+            300,
+            scrollable: list,
+          );
+
+          final element = tester.element(k('load_card'));
+          final material = MaterialLocalizations.of(element);
+          final day = DateTime.utc(lastUnit.year, lastUnit.month, lastUnit.day);
+          final date = withYear
+              ? asOfDateText(locale, day)
+              : material.formatMediumDate(day);
+          final text = tester.widget<Text>(k('load_data')).data!;
+          expect(text, AppLocalizations.of(element).loadDataThrough(date));
+          expect(text.contains('${lastUnit.year}'), withYear);
+
+          // Diagramm: Enddatum ohne Jahr nur, wenn das Fenster ganz im Jahr
+          // der Seite liegt; das Fenster reicht hier bis ins Vorjahr.
+          final chart = tester.widget<LoadChart>(k('load_chart'));
+          final last = chart.days.last.day;
+          expect(last.year, 2031);
+          expect(chart.days.first.day.year, withYear ? 2030 : 2031);
+          final end = withYear
+              ? asOfDateText(locale, last)
+              : material.formatMediumDate(last);
+          final label = tester.getSemantics(k('load_chart')).label;
+          expect(label, contains(end));
+          expect(label.contains('2031'), withYear);
+          handle.dispose();
+        });
+      }
+    }
+
     testWidgets('Seite ohne Neuberechnung (ältere Tests): keine Karte', (
       tester,
     ) async {
