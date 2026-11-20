@@ -23,6 +23,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          # Gradle-Abhängigkeiten und Plugins zwischenspeichern (Schlüssel aus den Gradle-Dateien), damit nicht
+          # jeder Job sie neu lädt. Caches eines Zweigs sind für main nicht lesbar; nightly/release ohne Cache.
+          cache: gradle
+          cache-dependency-path: |
+            app/android/**/*.gradle.kts
+            app/android/gradle.properties
+            app/android/gradle/wrapper/gradle-wrapper.properties
       - name: Flutter einrichten
         if: hashFiles('app/pubspec.yaml') != ''
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
