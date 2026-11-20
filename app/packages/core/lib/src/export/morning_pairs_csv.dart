@@ -7,12 +7,12 @@ import '../ppg/ppg_evaluator.dart' show PpgFrame;
 import '../preprocessing/measurement.dart' show RrPacket;
 
 /// Formatversion der Messpaare-CSV (`docs/contracts/morning-pairs-csv.md`).
-const int morningPairsCsvFormatVersion = 2;
+const int morningPairsCsvFormatVersion = 3;
 
 /// MIME-Typ der Datei.
 const String morningPairsCsvMimeType = 'text/csv';
 
-/// Kopfzeile der Formatversion 2 (Vertrag Abschnitt 3).
+/// Kopfzeile der Formatversion 3 (Vertrag Abschnitt 3, gleich seit Version 1).
 const List<String> morningPairsCsvColumns = [
   'format_version',
   'morning_id',
@@ -131,6 +131,10 @@ String encodeMorningPairsCsv(Iterable<MorningPair> pairs) {
       row('meta', 'frame_gap_count', value: '${raw.frameGapCount}');
       row('meta', 'frame_gap_total', value: num(raw.frameGapTotalS), unit: 's');
       row('meta', 'saturated_fraction', value: num(raw.saturatedFraction));
+      // Ab Formatversion 3: verwendete Kamera (FR-0220), leer = nicht bekannt.
+      row('meta', 'camera_id', value: raw.cameraId ?? '');
+      row('meta', 'physical_camera_id', value: raw.physicalCameraId ?? '');
+      row('meta', 'focal_length', value: num(raw.focalLengthMm), unit: 'mm');
     }
     row('camera', 'resting_hr', value: num(m.roundedRestingHr), unit: 'bpm');
     row('camera', 'rmssd', value: num(m.rmssdMs), unit: 'ms');
