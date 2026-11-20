@@ -8,11 +8,13 @@ import 'package:running_app/l10n/app_localizations.dart';
 
 import 'helpers/widget_helpers.dart';
 
-/// Mittwoch, 11.11.2026, mittags.
-final _now = DateTime.utc(2026, 11, 11, 12);
+/// Mittwoch, 11.11.2026, mittags Ortszeit.
+final _now = DateTime(2026, 11, 11, 12);
 
-DateTime _day(int daysAgo) =>
-    DateTime(2026, 11, 11).subtract(Duration(days: daysAgo));
+/// Lokale Mitternacht des Kalendertags [daysAgo] Tage vor dem 11.11.2026.
+/// Kalenderarithmetik statt `n × 24 h`: Liegt ein Sommerzeitende dazwischen
+/// (Berlin 25.10., Los Angeles 01.11.), bleibt es Mitternacht (PAR-164).
+DateTime _day(int daysAgo) => DateTime(2026, 11, 11 - daysAgo);
 
 PredictionRun _run(
   String id, {
@@ -254,6 +256,10 @@ void main() {
       );
       final runDay = DateFormat.yMMMd('de').format(_day(20));
       expect(runDay, isNot(DateFormat.yMMMd('de').format(_day(0))));
+      // Der Lauf liegt vor dem Sommerzeitende (Mitteleuropa 25.10., Los
+      // Angeles 01.11.); erwartet wird trotzdem lokale Mitternacht seines
+      // Kalendertags.
+      expect(_day(20), DateTime(2026, 10, 22));
       await _tapKey(tester, 'prediction_form_from_run');
       await _tapKey(tester, 'reference_run_0');
       expect(host.closed, isFalse);
@@ -271,6 +277,7 @@ void main() {
       expect(host.closed, isTrue);
       expect(host.result!.seconds, 25 * 60);
       expect(host.result!.date, _day(20));
+      expect(host.result!.date, DateTime(2026, 10, 22));
     });
 
     for (final lang in ['de', 'en']) {
