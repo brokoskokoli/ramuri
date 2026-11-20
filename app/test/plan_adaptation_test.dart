@@ -205,6 +205,57 @@ void main() {
       });
     }
 
+    test('Wechsel auf „adaptiv“ mit harter Einheit heute, niedriger Wert '
+        'des Vortags: keine neue Fassung, die harte Einheit bleibt', () async {
+      final e = await _Env.open();
+      final today = _day(e.hardDay);
+      final hard = (await e.plans.unitOn(today))!;
+      expect(hard.isHard, isTrue);
+      // Die Quelle wird für heute gefragt, rechnet aber noch für gestern
+      // (Mitternacht zwischen Anfrage und Rechnung).
+      final asked = <DateTime>[];
+      e.readiness = (d) {
+        asked.add(d);
+        return _low(_day(e.hardDay - 1));
+      };
+      final before = await e.versions();
+      final c = e.controller();
+      expect(
+        await c.setAdaptation(PlanAdaptationMode.adaptive),
+        PlanActionResult.done,
+      );
+      expect(asked, [today]);
+      expect(await e.versions(), before);
+      expect(_sig((await e.plans.unitOn(today))!), _sig(hard));
+      c.dispose();
+    });
+
+    test('Wechsel auf „adaptiv“ mit harter Einheit heute, niedriger Wert '
+        'eines späteren Tags mit harter Einheit: keine neue Fassung, beide '
+        'harten Einheiten bleiben (nur der Wert des angefragten Tags '
+        'zählt)', () async {
+      final e = await _Env.open();
+      final today = _day(e.hardDay);
+      final hard = (await e.plans.unitOn(today))!;
+      PlanUnit? later;
+      for (var n = e.hardDay + 1; n < e.hardDay + 28 && later == null; n++) {
+        final u = await e.plans.unitOn(_day(n));
+        if (u != null && u.isHard) later = u;
+      }
+      expect(later, isNotNull);
+      e.readiness = (_) => _low(later!.day);
+      final before = await e.versions();
+      final c = e.controller();
+      expect(
+        await c.setAdaptation(PlanAdaptationMode.adaptive),
+        PlanActionResult.done,
+      );
+      expect(await e.versions(), before);
+      expect(_sig((await e.plans.unitOn(today))!), _sig(hard));
+      expect(_sig((await e.plans.unitOn(later!.day))!), _sig(later));
+      c.dispose();
+    });
+
     test('Wechsel auf „fix“ nach Lockerung heute: genau eine neue Fassung, '
         'die harte Einheit kehrt zurück; ohne Lockerung keine', () async {
       final e = await _Env.open();
