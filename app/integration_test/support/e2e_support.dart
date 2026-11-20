@@ -141,10 +141,57 @@ String txt(String key) {
   return w is Text ? (w.data ?? '<rich>') : w.runtimeType.toString();
 }
 
-/// Taste in einem Dialog: kein ensureVisible (es scrollt sonst die Seite dahinter).
+/// Frist, in der eine Taste nach dem Tipp aus dem Baum verschwinden muss
+/// ([tapDialog], [back]) bzw. vor dem Tipp erscheinen und treffbar werden muss.
+const _tapFrist = Duration(seconds: 5);
+
+/// Wartet (Abfrage alle 100 ms, keine feste Pause), bis [gone] gilt; sonst
+/// endet der Test mit [meldung]. [what] ist ein Schluesselname fuer das Log.
+Future<void> _waitGone(
+  WidgetTester t,
+  bool Function() gone,
+  String what,
+  String meldung,
+) async {
+  final end = DateTime.now().add(_tapFrist);
+  while (!gone()) {
+    if (DateTime.now().isAfter(end)) {
+      logPub('tap_bleibt what=$what');
+      fail(meldung);
+    }
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
+}
+
+/// Wartet, bis [f] etwas findet; sonst endet der Test mit [meldung].
+Future<void> _waitPresent(WidgetTester t, Finder f, String meldung) async {
+  final end = DateTime.now().add(_tapFrist);
+  while (f.evaluate().isEmpty) {
+    if (DateTime.now().isAfter(end)) fail(meldung);
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
+}
+
+/// Taste in einem Dialog oder Menue, die ihn schliesst: kein ensureVisible (es
+/// scrollt sonst die Seite dahinter). Wartet vor dem Tipp, bis die Taste im
+/// Baum steht und der Tipp sie trifft (ein Menue geht noch auf: ein Tipp
+/// daneben schloesse es ohne Auswahl), und danach, bis genau diese Taste nicht
+/// mehr im Baum steht (Dialog bzw. Menue zu); sonst
+/// `Dialog-Taste <key> bleibt`. Keine feste Pause. Bleibt ein Dialog bewusst offen:
+/// [tapKey]/[tapUntil] mit eigener Bedingung.
 Future<void> tapDialog(WidgetTester t, String key) async {
-  await t.tap(find.byKey(Key(key)));
-  await pumpFor(t, const Duration(milliseconds: 300));
+  final f = find.byKey(Key(key));
+  await _waitPresent(t, f, 'Dialog-Taste $key fehlt');
+  final end = DateTime.now().add(_tapFrist);
+  while (!hittable(t, f.first)) {
+    if (DateTime.now().isAfter(end)) {
+      fail('Tipp trifft Dialog-Taste $key nicht');
+    }
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
+  final ziel = f.evaluate().first;
+  await t.tap(f.first);
+  await _waitGone(t, () => !ziel.mounted, key, 'Dialog-Taste $key bleibt');
 }
 
 /// Ob ein Tipp in die Mitte von [f] dieses Element traefe (nicht verdeckt, die
@@ -253,9 +300,12 @@ Future<void> tapUntil(
   fail('Tipp ohne Wirkung: $what');
 }
 
+/// Tipp auf die Taste [key]: wartet vorher, bis sie im Baum steht und der Tipp
+/// sie trifft; danach folgt nur ein Frame, keine feste Pause. Die Wirkung
+/// prueft der Aufrufer mit [waitFor] oder nimmt gleich [tapUntil].
 Future<void> tapKey(WidgetTester t, String key) async {
   final f = find.byKey(Key(key));
-  expect(f, findsWidgets, reason: 'Taste $key fehlt');
+  await _waitPresent(t, f, 'Taste $key fehlt');
   await t.ensureVisible(f);
   // Waehrend eines Seitenwechsels liegt die Taste noch verschoben; erst tippen,
   // wenn der Tipp sie trifft (echte Bedingung, sonst Rot mit Schluessel).
@@ -279,7 +329,7 @@ Future<void> tapKey(WidgetTester t, String key) async {
     }
   }
   await t.tap(f);
-  await pumpFor(t, const Duration(milliseconds: 300));
+  await t.pump();
 }
 
 Future<void> startApp(WidgetTester t, World w) async {
@@ -319,9 +369,21 @@ Future<void> setupIfShown(WidgetTester t) async {
   await waitFor(t, () => has('home_start_run'), 'Heute');
 }
 
+/// Tipp auf den obersten Zurueck-Knopf: wartet vorher, bis er im Baum steht
+/// und getroffen wird (Seitenwechsel), merkt ihn sich und wartet danach, bis
+/// genau dieser Knopf nicht mehr im Baum steht (Seite zu, Uebergang beendet);
+/// sonst `Zurück ohne Wirkung`. Keine feste Pause.
 Future<void> back(WidgetTester t) async {
-  await t.tap(find.byType(BackButton).last);
-  await pumpFor(t, const Duration(seconds: 1));
+  final f = find.byType(BackButton);
+  await _waitPresent(t, f, 'Zurück-Knopf fehlt');
+  final end = DateTime.now().add(_tapFrist);
+  while (!hittable(t, f.last)) {
+    if (DateTime.now().isAfter(end)) fail('Tipp trifft Zurück nicht');
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
+  final ziel = f.last.evaluate().first;
+  await t.tap(f.last);
+  await _waitGone(t, () => !ziel.mounted, 'back', 'Zurück ohne Wirkung');
 }
 
 /// Verbindet Fake-Geraete ueber die Sensorseite.

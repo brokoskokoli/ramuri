@@ -1,5 +1,5 @@
 // E2E: Archiv exportieren, Daten loeschen, Archiv wieder einlesen (FR-0192,
-// FR-0198). Der Weg ueber die Oberflaeche endet im System-Dateidialog
+// FR-0198), einmal mit und einmal ohne Passwort (SEC-0011). Der Weg ueber die Oberflaeche endet im System-Dateidialog
 // (Speichern/Teilen/Datei waehlen); den bedient dieser Test NICHT. Er nutzt
 // die App-Schicht direkt darunter, so wie die App sie verdrahtet
 // (AppDependencies.archiveExport schreibt die echte, verschluesselte Archivdatei
@@ -151,5 +151,36 @@ void main() {
       reason: 'unveraendert nach Fehler (Werte nie ausgeben)',
     );
     await t.runAsync(() => File(path!).delete());
+
+    step('ARCHIVE ohne_passwort_export');
+    // Archiv ohne Passwort (SEC-0011): leeres Passwort, gleiches Format.
+    final exportOpen = w.deps.archiveExport!(s);
+    final openFile = (await t.runAsync(() => exportOpen(password: '')))!;
+    final openPath = openFile.path;
+    expect(openPath, isNotNull, reason: 'Archivdatei hat einen Pfad');
+
+    step('ARCHIVE ohne_passwort_loeschen');
+    await t.runAsync(() => s.deleteAll());
+    expect(
+      (await t.runAsync(() => ArchiveRestoreService.isEmpty(s)))!,
+      isTrue,
+      reason: 'nach dem Loeschen ist die App leer',
+    );
+
+    step('ARCHIVE ohne_passwort_reimport');
+    // Reimport mit dem leeren Passwort, wie der Leerversuch der App (FR-0198).
+    final restoreOpen = (await t.runAsync(
+      () => w.deps.archiveRestore!(s, <T>(a) => a()),
+    ))!;
+    s = (await t.runAsync(() => restoreOpen(path: openPath!, password: '')))!;
+    w.deps.storageStart.adoptSession(s);
+    await pumpFor(t, const Duration(seconds: 1));
+    expect(
+      await _snapshot(t, s) == before,
+      isTrue,
+      reason:
+          'Inhalt nach Reimport ohne Passwort wie vorher (Werte nie ausgeben)',
+    );
+    await t.runAsync(() => File(openPath!).delete());
   }, timeout: const Timeout(Duration(minutes: 5)));
 }
