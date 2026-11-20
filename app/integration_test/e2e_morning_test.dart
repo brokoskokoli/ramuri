@@ -11,6 +11,7 @@
 // hell/dunkel, 5b Gurtzeile ohne bekannten Gurt (Test-Speicher ohne Geraete),
 // 6 Gurt bekannt, aber getrennt: Autoverbinden beim Oeffnen („verbunden“, auch
 // nach erneutem Oeffnen), Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
+// 6b Kamera gegen Gurt: je Gurt-Paar eine Zeile, Detail oeffnet sich,
 // 7 Ruhephase ueberspringen (Fortschritt, vermerkt), 8 Entwicklermodus aus ->
 // 7b Uhrzeit der Morgen-Erinnerung ueber den Zeitwaehler (geplanter Zeitpunkt
 // am Plattformkanal und im Speicher), 7c feste Uhr: Messung um 23:58 und um
@@ -986,6 +987,65 @@ void main() {
       timeout: const Duration(seconds: 20),
     );
     await shot(t, 's6_nach_teilen');
+
+    step('MORNING S6b kamera_gegen_gurt');
+    // 6b) Kamera gegen Gurt (FR-0217): je Morgen mit Gurt-RR eine Zeile, das
+    // Detail oeffnet sich. Nur Anwesenheit und Zuordnung (ja/nein) ins Log,
+    // keine Werte. Die Test-Quellen liefern einen gleichmaessigen Gurt, daher
+    // ist „keine Zuordnung“ ebenso zulaessig wie RMSSD Kamera und Gurt.
+    final compareRows = find.byWidgetPredicate(
+      (wd) =>
+          wd.key is ValueKey<String> &&
+          (wd.key! as ValueKey<String>).value.startsWith('dev_compare_row_'),
+    );
+    await t.scrollUntilVisible(
+      find.byKey(const Key('dev_compare')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await waitFor(
+      t,
+      () => compareRows.evaluate().isNotEmpty,
+      'S6b Zeilen Kamera gegen Gurt',
+    );
+    expect(
+      compareRows.evaluate().length,
+      pairs.withBelt,
+      reason: 'S6b je Gurt-Paar eine Zeile',
+    );
+    final l10n6 = AppLocalizations.of(t.element(compareRows.first));
+    final rmssdPrefix = l10n6
+        .devCompareRmssd('\u0001', '\u0002')
+        .split('\u0001')
+        .first;
+    final rowTexts = t
+        .widgetList<Text>(
+          find.descendant(of: compareRows.first, matching: find.byType(Text)),
+        )
+        .map((e) => e.data ?? '')
+        .toList();
+    final matched = rowTexts.any((x) => x.startsWith(rmssdPrefix));
+    final noMatch = rowTexts.contains(l10n6.devCompareNoMatch);
+    log('S6b zeilen=${compareRows.evaluate().length} zuordnung=$matched');
+    expect(matched || noMatch, isTrue, reason: 'S6b Zeile mit Vergleich');
+    await t.tap(compareRows.first);
+    await waitFor(
+      t,
+      () => has('dev_compare_detail_rmssd_camera'),
+      'S6b Detail Kamera gegen Gurt',
+    );
+    expect(
+      has('dev_compare_chart'),
+      matched,
+      reason: 'S6b Kurve genau mit Zuordnung',
+    );
+    await shot(t, 's6b_vergleich_detail');
+    await back(t); // Detail -> Entwicklereinstellungen
+    await waitFor(
+      t,
+      () => has('about_dev_switch') || has('dev_compare'),
+      'S6b zurueck',
+    );
 
     step('MORNING S7 ruhephase_ueberspringen');
     // 7) Ruhephase ueberspringen: die Messung startet sofort, der Fortschritt
