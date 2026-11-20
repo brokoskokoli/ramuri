@@ -82,6 +82,9 @@ void main() {
           timestampSource: CameraTimestampSource.realtime,
           torchStrength: 1,
           saturatedFraction: 0.01,
+          cameraId: '0',
+          physicalCameraId: '2',
+          focalLengthMm: 2.2,
         ),
         beltPackets: [
           _p(5, [900, 910]),
@@ -95,7 +98,7 @@ void main() {
 
   test('ungültiges Kamera-Intervall ist ein leeres Feld, nie NaN', () {
     final csv = encodeMorningPairsCsv([MorningPair(id: 1, measurement: _m())]);
-    expect(csv, contains('2,1,camera_ibi,ibi,2,,,,ms\r\n'));
+    expect(csv, contains('3,1,camera_ibi,ibi,2,,,,ms\r\n'));
     expect(csv.toLowerCase(), isNot(contains('nan')));
   });
 
@@ -103,16 +106,16 @@ void main() {
     final csv = encodeMorningPairsCsv([
       MorningPair(id: 1, measurement: _m(rmssd: null)),
     ]);
-    expect(csv, contains('2,1,camera,rmssd,,,,,ms\r\n'));
-    expect(csv, contains('2,1,camera,timing_noise,,,,,ms\r\n'));
+    expect(csv, contains('3,1,camera,rmssd,,,,,ms\r\n'));
+    expect(csv, contains('3,1,camera,timing_noise,,,,,ms\r\n'));
   });
 
   test('sehr kleine Werte ohne Exponentschreibweise', () {
     final csv = encodeMorningPairsCsv([
       MorningPair(id: 1, measurement: _m(rmssd: 1e-7, noise: 2e-8)),
     ]);
-    expect(csv, contains('2,1,camera,rmssd,,,,0.0000001,ms\r\n'));
-    expect(csv, contains('2,1,camera,timing_noise,,,,0.00000002,ms\r\n'));
+    expect(csv, contains('3,1,camera,rmssd,,,,0.0000001,ms\r\n'));
+    expect(csv, contains('3,1,camera,timing_noise,,,,0.00000002,ms\r\n'));
     expect(csv.toLowerCase(), isNot(contains('e-')));
   });
 
@@ -162,12 +165,12 @@ void main() {
       ),
       MorningPair(id: 2, measurement: _m(at: _t0.add(const Duration(days: 1)))),
     ]);
-    expect(csv, contains('2,1,meta,window_start,,,,31.5,s\r\n'));
-    expect(csv, contains('2,1,meta,window_end,,,,91.5,s\r\n'));
-    expect(csv, contains('2,1,meta,rest_skipped_after,,,,12.0,s\r\n'));
+    expect(csv, contains('3,1,meta,window_start,,,,31.5,s\r\n'));
+    expect(csv, contains('3,1,meta,window_end,,,,91.5,s\r\n'));
+    expect(csv, contains('3,1,meta,rest_skipped_after,,,,12.0,s\r\n'));
     // Ohne Fenster und ohne Überspringen: leer, nie 0.
-    expect(csv, contains('2,2,meta,window_start,,,,,s\r\n'));
-    expect(csv, contains('2,2,meta,rest_skipped_after,,,,,s\r\n'));
+    expect(csv, contains('3,2,meta,window_start,,,,,s\r\n'));
+    expect(csv, contains('3,2,meta,rest_skipped_after,,,,,s\r\n'));
   });
 
   test('unbrauchbare Messung ist enthalten und markiert', () {
@@ -183,12 +186,12 @@ void main() {
       ),
       MorningPair(id: 4, measurement: _m()),
     ]);
-    expect(csv, contains('2,3,meta,quality,,,,unusable,\r\n'));
-    expect(csv, contains('2,3,meta,usable,,,,0,\r\n'));
-    expect(csv, contains('2,3,meta,quality_reason,,,,weakSignal,\r\n'));
-    expect(csv, contains('2,3,camera,resting_hr,,,,,bpm\r\n'));
-    expect(csv, contains('2,4,meta,usable,,,,1,\r\n'));
-    expect(csv, contains('2,4,meta,quality_reason,,,,,\r\n'));
+    expect(csv, contains('3,3,meta,quality,,,,unusable,\r\n'));
+    expect(csv, contains('3,3,meta,usable,,,,0,\r\n'));
+    expect(csv, contains('3,3,meta,quality_reason,,,,weakSignal,\r\n'));
+    expect(csv, contains('3,3,camera,resting_hr,,,,,bpm\r\n'));
+    expect(csv, contains('3,4,meta,usable,,,,1,\r\n'));
+    expect(csv, contains('3,4,meta,quality_reason,,,,,\r\n'));
   });
 
   test('Puls außerhalb PAR-017: Zeile unbrauchbar mit Grund, ohne Puls', () {
@@ -210,22 +213,78 @@ void main() {
     )!;
     final csv = encodeMorningPairsCsv([MorningPair(id: 5, measurement: m)]);
     expect(csv, startsWith(_header));
-    expect(csv, contains('2,5,meta,quality,,,,unusable,\r\n'));
-    expect(csv, contains('2,5,meta,usable,,,,0,\r\n'));
+    expect(csv, contains('3,5,meta,quality,,,,unusable,\r\n'));
+    expect(csv, contains('3,5,meta,usable,,,,0,\r\n'));
     expect(
       csv,
-      contains('2,5,meta,quality_reason,,,,restingHrOutOfRange,\r\n'),
+      contains('3,5,meta,quality_reason,,,,restingHrOutOfRange,\r\n'),
     );
-    expect(csv, contains('2,5,camera,resting_hr,,,,,bpm\r\n'));
-    expect(csv, contains('2,5,camera,rmssd,,,,,ms\r\n'));
+    expect(csv, contains('3,5,camera,resting_hr,,,,,bpm\r\n'));
+    expect(csv, contains('3,5,camera,rmssd,,,,,ms\r\n'));
     expect(csv, isNot(contains('121')));
   });
 
   test('ohne Rohsignal keine Rohzeilen, raw_frames ist 0', () {
     final csv = encodeMorningPairsCsv([MorningPair(id: 1, measurement: _m())]);
     expect(csv, isNot(contains(',raw_frame,')));
-    expect(csv, contains('2,1,meta,raw_frames,,,,0,\r\n'));
+    expect(csv, contains('3,1,meta,raw_frames,,,,0,\r\n'));
     expect(csv, isNot(contains('exposure_time')));
+    // Kamera-Angaben (Formatversion 3) fehlen wie die übrigen.
+    expect(csv, isNot(contains('camera_id')));
+    expect(csv, isNot(contains('focal_length')));
+  });
+
+  test('Formatversion 3: verwendete Kamera nach saturated_fraction', () {
+    final csv = encodeMorningPairsCsv([
+      MorningPair(
+        id: 1,
+        measurement: _m(),
+        rawSignal: MorningRawSignal(
+          frames: const [],
+          frameGapCount: 0,
+          frameGapTotalS: 0,
+          saturatedFraction: 0.5,
+          cameraId: '0',
+          physicalCameraId: '3',
+          focalLengthMm: 4.25,
+        ),
+      ),
+    ]);
+    expect(
+      csv,
+      contains(
+        '3,1,meta,saturated_fraction,,,,0.5,\r\n'
+        '3,1,meta,camera_id,,,,0,\r\n'
+        '3,1,meta,physical_camera_id,,,,3,\r\n'
+        '3,1,meta,focal_length,,,,4.25,mm\r\n'
+        '3,1,camera,resting_hr,',
+      ),
+    );
+    for (final l in csv.split('\r\n').skip(1).where((l) => l.isNotEmpty)) {
+      expect(l, startsWith('3,'));
+    }
+  });
+
+  test('unbekannte Kamera: die drei Zeilen stehen mit leerem Wert', () {
+    final csv = encodeMorningPairsCsv([
+      MorningPair(
+        id: 1,
+        measurement: _m(),
+        rawSignal: MorningRawSignal(
+          frames: const [],
+          frameGapCount: 0,
+          frameGapTotalS: 0,
+        ),
+      ),
+    ]);
+    expect(
+      csv,
+      contains(
+        '3,1,meta,camera_id,,,,,\r\n'
+        '3,1,meta,physical_camera_id,,,,,\r\n'
+        '3,1,meta,focal_length,,,,,mm\r\n',
+      ),
+    );
   });
 
   test(
@@ -318,7 +377,7 @@ List<PpgFrame> _readFrames(String csv) {
   for (final line in csv.split('\r\n')) {
     final c = line.split(',');
     if (c.length != 9 || c[2] != 'raw_frame') continue;
-    expect(c[0], '2');
+    expect(c[0], '3');
     expect(c[4], '${out.length + 1}');
     final v = [for (final x in c[7].split(';')) double.parse(x)];
     expect(v, hasLength(35));

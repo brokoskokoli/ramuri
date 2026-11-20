@@ -105,6 +105,11 @@ SECTIONS_S13 = SECTIONS_S12 + ["morning_measurements", "morning_rr_packets"]
 # kommen ans Zeilenende, `resting_hr_bpm` darf null sein. Archive bis Schema 13 lesen die neuen Spalten als null.
 SECTIONS_S14 = SECTIONS_S13 + ["morning_raw_signals"]
 
+# Schema 15 (weiter Format 2, FR-0220): Abschnitte wie Schema 14; in `morning_raw_signals` kommen
+# `camera_id`, `physical_camera_id` (nur mit `camera_id`) und `focal_length_mm` (> 0) ans Zeilenende,
+# null = nicht bekannt. Archive bis Schema 14 lesen die neuen Spalten als null.
+SECTIONS_S15 = SECTIONS_S14
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -421,8 +426,26 @@ def archive_rows_s14():
     return r
 
 
+def archive_rows_s15():
+    """Schema 15: die Zeilen von Schema 14 mit der verwendeten Kamera im Rohsignal. Rohsignal von Messung 1
+    mit Kamera `0`, physischer Kamera `2` und Brennweite 2,2 mm; zweites Rohsignal (Messung 2, ein Bild) nur mit
+    Kamera `1`, ohne physische Kamera und Brennweite (null)."""
+    import struct
+    r = archive_rows_s14()
+    r["morning_raw_signals"][0].update(camera_id="0", physical_camera_id="2", focal_length_mm=2.2)
+    vals = [0.0, 210.0, 41.0] + [180.0 + k for k in range(16)] + [36.0 + k * 0.5 for k in range(16)]
+    r["morning_raw_signals"].append(
+        dict(measurement_id=2, frame_count=1, frames=struct.pack("<35d", *vals).hex(), exposure_time_ns=None,
+             iso=None, timestamp_source=None, rolling_shutter_skew_ns=None, torch_strength=None,
+             frame_gap_count=0, frame_gap_total_s=0.0, saturated_fraction=None, camera_id="1",
+             physical_camera_id=None, focal_length_mm=None))
+    return r
+
+
 def archive_plaintext(version=1, future_training=False, schema=None, reserved_row=False):
-    if schema == 14:
+    if schema == 15:
+        r, sections = archive_rows_s15(), SECTIONS_S15
+    elif schema == 14:
         r, sections = archive_rows_s14(), SECTIONS_S14
     elif schema == 13:
         r, sections = archive_rows_s13(), SECTIONS_S13
@@ -488,6 +511,7 @@ def main():
     jl12, gz12 = archive_plaintext(2, schema=12)
     jl13, gz13 = archive_plaintext(2, schema=13)
     jl14, gz14 = archive_plaintext(2, schema=14)
+    jl15, gz15 = archive_plaintext(2, schema=15)
     _, gz2_future = archive_plaintext(2, future_training=True)
     _, gz10_warn = archive_plaintext(2, schema=10, reserved_row=True)
     # (name, passwort, salz, klartext)
@@ -511,6 +535,7 @@ def main():
         ("archive_v2_s12", "archiv-test-passwort-s12+", bytes(range(88, 104)), gz12),
         ("archive_v2_s13", "archiv-test-passwort-s13+", bytes(range(120, 136)), gz13),
         ("archive_v2_s14", "archiv-test-passwort-s14+", bytes(range(136, 152)), gz14),
+        ("archive_v2_s15", "archiv-test-passwort-s15+", bytes(range(152, 168)), gz15),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
@@ -518,7 +543,7 @@ def main():
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11", "archive_v2_s12", "archive_v2_s13", "archive_v2_s14") else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11", "archive_v2_s12", "archive_v2_s13", "archive_v2_s14", "archive_v2_s15") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -589,6 +614,12 @@ def main():
             manifest[-1]["jsonl_file"] = "archive_v2_s14.jsonl"
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl14).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_s14()[s]) for s in SECTIONS_S14}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s15":
+            open(os.path.join(out, "archive_v2_s15.jsonl"), "wb").write(jl15)
+            manifest[-1]["jsonl_file"] = "archive_v2_s15.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl15).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s15()[s]) for s in SECTIONS_S15}
             manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)

@@ -18129,6 +18129,40 @@ class MorningRawSignals extends Table
         requiredDuringInsert: false,
         $customConstraints: 'CHECK (saturated_fraction BETWEEN 0 AND 1)',
       );
+  static const VerificationMeta _cameraIdMeta = const VerificationMeta(
+    'cameraId',
+  );
+  late final GeneratedColumn<String> cameraId = GeneratedColumn<String>(
+    'camera_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _physicalCameraIdMeta = const VerificationMeta(
+    'physicalCameraId',
+  );
+  late final GeneratedColumn<String> physicalCameraId = GeneratedColumn<String>(
+    'physical_camera_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (physical_camera_id IS NULL OR camera_id IS NOT NULL)',
+  );
+  static const VerificationMeta _focalLengthMmMeta = const VerificationMeta(
+    'focalLengthMm',
+  );
+  late final GeneratedColumn<double> focalLengthMm = GeneratedColumn<double>(
+    'focal_length_mm',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (focal_length_mm > 0)',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     measurementId,
@@ -18142,6 +18176,9 @@ class MorningRawSignals extends Table
     frameGapCount,
     frameGapTotalS,
     saturatedFraction,
+    cameraId,
+    physicalCameraId,
+    focalLengthMm,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -18253,6 +18290,30 @@ class MorningRawSignals extends Table
         ),
       );
     }
+    if (data.containsKey('camera_id')) {
+      context.handle(
+        _cameraIdMeta,
+        cameraId.isAcceptableOrUnknown(data['camera_id']!, _cameraIdMeta),
+      );
+    }
+    if (data.containsKey('physical_camera_id')) {
+      context.handle(
+        _physicalCameraIdMeta,
+        physicalCameraId.isAcceptableOrUnknown(
+          data['physical_camera_id']!,
+          _physicalCameraIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('focal_length_mm')) {
+      context.handle(
+        _focalLengthMmMeta,
+        focalLengthMm.isAcceptableOrUnknown(
+          data['focal_length_mm']!,
+          _focalLengthMmMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -18306,6 +18367,18 @@ class MorningRawSignals extends Table
         DriftSqlType.double,
         data['${effectivePrefix}saturated_fraction'],
       ),
+      cameraId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}camera_id'],
+      ),
+      physicalCameraId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}physical_camera_id'],
+      ),
+      focalLengthMm: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}focal_length_mm'],
+      ),
     );
   }
 
@@ -18331,6 +18404,9 @@ class MorningRawSignalRow extends DataClass
   final int frameGapCount;
   final double frameGapTotalS;
   final double? saturatedFraction;
+  final String? cameraId;
+  final String? physicalCameraId;
+  final double? focalLengthMm;
   const MorningRawSignalRow({
     required this.measurementId,
     required this.frameCount,
@@ -18343,6 +18419,9 @@ class MorningRawSignalRow extends DataClass
     required this.frameGapCount,
     required this.frameGapTotalS,
     this.saturatedFraction,
+    this.cameraId,
+    this.physicalCameraId,
+    this.focalLengthMm,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -18370,6 +18449,15 @@ class MorningRawSignalRow extends DataClass
     if (!nullToAbsent || saturatedFraction != null) {
       map['saturated_fraction'] = Variable<double>(saturatedFraction);
     }
+    if (!nullToAbsent || cameraId != null) {
+      map['camera_id'] = Variable<String>(cameraId);
+    }
+    if (!nullToAbsent || physicalCameraId != null) {
+      map['physical_camera_id'] = Variable<String>(physicalCameraId);
+    }
+    if (!nullToAbsent || focalLengthMm != null) {
+      map['focal_length_mm'] = Variable<double>(focalLengthMm);
+    }
     return map;
   }
 
@@ -18396,6 +18484,15 @@ class MorningRawSignalRow extends DataClass
       saturatedFraction: saturatedFraction == null && nullToAbsent
           ? const Value.absent()
           : Value(saturatedFraction),
+      cameraId: cameraId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cameraId),
+      physicalCameraId: physicalCameraId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(physicalCameraId),
+      focalLengthMm: focalLengthMm == null && nullToAbsent
+          ? const Value.absent()
+          : Value(focalLengthMm),
     );
   }
 
@@ -18420,6 +18517,11 @@ class MorningRawSignalRow extends DataClass
       saturatedFraction: serializer.fromJson<double?>(
         json['saturated_fraction'],
       ),
+      cameraId: serializer.fromJson<String?>(json['camera_id']),
+      physicalCameraId: serializer.fromJson<String?>(
+        json['physical_camera_id'],
+      ),
+      focalLengthMm: serializer.fromJson<double?>(json['focal_length_mm']),
     );
   }
   @override
@@ -18437,6 +18539,9 @@ class MorningRawSignalRow extends DataClass
       'frame_gap_count': serializer.toJson<int>(frameGapCount),
       'frame_gap_total_s': serializer.toJson<double>(frameGapTotalS),
       'saturated_fraction': serializer.toJson<double?>(saturatedFraction),
+      'camera_id': serializer.toJson<String?>(cameraId),
+      'physical_camera_id': serializer.toJson<String?>(physicalCameraId),
+      'focal_length_mm': serializer.toJson<double?>(focalLengthMm),
     };
   }
 
@@ -18452,6 +18557,9 @@ class MorningRawSignalRow extends DataClass
     int? frameGapCount,
     double? frameGapTotalS,
     Value<double?> saturatedFraction = const Value.absent(),
+    Value<String?> cameraId = const Value.absent(),
+    Value<String?> physicalCameraId = const Value.absent(),
+    Value<double?> focalLengthMm = const Value.absent(),
   }) => MorningRawSignalRow(
     measurementId: measurementId ?? this.measurementId,
     frameCount: frameCount ?? this.frameCount,
@@ -18474,6 +18582,13 @@ class MorningRawSignalRow extends DataClass
     saturatedFraction: saturatedFraction.present
         ? saturatedFraction.value
         : this.saturatedFraction,
+    cameraId: cameraId.present ? cameraId.value : this.cameraId,
+    physicalCameraId: physicalCameraId.present
+        ? physicalCameraId.value
+        : this.physicalCameraId,
+    focalLengthMm: focalLengthMm.present
+        ? focalLengthMm.value
+        : this.focalLengthMm,
   );
   MorningRawSignalRow copyWithCompanion(MorningRawSignalsCompanion data) {
     return MorningRawSignalRow(
@@ -18506,6 +18621,13 @@ class MorningRawSignalRow extends DataClass
       saturatedFraction: data.saturatedFraction.present
           ? data.saturatedFraction.value
           : this.saturatedFraction,
+      cameraId: data.cameraId.present ? data.cameraId.value : this.cameraId,
+      physicalCameraId: data.physicalCameraId.present
+          ? data.physicalCameraId.value
+          : this.physicalCameraId,
+      focalLengthMm: data.focalLengthMm.present
+          ? data.focalLengthMm.value
+          : this.focalLengthMm,
     );
   }
 
@@ -18522,7 +18644,10 @@ class MorningRawSignalRow extends DataClass
           ..write('torchStrength: $torchStrength, ')
           ..write('frameGapCount: $frameGapCount, ')
           ..write('frameGapTotalS: $frameGapTotalS, ')
-          ..write('saturatedFraction: $saturatedFraction')
+          ..write('saturatedFraction: $saturatedFraction, ')
+          ..write('cameraId: $cameraId, ')
+          ..write('physicalCameraId: $physicalCameraId, ')
+          ..write('focalLengthMm: $focalLengthMm')
           ..write(')'))
         .toString();
   }
@@ -18540,6 +18665,9 @@ class MorningRawSignalRow extends DataClass
     frameGapCount,
     frameGapTotalS,
     saturatedFraction,
+    cameraId,
+    physicalCameraId,
+    focalLengthMm,
   );
   @override
   bool operator ==(Object other) =>
@@ -18555,7 +18683,10 @@ class MorningRawSignalRow extends DataClass
           other.torchStrength == this.torchStrength &&
           other.frameGapCount == this.frameGapCount &&
           other.frameGapTotalS == this.frameGapTotalS &&
-          other.saturatedFraction == this.saturatedFraction);
+          other.saturatedFraction == this.saturatedFraction &&
+          other.cameraId == this.cameraId &&
+          other.physicalCameraId == this.physicalCameraId &&
+          other.focalLengthMm == this.focalLengthMm);
 }
 
 class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
@@ -18570,6 +18701,9 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
   final Value<int> frameGapCount;
   final Value<double> frameGapTotalS;
   final Value<double?> saturatedFraction;
+  final Value<String?> cameraId;
+  final Value<String?> physicalCameraId;
+  final Value<double?> focalLengthMm;
   const MorningRawSignalsCompanion({
     this.measurementId = const Value.absent(),
     this.frameCount = const Value.absent(),
@@ -18582,6 +18716,9 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     this.frameGapCount = const Value.absent(),
     this.frameGapTotalS = const Value.absent(),
     this.saturatedFraction = const Value.absent(),
+    this.cameraId = const Value.absent(),
+    this.physicalCameraId = const Value.absent(),
+    this.focalLengthMm = const Value.absent(),
   });
   MorningRawSignalsCompanion.insert({
     this.measurementId = const Value.absent(),
@@ -18595,6 +18732,9 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     required int frameGapCount,
     required double frameGapTotalS,
     this.saturatedFraction = const Value.absent(),
+    this.cameraId = const Value.absent(),
+    this.physicalCameraId = const Value.absent(),
+    this.focalLengthMm = const Value.absent(),
   }) : frameCount = Value(frameCount),
        frames = Value(frames),
        frameGapCount = Value(frameGapCount),
@@ -18611,6 +18751,9 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     Expression<int>? frameGapCount,
     Expression<double>? frameGapTotalS,
     Expression<double>? saturatedFraction,
+    Expression<String>? cameraId,
+    Expression<String>? physicalCameraId,
+    Expression<double>? focalLengthMm,
   }) {
     return RawValuesInsertable({
       if (measurementId != null) 'measurement_id': measurementId,
@@ -18625,6 +18768,9 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
       if (frameGapCount != null) 'frame_gap_count': frameGapCount,
       if (frameGapTotalS != null) 'frame_gap_total_s': frameGapTotalS,
       if (saturatedFraction != null) 'saturated_fraction': saturatedFraction,
+      if (cameraId != null) 'camera_id': cameraId,
+      if (physicalCameraId != null) 'physical_camera_id': physicalCameraId,
+      if (focalLengthMm != null) 'focal_length_mm': focalLengthMm,
     });
   }
 
@@ -18640,6 +18786,9 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     Value<int>? frameGapCount,
     Value<double>? frameGapTotalS,
     Value<double?>? saturatedFraction,
+    Value<String?>? cameraId,
+    Value<String?>? physicalCameraId,
+    Value<double?>? focalLengthMm,
   }) {
     return MorningRawSignalsCompanion(
       measurementId: measurementId ?? this.measurementId,
@@ -18653,6 +18802,9 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
       frameGapCount: frameGapCount ?? this.frameGapCount,
       frameGapTotalS: frameGapTotalS ?? this.frameGapTotalS,
       saturatedFraction: saturatedFraction ?? this.saturatedFraction,
+      cameraId: cameraId ?? this.cameraId,
+      physicalCameraId: physicalCameraId ?? this.physicalCameraId,
+      focalLengthMm: focalLengthMm ?? this.focalLengthMm,
     );
   }
 
@@ -18694,6 +18846,15 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     if (saturatedFraction.present) {
       map['saturated_fraction'] = Variable<double>(saturatedFraction.value);
     }
+    if (cameraId.present) {
+      map['camera_id'] = Variable<String>(cameraId.value);
+    }
+    if (physicalCameraId.present) {
+      map['physical_camera_id'] = Variable<String>(physicalCameraId.value);
+    }
+    if (focalLengthMm.present) {
+      map['focal_length_mm'] = Variable<double>(focalLengthMm.value);
+    }
     return map;
   }
 
@@ -18710,7 +18871,10 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
           ..write('torchStrength: $torchStrength, ')
           ..write('frameGapCount: $frameGapCount, ')
           ..write('frameGapTotalS: $frameGapTotalS, ')
-          ..write('saturatedFraction: $saturatedFraction')
+          ..write('saturatedFraction: $saturatedFraction, ')
+          ..write('cameraId: $cameraId, ')
+          ..write('physicalCameraId: $physicalCameraId, ')
+          ..write('focalLengthMm: $focalLengthMm')
           ..write(')'))
         .toString();
   }
@@ -33277,6 +33441,9 @@ typedef $MorningRawSignalsCreateCompanionBuilder =
       required int frameGapCount,
       required double frameGapTotalS,
       Value<double?> saturatedFraction,
+      Value<String?> cameraId,
+      Value<String?> physicalCameraId,
+      Value<double?> focalLengthMm,
     });
 typedef $MorningRawSignalsUpdateCompanionBuilder =
     MorningRawSignalsCompanion Function({
@@ -33291,6 +33458,9 @@ typedef $MorningRawSignalsUpdateCompanionBuilder =
       Value<int> frameGapCount,
       Value<double> frameGapTotalS,
       Value<double?> saturatedFraction,
+      Value<String?> cameraId,
+      Value<String?> physicalCameraId,
+      Value<double?> focalLengthMm,
     });
 
 final class $MorningRawSignalsReferences
@@ -33377,6 +33547,21 @@ class $MorningRawSignalsFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get cameraId => $composableBuilder(
+    column: $table.cameraId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get physicalCameraId => $composableBuilder(
+    column: $table.physicalCameraId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get focalLengthMm => $composableBuilder(
+    column: $table.focalLengthMm,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $MorningMeasurementsFilterComposer get measurementId {
     final $MorningMeasurementsFilterComposer composer = $composerBuilder(
       composer: this,
@@ -33460,6 +33645,21 @@ class $MorningRawSignalsOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get cameraId => $composableBuilder(
+    column: $table.cameraId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get physicalCameraId => $composableBuilder(
+    column: $table.physicalCameraId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get focalLengthMm => $composableBuilder(
+    column: $table.focalLengthMm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $MorningMeasurementsOrderingComposer get measurementId {
     final $MorningMeasurementsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -33539,6 +33739,19 @@ class $MorningRawSignalsAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get cameraId =>
+      $composableBuilder(column: $table.cameraId, builder: (column) => column);
+
+  GeneratedColumn<String> get physicalCameraId => $composableBuilder(
+    column: $table.physicalCameraId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get focalLengthMm => $composableBuilder(
+    column: $table.focalLengthMm,
+    builder: (column) => column,
+  );
+
   $MorningMeasurementsAnnotationComposer get measurementId {
     final $MorningMeasurementsAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -33602,6 +33815,9 @@ class $MorningRawSignalsTableManager
                 Value<int> frameGapCount = const Value.absent(),
                 Value<double> frameGapTotalS = const Value.absent(),
                 Value<double?> saturatedFraction = const Value.absent(),
+                Value<String?> cameraId = const Value.absent(),
+                Value<String?> physicalCameraId = const Value.absent(),
+                Value<double?> focalLengthMm = const Value.absent(),
               }) => MorningRawSignalsCompanion(
                 measurementId: measurementId,
                 frameCount: frameCount,
@@ -33614,6 +33830,9 @@ class $MorningRawSignalsTableManager
                 frameGapCount: frameGapCount,
                 frameGapTotalS: frameGapTotalS,
                 saturatedFraction: saturatedFraction,
+                cameraId: cameraId,
+                physicalCameraId: physicalCameraId,
+                focalLengthMm: focalLengthMm,
               ),
           createCompanionCallback:
               ({
@@ -33628,6 +33847,9 @@ class $MorningRawSignalsTableManager
                 required int frameGapCount,
                 required double frameGapTotalS,
                 Value<double?> saturatedFraction = const Value.absent(),
+                Value<String?> cameraId = const Value.absent(),
+                Value<String?> physicalCameraId = const Value.absent(),
+                Value<double?> focalLengthMm = const Value.absent(),
               }) => MorningRawSignalsCompanion.insert(
                 measurementId: measurementId,
                 frameCount: frameCount,
@@ -33640,6 +33862,9 @@ class $MorningRawSignalsTableManager
                 frameGapCount: frameGapCount,
                 frameGapTotalS: frameGapTotalS,
                 saturatedFraction: saturatedFraction,
+                cameraId: cameraId,
+                physicalCameraId: physicalCameraId,
+                focalLengthMm: focalLengthMm,
               ),
           withReferenceMapper: (p0) => p0
               .map(
