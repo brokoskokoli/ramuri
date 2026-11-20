@@ -311,7 +311,9 @@ void main() {
 
       final hc = DebugTestHealthConnect(now: clock.now);
       final cam = DebugTestPpgCamera(speed: 30);
-      final sensor = DebugTestSensor(const SystemClock());
+      // Gurt mit derselben festen Uhr wie die App: sonst liegen die RR-Pakete
+      // (Wanduhr) ausserhalb des Messfensters der Morgenmessung.
+      final sensor = DebugTestSensor(clock);
       final w = World(
         AppDependencies.create(
           heartRateSensor: sensor,
