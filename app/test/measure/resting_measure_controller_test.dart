@@ -1108,7 +1108,17 @@ void main() {
   group('Laufende Signalstufe über die letzten 5 s (PAR-234)', () {
     /// Spielt [src] bis [until] Sekunden ein und liefert je volle Sekunde
     /// (Sensorzeit) Stufe, Puls und die Auswertung des Stufenfensters.
-    Future<List<({double t, PpgQuality? q, int? pulse, PpgMeasurement? m})>>
+    Future<
+      List<
+        ({
+          double t,
+          PpgQuality? q,
+          int? pulse,
+          PpgMeasurement? m,
+          RestingLiveHint? hint,
+        })
+      >
+    >
     record(PulseSource src, double until) async {
       PpgMeasurement? stage;
       final r = await Rig.make(
@@ -1123,10 +1133,24 @@ void main() {
       );
       await r.c.startNow();
       final out =
-          <({double t, PpgQuality? q, int? pulse, PpgMeasurement? m})>[];
+          <
+            ({
+              double t,
+              PpgQuality? q,
+              int? pulse,
+              PpgMeasurement? m,
+              RestingLiveHint? hint,
+            })
+          >[];
       await src.emitEachSecond(r.cam, until, (t) {
         expect(r.c.phase, RestingMeasurePhase.measuring);
-        out.add((t: t, q: r.c.liveQuality, pulse: r.c.livePulse, m: stage));
+        out.add((
+          t: t,
+          q: r.c.liveQuality,
+          pulse: r.c.livePulse,
+          m: stage,
+          hint: r.c.liveHint,
+        ));
       });
       return out;
     }
@@ -1266,6 +1290,39 @@ void main() {
           },
         );
       }
+    }
+
+    // Auch der Hinweis wertet nur die letzten 5 s aus (PAR-234): Wird das
+    // Signal nach sauberem Signal flach und bleibt es, erscheint ein Hinweis
+    // spätestens 5 s nach Beginn, „flaches Signal“ steht spätestens nach 7 s
+    // (5 s Fenster, bis 1 s Takt, Schlagnachweis). Über 12 s käme der
+    // Hinweis erst nach etwa 10 s.
+    for (final bpm in [50.0, 60.0, 80.0]) {
+      test('flaches Signal nach sauberem bei ${bpm.round()}/min: Hinweis aus '
+          'dem 5-s-Fenster', () async {
+        for (final a in [20.0, 20.25, 20.5, 20.75]) {
+          final rows = await record(
+            PulseSource(periodAt: (_) => 60 / bpm, flatAt: (t) => t >= a),
+            a + 12,
+          );
+          final why = 'flach ab $a s';
+          expect(
+            rows.where((e) => e.t >= full && e.t <= a).map((e) => e.hint),
+            everyElement(isNull),
+            reason: why,
+          );
+          expect(
+            rows.where((e) => e.t > a && e.t <= a + 5).map((e) => e.hint),
+            contains(isNotNull),
+            reason: why,
+          );
+          expect(
+            rows.where((e) => e.t >= a + 7).map((e) => e.hint),
+            allOf(isNotEmpty, everyElement(RestingLiveHint.flatSignal)),
+            reason: why,
+          );
+        }
+      });
     }
 
     test('Pulswechsel 60 → 80/min: Puls folgt verzögert (12 s), Stufe bleibt '
