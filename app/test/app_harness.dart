@@ -80,6 +80,9 @@ class Device {
   /// Health Connect (WP32); `null`: nicht verfügbar.
   HealthConnectPort? healthConnect;
 
+  /// Kamera der Ruhepulsmessung (ADR-0011); `null`: keine Kamera.
+  PpgCamera? ppgCamera;
+
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate] (Gerät 'hr1', ohne Verwaltung); [lastRun] ist die Pulsquelle
   /// des jüngsten Laufs.
@@ -151,6 +154,7 @@ class Device {
           map: map,
           reminders: reminders,
           healthConnect: healthConnect,
+          ppgCamera: ppgCamera,
           permissions: permissions,
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,

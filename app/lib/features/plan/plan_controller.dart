@@ -365,6 +365,11 @@ class PlanController extends ChangeNotifier {
       last,
       adjust: true,
     );
+    // Erholungsdaten nimmt die Prüfung nur über PAR-173 auf (FR-0158, Teil
+    // „3 (Erholung)“): bei „adaptiv“ der Wert von heute, als eigene Fassung
+    // mit Grund `readiness`, damit die Lockerung ihren Grund nennt.
+    final after = await _plans.history();
+    if (after.isNotEmpty) await _recheckRecovery(goal, after.last);
   }
 
   /// Rechnet mit Eingaben aus dem Speicher. Anlegen: neue Eingaben aus
@@ -376,7 +381,7 @@ class PlanController extends ChangeNotifier {
   /// neuer Anker, der Grund-Code der Fassung nennt die Gründe. Einmal je
   /// Woche (die Prüfung merkt sich den Tag), und die bewertete Woche liegt
   /// danach vor dem Anker.
-  Future<void> _recalculate(
+  Future<bool> _recalculate(
     PlanTrigger trigger,
     TrainingGoal goal,
     PlanVersionRecord? last, {
@@ -451,6 +456,7 @@ class PlanController extends ChangeNotifier {
     _fresh = r.generated;
     _lastChange = r.summary;
     if (r.wasWritten) onChanged?.call();
+    return r.wasWritten;
   }
 
   /// Eingaben der Rechnung für [trigger]: beim Anlegen (oder ohne Fassung)
@@ -1385,18 +1391,7 @@ class PlanController extends ChangeNotifier {
         final last = history.last;
         final today = _today();
         if (mode == PlanAdaptationMode.adaptive) {
-          final unit = await _plans.unitOn(today);
-          if (unit == null || !recoveryEasable(unit)) return;
-          final day = await _readinessOn(today);
-          if (day == null || !day.eases) return;
-          await _recalculate(
-            PlanTrigger.feedback,
-            goal,
-            last,
-            reason: planReasonReadiness,
-            readiness: [day],
-            markChecked: false,
-          );
+          await _recheckRecovery(goal, last);
         } else {
           final easedToday = recoveryEasedFromSummary(last.summary)
               .any((e) => planDay(e.day) == today);
@@ -1410,6 +1405,52 @@ class PlanController extends ChangeNotifier {
           );
         }
       });
+
+  /// Auslöser „veränderter Erholungszustand“ (FR-0157, Teil „3 (Erholung)“):
+  /// nach neuen Gesundheitsdaten aus dem Import und nach einer Morgenmessung.
+  /// Nur bei „adaptiv“ und nur für heute: Ist heute eine harte Einheit offen
+  /// ([recoveryEasable]) und liegt der heutige Wert in einem Band nach
+  /// PAR-173, entsteht eine Fassung (`feedback`, Grund `readiness`), in der
+  /// genau diese Einheit locker ist. Sonst (auch bei „fix“, ohne Wert oder bei
+  /// einem Fehler) geschieht nichts. `true`, wenn eine Fassung geschrieben
+  /// wurde.
+  Future<bool> recheckRecovery() => _serial(() async {
+    var written = false;
+    try {
+      final goal = await _goals.goal();
+      final history = await _plans.history();
+      if (goal != null && history.isNotEmpty) {
+        written = await _recheckRecovery(goal, history.last);
+      }
+    } on Object {
+      written = false;
+    }
+    if (written) await _load();
+    return written;
+  });
+
+  /// Gemeinsamer Teil von [recheckRecovery], dem Wechsel auf „adaptiv“ und
+  /// der Wochenprüfung: Lockerung der heutigen harten Einheit nach PAR-173.
+  /// Der Wert anderer Tage zählt nicht (nur der heutige wird gelesen).
+  Future<bool> _recheckRecovery(
+    TrainingGoal goal,
+    PlanVersionRecord last,
+  ) async {
+    if (await _adaptation.read() != PlanAdaptationMode.adaptive) return false;
+    final today = _today();
+    final unit = await _plans.unitOn(today);
+    if (unit == null || !recoveryEasable(unit)) return false;
+    final day = await _readinessOn(today);
+    if (day == null || !day.eases) return false;
+    return _recalculate(
+      PlanTrigger.feedback,
+      goal,
+      last,
+      reason: planReasonReadiness,
+      readiness: [day],
+      markChecked: false,
+    );
+  }
 
   /// Readiness von [day] aus [readinessToday]; ohne Quelle oder bei einem
   /// Fehler `null` (keine Lockerung).
