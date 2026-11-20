@@ -461,6 +461,9 @@ void main() {
         'frame_gap_count': 0,
         'frame_gap_total_s': 0.0,
         'saturated_fraction': null,
+        'camera_id': '0',
+        'physical_camera_id': '2',
+        'focal_length_mm': 2.2,
       },
     ]);
     expect(

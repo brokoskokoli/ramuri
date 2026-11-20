@@ -116,22 +116,20 @@ int _revision() =>
         .revision;
 
 /// Schliesst die Zusammenfassung und wartet, bis der Ablauf nach dem Lauf
-/// fertig ist: Ist heute eine Plan-Einheit offen (Plan aus frueheren Gruppen
-/// der Sammlung), fragt die App, ob der freie Lauf zu ihr zaehlt – Nein, der
-/// Plan bleibt unveraendert. Fertig ist der Ablauf mit der Datenmeldung danach.
+/// fertig ist (Datenmeldung). Ist heute eine Plan-Einheit offen (Plan aus
+/// frueheren Gruppen der Sammlung), zaehlt der freie Lauf ohne Rueckfrage als
+/// diese Einheit (PAR-231): „Heute“ zeigt danach „Heute erledigt.“ statt der
+/// offenen Einheit.
 Future<void> _closeSummary(WidgetTester t) async {
   final before = _revision();
   await tapKey(t, 'run_done_close');
-  await waitFor(t, () {
-    return has('home_assign_ask') || _revision() > before;
-  }, 'Frage zur Plan-Einheit oder Datenmeldung');
-  if (has('home_assign_ask')) {
-    log('LOCALE frage_plan_einheit');
-    await tapDialog(t, 'home_assign_no');
-    await waitFor(t, () => !has('home_assign_ask'), 'Frage zu');
-    await waitFor(t, () => _revision() > before, 'Datenmeldung');
-  }
-  await waitFor(t, () => has('home_start_run'), 'Heute nach dem Lauf');
+  await waitFor(t, () => _revision() > before, 'Datenmeldung');
+  await waitFor(
+    t,
+    () => has('home_start_run') && !has('home_today_unit'),
+    'Heute nach dem Lauf ohne offene Einheit',
+  );
+  if (has('home_today_done')) log('LOCALE plan_einheit_erledigt');
 }
 
 /// Verbindet den Test-Gurt; ist er schon verbunden (bekannt aus frueheren
