@@ -1697,6 +1697,8 @@
   "@loadSettingsNotApplicable": {"description": "Einstellungen Belastungsprofil"},
   "loadSwitchedToEdwardsResting": "Belastungsprofil auf Edwards umgestellt: Für Banister fehlt der Ruhepuls.",
   "@loadSwitchedToEdwardsResting": {"description": "Hinweis nach dem Speichern des Profils: Banister ohne Läufe mit Werten nicht mehr anwendbar, sofort auf Edwards umgestellt (FR-0197)"},
+  "loadSwitchedToEdwardsReserve": "Belastungsprofil auf Edwards umgestellt: Ruhepuls und maximale Herzfrequenz ergeben keine brauchbare Reserve.",
+  "@loadSwitchedToEdwardsReserve": {"description": "Hinweis nach dem Speichern des Profils: Ruhepuls da, aber keine brauchbare Herzfrequenzreserve; Banister ohne Läufe mit Werten nicht mehr anwendbar, sofort auf Edwards umgestellt (FR-0197)"},
   "loadSwitchedToEdwardsCoefficients": "Belastungsprofil auf Edwards umgestellt: Für Banister fehlt die Koeffizienten-Angabe.",
   "@loadSwitchedToEdwardsCoefficients": {"description": "Hinweis nach dem Entfernen der Koeffizienten ohne Läufe mit Werten: sofort auf Edwards umgestellt (FR-0197)"},
   "loadSettingsAllRecordedTitle": "Alle Trainings sind erfasst",

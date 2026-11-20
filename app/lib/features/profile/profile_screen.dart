@@ -67,6 +67,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final switched = switch (widget.recalculation.takeEdwardsSwitch()) {
       null => null,
       EdwardsSwitchReason.restingHeartRate => l10n.loadSwitchedToEdwardsResting,
+      EdwardsSwitchReason.heartRateReserve => l10n.loadSwitchedToEdwardsReserve,
       EdwardsSwitchReason.coefficients =>
         l10n.loadSwitchedToEdwardsCoefficients,
     };

@@ -325,6 +325,20 @@ void main() {
       expect(v.method, isNot(EdwardsTrimp.methodId));
     });
 
+    test('Reserve unbrauchbar mit Läufen: Angebot, keine Umstellung, keine '
+        'Gründe', () async {
+      const small = ProfileRecord(
+        maxHeartRateBpm: 100,
+        restingHeartRateBpm: 60,
+      );
+      await w.session.profile.save(small);
+      final s = w.recalc();
+      final offer = await s.profileChanged(before: profile190, after: small);
+      expect(offer!.loadProfile, LoadProfile.edwards);
+      expect(await active(), LoadProfile.banister);
+      expect(s.takeEdwardsSwitchIssues(), isNull);
+    });
+
     test('Ruhepuls fällt weg, bestätigt: Rückweg auf Edwards für alle '
         'Läufe', () async {
       const noRest = ProfileRecord(maxHeartRateBpm: 190);
@@ -594,6 +608,54 @@ void main() {
       expect(await freshActive(), LoadProfile.banister);
       expect(await LoadSettings.pendingProfile(fresh.session.settings), isNull);
       expect(await s.pendingOffer(), isNull);
+    });
+
+    group('Gründe der Umstellung (takeEdwardsSwitchIssues)', () {
+      test('Ruhepuls fällt weg: fehlender Ruhepuls, einmal abholbar', () async {
+        await fresh.session.profile.save(noRest);
+        final s = fresh.recalc();
+        await s.profileChanged(before: profile190, after: noRest);
+        expect(s.takeEdwardsSwitchIssues(), [
+          LoadProfileIssue.missingRestingHeartRate,
+        ]);
+        expect(s.takeEdwardsSwitchIssues(), isNull);
+      });
+
+      test('HFmax fällt weg, Ruhepuls bleibt: unbrauchbare Reserve', () async {
+        const noMax = ProfileRecord(restingHeartRateBpm: 60);
+        await fresh.session.profile.save(noMax);
+        final s = fresh.recalc();
+        expect(await s.loadBasisChanged(), isNull);
+        expect(await freshActive(), LoadProfile.edwards);
+        expect(s.takeEdwardsSwitchIssues(), [
+          LoadProfileIssue.heartRateReserveUnusable,
+        ]);
+      });
+
+      test('Reserve unter PAR-019: unbrauchbare Reserve', () async {
+        const small = ProfileRecord(
+          maxHeartRateBpm: 100,
+          restingHeartRateBpm: 60,
+        );
+        await fresh.session.profile.save(small);
+        final s = fresh.recalc();
+        expect(
+          await s.profileChanged(before: profile190, after: small),
+          isNull,
+        );
+        expect(await freshActive(), LoadProfile.edwards);
+        expect(s.takeEdwardsSwitchIssues(), [
+          LoadProfileIssue.heartRateReserveUnusable,
+        ]);
+      });
+
+      test('Banister bleibt: keine Gründe', () async {
+        await fresh.session.profile.save(profile180);
+        final s = fresh.recalc();
+        await s.profileChanged(before: profile190, after: profile180);
+        await s.loadBasisChanged();
+        expect(s.takeEdwardsSwitchIssues(), isNull);
+      });
     });
   });
 
