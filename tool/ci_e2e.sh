@@ -14,6 +14,9 @@
 #   readiness       e2e_readiness_test.dart: Erholung (WP34); eigene Stufe mit frischer Installation, weil
 #                   sie Morgenmessungen (nicht loeschbar), Health-Reihen, Einwilligungen und Warnsignal
 #                   setzt und einen leeren Ausgangszustand braucht; kein Prozessende
+#   plan-adapt      e2e_plan_adapt_test.dart: Plananpassung an Erholung (adaptiv/fix); eigene Stufe mit frischer
+#                   Installation, weil sie Ziel, Plan, Morgenmessungen und Entwicklermodus setzt und mit fester
+#                   Uhr laeuft; kein Prozessende
 # Prozessende: Der Test gibt "NEED_KILL" (Zeile E2E_...) aus (der Host liest es aus dem Testlog),
 # der Host fuehrt `adb shell am force-stop` aus. Die Stufen davor laufen mit
 # --no-uninstall, damit Daten und Schluessel bis zur Folgestufe bleiben.
@@ -88,20 +91,21 @@ for f in app/integration_test/e2e_*_test.dart; do
 done
 
 shard_sammlung="sammlung treadmill-plan"
-shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness"
+shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness plan-adapt"
 alle_stufen="$shard_sammlung $shard_stufen"
 # Zeitlimit je Stufe in s, fuer die gesamte Laufzeit von flutter test (Build, Install, Tests).
 # Herleitung: das Doppelte der laengsten gemessenen Dauer (Zeilen "STUFE ... dauer=") aus sechs gruenen Laeufen
 # des Workflows e2e auf main, je API 31 und 36 (Messtabelle in PR #69), aufgerundet auf volle Minuten,
 # mindestens 5 min. Gemessene Hoechstwerte: sammlung 733 s, treadmill-plan 376 s, storage-a 319 s,
 # storage-b 43 s, recover-a 73 s, recover-b 57 s, m2-flow 101 s, readiness 106 s.
+# plan-adapt (neu, noch ohne Messung) wie readiness: 5 min.
 # Waechst eine Stufe deutlich, hier neu messen und nachziehen.
 grenze_s() {
   case "$1" in
     sammlung) echo 1500 ;;
     treadmill-plan) echo 780 ;;
     storage-a) echo 660 ;;
-    storage-b | recover-a | recover-b | m2-flow | readiness) echo 300 ;;
+    storage-b | recover-a | recover-b | m2-flow | readiness | plan-adapt) echo 300 ;;
   esac
 }
 # Waechter: Jede Zeile `stufe <name> ...` unten muss in einem Shard stehen, sonst liefe sie in der CI nie,
@@ -310,5 +314,6 @@ stufe recover-a 1 integration_test/e2e_recover_test.dart --no-uninstall --dart-d
 stufe recover-b 0 integration_test/e2e_recover_test.dart --dart-define=PHASE=b
 stufe m2-flow 0 integration_test/e2e_m2_flow_test.dart
 stufe readiness 0 integration_test/e2e_readiness_test.dart
+stufe plan-adapt 0 integration_test/e2e_plan_adapt_test.dart
 [ "$ran" -gt 0 ] || { echo "keine Stufe gelaufen (Auswahl: '$auswahl')"; exit 1; }
 exit "$rc_all"
