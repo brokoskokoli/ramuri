@@ -146,6 +146,11 @@ void main() {
       await startApp(t, w);
       await setupIfShown(t);
       final s = await session(t, w);
+      // App vor dem Schreiben beenden: sonst reagiert die laufende App (echte
+      // Uhr) auf das neue Ziel und rechnet den Plan neu, waehrend geseedet
+      // wird, und die harte Einheit am Messtag kann wegfallen.
+      await t.pumpWidget(const SizedBox());
+      await pumpFor(t, const Duration(seconds: 1));
       final today = _today(w.deps.clock);
       final d = (await t.runAsync(() => _seedPlan(s, today)))!;
       final clock = _FixedClock(_at(d, 0, 9));
