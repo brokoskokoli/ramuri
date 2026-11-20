@@ -13,7 +13,8 @@ import 'package:running_app/ui/ui.dart';
 // Fehlende Faktoren der Erholung (FR-0111, PAR-164K): Grund und Weg zum
 // Nachholen je Faktor, „Schlaf angeben“ an der ersten Morgenmessung des
 // Ortstags, Sperre ohne Entwicklermodus (K62). Fake-Speicher und feste Uhr;
-// heute ist Samstag, der 14.11.2026, 12 Uhr Ortszeit (UTC+1). Nur erfundene
+// heute ist Samstag, der 14.11.2026, 10 Uhr Ortszeit (UTC+1, im
+// Morgenfenster 4–11), außerhalb des Fensters 14 bzw. 3 Uhr. Nur erfundene
 // Werte.
 
 const _offset = Duration(hours: 1);
@@ -57,14 +58,19 @@ class _Env {
 }
 
 /// Speicher mit Messungen an [history] Tagen vor heute und, mit [today],
-/// einer heutigen um 7 Uhr; Entwicklermodus nach [dev].
+/// einer heutigen um 7 Uhr; Entwicklermodus nach [dev]; jetzt um [hour] Uhr
+/// Ortszeit.
 Future<_Env> _env({
   int history = 9,
   bool today = false,
   bool dev = true,
+  int hour = 10,
 }) async {
   final session = await FakeStorage().open(Uint8List(32));
-  final clock = FakeClock(DateTime.utc(2026, 11, 14, 11), utcOffset: _offset);
+  final clock = FakeClock(
+    DateTime.utc(2026, 11, 14, hour).subtract(_offset),
+    utcOffset: _offset,
+  );
   if (dev) await SettingsDeveloperModeStore(session.settings, clock).set(true);
   final morning = (session as MorningStorage).morning;
   for (var i = history; i >= 1; i--) {
@@ -190,6 +196,46 @@ void main() {
         );
       });
 
+      for (final (hour, today) in [(14, false), (3, true)]) {
+        testWidgets('außerhalb des Morgenfensters ($hour Uhr): Hinweis statt '
+            'Knopf', (tester) async {
+          final env = (await tester.runAsync(() => _env(hour: hour)))!;
+          final s = (await tester.runAsync(env.service.load))!;
+          await open(tester, s, actions: env.actions());
+          final expected = switch ((de, today)) {
+            (true, false) => 'Die nächste Morgenmessung zählt morgen ab 4 Uhr.',
+            (true, true) => 'Die nächste Morgenmessung zählt heute ab 4 Uhr.',
+            (false, false) =>
+              'Your next morning measurement counts from 4 am tomorrow.',
+            (false, true) =>
+              'Your next morning measurement counts from 4 am today.',
+          };
+          for (final id in ['hrv', 'restingHeartRate', 'sleep']) {
+            expect(
+              _key('readiness_detail_start_morning_$id'),
+              findsNothing,
+              reason: '$id um $hour',
+            );
+            expect(
+              _text('readiness_detail_hint_${id}_nextMorningWindow'),
+              expected,
+              reason: '$id um $hour',
+            );
+          }
+          // Schlaf: der Hinweis auf die Morgenmessung bleibt.
+          expect(
+            _key('readiness_detail_hint_sleep_sleepAtMorning'),
+            findsOneWidget,
+          );
+          expect(
+            find.text(
+              de ? 'Morgenmessung starten' : 'Start morning measurement',
+            ),
+            findsNothing,
+          );
+        });
+      }
+
       testWidgets('Morgenmessung nicht erreichbar: kein Knopf', (tester) async {
         final env = (await tester.runAsync(() => _env()))!;
         final s = (await tester.runAsync(env.service.load))!;
@@ -273,6 +319,24 @@ void main() {
           expect(_key('readiness_detail_enter_sleep'), findsNothing);
           expect(_key('readiness_detail_change_sleep'), findsNothing);
           expect(find.byType(TextButton), findsNothing);
+          // Auch außerhalb des Morgenfensters kein Hinweis auf die nächste
+          // Messung.
+          final late = (await tester.runAsync(
+            () => _env(today: true, dev: false, hour: 14),
+          ))!;
+          final sl = (await tester.runAsync(late.service.load))!;
+          await tester.pumpWidget(const SizedBox());
+          await open(tester, sl, actions: late.actions());
+          for (final id in sl.result.missing) {
+            expect(
+              _key('readiness_detail_hint_${id.name}_nextMorningWindow'),
+              findsNothing,
+            );
+          }
+          expect(find.byType(TextButton), findsNothing);
+          // Neuer Zustand der Seite für den Stand um 10 Uhr.
+          await tester.pumpWidget(const SizedBox());
+          await open(tester, s, actions: env.actions());
           for (final id in s.result.missing) {
             expect(
               _key('readiness_detail_start_morning_${id.name}'),

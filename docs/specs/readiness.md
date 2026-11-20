@@ -96,8 +96,8 @@ Beispielhafte Faktoren. Diese Gewichtungen sind Produktannahmen für einen spät
 
 ### FR-0111 — Fehlende Faktoren gelten nicht als normal
 - **Status:** Approved | **Phase:** 3
-- **Quelle:** SRC-001 §11.2, Z. 697; §25 Nr. 11, Z. 1406; SRC-003 (Maintainer 2026-11-18)
-- **Verwandt:** ACC-11, OQ-0029, OQ-0059, PAR-164K
+- **Quelle:** SRC-001 §11.2, Z. 697; §25 Nr. 11, Z. 1406; SRC-003 (Maintainer 2026-11-18, 2026-11-19)
+- **Verwandt:** ACC-11, OQ-0029, OQ-0059, PAR-160K, PAR-164K
 
 Fehlende Faktoren werden nicht automatisch als „normal“ bewertet. Die App zeigt gegebenenfalls nur eine eingeschränkte Einschätzung.
 
@@ -105,6 +105,7 @@ Fehlende Faktoren werden nicht automatisch als „normal“ bewertet. Die App ze
 - [ ] Fehlt ein Faktor, ist die Einschätzung als eingeschränkt erkennbar (ACC-11).
 - [ ] Fehlende optionale Faktoren werden herausgerechnet und ausgewiesen (OQ-0029). Fehlt der Belastungsfaktor, gilt die Obergrenze aus PAR-170.
 - [ ] Für jeden fehlenden Faktor nennt die Detailseite den Grund (mit der fehlenden Menge, etwa Vergleichstage) und, wo möglich, den Weg zum Nachholen (Morgenmessung starten, Schlaf angeben, Befinden nach dem Lauf). Entscheidung Maintainer 2026-11-18.
+- [ ] „Morgenmessung starten“ steht nur, solange das Morgenfenster (PAR-160K) offen ist und heute keine zählende Messung vorliegt; sonst nennt die Detailseite, ab wann die nächste Messung zählt (vor dem Fensterbeginn „heute ab“, nach dem Ende „morgen ab“ dem Fensterbeginn). Entscheidung Maintainer 2026-11-19.
 
 ### FR-0112 — Persönlicher Referenzzeitraum
 - **Status:** Approved | **Phase:** 3
