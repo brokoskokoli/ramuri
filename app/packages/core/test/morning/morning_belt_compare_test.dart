@@ -197,6 +197,31 @@ void main() {
     },
   );
 
+  test(
+    'Grenze PAR-229 gespiegelt: bester Versatz kommt nach dem zweitbesten',
+    () {
+      // Wie oben, aber der abweichende Gurt-Wert steht vorn: Versatz 0 kostet
+      // (|1010 − erster| + 9 × 10) / 10, Versatz 1 = 10 ms ist der beste und
+      // wird erst nach Versatz 0 geprüft.
+      final cam = List<double>.filled(10, 1010);
+      List<RrPacket> belt(int first) =>
+          _packets([first, ...List.filled(10, 1024)]);
+      // erster 1056/1024 s = 1031,25 ms: Versatz 0 kostet 11,125; Verhältnis
+      // 0,899 ≤ 0,9.
+      final ok = _match(compareMorningWithBelt(cam, belt(1056)));
+      expect(ok.offset, 1);
+      expect(ok.cost, closeTo(10, 1e-9));
+      expect(ok.secondCost, closeTo(11.125, 1e-9));
+      // erster 1055/1024 s = 1030,27 ms: Versatz 0 kostet 11,027; Verhältnis
+      // 0,907 > 0,9.
+      final no = compareMorningWithBelt(cam, belt(1055));
+      expect(
+        (no as MorningBeltNoMatch).reason,
+        MorningBeltNoMatchReason.ambiguous,
+      );
+    },
+  );
+
   test('Kosten deckeln den Betrag je Paar bei 100 ms', () {
     // Ein Ausreißer von 400 ms zählt nur mit 100 ms: Kosten (8 × 5 + 100) / 12.
     final cam = _camera()..[5] += 400;
