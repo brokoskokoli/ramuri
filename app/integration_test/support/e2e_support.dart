@@ -50,6 +50,44 @@ Future<void> shot(WidgetTester t, String name, {bool pause = e2eShots}) async {
   if (pause) await pumpFor(t, const Duration(milliseconds: 2500));
 }
 
+/// Helligkeit des Themas, das am Widget mit [key] gilt.
+Brightness themeAt(WidgetTester t, String key) =>
+    Theme.of(t.element(find.byKey(Key(key)))).brightness;
+
+/// Fotopaar dunkel und hell: schaltet die Systemhelligkeit der Testumgebung
+/// auf dunkel, wartet ([waitFor], Frist [timeout]), bis das Thema am Widget
+/// [key] dunkel ist, und setzt die Marke `<name>_dunkel`; danach dasselbe hell
+/// mit `<name>_hell`. Am Ende gilt wieder die Systemhelligkeit
+/// (`clearPlatformBrightnessTestValue`), auch wenn das Warten scheitert, damit
+/// ein roter Schritt die folgenden nicht dunkel weiterlaufen laesst. [pause]
+/// wie bei [shot]: ohne [e2eShots] kommen keine Pausen dazu, nur das Warten
+/// auf das Thema.
+Future<void> shotHellDunkel(
+  WidgetTester t,
+  String name,
+  String key, {
+  Duration timeout = const Duration(seconds: 40),
+  bool pause = e2eShots,
+}) async {
+  try {
+    for (final (b, suffix) in [
+      (Brightness.dark, 'dunkel'),
+      (Brightness.light, 'hell'),
+    ]) {
+      t.platformDispatcher.platformBrightnessTestValue = b;
+      await waitFor(
+        t,
+        () => themeAt(t, key) == b,
+        'Thema $suffix ($key)',
+        timeout: timeout,
+      );
+      await shot(t, '${name}_$suffix', pause: pause);
+    }
+  } finally {
+    t.platformDispatcher.clearPlatformBrightnessTestValue();
+  }
+}
+
 /// Meldung eines Testfehlers ohne Werte: bei `expect` nur der Grund (`reason:`),
 /// den der matcher ohne Präfix als erste nicht eingerückte Zeile nach
 /// Expected/Actual/Which schreibt (diese drei können Werte tragen und fehlen),
