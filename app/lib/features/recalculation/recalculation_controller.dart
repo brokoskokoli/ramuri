@@ -182,11 +182,12 @@ class RecalculationController extends ChangeNotifier {
   /// berechenbaren Läufe erneut, über [exclusive] (nie parallel zu anderen
   /// Berechnungen, [onDataChanged] danach). Während des Versuchs ist [busy]
   /// gesetzt. Gibt `true` zurück, wenn der Versuch gelang; scheitert er, steht
-  /// [RecalculationPhase.retryFailed] (ohne Inhalt des Fehlers). Mit Angebot,
-  /// während einer anderen Berechnung oder ohne nicht berechenbaren Lauf
-  /// geschieht nichts (`false`).
+  /// [RecalculationPhase.retryFailed] (ohne Inhalt des Fehlers). Während einer
+  /// anderen Berechnung oder ohne nicht berechenbaren Lauf geschieht nichts
+  /// (`false`). Mit Angebot zeigt die Karte nur das Angebot; dessen
+  /// Bestätigung versucht die Läufe mit.
   Future<bool> retryUncomputable() async {
-    if (_offer != null || busy || !hasUncomputable) return false;
+    if (busy || !hasUncomputable) return false;
     _phase = RecalculationPhase.running;
     notifyListeners();
     var ok = true;
