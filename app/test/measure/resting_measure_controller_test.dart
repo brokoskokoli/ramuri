@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:running_app/features/measure/resting_measure_controller.dart';
 import 'package:core/core.dart';
@@ -936,11 +937,18 @@ void main() {
           // höchstens Fenster plus Vorlauf, nicht das wachsende Fenster
           expect(frames.length, lessThan(30 * (restingLiveWindowSeconds + 3)));
         }
-        final last = live.last;
+        // je Takt zwei Fenster: Puls über PAR-226, Stufe über PAR-234
+        final pulse = live.toList()[live.length - 2].$2;
+        final stage = live.last.$2;
         expect(
-          last.$2.start,
-          closeTo(last.$2.dataEnd - restingLiveWindowSeconds, 0.1),
+          pulse.start,
+          closeTo(pulse.dataEnd - restingLiveWindowSeconds, 0.1),
         );
+        expect(
+          stage.start,
+          closeTo(stage.dataEnd - restingLiveStageWindowSeconds, 0.1),
+        );
+        expect(stage.dataEnd, pulse.dataEnd);
         final fin = calls.singleWhere(
           (c) => identical(c.$2, ppgStandardWindow),
         );
@@ -1094,6 +1102,260 @@ void main() {
       expect(c2.adoptFailed, isTrue);
       expect((await r.session.profile.read()).restingHeartRateBpm, first);
       expect(await RestingHrOrigin.read(r.session.settings), isNotNull);
+    });
+  });
+
+  group('Laufende Signalstufe über die letzten 5 s (PAR-234)', () {
+    /// Spielt [src] bis [until] Sekunden ein und liefert je volle Sekunde
+    /// (Sensorzeit) Stufe, Puls und die Auswertung des Stufenfensters.
+    Future<
+      List<
+        ({
+          double t,
+          PpgQuality? q,
+          int? pulse,
+          PpgMeasurement? m,
+          RestingLiveHint? hint,
+        })
+      >
+    >
+    record(PulseSource src, double until) async {
+      PpgMeasurement? stage;
+      final r = await Rig.make(
+        evaluate: (f, w) async {
+          final m = evaluatePpg(f, window: w);
+          if (!identical(w, ppgStandardWindow) &&
+              w.dataEnd - w.start <= restingLiveStageWindowSeconds + 1e-9) {
+            stage = m;
+          }
+          return m;
+        },
+      );
+      await r.c.startNow();
+      final out =
+          <
+            ({
+              double t,
+              PpgQuality? q,
+              int? pulse,
+              PpgMeasurement? m,
+              RestingLiveHint? hint,
+            })
+          >[];
+      await src.emitEachSecond(r.cam, until, (t) {
+        expect(r.c.phase, RestingMeasurePhase.measuring);
+        out.add((
+          t: t,
+          q: r.c.liveQuality,
+          pulse: r.c.livePulse,
+          m: stage,
+          hint: r.c.liveHint,
+        ));
+      });
+      return out;
+    }
+
+    // Erstes volles Stufenfenster: Beginn des Messfensters plus 5 s.
+    final full = ppgStandardWindow.start + restingLiveStageWindowSeconds;
+
+    test('sauberes Signal 60/min: nach dem Filtervorlauf „gut“, obwohl zu '
+        'wenige HRV-Differenzen (PAR-230 gilt live nicht)', () async {
+      final rows = await record(PulseSource.bpm(60), 30);
+      final after = rows.where((e) => e.t >= full).toList();
+      expect(after.map((e) => e.q), everyElement(PpgQuality.good));
+      // Die Auswertung des kurzen Fensters selbst bleibt nach PAR-230
+      // eingeschränkt, allein wegen zu weniger Differenzen für die HRV.
+      expect(after.last.m!.quality, PpgQuality.limited);
+      expect(
+        after.last.m!.reasons,
+        contains(PpgQualityReason.fewConsistentBeats),
+      );
+      expect(after.last.pulse, inInclusiveRange(58, 62));
+    });
+
+    for (final bpm in [50.0, 80.0]) {
+      test(
+        'sauberes Signal ${bpm.round()}/min: stabil „gut“ über 20 s',
+        () async {
+          final rows = await record(PulseSource.bpm(bpm), full + 20);
+          final after = rows.where((e) => e.t >= full).toList();
+          expect(after.length, greaterThanOrEqualTo(20));
+          expect(after.map((e) => e.q), everyElement(PpgQuality.good));
+        },
+      );
+    }
+
+    test(
+      'ein fehlender Schlag (ein ungültiger Abstand): weiter „gut“',
+      () async {
+        final probe = PulseSource.bpm(60);
+        final k = probe.beatAfter(20);
+        final rows = await record(
+          PulseSource(periodAt: (_) => 1.0, dropBeats: {k}),
+          35,
+        );
+        final after = rows.where((e) => e.t >= full).toList();
+        expect(
+          after.map((e) => e.m!.intervals - e.m!.validIntervals),
+          contains(1),
+          reason: 'der fehlende Schlag macht genau einen Abstand ungültig',
+        );
+        expect(after.map((e) => e.q), everyElement(PpgQuality.good));
+      },
+    );
+
+    test('zwei ungültige Abstände im Fenster: „eingeschränkt“', () async {
+      final probe = PulseSource.bpm(60);
+      final k = probe.beatAfter(20);
+      // Ein kurzer Ausschlag zwischen zwei Schlägen stört beide benachbarten
+      // Abstände.
+      final rows = await record(
+        PulseSource(
+          periodAt: (_) => 1.0,
+          spikeHeight: 2,
+          spikes: [probe.midAfterBeat(k)],
+        ),
+        35,
+      );
+      final two = rows.where(
+        (e) => e.m != null && e.m!.intervals - e.m!.validIntervals == 2,
+      );
+      expect(two, isNotEmpty);
+      expect(two.map((e) => e.q), everyElement(PpgQuality.limited));
+      for (final e in two) {
+        expect(e.m!.signalQuality, greaterThanOrEqualTo(ppgLimitedQuality));
+      }
+      expect(rows.last.q, PpgQuality.good);
+    });
+
+    // 3 s Störung nach sauberem Signal: weg von „gut“ spätestens 3 s nach
+    // Beginn (Rauschen, Bewegung) bzw. 5 s (flaches Signal; ein Abstand wird
+    // erst mit dem nächsten erkannten Schlag ungültig), wieder „gut“
+    // spätestens 7 s nach dem Ende.
+    final disturbances =
+        <
+          String,
+          (PulseSource Function(double bpm, double a, double b), double)
+        >{
+          'Rauschen': (
+            (bpm, a, b) => PulseSource(
+              periodAt: (_) => 60 / bpm,
+              noisyAt: (t) => t >= a && t < b,
+            ),
+            3,
+          ),
+          'Bewegung': (
+            (bpm, a, b) => PulseSource(
+              periodAt: (_) => 60 / bpm,
+              motion: (t) =>
+                  t >= a && t < b ? 25 * math.sin(2 * math.pi * 1.7 * t) : 0,
+            ),
+            3,
+          ),
+          'flaches Signal': (
+            (bpm, a, b) => PulseSource(
+              periodAt: (_) => 60 / bpm,
+              flatAt: (t) => t >= a && t < b,
+            ),
+            5,
+          ),
+        };
+    for (final MapEntry(key: name, value: (make, leave))
+        in disturbances.entries) {
+      for (final bpm in [50.0, 60.0, 80.0]) {
+        test(
+          '3 s $name bei ${bpm.round()}/min: spätestens ${leave.round()} s '
+          'nach Beginn weg von „gut“, spätestens 7 s nach Ende wieder „gut“',
+          () async {
+            for (final a in [20.0, 20.25, 20.5, 20.75]) {
+              final b = a + 3;
+              final rows = await record(make(bpm, a, b), b + 10);
+              final why = 'Störung ab $a s';
+              expect(
+                rows.where((e) => e.t >= full && e.t <= a).map((e) => e.q),
+                everyElement(PpgQuality.good),
+                reason: why,
+              );
+              expect(
+                rows.where((e) => e.t > a && e.t <= a + leave).map((e) => e.q),
+                contains(isNot(PpgQuality.good)),
+                reason: why,
+              );
+              expect(
+                rows.where((e) => e.t >= b + 7).map((e) => e.q),
+                allOf(isNotEmpty, everyElement(PpgQuality.good)),
+                reason: why,
+              );
+            }
+          },
+        );
+      }
+    }
+
+    // Auch der Hinweis wertet nur die letzten 5 s aus (PAR-234): Wird das
+    // Signal nach sauberem Signal flach und bleibt es, erscheint ein Hinweis
+    // spätestens 5 s nach Beginn, „flaches Signal“ steht spätestens nach 7 s
+    // (5 s Fenster, bis 1 s Takt, Schlagnachweis). Über 12 s käme der
+    // Hinweis erst nach etwa 10 s.
+    for (final bpm in [50.0, 60.0, 80.0]) {
+      test('flaches Signal nach sauberem bei ${bpm.round()}/min: Hinweis aus '
+          'dem 5-s-Fenster', () async {
+        for (final a in [20.0, 20.25, 20.5, 20.75]) {
+          final rows = await record(
+            PulseSource(periodAt: (_) => 60 / bpm, flatAt: (t) => t >= a),
+            a + 12,
+          );
+          final why = 'flach ab $a s';
+          expect(
+            rows.where((e) => e.t >= full && e.t <= a).map((e) => e.hint),
+            everyElement(isNull),
+            reason: why,
+          );
+          expect(
+            rows.where((e) => e.t > a && e.t <= a + 5).map((e) => e.hint),
+            contains(isNotNull),
+            reason: why,
+          );
+          expect(
+            rows.where((e) => e.t >= a + 7).map((e) => e.hint),
+            allOf(isNotEmpty, everyElement(RestingLiveHint.flatSignal)),
+            reason: why,
+          );
+        }
+      });
+    }
+
+    test('Pulswechsel 60 → 80/min: Puls folgt verzögert (12 s), Stufe bleibt '
+        '„gut“', () async {
+      // Übergang über 4 s (stetig wie beim Menschen, kein Sprung).
+      const change = 25.0;
+      const ramp = 4.0;
+      final rows = await record(
+        PulseSource(
+          periodAt: (t) => 1.0 - 0.25 * ((t - change) / ramp).clamp(0.0, 1.0),
+        ),
+        change + ramp + 14,
+      );
+      int? pulseAt(double t) => rows.firstWhere((e) => e.t == t).pulse;
+      int invalid(double t) {
+        final m = rows.firstWhere((e) => e.t == t).m!;
+        return m.intervals - m.validIntervals;
+      }
+
+      expect(pulseAt(change), inInclusiveRange(58, 62));
+      // 5 s nach dem Ende des Übergangs liegt das 5-s-Fenster ganz bei
+      // 80/min, das 12-s-Fenster des angezeigten Pulses noch nicht.
+      expect(
+        rows.firstWhere((e) => e.t == change + ramp + 5).m!.bpm,
+        closeTo(80, 2),
+      );
+      expect(pulseAt(change + ramp + 5), lessThan(76));
+      expect(pulseAt(change + ramp + 13), inInclusiveRange(78, 82));
+      expect(invalid(change + ramp + 5), lessThanOrEqualTo(1));
+      expect(
+        rows.where((e) => e.t >= full).map((e) => e.q),
+        everyElement(PpgQuality.good),
+      );
     });
   });
 }

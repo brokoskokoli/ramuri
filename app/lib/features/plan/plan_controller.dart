@@ -781,7 +781,7 @@ class PlanController extends ChangeNotifier {
       _act(() => _assignAndRecalculate(unitId, runId));
 
   /// Ordnet beendete Läufe den offenen Einheiten ihres Ortstags zu (PAR-231,
-  /// [planAutoAssignments]): Einheiten von Montag dieser Woche (oder dem
+  /// [planAutoAssignments]): Einheiten vom Sonntag der Vorwoche (oder dem
   /// früheren Tag [since], etwa dem Starttag eines Laufs über Mitternacht)
   /// bis heute. Jede Zuordnung rechnet wie [assignRun] neu; gibt es nichts
   /// zuzuordnen, ändert sich nichts und es wird nicht gerechnet.
@@ -800,9 +800,12 @@ class PlanController extends ChangeNotifier {
 
   Future<void> _autoAssign({DateTime? since}) async {
     final today = _today();
-    final monday = today.subtract(Duration(days: today.weekday - 1));
+    // Fenster ab dem Sonntag der Vorwoche (PAR-231): ein Sonntagslauf, dessen
+    // Zuordnung nach dem Lauf ausblieb (Absturz, Fehler, Lauf über
+    // Mitternacht), zählt beim Öffnen am Montag oder später noch.
+    final sunday = today.subtract(Duration(days: today.weekday));
     final s = since == null ? null : planDay(since);
-    final from = s != null && s.isBefore(monday) ? s : monday;
+    final from = s != null && s.isBefore(sunday) ? s : sunday;
     // Jede Zuordnung rechnet neu und kann Einheiten ab heute ersetzen (neue
     // Kennung): darum nach jeder Zuordnung neu lesen. Jede Runde füllt eine
     // offene Einheit; mehr Runden als Einheiten gibt es nicht.
