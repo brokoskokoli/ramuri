@@ -180,10 +180,15 @@ Future<PlanUnit> _waitUnit(
   }
 }
 
-/// "Heute" mit Karte "Erholung".
-Future<void> _onHome(WidgetTester t) async {
+/// "Heute"; mit [card] (erweiterte Stufe, Entwicklermodus an) auch die Karte
+/// "Erholung". Ohne Entwicklermodus gilt die Basisstufe: keine Karte.
+Future<void> _onHome(WidgetTester t, {bool card = true}) async {
   await waitFor(t, () => has('home_overview'), 'Heute');
-  await waitFor(t, () => has('readiness_card'), 'Karte Erholung');
+  if (card) {
+    await waitFor(t, () => has('readiness_card'), 'Karte Erholung');
+  } else {
+    expect(has('readiness_card'), isFalse, reason: 'Basisstufe ohne Karte');
+  }
 }
 
 /// Heute -> Uebersicht -> Einstellungen -> Health Connect.
@@ -205,12 +210,12 @@ Future<void> _openHealth(WidgetTester t) async {
 }
 
 /// Von der Health-Connect-Seite zurueck auf "Heute".
-Future<void> _healthToHome(WidgetTester t) async {
+Future<void> _healthToHome(WidgetTester t, {bool card = true}) async {
   for (var i = 0; i < 3 && !has('home_today'); i++) {
     await back(t);
   }
   await tapKey(t, 'home_today');
-  await _onHome(t);
+  await _onHome(t, card: card);
 }
 
 bool _on(String kind) {
@@ -317,7 +322,7 @@ void main() {
         sensor,
       );
       await startApp(t, w);
-      await _onHome(t);
+      await _onHome(t, card: false);
 
       step('M3 S1 health_connect');
       final before = await _counts(t, s);
@@ -359,7 +364,7 @@ void main() {
         }
       }
       await shot(t, 's1_health');
-      await _healthToHome(t);
+      await _healthToHome(t, card: false);
       expect(
         (await _unit(t, s, d))!.isHard,
         isTrue,
