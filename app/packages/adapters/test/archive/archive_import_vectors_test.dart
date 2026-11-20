@@ -90,6 +90,17 @@ void main() {
                 row.putIfAbsent(c, () => null);
               }
             }
+            // Vertrag archive.md 4.3: Archive bis Schema 14 haben die
+            // Kamera-Angaben des Rohsignals (Schema 15) nicht, der Leser setzt null.
+            if (section == 'morning_raw_signals') {
+              for (final c in const [
+                'camera_id',
+                'physical_camera_id',
+                'focal_length_mm',
+              ]) {
+                row.putIfAbsent(c, () => null);
+              }
+            }
             // BLOB (Schema 9): Hex-Text der Datei, im Ziel als Bytes.
             // Ebenso Gurt-RR (`rr`) und Kamera-Abstände (`camera_ibi`) der
             // Morgenmessung (Schema 13), Rohsignal `frames` (Schema 14).

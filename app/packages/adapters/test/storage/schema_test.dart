@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
@@ -143,11 +144,11 @@ void main() {
 
   group('Schema und Dump', () {
     test(
-      'erzeugtes Schema der verschlüsselten Datenbank = Dump Version 14',
+      'erzeugtes Schema der verschlüsselten Datenbank = Dump Version 15',
       () async {
         final db = await openDb();
         addTearDown(db.close);
-        await SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 14);
+        await SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 15);
       },
     );
 
@@ -162,19 +163,19 @@ void main() {
       addTearDown(db.close);
       await _exec(db, 'DROP TRIGGER raw_steps_no_update');
       await expectLater(
-        SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 14),
+        SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 15),
         throwsA(isA<SchemaMismatch>()),
       );
     });
 
-    test('Meta-Tabelle aus Teil A ist Teil von Version 14', () async {
+    test('Meta-Tabelle aus Teil A ist Teil von Version 15', () async {
       final db = await openDb();
       addTearDown(db.close);
       await _exec(db, "INSERT INTO storage_meta VALUES ('k', 'v')");
       expect(await _count(db, 'storage_meta'), 1);
-      expect(db.schemaVersion, 14);
+      expect(db.schemaVersion, 15);
       final v = await db.customSelect('PRAGMA user_version').get();
-      expect(v.single.data.values.single, 14);
+      expect(v.single.data.values.single, 15);
     });
   });
 
@@ -637,7 +638,7 @@ void main() {
 
   group('Migrationen', () {
     test('echte Migration v1 -> v13 auf befüllter v1-Datenbank (alle Schritte): Daten bleiben, '
-        'neue Spalten NULL (nie 0), Schema = Dump v14', () async {
+        'neue Spalten NULL (nie 0), Schema = Dump v15', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v1 = await verifier.schemaAt(1);
       v1.rawDatabase
@@ -657,7 +658,7 @@ void main() {
       _fillComputedV2(v1.rawDatabase);
       final db = AppDatabase(v1.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 14);
+      await verifier.migrateAndValidate(db, 15);
       final rows = await db
           .customSelect(
             'SELECT latitude_deg, accuracy_m, speed_mps, speed_accuracy_mps, '
@@ -689,7 +690,7 @@ void main() {
 
     test(
       'echte Migration v2 -> v13 auf befüllter v2-Datenbank: Daten bleiben, '
-      'Grund für Zeilen ohne Wert, neue Spalten NULL, Schema = Dump v14',
+      'Grund für Zeilen ohne Wert, neue Spalten NULL, Schema = Dump v15',
       () async {
         final verifier = SchemaVerifier(GeneratedHelper());
         final v2 = await verifier.schemaAt(2);
@@ -705,7 +706,7 @@ void main() {
         );
         final db = AppDatabase(v2.newConnection());
         addTearDown(db.close);
-        await verifier.migrateAndValidate(db, 14);
+        await verifier.migrateAndValidate(db, 15);
         final speed = await db
             .customSelect('SELECT speed_mps FROM raw_positions')
             .getSingle();
@@ -715,7 +716,7 @@ void main() {
     );
 
     test('echte Migration v3 -> v13 auf befüllter v3-Datenbank: Kurzfassung bleibt, '
-        'neue Spalten NULL (nie 0), Schema = Dump v14', () async {
+        'neue Spalten NULL (nie 0), Schema = Dump v15', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v3 = await verifier.schemaAt(3);
       v3.rawDatabase
@@ -731,7 +732,7 @@ void main() {
         );
       final db = AppDatabase(v3.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 14);
+      await verifier.migrateAndValidate(db, 15);
       final row = await db
           .customSelect('SELECT * FROM preprocessing_results')
           .getSingle();
@@ -844,7 +845,7 @@ void main() {
 
     test(
       'echte Migration v6 -> v13 auf befüllter v6-Datenbank: Zeilen bleiben, '
-      'Tabelle goals leer und nimmt ein Ziel an, Schema = Dump v14',
+      'Tabelle goals leer und nimmt ein Ziel an, Schema = Dump v15',
       () async {
         final verifier = SchemaVerifier(GeneratedHelper());
         final v6 = await verifier.schemaAt(6);
@@ -866,7 +867,7 @@ void main() {
           );
         final db = AppDatabase(v6.newConnection());
         addTearDown(db.close);
-        await verifier.migrateAndValidate(db, 14);
+        await verifier.migrateAndValidate(db, 15);
         expect(await _count(db, 'runs'), 1);
         expect(await _count(db, 'settings'), 1);
         expect(await _count(db, 'profile'), 1);
@@ -906,7 +907,7 @@ void main() {
     );
 
     test('echte Migration v7 -> v13 auf befüllter v7-Datenbank: Einheiten '
-        'bleiben, fixed = none, Termin bleibt, Schema = Dump v14; CHECK von '
+        'bleiben, fixed = none, Termin bleibt, Schema = Dump v15; CHECK von '
         'fixed', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v7 = await verifier.schemaAt(7);
@@ -930,7 +931,7 @@ void main() {
         );
       final db = AppDatabase(v7.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 14);
+      await verifier.migrateAndValidate(db, 15);
       final rows = await db
           .customSelect(
             'SELECT kind, pinned, fixed FROM plan_units ORDER BY day',
@@ -1075,7 +1076,7 @@ void main() {
 
     test(
       'echte Migration v8 -> v13 auf befüllter v8-Datenbank: Daten bleiben, '
-      'raw_rr_packets leer, Schema = Dump v14; Trigger, CHECK, Kaskade',
+      'raw_rr_packets leer, Schema = Dump v15; Trigger, CHECK, Kaskade',
       () async {
         final verifier = SchemaVerifier(GeneratedHelper());
         final v8 = await verifier.schemaAt(8);
@@ -1090,7 +1091,7 @@ void main() {
           );
         final db = AppDatabase(v8.newConnection());
         addTearDown(db.close);
-        await verifier.migrateAndValidate(db, 14);
+        await verifier.migrateAndValidate(db, 15);
         await _exec(db, 'PRAGMA foreign_keys = ON');
         expect(await _count(db, 'raw_heart_rates', 7), 1);
         expect(await _count(db, 'raw_rr_packets'), 0);
@@ -1122,7 +1123,7 @@ void main() {
     );
 
     test('echte Migration v9 -> v13 auf befüllter v9-Datenbank: Läufe bleiben, '
-        'mode = gps, treadmill_settings leer, Schema = Dump v14; Trigger, CHECK, '
+        'mode = gps, treadmill_settings leer, Schema = Dump v15; Trigger, CHECK, '
         'Kaskade', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v9 = await verifier.schemaAt(9);
@@ -1137,7 +1138,7 @@ void main() {
         );
       final db = AppDatabase(v9.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 14);
+      await verifier.migrateAndValidate(db, 15);
       await _exec(db, 'PRAGMA foreign_keys = ON');
       final runs = await db
           .customSelect('SELECT id, state, mode FROM runs ORDER BY id')
@@ -1222,7 +1223,7 @@ void main() {
 
     test(
       'echte Migration v10 -> v13 auf befüllter v10-Datenbank: Daten aus WP25 '
-      'und WP26 bleiben, active_warning leer, Schema = Dump v14; id 1, CHECKs, '
+      'und WP26 bleiben, active_warning leer, Schema = Dump v15; id 1, CHECKs, '
       'kein Fremdschlüssel',
       () async {
         final verifier = SchemaVerifier(GeneratedHelper());
@@ -1242,7 +1243,7 @@ void main() {
           );
         final db = AppDatabase(v10.newConnection());
         addTearDown(db.close);
-        await verifier.migrateAndValidate(db, 14);
+        await verifier.migrateAndValidate(db, 15);
         await _exec(db, 'PRAGMA foreign_keys = ON');
         expect(await _count(db, 'raw_rr_packets', 7), 1);
         expect(await _count(db, 'treadmill_settings', 7), 1);
@@ -1286,7 +1287,7 @@ void main() {
     );
 
     test('echte Migration v11 -> v13 auf befüllter v11-Datenbank: Läufe, Trainings '
-        'und Warnsignal bleiben, hc_id leer, health_* leer, Schema = Dump v14; '
+        'und Warnsignal bleiben, hc_id leer, health_* leer, Schema = Dump v15; '
         'Eindeutigkeit, CHECKs, Kaskade', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v11 = await verifier.schemaAt(11);
@@ -1305,7 +1306,7 @@ void main() {
         );
       final db = AppDatabase(v11.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 14);
+      await verifier.migrateAndValidate(db, 15);
       await _exec(db, 'PRAGMA foreign_keys = ON');
       expect(await _count(db, 'runs'), 1);
       expect(await _count(db, 'active_warning'), 1);
@@ -1405,7 +1406,7 @@ void main() {
 
     test(
       'echte Migration v12 -> v13 auf befüllter v12-Datenbank: Daten bleiben, '
-      'Morgenmessungen und Gurt-RR leer, Schema = Dump v14; CHECKs, Kaskade',
+      'Morgenmessungen und Gurt-RR leer, Schema = Dump v15; CHECKs, Kaskade',
       () async {
         final verifier = SchemaVerifier(GeneratedHelper());
         final v12 = await verifier.schemaAt(12);
@@ -1421,7 +1422,7 @@ void main() {
           ..execute("INSERT INTO settings VALUES ('units', 'km', 1)");
         final db = AppDatabase(v12.newConnection());
         addTearDown(db.close);
-        await verifier.migrateAndValidate(db, 14);
+        await verifier.migrateAndValidate(db, 15);
         await _exec(db, 'PRAGMA foreign_keys = ON');
         expect(await _count(db, 'runs'), 1);
         expect(await _count(db, 'active_warning'), 1);
@@ -1545,7 +1546,7 @@ void main() {
 
     test('echte Migration v13 -> v14 auf befüllter v13-Datenbank bei foreign_keys=ON: '
         'Messungen mit Id, Gurt-RR und Zähler bleiben, neue Spalten NULL, '
-        'Schema = Dump v14; neue CHECKs, Rohsignal, Kaskade', () async {
+        'Schema = Dump v15; neue CHECKs, Rohsignal, Kaskade', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v13 = await verifier.schemaAt(13);
       // Wie in der App: Fremdschlüssel sind vor der Migration an (sonst
@@ -1578,7 +1579,7 @@ void main() {
       v13.rawDatabase.execute('DELETE FROM morning_rr_packets WHERE id = 9');
       final db = AppDatabase(v13.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 14);
+      await verifier.migrateAndValidate(db, 15);
       await _exec(db, 'PRAGMA foreign_keys = ON');
 
       Future<List<Map<String, Object?>>> rows(String sql) async => [
@@ -1740,7 +1741,113 @@ void main() {
       expect(await _count(db, 'morning_rr_packets'), 0);
     });
 
-    test('Dump Version 14 liegt vor, genau dreizehn Schritte (1 -> 2 bis 13 -> 14)', () async {
+    test('echte Migration v14 -> v15 auf befüllter v14-Datenbank: Rohsignal '
+        'bleibt bitgleich, Kamera-Spalten NULL, Schema = Dump v15; CHECKs der '
+        'Kamera, Kaskade', () async {
+      final verifier = SchemaVerifier(GeneratedHelper());
+      final v14 = await verifier.schemaAt(14);
+      final frames = List<int>.generate(2 * 280, (i) => (i * 37 + 11) % 256);
+      v14.rawDatabase
+        ..execute('PRAGMA foreign_keys = ON')
+        ..execute(
+          'INSERT INTO morning_measurements (id, measured_at_us, utc_offset_s, '
+          'posture, device_manufacturer, device_model, method, method_version, '
+          'quality, resting_hr_bpm, before_validation, outside_window, '
+          'camera_ibi) VALUES '
+          "(1, 1000, 3600, 'lying', 'H', 'M', 'camera-ppg', 3, 'good', 52.3, 0, 0, x''), "
+          "(2, 2000, 0, 'lying', 'H', 'M', 'camera-ppg', 3, 'good', 50.0, 0, 0, x''), "
+          "(3, 3000, 0, 'lying', 'H', 'M', 'camera-ppg', 3, 'good', 51.0, 0, 0, x'')",
+        )
+        ..execute(
+          'INSERT INTO morning_raw_signals (measurement_id, frame_count, '
+          'frames, exposure_time_ns, iso, timestamp_source, '
+          'rolling_shutter_skew_ns, torch_strength, frame_gap_count, '
+          'frame_gap_total_s, saturated_fraction) VALUES '
+          "(1, 2, ?, 16666666, 100, 'realtime', 5000, 1, 1, 0.25, 0.01)",
+          [Uint8List.fromList(frames)],
+        );
+      final db = AppDatabase(v14.newConnection());
+      addTearDown(db.close);
+      await verifier.migrateAndValidate(db, 15);
+      await _exec(db, 'PRAGMA foreign_keys = ON');
+
+      final row =
+          (await db.customSelect('SELECT * FROM morning_raw_signals').get())
+              .single
+              .data;
+      expect(row['frames'], frames, reason: 'Rohsignal bitgleich');
+      expect({...row}..remove('frames'), {
+        'measurement_id': 1,
+        'frame_count': 2,
+        'exposure_time_ns': 16666666,
+        'iso': 100,
+        'timestamp_source': 'realtime',
+        'rolling_shutter_skew_ns': 5000,
+        'torch_strength': 1,
+        'frame_gap_count': 1,
+        'frame_gap_total_s': 0.25,
+        'saturated_fraction': 0.01,
+        'camera_id': null,
+        'physical_camera_id': null,
+        'focal_length_mm': null,
+      });
+
+      const raw =
+          'INSERT INTO morning_raw_signals (measurement_id, frame_count, '
+          'frames, frame_gap_count, frame_gap_total_s, camera_id, '
+          "physical_camera_id, focal_length_mm) VALUES (?, 0, x'', 0, 0, ?, ?, ?)";
+      for (final bad in <List<Object?>>[
+        [2, null, '2', 2.2], // physische Kamera ohne Kamera-ID
+        [2, '0', null, 0.0], // Brennweite 0
+        [2, '0', '2', -1.0], // Brennweite negativ
+      ]) {
+        await expectLater(
+          _exec(db, raw, bad),
+          throwsA(anything),
+          reason: '$bad',
+        );
+      }
+      await _exec(db, raw, [2, '0', '2', 2.2]);
+      await _exec(db, raw, [3, '1', null, null]);
+      expect(
+        [
+          for (final r
+              in await db
+                  .customSelect(
+                    'SELECT measurement_id, camera_id, physical_camera_id, '
+                    'focal_length_mm FROM morning_raw_signals ORDER BY measurement_id',
+                  )
+                  .get())
+            r.data,
+        ],
+        [
+          {
+            'measurement_id': 1,
+            'camera_id': null,
+            'physical_camera_id': null,
+            'focal_length_mm': null,
+          },
+          {
+            'measurement_id': 2,
+            'camera_id': '0',
+            'physical_camera_id': '2',
+            'focal_length_mm': 2.2,
+          },
+          {
+            'measurement_id': 3,
+            'camera_id': '1',
+            'physical_camera_id': null,
+            'focal_length_mm': null,
+          },
+        ],
+      );
+      // Löschen der Messung entfernt das Rohsignal samt Kamera-Angaben.
+      await _exec(db, 'DELETE FROM morning_measurements WHERE id = 2');
+      expect(await _count(db, 'morning_raw_signals'), 2);
+      expect(await _count(db, "morning_raw_signals WHERE camera_id = '0'"), 0);
+    });
+
+    test('Dump Version 15 liegt vor, genau vierzehn Schritte (1 -> 2 bis 14 -> 15)', () async {
       final db = await openDb();
       addTearDown(db.close);
       expect(db.migrationSteps.keys, [
@@ -1757,11 +1864,12 @@ void main() {
         11,
         12,
         13,
+        14,
       ]);
     });
 
     test(
-      'synthetischer Schritt v14 -> v15 auf verschlüsselter Datei erhält Daten',
+      'synthetischer Schritt v15 -> v16 auf verschlüsselter Datei erhält Daten',
       () async {
         final v1 = await openDb();
         await _insertRun(v1, 7);
@@ -1784,7 +1892,7 @@ void main() {
               .data
               .values
               .single,
-          15,
+          16,
         );
         // Schritt wirkte, alte Daten, Trigger und Kaskade bleiben.
         await _exec(v2, "UPDATE settings SET note = 'neu'");
@@ -1799,7 +1907,7 @@ void main() {
     );
 
     test(
-      'fehlender Schritt: Datenbank öffnet nicht und bleibt Version 14',
+      'fehlender Schritt: Datenbank öffnet nicht und bleibt Version 15',
       () async {
         await (await openDb()).close();
         final storage = EncryptedStorage(
@@ -1824,7 +1932,7 @@ void main() {
               .data
               .values
               .single,
-          14,
+          15,
         );
       },
     );
@@ -1835,7 +1943,7 @@ void main() {
         databaseBuilder: (e) => _SyntheticV2(e, onStep: () {}),
       );
       await (await storage.open(testKey())).close();
-      // Datei ist jetzt Version 15, die App kennt nur 14.
+      // Datei ist jetzt Version 16, die App kennt nur 15.
       await expectLater(
         EncryptedStorage(path).open(testKey()),
         throwsA(
@@ -1866,7 +1974,7 @@ void main() {
       },
     );
 
-    test('Schritt 2 von 2 scheitert: Schritt 14 ist zurückgerollt, Version 14, '
+    test('Schritt 2 von 2 scheitert: Schritt 15 ist zurückgerollt, Version 15, '
         'Erneut versuchen läuft sauber', () async {
       await (await openDb()).close();
       final failing = EncryptedStorage(
@@ -1890,7 +1998,7 @@ void main() {
       expect(
         columns.map((r) => r.data['name']),
         isNot(contains('note')),
-        reason: 'Schritt 14 muss mit zurückgerollt sein',
+        reason: 'Schritt 15 muss mit zurückgerollt sein',
       );
       expect(
         (await v1.customSelect('PRAGMA user_version').get())
@@ -1898,10 +2006,10 @@ void main() {
             .data
             .values
             .single,
-        14,
+        15,
       );
       await v1.close();
-      // Erneut versuchen mit einem funktionierenden Schritt 13.
+      // Erneut versuchen mit einem funktionierenden Schritt 15.
       final retry = EncryptedStorage(
         path,
         databaseBuilder: (e) => _SyntheticV2(e, onStep: () {}),
@@ -1915,12 +2023,12 @@ void main() {
             .data
             .values
             .single,
-        15,
+        16,
       );
     });
 
     test(
-      'Version steht in beforeOpen schon auf 15, also vor drifts eigenem '
+      'Version steht in beforeOpen schon auf 16, also vor drifts eigenem '
       'Versionsschreiben (Reihenfolge PRAGMA/COMMIT: siehe nächster Test)',
       () async {
         await (await openDb()).close();
@@ -1931,7 +2039,7 @@ void main() {
               _SyntheticV2(e, onStep: () {}, onBeforeOpenVersion: observed.add),
         );
         await (await storage.open(testKey())).close();
-        expect(observed, [15]);
+        expect(observed, [16]);
       },
     );
 
@@ -1949,7 +2057,7 @@ void main() {
       final lines = (await logs.text()).split('\n');
       final step = lines.indexWhere((l) => l.contains('ADD COLUMN note'));
       final pragma = lines.indexWhere(
-        (l) => l.contains('PRAGMA user_version = 15'),
+        (l) => l.contains('PRAGMA user_version = 16'),
       );
       final commit = lines.indexWhere((l) => l.contains('COMMIT'), step);
       expect(step, isNonNegative, reason: '$lines');
@@ -1959,7 +2067,7 @@ void main() {
   });
 }
 
-/// Test-Datenbank "Version 15" mit einem Schritt, der nur im Test existiert.
+/// Test-Datenbank "Version 16" mit einem Schritt, der nur im Test existiert.
 class _SyntheticV2 extends AppDatabase {
   _SyntheticV2(super.e, {required this.onStep, this.onBeforeOpenVersion});
   final void Function() onStep;
@@ -1982,12 +2090,12 @@ class _SyntheticV2 extends AppDatabase {
   }
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   Map<int, MigrationStep> get migrationSteps => {
     ...super.migrationSteps,
-    14: (Migrator m) async {
+    15: (Migrator m) async {
       onStep();
       await m.database.customStatement(
         'ALTER TABLE settings ADD COLUMN note TEXT',
@@ -2000,29 +2108,11 @@ class _NoStepV2 extends AppDatabase {
   _NoStepV2(super.e);
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 }
 
 class _FailingStepV2 extends AppDatabase {
   _FailingStepV2(super.e);
-
-  @override
-  int get schemaVersion => 15;
-
-  @override
-  Map<int, MigrationStep> get migrationSteps => {
-    ...super.migrationSteps,
-    14: (Migrator m) async {
-      await m.database.customStatement(
-        "INSERT INTO no_such_table VALUES ('$marker')",
-      );
-    },
-  };
-}
-
-/// Version 16 mit zwei Schritten: Schritt 14 gelingt, Schritt 15 wirft.
-class _TwoStepsSecondFails extends AppDatabase {
-  _TwoStepsSecondFails(super.e);
 
   @override
   int get schemaVersion => 16;
@@ -2030,12 +2120,30 @@ class _TwoStepsSecondFails extends AppDatabase {
   @override
   Map<int, MigrationStep> get migrationSteps => {
     ...super.migrationSteps,
-    14: (Migrator m) async {
+    15: (Migrator m) async {
+      await m.database.customStatement(
+        "INSERT INTO no_such_table VALUES ('$marker')",
+      );
+    },
+  };
+}
+
+/// Version 17 mit zwei Schritten: Schritt 15 gelingt, Schritt 16 wirft.
+class _TwoStepsSecondFails extends AppDatabase {
+  _TwoStepsSecondFails(super.e);
+
+  @override
+  int get schemaVersion => 17;
+
+  @override
+  Map<int, MigrationStep> get migrationSteps => {
+    ...super.migrationSteps,
+    15: (Migrator m) async {
       await m.database.customStatement(
         'ALTER TABLE settings ADD COLUMN note TEXT',
       );
     },
-    15: (Migrator m) async {
+    16: (Migrator m) async {
       await m.database.customStatement(
         "INSERT INTO no_such_table VALUES ('x')",
       );
