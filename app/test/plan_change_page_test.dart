@@ -18,7 +18,7 @@ import 'app_harness.dart';
 /// Änderungen und Vorschlag „Woche wiederholen“ (PAR-140).
 
 final Uint8List _k = Uint8List.fromList(List.generate(32, (i) => i));
-final _now = DateTime.utc(2026, 11, 11, 12); // Mittwoch
+final _now = DateTime(2026, 11, 11, 12); // Mittwoch
 
 Finder key(String k) => find.byKey(Key(k));
 
@@ -45,7 +45,7 @@ Future<(StorageSession, FakeClock)> _withPlan({
   ContinuousRun30 canRun30 = ContinuousRun30.yes,
 }) async {
   final session = await FakeStorage().open(_k);
-  final clock = FakeClock(_now);
+  final clock = LocalFakeClock(_now);
   final c = _controller(session, clock);
   expect(await c.saveGoal(_goal(canRun30: canRun30)), PlanActionResult.done);
   c.dispose();
@@ -322,7 +322,7 @@ void main() {
   group('Grund der Wochenanpassung in Karte und Verlauf (NB7 3)', () {
     // Echte Fassung der Wochenprüfung aus dem Controller: Plan seit 11.11.,
     // geöffnet Dienstag 24.11., bewertet wird die Woche 16.-22.11.
-    final tuesday = DateTime.utc(2026, 11, 24, 12);
+    final tuesday = DateTime(2026, 11, 24, 12);
 
     /// [share]: Anteil der geplanten Wochenzeit als freier Lauf am Sa 21.11.
     /// (`null`: kein Lauf); [wellbeing]: Befinden dieses Laufs.
@@ -452,7 +452,7 @@ void main() {
       '(NB8 6)', () async {
     final (session, clock) = await _withPlan();
     final plans = (session as PlanStorage).plans;
-    clock.set(DateTime.utc(2026, 11, 24, 12));
+    clock.set(DateTime(2026, 11, 24, 12));
     final c = PlanController(
       session: session,
       clock: clock,

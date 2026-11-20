@@ -12,7 +12,9 @@ import '../map/map_consent_controller.dart';
 import '../map/map_consent_scope.dart';
 import '../map/map_services.dart';
 import '../measure/morning_entry.dart';
+import '../plan/plan_recovery_trigger.dart';
 import '../plan/plan_started_unit.dart';
+import '../readiness/readiness_today.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
 import '../measure/morning_belt.dart';
@@ -76,6 +78,10 @@ class _ReadyRootState extends State<ReadyRoot> {
   MapConsentController? _mapConsent;
   HealthConnectController? _health;
 
+  /// Auslöser „veränderter Erholungszustand“ (FR-0157) der Sitzung: nach
+  /// neuen Gesundheitsdaten und nach einer Morgenmessung.
+  late final PlanRecoveryTrigger _planRecovery;
+
   /// Fertig, sobald Willkommen nicht (mehr) im Weg ist; der Dialog zum
   /// unterbrochenen Lauf wartet darauf und überdeckt Willkommen nicht.
   final Completer<void> _welcomeResolved = Completer<void>();
@@ -99,6 +105,18 @@ class _ReadyRootState extends State<ReadyRoot> {
       onDataChanged: _changes.changed,
     );
     _recalculation.start();
+    _planRecovery = PlanRecoveryTrigger(
+      session: widget.session,
+      clock: widget.clock,
+      readinessToday: planReadinessSource(
+        () => loadReadinessToday(
+          session: widget.session,
+          clock: widget.clock,
+          recalculation: _recalculationService,
+        ),
+      ),
+      onChanged: _changes.changed,
+    );
     // Nur der Speicher wird angebunden; der Sensor bleibt unberührt.
     widget.sensors
         .attachStore(widget.session.devices)
@@ -130,6 +148,7 @@ class _ReadyRootState extends State<ReadyRoot> {
         consentStore: session.consents,
         clock: widget.clock,
       );
+      _health!.onNewData = () => unawaited(_planRecovery.recheck());
       widget.healthHolder?.bind(_health!);
     }
     _loadSettings();
@@ -326,6 +345,7 @@ class _ReadyRootState extends State<ReadyRoot> {
       context,
       session: widget.session,
       clock: widget.clock,
+      recovery: _planRecovery,
       belt: MorningBelt.of(
         widget.sensors,
         widget.session.settings,
@@ -429,14 +449,17 @@ class _ReadyRootState extends State<ReadyRoot> {
       return ListenableBuilder(
         listenable: settings,
         builder: (context, _) => settings.setupDone
-            ? AppShell(
-                session: widget.session,
-                clock: widget.clock,
-                permissions: widget.permissions,
-                recalculation: _recalculation,
-                runPorts: widget.runPorts,
-                sensors: widget.sensors,
-                changes: _changes,
+            ? PlanRecoveryScope(
+                trigger: _planRecovery,
+                child: AppShell(
+                  session: widget.session,
+                  clock: widget.clock,
+                  permissions: widget.permissions,
+                  recalculation: _recalculation,
+                  runPorts: widget.runPorts,
+                  sensors: widget.sensors,
+                  changes: _changes,
+                ),
               )
             : !widget.welcome.confirmed
             ? WelcomeScreen(onStart: _confirmWelcome)
