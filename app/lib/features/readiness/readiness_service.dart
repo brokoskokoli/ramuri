@@ -202,6 +202,7 @@ class ReadinessService {
     final inputs = ReadinessInputs(
       today: today,
       now: now,
+      utcOffset: clock.utcOffsetAt(now),
       dayStart: days.last.start,
       hrvHealthConnect: hrv,
       restingHrHealthConnect: rhr,

@@ -183,6 +183,95 @@ Future<List<PlanVersionRecord>> _history(
   StorageSession s,
 ) => tester.runAsync(() => _plans(s).history()).then((h) => h!);
 
+/// Kamera-Morgenmessung um 07:00 am Tag [day] (Entwicklermodus).
+MorningMeasurement _cam(
+  Clock clock,
+  DateTime day, {
+  required double bpm,
+  required double rmssd,
+  SleepBand? band,
+}) {
+  final at = day.add(const Duration(hours: 7));
+  return MorningMeasurement(
+    measuredAt: at,
+    utcOffset: clock.utcOffsetAt(at),
+    posture: RestingPosture.lying,
+    deviceManufacturer: 'H',
+    deviceModel: 'M1',
+    method: 'ppg',
+    methodVersion: 1,
+    quality: PpgQuality.good,
+    restingHrBpm: bpm,
+    rmssdMs: rmssd,
+    timingNoiseMs: 10,
+    cameraIntervalsMs: const [],
+    beforeValidation: false,
+    outsideWindow: false,
+    sleepBand: band,
+  );
+}
+
+/// Morgenmessungen der Kamera an den 28 Tagen vor [today] und heute, ohne
+/// Health Connect. Ohne Schlafangabe hat heute keinen Wert; mit „unter 5 h“
+/// fällt er auf „erhöhte Belastung“, mit „über 8 h“ bleibt er „normal“.
+/// Liefert die Kennung der heutigen Messung.
+Future<int> _seedCamera(
+  StorageSession s,
+  Clock clock,
+  DateTime today, {
+  SleepBand? band,
+}) async {
+  final m = (s as MorningStorage).morning;
+  for (var n = -28; n < 0; n++) {
+    await m.add(
+      _cam(
+        clock,
+        today.add(Duration(days: n)),
+        bpm: 54.0 + ((n + 28) % 4),
+        rmssd: 46.0 + ((n + 28) % 5) * 2,
+      ),
+    );
+  }
+  await SettingsDeveloperModeStore(s.settings, clock).set(true);
+  return m.add(_cam(clock, today, bpm: 55, rmssd: 46, band: band));
+}
+
+/// Startet die App (Health Connect ohne neue Sätze: kein Import-Auslöser)
+/// und öffnet die Detailseite der Erholung von „Heute“.
+Future<void> _openDetail(WidgetTester tester, Device d) async {
+  d.healthConnect = _Port(const []);
+  await d.start(tester, const Locale('de'));
+  await _settle(tester);
+  await _tapKey(tester, 'readiness_where_from');
+  expect(find.byKey(const Key('readiness_detail')), findsOneWidget);
+}
+
+Future<void> _tapKey(WidgetTester tester, String key) async {
+  final f = find.byKey(Key(key));
+  await tester.ensureVisible(f);
+  await tester.pumpAndSettle();
+  await tester.tap(f);
+  await _settle(tester);
+}
+
+/// Wählt auf der Detailseite über „Schlaf angeben“ bzw. „ändern“ die Stufe
+/// [band] und schließt das Blatt.
+Future<void> _enterSleep(
+  WidgetTester tester,
+  SleepBand band, {
+  String button = 'readiness_detail_enter_sleep',
+}) async {
+  await _tapKey(tester, button);
+  expect(find.byKey(const Key('readiness_sleep_sheet')), findsOneWidget);
+  await _tapKey(tester, 'readiness_sleep_${band.code}');
+  await _tapKey(tester, 'readiness_sleep_done');
+}
+
+Future<SleepBand?> _band(WidgetTester tester, StorageSession s, int id) =>
+    tester
+        .runAsync((s as MorningStorage).morning.list)
+        .then((l) => l!.singleWhere((e) => e.id == id).value.sleepBand);
+
 void main() {
   test('die Reihen ergeben heute einen niedrigen Wert', () async {
     final d = Device();
@@ -316,5 +405,124 @@ void main() {
       isoDay(today),
     );
     await d.stop(tester);
+  });
+  group('Schlafangabe über „Erholung“ auf „Heute“ (PAR-164K)', () {
+    testWidgets('„adaptiv“, die Stufe senkt den Wert auf „erhöhte '
+        'Belastung“: die harte Einheit von heute wird locker', (tester) async {
+      final d = Device();
+      final (s, today, id) = (await tester.runAsync(() async {
+        final r = await _preopen(d);
+        final id = await _seedCamera(r.$1, d.clock, r.$2);
+        return (r.$1, r.$2, id);
+      }))!;
+      final hard = await _unit(tester, s, today);
+      final versions = (await _history(tester, s)).length;
+      await _openDetail(tester, d);
+      // Ohne Schlafangabe kein Wert, keine Lockerung.
+      expect((await _unit(tester, s, today)).isHard, isTrue);
+      expect((await _history(tester, s)).length, versions);
+      await _enterSleep(tester, SleepBand.under5);
+      expect(await _band(tester, s, id), SleepBand.under5);
+      final history = await _history(tester, s);
+      expect(history.length, versions + 1);
+      expect(history.last.trigger, PlanTrigger.feedback);
+      expect(history.last.reason, planReasonReadiness);
+      final now = await _unit(tester, s, today);
+      expect(now.kind, PlanUnitKind.easy);
+      expect(now.minutes, hard.minutes);
+      // Die Detailseite bleibt offen und lädt wie bisher neu.
+      expect(find.byKey(const Key('readiness_detail')), findsOneWidget);
+      await d.stop(tester);
+    });
+
+    testWidgets('„fix“, gleiche Stufe: der Plan bleibt unverändert', (
+      tester,
+    ) async {
+      final d = Device();
+      final (s, today, id) = (await tester.runAsync(() async {
+        final r = await _preopen(d);
+        await SettingsPlanAdaptationStore(r.$1.settings)
+            .set(PlanAdaptationMode.fixed, at: d.clock.now());
+        final id = await _seedCamera(r.$1, d.clock, r.$2);
+        return (r.$1, r.$2, id);
+      }))!;
+      final versions = (await _history(tester, s)).length;
+      await _openDetail(tester, d);
+      await _enterSleep(tester, SleepBand.under5);
+      expect(await _band(tester, s, id), SleepBand.under5);
+      expect((await _history(tester, s)).length, versions);
+      expect((await _unit(tester, s, today)).isHard, isTrue);
+      await d.stop(tester);
+    });
+
+    testWidgets('„adaptiv“, die Stufe hält den Wert „normal“: die Einheit '
+        'bleibt hart; danach geändert auf „unter 5 h“: locker', (tester) async {
+      final d = Device();
+      final (s, today, id) = (await tester.runAsync(() async {
+        final r = await _preopen(d);
+        final id = await _seedCamera(r.$1, d.clock, r.$2);
+        return (r.$1, r.$2, id);
+      }))!;
+      final versions = (await _history(tester, s)).length;
+      await _openDetail(tester, d);
+      await _enterSleep(tester, SleepBand.over8);
+      expect(await _band(tester, s, id), SleepBand.over8);
+      expect((await _history(tester, s)).length, versions);
+      expect((await _unit(tester, s, today)).isHard, isTrue);
+      // Angabe ändern: dieselbe Prüfung läuft nach dem Ändern.
+      await _enterSleep(
+        tester,
+        SleepBand.under5,
+        button: 'readiness_detail_change_sleep',
+      );
+      expect(await _band(tester, s, id), SleepBand.under5);
+      final history = await _history(tester, s);
+      expect(history.length, versions + 1);
+      expect(history.last.reason, planReasonReadiness);
+      expect((await _unit(tester, s, today)).kind, PlanUnitKind.easy);
+      await d.stop(tester);
+    });
+
+    testWidgets('Speichern scheitert: keine Prüfung, das Blatt meldet den '
+        'Fehler wie bisher', (tester) async {
+      final d = Device();
+      // Die heutige Messung trägt schon „unter 5 h“: der Wert ist niedrig,
+      // aber seit dem Start lief keine Prüfung. Jede Prüfung würde die
+      // Einheit darum lockern, auch nach dem Fehler unten.
+      final (s, today, id) = (await tester.runAsync(() async {
+        final r = await _preopen(d);
+        final id = await _seedCamera(
+          r.$1,
+          d.clock,
+          r.$2,
+          band: SleepBand.under5,
+        );
+        return (r.$1, r.$2, id);
+      }))!;
+      final versions = (await _history(tester, s)).length;
+      await _openDetail(tester, d);
+      expect((await _unit(tester, s, today)).isHard, isTrue);
+      await _tapKey(tester, 'readiness_detail_change_sleep');
+      // Die Messung liegt jetzt unter einer anderen Kennung: der Wert bleibt,
+      // das Speichern an der alten Kennung scheitert.
+      final data = d.storage.data;
+      final moved = data.nextMorningId++;
+      data.morning[moved] = data.morning.remove(id)!;
+      await _tapKey(tester, 'readiness_sleep_${SleepBand.over8.code}');
+      expect(find.byKey(const Key('readiness_sleep_failed')), findsOneWidget);
+      expect((await _history(tester, s)).length, versions);
+      expect((await _unit(tester, s, today)).isHard, isTrue);
+      // Gegenprobe im selben Blatt: mit der alten Kennung speichert die
+      // nächste Auswahl, und die Prüfung läuft genau einmal (neue Fassung).
+      data.morning[id] = data.morning.remove(moved)!;
+      await _tapKey(tester, 'readiness_sleep_${SleepBand.from5to6.code}');
+      expect(find.byKey(const Key('readiness_sleep_failed')), findsNothing);
+      await _tapKey(tester, 'readiness_sleep_done');
+      expect(find.byKey(const Key('readiness_detail')), findsOneWidget);
+      expect(await _band(tester, s, id), SleepBand.from5to6);
+      expect((await _history(tester, s)).length, versions + 1);
+      expect((await _unit(tester, s, today)).kind, PlanUnitKind.easy);
+      await d.stop(tester);
+    });
   });
 }
