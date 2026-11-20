@@ -115,15 +115,13 @@ class RecalculationController extends ChangeNotifier {
 
   /// Wie [_watchEdwardsSwitch] für Aufrufe, die über die Auflösung des
   /// Service umstellen: Der Grund kommt aus genau der Auflösung, die
-  /// umgestellt hat ([RecalculationService.takeEdwardsSwitchIssues]).
-  Future<T> _watchResolvedEdwardsSwitch<T>(Future<T> Function() action) {
-    // Gründe einer älteren, nicht abgeholten Umstellung verwerfen.
-    service.takeEdwardsSwitchIssues();
-    return _watchEdwardsSwitch(
-      () => edwardsSwitchReasonOf(service.takeEdwardsSwitchIssues() ?? []),
-      action,
-    );
-  }
+  /// umgestellt hat ([RecalculationService.takeEdwardsSwitchIssues]): Eine
+  /// Umstellung in [action] schreibt sie immer neu.
+  Future<T> _watchResolvedEdwardsSwitch<T>(Future<T> Function() action) =>
+      _watchEdwardsSwitch(
+        () => edwardsSwitchReasonOf(service.takeEdwardsSwitchIssues() ?? []),
+        action,
+      );
 
   /// Solange gerechnet wird, darf nichts anderes die Werte ändern oder die
   /// Seite verlassen werden (Sperre).
