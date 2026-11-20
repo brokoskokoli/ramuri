@@ -115,14 +115,13 @@ class _AppShellState extends State<AppShell> {
           session: widget.session,
           clock: widget.clock,
           viewState: _planState,
-          readinessToday: (day) async {
-            final r = await loadReadinessToday(
+          readinessToday: planReadinessSource(
+            () => loadReadinessToday(
               session: widget.session,
               clock: widget.clock,
               recalculation: widget.recalculation.service,
-            );
-            return r == null ? null : PlanReadinessDay.of(day, r.result);
-          },
+            ),
+          ),
           onStartUnit: (context, unit) => RunStarter(
             session: widget.session,
             clock: widget.clock,
