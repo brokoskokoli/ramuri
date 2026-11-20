@@ -821,7 +821,7 @@ void main() {
     expect(easy.pinned, isTrue);
   });
 
-  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 11; 12 ist
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 14; 15 ist
   // das aktuelle). Format 1
   // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
   // kennt, sind danach leer.
@@ -836,6 +836,7 @@ void main() {
     ('archive_v2_s12', 12),
     ('archive_v2_s13', 13),
     ('archive_v2_s14', 14),
+    ('archive_v2_s15', 15),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -1059,10 +1060,25 @@ void main() {
           expect(raw.frameGapCount, 1);
           expect(raw.frameGapTotalS, 0.125);
           expect(raw.saturatedFraction, isNull);
-          expect(
-            await (session as MorningStorage).morning.rawSignal(morning[1].id),
-            isNull,
+          final raw2 = await (session as MorningStorage).morning.rawSignal(
+            morning[1].id,
           );
+          if (schema >= 15) {
+            // Schema 15: verwendete Kamera im Rohsignal.
+            expect(raw.cameraId, '0');
+            expect(raw.physicalCameraId, '2');
+            expect(raw.focalLengthMm, 2.2);
+            expect(raw2!.frames, hasLength(1));
+            expect(raw2.cameraId, '1');
+            expect(raw2.physicalCameraId, isNull);
+            expect(raw2.focalLengthMm, isNull);
+          } else {
+            // Archive bis Schema 14 lesen die Kamera-Angaben als null.
+            expect(raw.cameraId, isNull);
+            expect(raw.physicalCameraId, isNull);
+            expect(raw.focalLengthMm, isNull);
+            expect(raw2, isNull);
+          }
           expect(devices.map((d) => d.lastUsedAt), [
             DateTime.fromMicrosecondsSinceEpoch(1792003600000000, isUtc: true),
             null,
