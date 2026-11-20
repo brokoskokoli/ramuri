@@ -2160,6 +2160,105 @@ void main() {
       },
     );
 
+    group('Öffnen holt ab dem Sonntag der Vorwoche nach (PAR-231)', () {
+      final sunday = _day(4);
+      final monday = _day(5);
+
+      /// Plan mit Einheiten am Mittwoch, Samstag und Sonntag; noch kein Lauf.
+      Future<_Env> planned() async {
+        expect(sunday.weekday, DateTime.sunday);
+        final e = await _Env.open();
+        expect(
+          await e.controller.saveGoal(_goal(days: {3, 6, 7})),
+          PlanActionResult.done,
+        );
+        expect((await e.controller.unitOn(sunday))?.runId, isNull);
+        expect(await assigned(e), isEmpty);
+        return e;
+      }
+
+      test('Lauf Sonntag 23:50 bis Montag 00:20 ohne Zuordnung nach dem '
+          'Lauf: Öffnen am Montag 00:25 ordnet ihn der Einheit vom Sonntag '
+          'zu, nicht der vom Montag', () async {
+        final e = await planned();
+        final run = await runAt(e.session, sunday, 23, 50, minutes: 30);
+        e.clock.set(localAt(monday, 0, 25));
+        await e.controller.open();
+        expect((await e.controller.unitOn(sunday))!.runId, run);
+        expect((await e.controller.unitOn(monday))?.runId, isNull);
+        expect((await assigned(e)).values, [run]);
+      });
+
+      test('Lauf Sonntag 18:00 bis 18:40, Öffnen erst am Dienstag: '
+          'zugeordnet', () async {
+        final e = await planned();
+        final run = await runAt(e.session, sunday, 18, 0);
+        e.clock.set(localAt(_day(6), 9));
+        await e.controller.open();
+        expect((await e.controller.unitOn(sunday))!.runId, run);
+        expect((await assigned(e)).values, [run]);
+      });
+
+      test('Lauf am Samstag der Vorwoche, Öffnen am Montag: außerhalb des '
+          'Fensters, die Einheit bleibt offen', () async {
+        final e = await planned();
+        final saturday = _day(3);
+        expect(saturday.weekday, DateTime.saturday);
+        final unit = (await e.controller.unitOn(saturday))!;
+        expect(unit.kind, isNot(PlanUnitKind.rest));
+        await runAt(e.session, saturday, 9, 0);
+        e.clock.set(localAt(monday, 9));
+        await e.controller.open();
+        final after = (await e.controller.unitOn(saturday))!;
+        expect(after.kind, unit.kind);
+        expect(after.runId, isNull);
+        expect(await assigned(e), isEmpty);
+      });
+
+      test('Idempotenz: erneutes Öffnen ordnet nichts weiter zu und schreibt '
+          'keine weitere Fassung', () async {
+        final e = await planned();
+        final run = await runAt(e.session, sunday, 23, 50, minutes: 30);
+        e.clock.set(localAt(monday, 0, 25));
+        await e.controller.open();
+        final before = await assigned(e);
+        final versions = (await e.plans.history()).length;
+        expect(before.values, [run]);
+        expect((await e.plans.history()).last.trigger, PlanTrigger.run);
+        await e.controller.open();
+        final again = PlanController(
+          session: e.session,
+          clock: e.clock,
+          reader: e.reader,
+        );
+        await again.open();
+        again.dispose();
+        expect(await assigned(e), before);
+        expect((await e.plans.history()).length, versions);
+      });
+
+      test('Zuordnung über „Einheit starten“ am Sonntag bleibt, auch mit '
+          'einem längeren freien Lauf am Sonntag', () async {
+        final e = await planned();
+        final unit = (await e.controller.unitOn(sunday))!;
+        e.clock.set(localAt(sunday, 8));
+        final store = PlanStartedUnitStore(session: e.session, clock: e.clock);
+        await store.remember(unit.id!, _dayText(sunday));
+        final short = await runAt(e.session, sunday, 8, 1, minutes: 20);
+        expect(
+          await store.settle(serialize: (action) => action()),
+          PlanActionResult.done,
+        );
+        expect((await e.controller.unitOn(sunday))!.runId, short);
+        final long = await runAt(e.session, sunday, 18, 0, minutes: 90);
+        e.clock.set(localAt(monday, 9));
+        await e.controller.open();
+        expect((await e.controller.unitOn(sunday))!.runId, short);
+        expect((await assigned(e)).values, [short]);
+        expect((await assigned(e)).values, isNot(contains(long)));
+      });
+    });
+
     test('Neustart nach langer Pause ordnet den Lauf des Tages zu', () async {
       // Lange Pause (PAR-181) mit anstehendem neuem Einstieg.
       final e = await _Env.open();
