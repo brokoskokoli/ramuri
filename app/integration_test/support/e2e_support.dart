@@ -300,6 +300,24 @@ Future<void> tapUntil(
   fail('Tipp ohne Wirkung: $what');
 }
 
+/// Wartet in echter Zeit (Frist 20 s), bis die Systemtastatur geschlossen ist
+/// (`viewInsets.bottom == 0`), vor einem Tipp auf die Taste [key] unter einem
+/// Eingabefeld. Die Tastatur schliesst ausserhalb der Testuhr und kann laenger
+/// offen bleiben als die Frist von [tapKey]. War sie offen, steht genau eine
+/// Zeile `tastatur_offen what=<key>` im oeffentlichen Log (nur der
+/// Schluesselname, keine Hoehe, keine Eingabewerte).
+Future<void> waitKeyboardClosed(WidgetTester t, String key) async {
+  if (_keyboardClosed(t)) return;
+  logPub('tastatur_offen what=$key');
+  final end = DateTime.now().add(const Duration(seconds: 20));
+  while (!_keyboardClosed(t)) {
+    if (DateTime.now().isAfter(end)) fail('Tastatur bleibt offen vor $key');
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
+}
+
+bool _keyboardClosed(WidgetTester t) => t.view.viewInsets.bottom == 0;
+
 /// Tipp auf die Taste [key]: wartet vorher, bis sie im Baum steht und der Tipp
 /// sie trifft; danach folgt nur ein Frame, keine feste Pause. Die Wirkung
 /// prueft der Aufrufer mit [waitFor] oder nimmt gleich [tapUntil].
