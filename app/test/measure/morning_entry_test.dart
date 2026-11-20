@@ -319,6 +319,24 @@ void main() {
     });
   }
 
+  testWidgets('Zurück aus der Morgenmessung: Karte lädt neu ohne Fehler', (
+    tester,
+  ) async {
+    final s = await _session(dev: true);
+    await _pump(tester, MorningCard(session: s, clock: _clock), dark: false);
+    await tester.tap(find.byKey(const Key('morning_card_start')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('morning_start')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('measure_back')));
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('morning_card_start')), findsOneWidget);
+  });
+
   testWidgets('Messung von gestern: Karte ist wieder offen', (tester) async {
     final s = await _session(dev: true);
     final y = _today();
