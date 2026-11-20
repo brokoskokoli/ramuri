@@ -146,10 +146,12 @@ grep -q '^STUFE sammlung rc=1 ' "$tmp/stdout" || { echo "FAIL Zeitlimit: STUFE-Z
 [ "$(wc -l < "$FAKE_STOPS" | tr -d ' ')" -eq 1 ] || { echo "FAIL Zeitlimit: kein am force-stop"; fails=$((fails + 1)); }
 run "Zeitlimit: Kill-Stufe ohne NEED_KILL haengt" 1 1 E2E_STUFEN=recover-a E2E_STUFE_LIMIT_S=3 FAKE_NOKILL=1 FAKE_HANG=PHASE=a
 zeitlimit_ok recover-a
-run "Zeitlimit: haengt nach NEED_KILL -> Exit 1" 1 1 E2E_STUFEN=recover-a E2E_STUFE_LIMIT_S=3 FAKE_HANG=PHASE=a
+# Nach NEED_KILL haengt die Attrappe erst nach 3 s (sleep 3 oben): Grenze 6 s, sonst greift sie mitunter vorher
+# (Wettlauf, dann hing die Attrappe nie).
+run "Zeitlimit: haengt nach NEED_KILL -> Exit 1" 1 1 E2E_STUFEN=recover-a E2E_STUFE_LIMIT_S=6 FAKE_HANG=PHASE=a
 zeitlimit_ok recover-a
 grep -q '^STUFE recover-a rc=1 ' "$tmp/stdout" || { echo "FAIL Zeitlimit nach NEED_KILL: STUFE-Zeile mit rc=1 fehlt"; fails=$((fails + 1)); }
-run "Zeitlimit: Folgestufe laeuft weiter"      1 2 "E2E_STUFEN=recover-a recover-b" E2E_STUFE_LIMIT_S=3 FAKE_HANG=PHASE=a
+run "Zeitlimit: Folgestufe laeuft weiter"      1 2 "E2E_STUFEN=recover-a recover-b" E2E_STUFE_LIMIT_S=6 FAKE_HANG=PHASE=a
 zeitlimit_ok recover-a
 grep -q '^STUFE recover-b rc=0 ' "$tmp/stdout" || { echo "FAIL Zeitlimit: recover-b nicht gruen gelaufen"; fails=$((fails + 1)); }
 run "Zeitlimit: Wert abc -> Fehler"            1 0 E2E_STUFEN=sammlung E2E_STUFE_LIMIT_S=abc
@@ -179,7 +181,7 @@ for p in $(cat "$FAKE_PIDS"); do kill -0 "$p" 2>/dev/null && { echo "FAIL adb-Ze
 grep -q 'E2E_\|geheim123' "$tmp/stdout" && { echo "FAIL adb-Zeitlimit logcat: E2E_-Zeile in der Ausgabe"; fails=$((fails + 1)); }
 grep -rq 'E2E_\|geheim123' "$tmp/out" && { echo "FAIL adb-Zeitlimit logcat: E2E_-Zeile im Artefakt"; fails=$((fails + 1)); }
 rm -f "$tmp/hang-einmal"
-run "adb-Zeitlimit: Folgestufe laeuft weiter"  1 2 "E2E_STUFEN=recover-a recover-b" "FAKE_ADB_HANG=dumpsys window" FAKE_ADB_HANG_EINMAL="$tmp/hang-einmal" FAKE_HANG=PHASE=a E2E_STUFE_LIMIT_S=3 E2E_ADB_LIMIT_S=2
+run "adb-Zeitlimit: Folgestufe laeuft weiter"  1 2 "E2E_STUFEN=recover-a recover-b" "FAKE_ADB_HANG=dumpsys window" FAKE_ADB_HANG_EINMAL="$tmp/hang-einmal" FAKE_HANG=PHASE=a E2E_STUFE_LIMIT_S=6 E2E_ADB_LIMIT_S=2
 zeitlimit_ok recover-a
 adb_ok shell
 grep -q '^STUFE recover-b rc=0 ' "$tmp/stdout" || { echo "FAIL adb-Zeitlimit: recover-b nicht gruen gelaufen"; fails=$((fails + 1)); }
