@@ -103,7 +103,7 @@ alle_stufen="$shard_sammlung $shard_stufen"
 # mindestens 5 min. Gemessene Hoechstwerte: sammlung 733 s, treadmill-plan 376 s, storage-a 319 s,
 # storage-b 43 s, recover-a 73 s, recover-b 57 s, m2-flow 101 s, readiness 106 s.
 # plan-adapt (neu, noch ohne Messung) wie readiness: 5 min.
-# m3-flow (neu, noch ohne Messung) wie readiness: 5 min; im Shard stufen, weil der kuerzer ist (auf main
+# m3-flow: im PR #101 gemessen 82 s (API 31) und 83 s (API 36), doppelt 166 s, also 5 min; im Shard stufen, weil der kuerzer ist (auf main
 # zuletzt ca. 15 min Job gegen ca. 20 min fuer sammlung).
 # Waechst eine Stufe deutlich, hier neu messen und nachziehen.
 grenze_s() {
