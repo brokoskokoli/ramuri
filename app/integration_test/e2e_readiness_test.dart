@@ -342,7 +342,7 @@ void main() {
     log(
       'S1 text=${txt('home_recovery_text')} note=${txt('readiness_basis_note')}',
     );
-    await shot(t, 's1_basis');
+    await shotHellDunkel(t, 's1_basis', 'readiness_basis_note');
     await tapKey(t, 'home_recovery_basis');
     await waitFor(t, () => has('home_recovery_basis_dialog'), 'Basis-Dialog');
     log('S1 dialog=${_list('home_recovery_basis_')}');
@@ -377,7 +377,7 @@ void main() {
     log(
       'S3 karte stage=${txt('readiness_stage')} title=${txt('readiness_title')} text=${txt('readiness_text')} warnung=${txt('home_recovery_text')}',
     );
-    await shot(t, 's3_heute');
+    await shotHellDunkel(t, 's3_heute', 'readiness_card');
     step('READINESS S3 detail');
     await tapKey(t, 'readiness_where_from');
     await waitFor(t, () => has('readiness_detail'), 'Detailseite');
@@ -392,7 +392,7 @@ void main() {
       'S3 detail drivers=${has('readiness_detail_drivers')} factors=${has('readiness_detail_factors')} missing=${has('readiness_detail_missing')} dev=${has('readiness_detail_dev')}',
     );
     expect(dWarn, isTrue, reason: 'S3 Warnung auf der Detailseite');
-    await shot(t, 's3_detail');
+    await shotHellDunkel(t, 's3_detail', 'readiness_detail');
     step('READINESS S3 verlauf');
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf');
@@ -415,7 +415,7 @@ void main() {
       );
     }
     expect(has('readiness_history_dev'), isTrue);
-    await shot(t, 's3_verlauf');
+    await shotHellDunkel(t, 's3_verlauf', 'readiness_history');
     await back(t);
     await back(t);
     await waitFor(t, () => has('readiness_card'), 'Heute');
@@ -501,7 +501,7 @@ void main() {
       isNot(contains(insufficient)),
       reason: 'S5 genug Daten mit HC (28 Tage)',
     );
-    await shot(t, 's5_heute');
+    await shotHellDunkel(t, 's5_heute', 'readiness_card');
     log(
       'S5 overlay dialogs=${find.byType(AlertDialog).evaluate().length} snack=${find.byType(SnackBar).evaluate().length} sheet=${find.byType(BottomSheet).evaluate().length} barrier=${find.byType(ModalBarrier).evaluate().length} hittable=${hittable(t, find.byKey(const Key('readiness_where_from')))}',
     );
@@ -530,7 +530,7 @@ void main() {
       'S5 detail drivers=${has('readiness_detail_drivers')} factors=${has('readiness_detail_factors')} missing=${has('readiness_detail_missing')}',
     );
     _expectSleep(t, 'S5', counts: true);
-    await shot(t, 's5_detail');
+    await shotHellDunkel(t, 's5_detail', 'readiness_detail');
     step('READINESS S5 verlauf');
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf HC');
@@ -566,7 +566,7 @@ void main() {
       isFalse,
       reason: 'S5 Entwicklermodus aus',
     );
-    await shot(t, 's5_verlauf');
+    await shotHellDunkel(t, 's5_verlauf', 'readiness_history');
     await back(t);
     await back(t);
     log('S5 ok');
@@ -601,7 +601,7 @@ void main() {
       2,
       reason: 'S6 zwei Kamerareihen',
     );
-    await shot(t, 's6_verlauf');
+    await shotHellDunkel(t, 's6_verlauf', 'readiness_history');
     await back(t);
     await back(t);
     log('S6 ok');
@@ -675,10 +675,10 @@ void main() {
           );
         }
       }
-      await shot(t, 's7_${label}_verlauf');
+      await shotHellDunkel(t, 's7_${label}_verlauf', 'readiness_history');
       await back(t);
       await back(t);
-      await shot(t, 's7_$label');
+      await shotHellDunkel(t, 's7_$label', 'readiness_card');
     }
     log('S7 ok');
   });

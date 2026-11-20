@@ -4,7 +4,7 @@
 **Anforderungen:** FR-0215, FR-0201, SEC-0003.
 **Code:** `app/packages/core/lib/src/export/morning_pairs_csv.dart`; Einstieg `app/lib/features/settings/morning_pairs_section.dart` (Seite „Entwicklereinstellungen“).
 
-Zweck: Der Maintainer vergleicht für die Validierung (K61) die Kamera-Werte einer Morgenmessung mit der Gurt-RR derselben Zeit. Die Datei liefert beide Seiten roh; **die App berechnet und zeigt weder eine Gurt-RMSSD noch Differenzen** (keine Zwischenauswertung). Das Dokument beschreibt das Format so, dass es ohne den Dart-Code gelesen werden kann.
+Zweck: Der Maintainer vergleicht für die Validierung (K61) die Kamera-Werte einer Morgenmessung mit der Gurt-RR derselben Zeit. Die App zeigt den Vergleich nur in den Entwicklereinstellungen (FR-0217); die Datei liefert beide Seiten roh. Das Dokument beschreibt das Format so, dass es ohne den Dart-Code gelesen werden kann.
 
 ## 1. Überblick
 
@@ -16,7 +16,7 @@ Wie [metrics-csv.md](metrics-csv.md) Abschnitt 2: UTF-8 **ohne** Byte-Order-Mark
 
 ## 3. Formatversion und Spalten
 
-Kopfzeile (Formatversion 2, genau diese Namen und Reihenfolge); `format_version` steht in jeder Zeile, ein Leser lehnt eine unbekannte Version ab:
+Kopfzeile (Formatversion 3, genau diese Namen und Reihenfolge); `format_version` steht in jeder Zeile, ein Leser lehnt eine unbekannte Version ab:
 
 ```
 format_version,morning_id,row_type,key,seq,sub,time,value,unit
@@ -24,7 +24,7 @@ format_version,morning_id,row_type,key,seq,sub,time,value,unit
 
 | Spalte | Inhalt |
 |---|---|
-| `format_version` | `2` (Version 1: ohne Fenster, Stufe unbrauchbar und Rohsignal; nie ausgeliefert) |
+| `format_version` | `3` (Version 2: ohne die Kamera-Angaben `camera_id`, `physical_camera_id` und `focal_length`; Version 1: ohne Fenster, Stufe unbrauchbar und Rohsignal; beide nie ausgeliefert) |
 | `morning_id` | Kennung der Morgenmessung im Speicher (ganze Zahl); gleich für alle Zeilen eines Morgens |
 | `row_type` | `meta`, `camera`, `camera_ibi`, `belt_rr` oder `raw_frame` |
 | `key` | Name des Werts (Abschnitt 4) |
@@ -32,13 +32,13 @@ format_version,morning_id,row_type,key,seq,sub,time,value,unit
 | `sub` | bei `belt_rr` die Position des Werts im Paket ab 1; sonst leer |
 | `time` | UTC-Zeitpunkt: bei `meta`/`measured_at` der Beginn der Aufnahme, bei `belt_rr` die **Empfangszeit des Pakets** (alle Werte eines Pakets tragen dieselbe); sonst leer |
 | `value` | Wert (Punkt als Dezimaltrenner) oder Text; **leer = nicht verfügbar bzw. ungültig**, nie `0` und nie `NaN` (FR-0068) |
-| `unit` | Einheit: `s`, `bpm`, `ms`, `ns`, `1/1024 s`; leer bei Text- und Kennzahlen |
+| `unit` | Einheit: `s`, `bpm`, `ms`, `ns`, `mm`, `1/1024 s`; leer bei Text- und Kennzahlen |
 
 ## 4. Zeilenarten je Morgen (in dieser Reihenfolge)
 
 **`meta`** (je eine Zeile, `value` wie angegeben): `measured_at` (nur `time`), `utc_offset` (Versatz des Ortes zu UTC in ganzen Sekunden, Einheit `s`), `posture` (`lying`/`sitting`), `device_manufacturer`, `device_model` (Telefon, keine Seriennummer), `method`, `method_version`, `quality` (`good`/`limited`/`unusable`), `usable` (`1`/`0`, `0` genau bei `unusable`), `quality_reason` (nur bei `unusable`, sonst leer: `insufficientData`, `invalidInput`, `weakSignal`, `tooManyDisturbances`, `frameGap` u. a. Namen der Grund-Aufzählung der App, dazu `restingHrOutOfRange` für einen Ruhepuls außerhalb PAR-017, dessen Wert nicht exportiert wird; leer auch, wenn der Grund fehlt), `window_start` und `window_end` (`s`, Anfang und Ende des ausgewerteten Fensters in Sekunden seit Aufnahmebeginn, Zeitachse des `t` der `raw_frame`-Zeilen; leer = Verfahren ohne Fenstersuche oder keins gefunden), `rest_skipped_after` (`s`, Sekunden nach Beginn der Ruhephase, nach denen sie übersprungen wurde; leer = nicht übersprungen), `before_validation`, `outside_window` (`1`/`0`), `sleep_band` (`under5`, `from5to6`, `from6to7`, `from7to8`, `over8`; leer = nicht angegeben), `belt_packets` (Anzahl der gespeicherten Gurt-RR-Pakete dieses Morgens, `0` ohne Gurt), `raw_frames` (Anzahl der `raw_frame`-Zeilen, `0` ohne gespeichertes Rohsignal).
 
-Nur mit gespeichertem Rohsignal (K70, K72) folgen weitere `meta`-Zeilen mit den Kamera-Angaben, leer = von der Kamera nicht geliefert: `exposure_time` (`ns`), `iso`, `timestamp_source` (`unknown`/`realtime`), `rolling_shutter_skew` (`ns`), `torch_strength` (Stufe der Kamera-API), `frame_gap_count`, `frame_gap_total` (`s`), `saturated_fraction` (0 bis 1).
+Nur mit gespeichertem Rohsignal (K70, K72) folgen weitere `meta`-Zeilen mit den Kamera-Angaben, leer = von der Kamera nicht geliefert: `exposure_time` (`ns`), `iso`, `timestamp_source` (`unknown`/`realtime`), `rolling_shutter_skew` (`ns`), `torch_strength` (Stufe der Kamera-API), `frame_gap_count`, `frame_gap_total` (`s`), `saturated_fraction` (0 bis 1), danach die verwendete Kamera (FR-0220, leer = nicht bekannt): `camera_id` (Text, Kamera-ID der geöffneten Kamera), `physical_camera_id` (Text, physische Kamera einer logischen Mehrfachkamera; nur mit `camera_id`), `focal_length` (`mm`, Brennweite dieser Kamera).
 
 **`camera`** (je eine Zeile): `resting_hr` (`bpm`, eine Nachkommastelle, leer bei `unusable`), `rmssd` (`ms`, leer wenn nicht verfügbar), `timing_noise` (`ms`, leer wenn nicht verfügbar).
 

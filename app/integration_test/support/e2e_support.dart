@@ -50,6 +50,46 @@ Future<void> shot(WidgetTester t, String name, {bool pause = e2eShots}) async {
   if (pause) await pumpFor(t, const Duration(milliseconds: 2500));
 }
 
+/// Helligkeit des Themas, das am Widget mit [key] gilt.
+Brightness themeAt(WidgetTester t, String key) =>
+    Theme.of(t.element(find.byKey(Key(key)))).brightness;
+
+/// Fotopaar dunkel und hell: schaltet die Systemhelligkeit der Testumgebung
+/// auf dunkel, wartet ([waitFor], Frist [timeout]), bis das Thema am Widget
+/// [key] dunkel ist, und setzt die Marke `<name>_dunkel`; danach dasselbe hell
+/// mit `<name>_hell`. [key] gehoert zur Seite selbst (z. B. Scaffold), nicht
+/// zu einem Teil mit eigenem festen Thema (Karte `RamuriCardTone.panel` ist
+/// immer dunkel), sonst wird hell nie erreicht. Am Ende gilt wieder die Systemhelligkeit
+/// (`clearPlatformBrightnessTestValue`), auch wenn das Warten scheitert, damit
+/// ein roter Schritt die folgenden nicht dunkel weiterlaufen laesst. [pause]
+/// wie bei [shot]: ohne [e2eShots] kommen keine Pausen dazu, nur das Warten
+/// auf das Thema.
+Future<void> shotHellDunkel(
+  WidgetTester t,
+  String name,
+  String key, {
+  Duration timeout = const Duration(seconds: 40),
+  bool pause = e2eShots,
+}) async {
+  try {
+    for (final (b, suffix) in [
+      (Brightness.dark, 'dunkel'),
+      (Brightness.light, 'hell'),
+    ]) {
+      t.platformDispatcher.platformBrightnessTestValue = b;
+      await waitFor(
+        t,
+        () => themeAt(t, key) == b,
+        'Thema $suffix ($key)',
+        timeout: timeout,
+      );
+      await shot(t, '${name}_$suffix', pause: pause);
+    }
+  } finally {
+    t.platformDispatcher.clearPlatformBrightnessTestValue();
+  }
+}
+
 /// Meldung eines Testfehlers ohne Werte: bei `expect` nur der Grund (`reason:`),
 /// den der matcher ohne Präfix als erste nicht eingerückte Zeile nach
 /// Expected/Actual/Which schreibt (diese drei können Werte tragen und fehlen),
@@ -141,10 +181,57 @@ String txt(String key) {
   return w is Text ? (w.data ?? '<rich>') : w.runtimeType.toString();
 }
 
-/// Taste in einem Dialog: kein ensureVisible (es scrollt sonst die Seite dahinter).
+/// Frist, in der eine Taste nach dem Tipp aus dem Baum verschwinden muss
+/// ([tapDialog], [back]) bzw. vor dem Tipp erscheinen und treffbar werden muss.
+const _tapFrist = Duration(seconds: 5);
+
+/// Wartet (Abfrage alle 100 ms, keine feste Pause), bis [gone] gilt; sonst
+/// endet der Test mit [meldung]. [what] ist ein Schluesselname fuer das Log.
+Future<void> _waitGone(
+  WidgetTester t,
+  bool Function() gone,
+  String what,
+  String meldung,
+) async {
+  final end = DateTime.now().add(_tapFrist);
+  while (!gone()) {
+    if (DateTime.now().isAfter(end)) {
+      logPub('tap_bleibt what=$what');
+      fail(meldung);
+    }
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
+}
+
+/// Wartet, bis [f] etwas findet; sonst endet der Test mit [meldung].
+Future<void> _waitPresent(WidgetTester t, Finder f, String meldung) async {
+  final end = DateTime.now().add(_tapFrist);
+  while (f.evaluate().isEmpty) {
+    if (DateTime.now().isAfter(end)) fail(meldung);
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
+}
+
+/// Taste in einem Dialog oder Menue, die ihn schliesst: kein ensureVisible (es
+/// scrollt sonst die Seite dahinter). Wartet vor dem Tipp, bis die Taste im
+/// Baum steht und der Tipp sie trifft (ein Menue geht noch auf: ein Tipp
+/// daneben schloesse es ohne Auswahl), und danach, bis genau diese Taste nicht
+/// mehr im Baum steht (Dialog bzw. Menue zu); sonst
+/// `Dialog-Taste <key> bleibt`. Keine feste Pause. Bleibt ein Dialog bewusst offen:
+/// [tapKey]/[tapUntil] mit eigener Bedingung.
 Future<void> tapDialog(WidgetTester t, String key) async {
-  await t.tap(find.byKey(Key(key)));
-  await pumpFor(t, const Duration(milliseconds: 300));
+  final f = find.byKey(Key(key));
+  await _waitPresent(t, f, 'Dialog-Taste $key fehlt');
+  final end = DateTime.now().add(_tapFrist);
+  while (!hittable(t, f.first)) {
+    if (DateTime.now().isAfter(end)) {
+      fail('Tipp trifft Dialog-Taste $key nicht');
+    }
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
+  final ziel = f.evaluate().first;
+  await t.tap(f.first);
+  await _waitGone(t, () => !ziel.mounted, key, 'Dialog-Taste $key bleibt');
 }
 
 /// Ob ein Tipp in die Mitte von [f] dieses Element traefe (nicht verdeckt, die
@@ -253,9 +340,30 @@ Future<void> tapUntil(
   fail('Tipp ohne Wirkung: $what');
 }
 
+/// Wartet in echter Zeit (Frist 20 s), bis die Systemtastatur geschlossen ist
+/// (`viewInsets.bottom == 0`), vor einem Tipp auf die Taste [key] unter einem
+/// Eingabefeld. Die Tastatur schliesst ausserhalb der Testuhr und kann laenger
+/// offen bleiben als die Frist von [tapKey]. War sie offen, steht genau eine
+/// Zeile `tastatur_offen what=<key>` im oeffentlichen Log (nur der
+/// Schluesselname, keine Hoehe, keine Eingabewerte).
+Future<void> waitKeyboardClosed(WidgetTester t, String key) async {
+  if (_keyboardClosed(t)) return;
+  logPub('tastatur_offen what=$key');
+  final end = DateTime.now().add(const Duration(seconds: 20));
+  while (!_keyboardClosed(t)) {
+    if (DateTime.now().isAfter(end)) fail('Tastatur bleibt offen vor $key');
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
+}
+
+bool _keyboardClosed(WidgetTester t) => t.view.viewInsets.bottom == 0;
+
+/// Tipp auf die Taste [key]: wartet vorher, bis sie im Baum steht und der Tipp
+/// sie trifft; danach folgt nur ein Frame, keine feste Pause. Die Wirkung
+/// prueft der Aufrufer mit [waitFor] oder nimmt gleich [tapUntil].
 Future<void> tapKey(WidgetTester t, String key) async {
   final f = find.byKey(Key(key));
-  expect(f, findsWidgets, reason: 'Taste $key fehlt');
+  await _waitPresent(t, f, 'Taste $key fehlt');
   await t.ensureVisible(f);
   // Waehrend eines Seitenwechsels liegt die Taste noch verschoben; erst tippen,
   // wenn der Tipp sie trifft (echte Bedingung, sonst Rot mit Schluessel).
@@ -279,7 +387,7 @@ Future<void> tapKey(WidgetTester t, String key) async {
     }
   }
   await t.tap(f);
-  await pumpFor(t, const Duration(milliseconds: 300));
+  await t.pump();
 }
 
 Future<void> startApp(WidgetTester t, World w) async {
@@ -319,9 +427,21 @@ Future<void> setupIfShown(WidgetTester t) async {
   await waitFor(t, () => has('home_start_run'), 'Heute');
 }
 
+/// Tipp auf den obersten Zurueck-Knopf: wartet vorher, bis er im Baum steht
+/// und getroffen wird (Seitenwechsel), merkt ihn sich und wartet danach, bis
+/// genau dieser Knopf nicht mehr im Baum steht (Seite zu, Uebergang beendet);
+/// sonst `Zurück ohne Wirkung`. Keine feste Pause.
 Future<void> back(WidgetTester t) async {
-  await t.tap(find.byType(BackButton).last);
-  await pumpFor(t, const Duration(seconds: 1));
+  final f = find.byType(BackButton);
+  await _waitPresent(t, f, 'Zurück-Knopf fehlt');
+  final end = DateTime.now().add(_tapFrist);
+  while (!hittable(t, f.last)) {
+    if (DateTime.now().isAfter(end)) fail('Tipp trifft Zurück nicht');
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
+  final ziel = f.last.evaluate().first;
+  await t.tap(f.last);
+  await _waitGone(t, () => !ziel.mounted, 'back', 'Zurück ohne Wirkung');
 }
 
 /// Verbindet Fake-Geraete ueber die Sensorseite.

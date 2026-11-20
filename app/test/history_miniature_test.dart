@@ -34,10 +34,12 @@ class _Thumbs implements MapThumbnailStore {
   final Map<String, Uint8List> data = {};
   final List<String> writtenKeys = [];
   final List<int> deletedRuns = [];
+  final List<String> readKeys = [];
   int reads = 0;
   @override
   Future<Uint8List?> read(String key) async {
     reads++;
+    readKeys.add(key);
     return data[key];
   }
 
@@ -394,6 +396,49 @@ void main() {
   );
 
   testWidgets(
+    'Miniatur einer älteren Fassung: nicht gelesen, neu erzeugt unter der aktuellen Variante (FR-0204)',
+    (tester) async {
+      final (d, w) = await _start(tester, consent: true, runs: [2]);
+      final id = (await d.session.runs.list()).first.id;
+      final current = miniatureVariant(_styleOf(tester));
+      final oldVariant = 'v1-${current.substring(current.indexOf('-') + 1)}';
+      expect(oldVariant, isNot(current));
+      final oldKey = thumbnailKey(oldVariant, id);
+      final oldBytes = Uint8List.fromList([7, 7, 7, 7]);
+      w.thumbs.data[oldKey] = oldBytes;
+      await _openHistory(tester);
+      await settleRealTimeFixed(tester);
+      expect(w.captures, 1, reason: 'neue Fassung, neu erzeugt');
+      final currentKey = thumbnailKey(current, id);
+      expect(w.thumbs.writtenKeys, [currentKey]);
+      expect(w.thumbs.data[currentKey], png1x1);
+      expect(w.thumbs.readKeys, isNot(contains(oldKey)));
+      expect(
+        w.thumbs.data[oldKey],
+        oldBytes,
+        reason: 'kein eigener Löschschritt',
+      );
+      expect(key('miniature_image'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Miniatur der aktuellen Fassung im Speicher: angezeigt, keine neue (FR-0204)',
+    (tester) async {
+      final (d, w) = await _start(tester, consent: true, runs: [2]);
+      final id = (await d.session.runs.list()).first.id;
+      final currentKey = thumbnailKey(miniatureVariant(_styleOf(tester)), id);
+      w.thumbs.data[currentKey] = png1x1;
+      await _openHistory(tester);
+      await settleRealTimeFixed(tester);
+      expect(w.captures, 0);
+      expect(w.thumbs.writtenKeys, isEmpty);
+      expect(w.thumbs.readKeys, contains(currentKey));
+      expect(key('miniature_image'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'Karte der Route und Quelle erst, wenn das Bild gemalt ist (WP13 N5)',
     (tester) async {
       final handle = tester.ensureSemantics();
@@ -697,7 +742,7 @@ void main() {
       attributionForeground: Color(0xFF000000),
     );
     expect(miniatureVariant(base), isNot(miniatureVariant(dark)));
-    expect(miniatureVariant(base), startsWith('v1-360x180-'));
+    expect(miniatureVariant(base), startsWith('v2-360x180-'));
     expect(runMiniatureWidth / runMiniatureHeight, 2);
   });
 }

@@ -1,10 +1,11 @@
 name: nightly
-# Jede Nacht (03:00 UTC) und von Hand: APK vom aktuellen main mit dem Release-Schlüssel, als Pre-Release "nightly".
+# Jede Nacht (02:17 UTC, bewusst nicht zur vollen Stunde: dort startet GitHub geplante Läufe oft stark verspätet
+# oder gar nicht) und von Hand: APK vom aktuellen main mit dem Release-Schlüssel, als Pre-Release "nightly".
 # Es gibt nur einen Nightly: Tag und Release "nightly" werden ersetzt. Der Tag beginnt nicht mit v und startet
 # release.yml daher nicht. Ein geplanter Lauf ohne neuen Commit auf main baut nicht; ein Lauf von Hand baut immer.
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '17 2 * * *'
   workflow_dispatch:
 permissions:
   contents: read

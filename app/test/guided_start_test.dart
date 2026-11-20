@@ -24,7 +24,7 @@ import 'run_test.dart' show walk;
 // Abschnitten, Hauptschalter „Ansagen“, Einzelschalter, „Aus dem Plan“.
 
 final Uint8List _appKey = Uint8List.fromList(List.filled(32, 7));
-final _now = DateTime.utc(2026, 11, 11, 12);
+final _now = DateTime(2026, 11, 11, 12);
 final _today = DateTime.utc(2026, 11, 11);
 
 Future<StorageSession> _open(Device d, {bool plan = true}) async {
@@ -317,19 +317,25 @@ void main() {
       return key('sum_from_plan').evaluate().isNotEmpty;
     }
 
-    testWidgets('Freier Lauf, Absturz, Fortsetzen: kein „Aus dem Plan“ (NB5)', (
-      tester,
-    ) async {
+    testWidgets('Freier Lauf, Absturz, Fortsetzen: „Aus dem Plan“ wie die '
+        'Zuordnung in der Datenbank, der Lauf zählt als offene Einheit des '
+        'Tags (NB5, PAR-231)', (tester) async {
       final d = Device();
       await _open(d);
       await d.start(tester, const Locale('de'));
-      expect(
-        await crashResumeFinish(tester, d, start: key('home_start_run')),
-        isFalse,
+      final shown = await crashResumeFinish(
+        tester,
+        d,
+        start: key('home_start_run'),
       );
+      final run = (await d.session.runs.list()).single;
+      final unit = (await (d.session as PlanStorage).plans.unitOn(_today))!;
+      expect(unit.runId, run.id);
+      expect(shown, isTrue);
     });
 
-    testWidgets('Lauf begann vor dem Merker: kein „Aus dem Plan“ (NB5)', (
+    testWidgets('Lauf begann vor dem Merker: nicht über den Merker, sondern '
+        'als offene Einheit des Tags zugeordnet (NB5, PAR-231)', (
       tester,
     ) async {
       final d = Device();
@@ -350,7 +356,10 @@ void main() {
           ).remember(unit.id!, '2026-11-11');
         },
       );
-      expect(shown, isFalse);
+      final run = (await d.session.runs.list()).single;
+      final now = (await (d.session as PlanStorage).plans.unitOn(_today))!;
+      expect(now.runId, run.id);
+      expect(shown, isTrue);
     });
 
     testWidgets('Einheit durch Neuberechnung ersetzt (neue Kennung): '

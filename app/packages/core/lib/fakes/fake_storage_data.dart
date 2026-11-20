@@ -75,6 +75,11 @@ class FakeStorageData {
   int nextPlanId = 1;
   int nextPlanUnitId = 1;
 
+  /// Fehlereinspeisung für Tests: Ist sie gesetzt, wirft
+  /// `PlanRepository.assignRun` eine [StorageException] ([StorageFailure.failed])
+  /// und schreibt nichts. Standard: aus.
+  bool failAssignRun = false;
+
   /// `ON DELETE CASCADE` vom Ziel: Fassungen und Einheiten.
   void deleteGoal() {
     goal = null;

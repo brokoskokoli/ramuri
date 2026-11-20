@@ -366,7 +366,13 @@ release_rechte() {
 # Fehlen die Zonendaten, fiele TZ still auf UTC zurück; der Test "TZ wirkt" in core/test/health macht das rot.
 GATE_TZ_ZONES="America/Los_Angeles Pacific/Auckland UTC"
 GATE_TZ_CORE_TESTS="test/health test/readiness test/recording test/reminders"
-GATE_TZ_APP_TESTS="test/system_clock_test.dart test/readiness_home_test.dart test/readiness_detail_test.dart"
+# Plan und „Heute“ (Ortstag des Plans, der Karte „Heute“, des Laufstarts und der Erinnerungen, FR-0174): die Tests
+# setzen Ortszeit und eine Uhr im Versatz der Prozesszone (app/test/helpers/local_clock.dart), wie die Systemuhr.
+GATE_TZ_APP_TESTS="test/system_clock_test.dart test/readiness_home_test.dart test/readiness_detail_test.dart test/manual_training_test.dart
+  test/home_today_test.dart test/plan_page_test.dart test/guided_start_test.dart test/plan_controller_test.dart
+  test/plan_calendar_test.dart test/plan_started_unit_test.dart test/plan_warning_page_test.dart test/home_hints_test.dart
+  test/plan_change_page_test.dart test/prediction_card_test.dart test/plan_goal_form_test.dart test/reminder_wiring_test.dart
+  test/measure/resting_measure_screen_test.dart"
 zeitzonen_tests() {
   for z in $GATE_TZ_ZONES; do
     echo "== TZ=$z"

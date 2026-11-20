@@ -29,6 +29,7 @@ Der Trainingsplan wird fortlaufend an tatsächlich absolvierte Trainingseinheite
 - [ ] Automatische Änderungen überschreiten nie die Trainingstage und die maximale Zeit pro Einheit des Nutzers (OQ-0005).
 - [ ] Die App fragt alle 2 Wochen „zu leicht, passt oder zu schwer?“ und passt die Wochenzeit an (PAR-200).
 - [ ] Von selbst nimmt die App nur zurück und steigert nie stärker als PAR-193 (PAR-201).
+- [ ] Ein Lauf am Tag einer offenen Einheit zählt ohne Rückfrage als diese Einheit, auch wenn der Plan erst danach angelegt wurde (PAR-231).
 
 ### FR-0157 — Auslöser einer Neuberechnung
 - **Status:** Approved | **Phase:** 2, 3 (Erholung)

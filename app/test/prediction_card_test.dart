@@ -20,7 +20,7 @@ import 'statistics_test.dart' show openStats;
 /// Karte „Prognose“ auf Fortschritt (WP20 Teil C): Anzeige je Stufe, Eintragen,
 /// Löschen, Vorschlag bestätigen und ablehnen, Layout.
 
-final DateTime _now = DateTime.utc(2026, 6, 10, 12);
+final DateTime _now = DateTime(2026, 6, 10, 12);
 
 PredictionStore _store(Device d) => (d.session as PredictionStorage).prediction;
 
@@ -181,8 +181,13 @@ class _GatedSession implements StorageSession, PredictionStorage {
   KnownDeviceStore get devices => _inner.devices;
   @override
   ConsentStore get consents => _inner.consents;
+
+  /// Lässt das Lesen der Lauf-Übersicht scheitern (RPE nicht lesbar).
+  bool failRuns = false;
+
   @override
-  RunSubjectiveStore get subjective => _inner.subjective;
+  RunSubjectiveStore get subjective =>
+      failRuns ? _BrokenSubjective() : _inner.subjective;
   @override
   ManualTrainingStore get manualTrainings => _inner.manualTrainings;
   @override
@@ -192,6 +197,15 @@ class _GatedSession implements StorageSession, PredictionStorage {
   @override
   Future<void> close() => _inner.close();
 }
+
+/// Jeder Zugriff scheitert mit einem Fehler, der nie sichtbar werden darf.
+class _BrokenSubjective implements RunSubjectiveStore {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      Future<Never>.error(StateError(_secretError));
+}
+
+const _secretError = 'Geheimnis RPE 9 bei 4:48 min/km';
 
 TextButton _buttonOf(String k) =>
     find
@@ -1146,6 +1160,170 @@ void main() {
       await tapKey(tester, 'prediction_explain_close');
       expect(key('prediction_explain_dialog'), findsNothing);
     });
+  });
+
+  group('Aus einem Lauf übernehmen (FR-0129)', () {
+    /// Lauf vor [daysAgo] Tagen; 24 min bei 3,5 m/s sind etwa 5 km.
+    Future<int> run(
+      Device d,
+      int daysAgo, {
+      int minutes = 24,
+      double speed = 3.5,
+      int? rpe,
+    }) async {
+      final id = await seedRun(
+        d.session,
+        _at(daysAgo),
+        minutes: minutes,
+        speed: speed,
+      );
+      if (rpe != null) {
+        await d.session.subjective.save(id, RunSubjective(rpe: rpe));
+      }
+      return id;
+    }
+
+    testWidgets('„Referenz eintragen“ bietet den Weg an', (tester) async {
+      final d = await boot(tester);
+      await pumpCard(tester, d);
+      await tapKey(tester, 'prediction_add');
+      expect(key('prediction_form_from_run'), findsOneWidget);
+    });
+
+    testWidgets('RPE 9, 5 km vor 10 Tagen: bestätigter Lauf mit Lauf-ID, '
+        'Karte nennt ihn, Änderung gemeldet, Vorschlag weg', (tester) async {
+      final d = await boot(tester);
+      final id = await run(d, 10, rpe: 9);
+      final changes = DataChanges();
+      addTearDown(changes.dispose);
+      await pumpCard(tester, d, changes: changes);
+      // Derselbe Lauf ist vorher Vorschlag (PAR-185 Zweig 1).
+      expect(key('prediction_suggestion'), findsOneWidget);
+
+      await tapKey(tester, 'prediction_add');
+      await tapKey(tester, 'prediction_form_from_run');
+      expect(key('reference_run_loose'), findsNothing);
+      await tapKey(tester, 'reference_run_0');
+      expect(key('reference_run_loose'), findsNothing);
+      expect(key('prediction_form'), findsNothing);
+
+      final refs = await _store(d).references();
+      expect(refs, hasLength(1));
+      final r = refs.single.reference;
+      expect(r.kind, ReferenceKind.confirmedRun);
+      expect(r.runId, '$id');
+      expect(r.distanceMeters, closeTo(5040, 60));
+      expect(r.seconds, closeTo(24 * 60, 5));
+      expect(calendarDay(r.date), calendarDay(_at(10)));
+      expect(changes.revision, 1);
+      expect(txt('prediction_reference'), contains('bestätigter Lauf'));
+      expect(txt('prediction_reference'), contains('5,0'));
+      expect(key('prediction_suggestion'), findsNothing);
+    });
+
+    testWidgets('Liste: nur ab 3 km der letzten 12 Wochen, neueste zuerst; '
+        '2999 m und 85 Tage fehlen', (tester) async {
+      final d = await boot(tester);
+      await run(d, 85, rpe: 9);
+      await run(d, 84, minutes: 30, rpe: 8);
+      // 10 min bei knapp 5 m/s: knapp unter 3 km.
+      await run(d, 2, minutes: 10, speed: 2999 / 600, rpe: 9);
+      await run(d, 5, minutes: 20, rpe: 7);
+      final overview = await PredictionRunReader(
+        session: d.session,
+        clock: d.clock,
+      ).load(withPaceSamples: false);
+      final short = overview.firstWhere(
+        (r) => calendarDay(r.date) == calendarDay(_at(2)),
+      );
+      expect(short.distanceMeters, lessThan(3000));
+      expect(short.distanceMeters, greaterThan(2900));
+
+      await pumpCard(tester, d);
+      await tapKey(tester, 'prediction_add');
+      await tapKey(tester, 'prediction_form_from_run');
+      expect(key('reference_run_0'), findsOneWidget);
+      expect(key('reference_run_1'), findsOneWidget);
+      expect(key('reference_run_2'), findsNothing);
+      expect(txt('reference_run_0_rpe'), contains('7'));
+      expect(txt('reference_run_1_rpe'), contains('8'));
+    });
+
+    testWidgets('RPE 5: Hinweis; Abbrechen speichert nichts, Trotzdem '
+        'übernehmen speichert', (tester) async {
+      final d = await boot(tester);
+      final id = await run(d, 10, rpe: 5);
+      await pumpCard(tester, d);
+      await tapKey(tester, 'prediction_add');
+      await tapKey(tester, 'prediction_form_from_run');
+      await tapKey(tester, 'reference_run_0');
+      expect(key('reference_run_loose'), findsOneWidget);
+      await tapKey(tester, 'reference_run_loose_cancel');
+      await tapKey(tester, 'reference_run_cancel');
+      await tapKey(tester, 'prediction_form_cancel');
+      expect(await _store(d).references(), isEmpty);
+      expect(key('prediction_form'), findsNothing);
+
+      await tapKey(tester, 'prediction_add');
+      await tapKey(tester, 'prediction_form_from_run');
+      await tapKey(tester, 'reference_run_0');
+      await tapKey(tester, 'reference_run_loose_confirm');
+      final refs = await _store(d).references();
+      expect(refs, hasLength(1));
+      expect(refs.single.reference.kind, ReferenceKind.confirmedRun);
+      expect(refs.single.reference.runId, '$id');
+      expect(txt('prediction_reference'), contains('bestätigter Lauf'));
+    });
+
+    testWidgets('ohne Läufe ab 3 km: leere Liste mit Text', (tester) async {
+      final d = await boot(tester);
+      await run(d, 2, minutes: 10, rpe: 9);
+      await pumpCard(tester, d);
+      await tapKey(tester, 'prediction_add');
+      await tapKey(tester, 'prediction_form_from_run');
+      expect(key('reference_run_empty'), findsOneWidget);
+      expect(key('reference_run_0'), findsNothing);
+    });
+
+    testWidgets('Lauf-Übersicht nicht lesbar: Fehlertext ohne Inhalt des '
+        'Fehlers, nichts gespeichert', (tester) async {
+      final d = await boot(tester);
+      await run(d, 10, rpe: 9);
+      final gated = _GatedSession(d.session);
+      await pumpCard(tester, d, session: gated);
+      gated.failRuns = true;
+      await tapKey(tester, 'prediction_add');
+      await tapKey(tester, 'prediction_form_from_run');
+      expect(key('reference_run_failed'), findsOneWidget);
+      expect(key('reference_run_0'), findsNothing);
+      expect(find.textContaining('Geheimnis'), findsNothing);
+      expect(find.textContaining('4:48'), findsNothing);
+      await tapKey(tester, 'reference_run_cancel');
+      await tapKey(tester, 'prediction_form_cancel');
+      expect(await _store(d).references(), isEmpty);
+    });
+
+    for (final locale in ['de', 'en']) {
+      testWidgets('$locale, Schrift 2, 320 px: Formular mit Knopf und Liste '
+          'ohne Überlauf', (tester) async {
+        final d = await boot(tester);
+        await run(d, 10, rpe: 9);
+        await run(d, 20, rpe: 5);
+        await pumpCard(tester, d, locale: locale, width: 320, scale: 2);
+        await tapKey(tester, 'prediction_add');
+        expect(key('prediction_form_from_run'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tapKey(tester, 'prediction_form_from_run');
+        expect(key('reference_run_0'), findsOneWidget);
+        await tester.ensureVisible(key('reference_run_1'));
+        await tester.pumpAndSettle();
+        expect(key('reference_run_1'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tapKey(tester, 'reference_run_1');
+        expect(key('reference_run_loose'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 
   group('Layout', () {

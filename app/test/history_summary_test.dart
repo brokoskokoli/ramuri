@@ -20,7 +20,8 @@ String text(String k) {
 
 const double _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 
-/// Beendeter Lauf: [minutes] mit [speed] m/s, Puls [bpm] (oder keiner).
+/// Beendeter Lauf ab [start]: [minutes] mit [speed] m/s, Puls [bpm] (oder
+/// keiner).
 Future<int> seedRun(
   StorageSession s,
   DateTime start, {
@@ -59,7 +60,11 @@ Future<int> seedRun(
     run.id,
     RunState.finished,
     endedAt: start.add(Duration(seconds: seconds)),
-    endedUtcOffset: Duration.zero,
+    // Ortszeit (`DateTime(…)`): Versatz der Prozesszone wie in der App;
+    // UTC-Zeitpunkte behalten Versatz 0 (Ortstag = UTC-Tag).
+    endedUtcOffset: start.isUtc
+        ? Duration.zero
+        : start.add(Duration(seconds: seconds)).timeZoneOffset,
   );
   return run.id;
 }

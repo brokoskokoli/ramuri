@@ -11,6 +11,7 @@
 // hell/dunkel, 5b Gurtzeile ohne bekannten Gurt (Test-Speicher ohne Geraete),
 // 6 Gurt bekannt, aber getrennt: Autoverbinden beim Oeffnen („verbunden“, auch
 // nach erneutem Oeffnen), Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
+// 6b Kamera gegen Gurt: je Gurt-Paar eine Zeile, Detail oeffnet sich,
 // 7 Ruhephase ueberspringen (Fortschritt, vermerkt), 8 Entwicklermodus aus ->
 // 7b Uhrzeit der Morgen-Erinnerung ueber den Zeitwaehler (geplanter Zeitpunkt
 // am Plattformkanal und im Speicher), 7c feste Uhr: Messung um 23:58 und um
@@ -88,10 +89,6 @@ Future<void> entryLoaded(WidgetTester t, Type owner, String what) async {
   await waitFor(t, () => done, '$what: Einstieg geladen');
   await t.pump();
 }
-
-/// Helligkeit des Themas, das auf der Seite mit [key] gilt.
-Brightness themeAt(WidgetTester t, String key) =>
-    Theme.of(t.element(find.byKey(Key(key)))).brightness;
 
 Future<List<MorningMeasurement>> stored(
   WidgetTester t,
@@ -318,7 +315,7 @@ Future<void> reminderTimeViaUi(WidgetTester t, StorageSession s) async {
     findsOneWidget,
     reason: 'S7b Zeile zeigt die neue Uhrzeit',
   );
-  await shot(t, 's7b_erinnerung_neu');
+  await shotHellDunkel(t, 's7b_erinnerung_neu', 'morning_reminder_time');
   // Wieder aus: gestrichen und gespeichert.
   calls.clear();
   await tapKey(t, 'morning_reminder_switch');
@@ -496,14 +493,14 @@ void main() {
     await waitFor(t, () => has('home_start_run'), 'S1 Heute (home_start_run)');
     await entryLoaded(t, MorningCard, 'S1 Heute');
     expect(has('morning_card'), isFalse, reason: 'S1 keine Karte');
-    await shot(t, 's1_heute_ohne');
+    await shotHellDunkel(t, 's1_heute_ohne', 'home_screen');
     await tapKey(t, 'home_overview');
     await waitFor(t, () => has('overview_about'), 'S1 Uebersicht');
     await entryLoaded(t, MorningTile, 'S1 Uebersicht');
     expect(has('overview_morning'), isFalse, reason: 'S1 kein Eintrag');
     expect(has('overview_morning_values'), isFalse, reason: 'S1 kein Verlauf');
     expect(has('overview_developer'), isFalse, reason: 'S1 keine Entw.-Seite');
-    await shot(t, 's1_uebersicht_ohne');
+    await shotHellDunkel(t, 's1_uebersicht_ohne', 'overview_about');
     log('S1 ok');
 
     step('MORNING S2 entwicklermodus_an');
@@ -561,7 +558,7 @@ void main() {
       )),
       isTrue,
     );
-    await shot(t, 's2_ueber_an_hell');
+    await shotHellDunkel(t, 's2_ueber_an', 'about_dev_link');
     log('S2 ok');
     await back(t);
     // Uebersicht: der Eintrag erscheint beim Zurueckkehren, ohne erneutes Oeffnen.
@@ -635,7 +632,7 @@ void main() {
     log(
       'S3 liegend note_not_counted=${has('morning_note_not_counted')} outside=${has('morning_note_outside')}',
     );
-    await shot(t, 's3_ergebnis_liegend');
+    await shotHellDunkel(t, 's3_ergebnis_liegend', 'morning_done');
     var l = await storedCount(t, s, base + 1);
     expect(l.length, base + 1, reason: 'S3 eine gespeichert');
     expect(
@@ -676,7 +673,7 @@ void main() {
       reason: 'S3 nur die erste gueltige des Morgens zaehlt (K67)',
     );
     await closeResultToHome(t);
-    await shot(t, 's3_heute_karte');
+    await shotHellDunkel(t, 's3_heute_karte', 'home_screen');
 
     step('MORNING S4 schlecht_dann_gueltig');
     // 4) schlechte Qualitaet -> Noch einmal -> gueltig; die schlechte wird im
@@ -692,7 +689,7 @@ void main() {
       reason: 'S4 schlecht bietet Noch einmal',
     );
     expect(has('morning_done'), isFalse);
-    await shot(t, 's4_ergebnis_schlecht');
+    await shotHellDunkel(t, 's4_ergebnis_schlecht', 'morning_again');
     // Entwicklermodus (S2): die unbrauchbare Messung wird gespeichert (K68),
     // zaehlt aber nirgends.
     final afterBad = await storedCount(t, s, base + 3);
@@ -817,21 +814,7 @@ void main() {
     );
     sem.dispose();
     // Bildschirmfotos dunkel und hell (Systemhelligkeit der Testumgebung).
-    t.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
-    await waitFor(
-      t,
-      () => themeAt(t, 'morning_legend') == Brightness.dark,
-      'Morgenwerte dunkel (morning_legend)',
-    );
-    await shot(t, 's3_morgenwerte_marken_dunkel');
-    t.platformDispatcher.platformBrightnessTestValue = Brightness.light;
-    await waitFor(
-      t,
-      () => themeAt(t, 'morning_legend') == Brightness.light,
-      'Morgenwerte hell (morning_legend)',
-    );
-    await shot(t, 's3_morgenwerte_marken_hell');
-    t.platformDispatcher.clearPlatformBrightnessTestValue();
+    await shotHellDunkel(t, 's3_morgenwerte_marken', 'morning_legend');
     await tapKey(t, 'measure_back');
     await back(t);
 
@@ -986,6 +969,65 @@ void main() {
       timeout: const Duration(seconds: 20),
     );
     await shot(t, 's6_nach_teilen');
+
+    step('MORNING S6b kamera_gegen_gurt');
+    // 6b) Kamera gegen Gurt (FR-0217): je Morgen mit Gurt-RR eine Zeile, das
+    // Detail oeffnet sich. Nur Anwesenheit und Zuordnung (ja/nein) ins Log,
+    // keine Werte. Die Test-Quellen liefern einen gleichmaessigen Gurt, daher
+    // ist „keine Zuordnung“ ebenso zulaessig wie RMSSD Kamera und Gurt.
+    final compareRows = find.byWidgetPredicate(
+      (wd) =>
+          wd.key is ValueKey<String> &&
+          (wd.key! as ValueKey<String>).value.startsWith('dev_compare_row_'),
+    );
+    await t.scrollUntilVisible(
+      find.byKey(const Key('dev_compare')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await waitFor(
+      t,
+      () => compareRows.evaluate().isNotEmpty,
+      'S6b Zeilen Kamera gegen Gurt',
+    );
+    expect(
+      compareRows.evaluate().length,
+      pairs.withBelt,
+      reason: 'S6b je Gurt-Paar eine Zeile',
+    );
+    final l10n6 = AppLocalizations.of(t.element(compareRows.first));
+    final rmssdPrefix = l10n6
+        .devCompareRmssd('\u0001', '\u0002')
+        .split('\u0001')
+        .first;
+    final rowTexts = t
+        .widgetList<Text>(
+          find.descendant(of: compareRows.first, matching: find.byType(Text)),
+        )
+        .map((e) => e.data ?? '')
+        .toList();
+    final matched = rowTexts.any((x) => x.startsWith(rmssdPrefix));
+    final noMatch = rowTexts.contains(l10n6.devCompareNoMatch);
+    log('S6b zeilen=${compareRows.evaluate().length} zuordnung=$matched');
+    expect(matched || noMatch, isTrue, reason: 'S6b Zeile mit Vergleich');
+    await t.tap(compareRows.first);
+    await waitFor(
+      t,
+      () => has('dev_compare_detail_rmssd_camera'),
+      'S6b Detail Kamera gegen Gurt',
+    );
+    expect(
+      has('dev_compare_chart'),
+      matched,
+      reason: 'S6b Kurve genau mit Zuordnung',
+    );
+    await shot(t, 's6b_vergleich_detail');
+    await back(t); // Detail -> Entwicklereinstellungen
+    await waitFor(
+      t,
+      () => has('about_dev_switch') || has('dev_compare'),
+      'S6b zurueck',
+    );
 
     step('MORNING S7 ruhephase_ueberspringen');
     // 7) Ruhephase ueberspringen: die Messung startet sofort, der Fortschritt

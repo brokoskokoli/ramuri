@@ -25,6 +25,12 @@ const double restingLiveIntervalSeconds = 1.0;
 /// Zwischenauswertung, die sonst mit der Messdauer wächst. Wert: PAR-226.
 const double restingLiveWindowSeconds = 12.0;
 
+/// Länge des gleitenden Fensters für die laufende Signalstufe und die Hinweise
+/// beim Messen in Sekunden Sensorzeit ([ppgLiveStage]); kurz, damit Wackeln am
+/// Finger schnell sichtbar wird. Nur Anzeige, keine Schwelle der Auswertung.
+/// Wert: PAR-234.
+const double restingLiveStageWindowSeconds = 5.0;
+
 /// Wanduhr-Frist in Sekunden, nach der ein Strom ohne jedes Bild als
 /// unterbrochen gilt. Die Bildlücke selbst zählt allein in Sensorzeit
 /// ([ppgMaxFrameGapSeconds]); die Wanduhr fängt nur ab, dass gar keine Bilder
@@ -135,6 +141,7 @@ class RestingMeasureResult {
     this.goodStretchSeconds = 0.0,
     this.frames = const [],
     this.cameraDetails,
+    this.camera,
   });
 
   final PpgMeasurement measurement;
@@ -164,6 +171,10 @@ class RestingMeasureResult {
 
   /// Letzte Kamera-Angaben der Aufnahme (nur Fenstersuche; `null`, wenn der Adapter keine meldete).
   final PpgCameraDetails? cameraDetails;
+
+  /// Tatsächlich geöffnete Kamera ([PpgCameraStarted.camera]; nur
+  /// Fenstersuche, `null` ohne Meldung).
+  final PpgCameraRef? camera;
 
   /// Ganzzahliger Puls; `null`: kein Wert (nur bei „unbrauchbar“).
   int? get bpm => measurement.hasResult ? measurement.bpm!.round() : null;
@@ -716,32 +727,46 @@ class RestingMeasureController extends ChangeNotifier {
   Future<void> _liveUpdate(int run, double t) async {
     _liveBusy = true;
     _lastLiveT = t;
-    final w = ppgStandardWindow;
-    // Gleitendes Fenster der letzten [restingLiveWindowSeconds]; der Vorlauf
-    // für das Filter (Abstand filterStart zu start) bleibt wie im Standard.
-    final lead = w.start - w.filterStart;
-    final start = math.max(w.start, t - restingLiveWindowSeconds);
-    final window = PpgWindow(
-      filterStart: start - lead,
-      start: start,
-      end: searchWindow ? t : math.min(t, w.end),
-      dataEnd: searchWindow ? t : math.min(t, w.dataEnd),
-    );
+    // Zwei gleitende Fenster: der laufende Puls über [restingLiveWindowSeconds]
+    // (PAR-226), Signalstufe und Hinweis über [restingLiveStageWindowSeconds]
+    // (PAR-234). Beide werten dieselben Bilder bis t aus.
+    final pulseWindow = _liveWindow(t, restingLiveWindowSeconds);
+    final stageWindow = _liveWindow(t, restingLiveStageWindowSeconds);
+    final snapshot = [
+      for (final f in _frames)
+        if (f.t >= pulseWindow.filterStart) f,
+    ];
     try {
-      final m = await _evaluate([
-        for (final f in _frames)
-          if (f.t >= window.filterStart) f,
-      ], window);
+      final pulse = await _evaluate(snapshot, pulseWindow);
       if (run != _run || _phase != RestingMeasurePhase.measuring) return;
-      _livePulse = m.hasResult ? m.bpm!.round() : null;
-      _liveQuality = m.quality;
-      _liveHint = _hintOf(m);
+      final stage = await _evaluate([
+        for (final f in snapshot)
+          if (f.t >= stageWindow.filterStart) f,
+      ], stageWindow);
+      if (run != _run || _phase != RestingMeasurePhase.measuring) return;
+      _livePulse = pulse.hasResult ? pulse.bpm!.round() : null;
+      _liveQuality = ppgLiveStage(stage);
+      _liveHint = _hintOf(stage);
       _notify();
     } catch (_) {
       // Die Zwischenauswertung ist nur Anzeige; die Messung läuft weiter.
     } finally {
       _liveBusy = false;
     }
+  }
+
+  /// Gleitendes Fenster der letzten [seconds] Sensorzeit bis [t]; der Vorlauf
+  /// für das Filter (Abstand filterStart zu start) bleibt wie im Standard.
+  PpgWindow _liveWindow(double t, double seconds) {
+    final w = ppgStandardWindow;
+    final lead = w.start - w.filterStart;
+    final start = math.max(w.start, t - seconds);
+    return PpgWindow(
+      filterStart: start - lead,
+      start: start,
+      end: searchWindow ? t : math.min(t, w.end),
+      dataEnd: searchWindow ? t : math.min(t, w.dataEnd),
+    );
   }
 
   RestingLiveHint? _hintOf(PpgMeasurement m) {
@@ -804,6 +829,7 @@ class RestingMeasureController extends ChangeNotifier {
       goodStretchSeconds: stretch,
       frames: searchWindow ? all : const [],
       cameraDetails: searchWindow ? _details : null,
+      camera: searchWindow ? _startedCamera : null,
     );
     try {
       final p = profile;

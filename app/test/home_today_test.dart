@@ -25,8 +25,8 @@ import 'run_test.dart' show walk;
 
 final Uint8List _appKey = Uint8List.fromList(List.filled(32, 7));
 
-/// Mittwoch, 11.11.2026, mittags (UTC, Versatz 0).
-final _now = DateTime.utc(2026, 11, 11, 12);
+/// Mittwoch, 11.11.2026, mittags Ortszeit (Zone des Testprozesses).
+final _now = DateTime(2026, 11, 11, 12);
 final _today = DateTime.utc(2026, 11, 11);
 
 TrainingGoal _goal(Set<int> days) => TrainingGoal(
@@ -265,13 +265,45 @@ void main() {
   ) async {
     final d = Device();
     await _preopen(d, days: {1, 3, 5});
-    d.clock.set(DateTime.utc(2027, 5, 5, 12));
+    d.clock.set(DateTime(2027, 5, 5, 12));
     await d.start(tester, const Locale('en'));
     expect(key('home_today_plan'), findsOneWidget);
     expect(text('home_today_none'), 'No session is planned for today.');
     expect(key('home_today_rest'), findsNothing);
     expect(key('home_start_unit'), findsNothing);
     expect(key('home_start_run'), findsOneWidget);
+  });
+
+  // Ortstag (PAR-164): Kurz nach Mitternacht Ortszeit liegt der UTC-Tag
+  // östlich von UTC noch auf dem Vortag (Pacific/Auckland: 00:30 am 11.11. ist
+  // 11:30 UTC am 10.11.). „Heute“ und der Plan zeigen beide den Ortstag.
+  testWidgets('00:30 Ortszeit: „Heute“ und Plan zeigen denselben Ortstag, '
+      'nicht den UTC-Vortag', (tester) async {
+    final d = Device();
+    final s = await _preopen(d, days: {1, 3, 5});
+    d.clock.set(localAt(_today, 0, 30));
+    final unit = (await _unitToday(s))!;
+    // Am Dienstag (Vortag) ist keine Einheit geplant.
+    expect(
+      await (s as PlanStorage).plans.unitOn(
+        _today.subtract(const Duration(days: 1)),
+      ),
+      isNull,
+    );
+    await d.start(tester, const Locale('de'));
+    expect(key('home_today_unit'), findsOneWidget);
+    expect(key('home_today_none'), findsNothing);
+    expect(key('home_start_unit'), findsOneWidget);
+    await tester.tap(key('home_plan'));
+    await tester.pumpAndSettle();
+    // „Start“ steht nur am heutigen Tag des Plans, und zwar am 11.11.
+    final today = key('plan_day_${isoDay(unit.day)}');
+    await tester.ensureVisible(today);
+    expect(
+      find.descendant(of: today, matching: key('plan_day_start')),
+      findsOneWidget,
+    );
+    expect(key('plan_day_start'), findsOneWidget);
   });
 
   testWidgets('Einheit starten -> Lauf beendet: Lauf an der Einheit, '
@@ -289,23 +321,71 @@ void main() {
     expect(text('home_week_goal_time'), startsWith('0 min von'));
   });
 
-  testWidgets('Frei laufen: keine Zuordnung zur Einheit von heute', (
-    tester,
-  ) async {
+  testWidgets('Frei laufen an einem Tag mit offener Einheit: kein Dialog, '
+      'Einheit danach erledigt (PAR-231, FR-0025)', (tester) async {
     final d = Device();
     await _preopen(d, days: {1, 3, 5});
     await d.start(tester, const Locale('de'));
     await _runAndFinish(d, tester, 'home_start_run');
-    expect((await d.session.runs.list()).single.state, RunState.finished);
-    // Nachfrage (Maintainer 2026-11-10): ohne Antwort keine Zuordnung.
-    expect(key('home_assign_ask'), findsOneWidget);
-    expect((await _unitToday(d.session))!.runId, isNull);
-    await tester.tap(key('home_assign_no'));
-    await tester.pumpAndSettle();
-    expect(key('home_assign_ask'), findsNothing);
-    expect((await _unitToday(d.session))!.runId, isNull);
-    expect(key('home_start_unit'), findsOneWidget);
+    final run = (await d.session.runs.list()).single;
+    expect(run.state, RunState.finished);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect((await _unitToday(d.session))!.runId, run.id);
+    expect(text('home_today_done'), 'Heute erledigt.');
+    expect(key('home_start_unit'), findsNothing);
+    expect(key('home_assign_failed'), findsNothing);
   });
+
+  testWidgets('Frei laufen, Zuordnung scheitert: Hinweis, Lauf gespeichert, '
+      'Einheit offen; nach Neustart nachgeholt (PAR-231)', (tester) async {
+    final d = Device();
+    await _preopen(d, days: {1, 3, 5});
+    d.storage.data.failAssignRun = true;
+    await d.start(tester, const Locale('de'));
+    await _runAndFinish(d, tester, 'home_start_run');
+    expect(key('home_assign_failed'), findsOneWidget);
+    expect(key('home_assign_not_recalculated'), findsNothing);
+    expect(find.byType(AlertDialog), findsNothing);
+    final run = (await d.session.runs.list()).single;
+    expect(run.state, RunState.finished);
+    expect((await _unitToday(d.session))!.runId, isNull);
+    expect(key('home_today_done'), findsNothing);
+    expect(key('home_start_unit'), findsOneWidget);
+
+    // Speicher wieder schreibbar: Beim Öffnen holt die App die Zuordnung nach.
+    d.storage.data.failAssignRun = false;
+    await d.stop(tester);
+    await d.start(tester, const Locale('de'));
+    expect((await _unitToday(d.session))!.runId, run.id);
+    expect(text('home_today_done'), 'Heute erledigt.');
+    expect(key('home_start_unit'), findsNothing);
+  });
+
+  for (final rest in [true, false]) {
+    testWidgets(
+      rest
+          ? 'Frei laufen am Ruhetag, Zuordnung würde scheitern: kein Hinweis'
+          : 'Frei laufen ohne Plan, Zuordnung würde scheitern: kein Hinweis',
+      (tester) async {
+        final d = Device();
+        final s = await _preopen(d, days: rest ? {1, 3, 5} : null);
+        if (rest) await _restToday(s);
+        d.storage.data.failAssignRun = true;
+        await d.start(tester, const Locale('de'));
+        await _runAndFinish(d, tester, 'home_start_run');
+        final run = (await d.session.runs.list()).single;
+        expect(run.state, RunState.finished);
+        expect(key('home_assign_failed'), findsNothing);
+        expect(key('home_assign_not_recalculated'), findsNothing);
+        expect(find.byType(AlertDialog), findsNothing);
+        if (rest) {
+          expect((await _unitToday(d.session))!.runId, isNull);
+        } else {
+          expect(await _unitToday(d.session), isNull);
+        }
+      },
+    );
+  }
 
   testWidgets('Einheit starten, dann abgebrochen: keine Zuordnung', (
     tester,
@@ -399,8 +479,8 @@ void main() {
       );
     });
 
-    testWidgets('Frei laufen, „Fertig“ vor dem Ende der Berechnung, Ja: '
-        'Lauf zählt zur Einheit, Termin bleibt', (tester) async {
+    testWidgets('Frei laufen, „Fertig“ vor dem Ende der Berechnung: '
+        'Lauf zählt danach zur Einheit, Termin bleibt', (tester) async {
       final d = Device();
       final s = await _preopen(d, days: {1, 3, 5});
       final before = await _unitToday(s);
@@ -414,11 +494,8 @@ void main() {
       await tester.tap(key('run_done_close'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      expect(key('home_assign_ask'), findsOneWidget);
-      expect(text('home_assign_ask_title'), 'Zur heutigen Einheit zählen?');
-      await tester.tap(key('home_assign_yes'));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(AlertDialog), findsNothing);
+      // Die Zuordnung wartet auf die Wertberechnung.
       expect((await _unitToday(d.session))!.runId, isNull);
       gate.complete();
       await tester.pumpAndSettle();
@@ -430,26 +507,36 @@ void main() {
       expect(key('home_today_done'), findsOneWidget);
     });
 
-    testWidgets('Frei laufen ohne Plan: keine Nachfrage (en)', (tester) async {
+    testWidgets('Frei laufen ohne Plan: kein Dialog, kein Hinweis (en)', (
+      tester,
+    ) async {
       final d = Device();
       await _preopen(d);
       await d.start(tester, const Locale('en'));
       await _runAndFinish(d, tester, 'home_start_run');
       expect((await d.session.runs.list()).single.state, RunState.finished);
-      expect(key('home_assign_ask'), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(key('home_assign_failed'), findsNothing);
     });
 
-    testWidgets('Frei laufen am Ruhetag (Tag ohne Einheit): keine Nachfrage', (
+    testWidgets('Frei laufen am Ruhetag (Tag ohne Einheit): keine Zuordnung', (
       tester,
     ) async {
       final d = Device();
-      await _preopen(d, days: {1, 5});
+      final s = await _preopen(d, days: {1, 5});
       await d.start(tester, const Locale('de'));
       await _runAndFinish(d, tester, 'home_start_run');
-      expect(key('home_assign_ask'), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(key('home_assign_failed'), findsNothing);
+      final run = (await s.runs.list()).single;
+      final units = await (s as PlanStorage).plans.unitsBetween(
+        DateTime.utc(2000),
+        planFarFuture,
+      );
+      expect(units.where((u) => u.runId == run.id), isEmpty);
     });
 
-    testWidgets('Ruhetag-Einheit: Ruhetag auf Heute, keine Nachfrage', (
+    testWidgets('Ruhetag-Einheit: Ruhetag auf Heute, keine Zuordnung', (
       tester,
     ) async {
       final d = Device();
@@ -460,11 +547,11 @@ void main() {
       expect(text('home_today_rest'), 'Heute ist Ruhetag.');
       expect(key('home_start_unit'), findsNothing);
       await _runAndFinish(d, tester, 'home_start_run');
-      expect(key('home_assign_ask'), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
       expect((await _unitToday(d.session))!.runId, isNull);
     });
 
-    testWidgets('Einheit schon erledigt: zweiter, freier Lauf ohne Nachfrage', (
+    testWidgets('Einheit schon erledigt: zweiter, freier Lauf ändert nichts', (
       tester,
     ) async {
       final d = Device();
@@ -474,7 +561,7 @@ void main() {
       final first = (await _unitToday(d.session))!.runId;
       expect(first, isNotNull);
       await _runAndFinish(d, tester, 'home_start_run');
-      expect(key('home_assign_ask'), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
       expect((await _unitToday(d.session))!.runId, first);
     });
 
@@ -542,6 +629,50 @@ void main() {
       final run = (await d.session.runs.list()).single;
       expect((await _unitToday(d.session))!.runId, run.id);
       expect(key('home_today_done'), findsOneWidget);
+    });
+
+    testWidgets('Freier Lauf Sonntag über Mitternacht, App vor der '
+        'Zuordnung beendet, Neustart am Montag: der Kalender zeigt den '
+        'Sonntag als erledigt, nicht als Lauf ohne Plan (PAR-231)', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _preopen(d, days: {3, 7});
+      final sunday = DateTime.utc(2026, 11, 15);
+      expect(sunday.weekday, DateTime.sunday);
+      final plans = (s as PlanStorage).plans;
+      expect((await plans.unitOn(sunday))?.runId, isNull);
+      // Start kurz vor Mitternacht, 30 s Lauf bis in den Montag; die App
+      // endet vor dem Beenden (keine Zuordnung nach dem Lauf).
+      d.clock.set(localAt(sunday, 23, 59).add(const Duration(seconds: 45)));
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      await walk(d, tester, 30);
+      await d.stop(tester);
+      d.clock.set(localAt(DateTime.utc(2026, 11, 16), 0, 25));
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('recover_save'));
+      await tester.pumpAndSettle();
+      final run = (await s.runs.list()).single;
+      expect(run.state, RunState.finished);
+      expect(run.startedAt.toLocal().day, 15);
+      expect(run.endedAt!.toLocal().day, 16, reason: 'über Mitternacht');
+      await tester.tap(key('home_plan'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('plan_open_calendar'));
+      await tester.pumpAndSettle();
+      // Die Wochenansicht beginnt mit der Woche der neuen Fassung (Anker
+      // Montag); der Monat zeigt den Sonntag davor.
+      await tester.tap(key('calendar_mode_month'));
+      await tester.pumpAndSettle();
+      final label = tester.getSemantics(key('calendar_day_2026-11-15')).label;
+      expect(label, contains('erledigt'));
+      expect(label, isNot(contains('ausgefallen')));
+      expect(label, isNot(contains('Lauf ohne Plan')));
+      expect((await plans.unitOn(sunday))!.runId, run.id);
     });
 
     for (final rest in [false, true]) {
@@ -679,7 +810,7 @@ void main() {
       final s = await _preopen(d, days: {1, 3, 5});
       // Ende der Planwochen, wie Heute sie am Tag [day] sieht.
       Future<DateTime> end(DateTime day) async {
-        d.clock.set(day.add(const Duration(hours: 12)));
+        d.clock.set(localAt(day, 12));
         final c = PlanController(session: s, clock: d.clock);
         await c.reload();
         final weeks = c.state.hints!.weeks;
@@ -690,12 +821,12 @@ void main() {
       final first = await end(_today);
       final lastDay = first.subtract(const Duration(days: 1));
       expect(await end(lastDay), first);
-      d.clock.set(lastDay.add(const Duration(hours: 12)));
+      d.clock.set(localAt(lastDay, 12));
       await d.start(tester, const Locale('de'));
       expect(key('home_today_plan'), findsOneWidget);
       expect(key('home_today_none'), findsNothing);
       await d.stop(tester);
-      d.clock.set(first.add(const Duration(hours: 12)));
+      d.clock.set(localAt(first, 12));
       await d.start(tester, const Locale('de'));
       expect(key('home_today_none'), findsOneWidget);
     });
@@ -723,16 +854,15 @@ void main() {
   // „Datum · Uhrzeit · Art“ wie im Design, die vier Kennzahlen ohne Scrollen
   // über „Fertig“.
   group('Zusammenfassung nach dem Lauf', () {
-    /// Startet um 07:40 Ortszeit (06:40 UTC, Versatz +1 h), läuft 30 s und
-    /// beendet; die Abschlussseite bleibt offen.
+    /// Startet um 07:40 Ortszeit, läuft 30 s und beendet; die
+    /// Abschlussseite bleibt offen.
     Future<void> finishAt0740(
       Device d,
       WidgetTester tester,
       String start, {
       void Function()? whileRunning,
     }) async {
-      d.clock.set(DateTime.utc(2026, 11, 11, 6, 40));
-      d.clock.utcOffset = const Duration(hours: 1);
+      d.clock.set(DateTime(2026, 11, 11, 7, 40));
       await tester.tap(key(start));
       await tester.pumpAndSettle();
       await tester.tap(key('run_start_ready'));
@@ -755,6 +885,9 @@ void main() {
           final d = Device();
           final s = await _preopen(d, days: {1, 3, 5});
           final unit = (await _unitToday(s))!;
+          // Ohne Einheit: Tag ohne Einheit. Ein freier Lauf an einem Tag mit
+          // offener Einheit zählt als sie (PAR-231) und trägt dann ihre Art.
+          if (!fromPlan) await _restToday(s);
           await d.start(tester, Locale(locale));
           await finishAt0740(
             d,

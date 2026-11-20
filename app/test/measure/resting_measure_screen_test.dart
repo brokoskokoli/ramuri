@@ -8,6 +8,8 @@ import 'package:running_app/features/measure/resting_measure_screen.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
+import '../helpers/local_clock.dart';
+
 import 'measure_support.dart';
 
 // Alle Werte synthetisch. Die Auswertung ist gescriptet (kein echtes Signal);
@@ -35,6 +37,9 @@ const goodLive = PpgMeasurement(
   reasons: [],
   bpm: 62.4,
   rmssdMs: 42.7,
+  signalQuality: 0.8,
+  validIntervals: 12,
+  intervals: 12,
 );
 
 PpgMeasurement unusable(PpgQualityReason r) =>
@@ -64,7 +69,7 @@ class Rig {
   static Future<Rig> make({ProfileRecord? start}) async {
     final cam = HoldingCamera();
     final session = await FakeStorage().open(testKey);
-    final clock = FakeClock(DateTime.utc(2026, 11, 10, 12, 0));
+    final clock = LocalFakeClock(DateTime(2026, 11, 10, 12));
     if (start != null) await session.profile.save(start);
     final script = Script();
     final store = FailingProfileStore(session.profile);

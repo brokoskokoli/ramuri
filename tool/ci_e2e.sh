@@ -14,6 +14,13 @@
 #   readiness       e2e_readiness_test.dart: Erholung (WP34); eigene Stufe mit frischer Installation, weil
 #                   sie Morgenmessungen (nicht loeschbar), Health-Reihen, Einwilligungen und Warnsignal
 #                   setzt und einen leeren Ausgangszustand braucht; kein Prozessende
+#   plan-adapt      e2e_plan_adapt_test.dart: Plananpassung an Erholung (adaptiv/fix); eigene Stufe mit frischer
+#                   Installation, weil sie Ziel, Plan, Morgenmessungen und Entwicklermodus setzt und mit fester
+#                   Uhr laeuft; kein Prozessende
+#   m3-flow         e2e_m3_flow_test.dart: Abschlussfluss M3 (Health Connect ueber die Debug-Quelle, Morgenmessung
+#                   im Entwicklermodus, Karte Erholung, adaptiv/fix, Widerruf mit Loeschfrage); eigene Stufe mit
+#                   frischer Installation, weil sie Ziel, Plan, Morgenmessungen und Einwilligungen setzt und mit
+#                   fester Uhr laeuft; kein Prozessende
 # Prozessende: Der Test gibt "NEED_KILL" (Zeile E2E_...) aus (der Host liest es aus dem Testlog),
 # der Host fuehrt `adb shell am force-stop` aus. Die Stufen davor laufen mit
 # --no-uninstall, damit Daten und Schluessel bis zur Folgestufe bleiben.
@@ -41,13 +48,42 @@
 # Stufen laufen weiter. So endet eine haengende Stufe rot mit Artefakt statt mit dem Abbruch des Jobs.
 # E2E_STUFE_LIMIT_S=<s> (positive ganze Zahl) ersetzt die Grenze aller Stufen (lokal, Selbsttest); ein anderer
 # Wert ist ein Fehler vor der ersten Stufe.
+# Zeitlimit je adb-Aufruf (adb_limit_s unten, Herleitung dort): Haengt ein adb-Aufruf des Hosts (Warteschleife,
+# Logcat, Rechte, GPS, Fotos), beendet der Host genau diesen Aufruf, meldet "adb-Zeitlimit nach <s> s: <unterbefehl>"
+# auf stderr und macht weiter wie nach einem fehlgeschlagenen Aufruf; so greift auch das Zeitlimit je Stufe.
+# E2E_ADB_LIMIT_S=<s> (positive ganze Zahl) ersetzt es (lokal, Selbsttest); ein anderer Wert ist ein Fehler vor
+# der ersten Stufe.
 set -u
 out="${1:-e2e-out}"
 mkdir -p "$out"
 serial="${ANDROID_SERIAL:-emulator-5554}"
 pkg=io.github.brokoskokoli.ramuri
-# Jeder adb-Aufruf mit festem Serial (auf Entwicklerrechnern laufen mehrere Emulatoren).
-a() { adb -s "$serial" "$@"; }
+# Zeitlimit je adb-Aufruf in s. Herleitung: ein Vielfaches der ueblichen Dauer von dumpsys, screencap, logcat -d und
+# uninstall (wenige Sekunden) und deutlich unter der kleinsten Stufengrenze (300 s, grenze_s unten).
+adb_limit_s=60
+# Meldungen von a() gehen auf das stderr des Skripts, auch wenn der Aufruf selbst 2>/dev/null hat.
+exec 9>&2
+# a <unterbefehl> ...: jeder adb-Aufruf mit festem Serial (auf Entwicklerrechnern laufen mehrere Emulatoren) und
+# Zeitlimit. Ohne timeout(1) (fehlt auf macOS): adb im Hintergrund, ein Waechter beendet ihn nach adb_limit_s.
+# stdout geht wie bisher in Pipe bzw. Umleitung des Aufrufs; der Waechter haelt sie nicht offen.
+# Variablennamen apid, wpid, arc: a() laeuft auch im Hauptablauf von stufe() (pid, gpid, rc).
+a() {
+  adb -s "$serial" "$@" </dev/null &
+  apid=$!
+  (
+    sleep "$adb_limit_s"
+    if kill -0 "$apid" 2>/dev/null; then
+      echo "adb-Zeitlimit nach $adb_limit_s s: $1" >&9
+      beende_baum "$apid"
+    fi
+  ) </dev/null >/dev/null 2>&1 &
+  wpid=$!
+  wait "$apid"
+  arc=$?
+  beende_baum "$wpid"
+  wait "$wpid" 2>/dev/null
+  return "$arc"
+}
 
 # Jede Testdatei muss laufen: in all_test.dart eingebunden oder als Stufe unten (Zeile `stufe ... integration_test/<datei>`).
 for f in app/integration_test/e2e_*_test.dart; do
@@ -59,20 +95,23 @@ for f in app/integration_test/e2e_*_test.dart; do
 done
 
 shard_sammlung="sammlung treadmill-plan"
-shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness"
+shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness plan-adapt m3-flow"
 alle_stufen="$shard_sammlung $shard_stufen"
 # Zeitlimit je Stufe in s, fuer die gesamte Laufzeit von flutter test (Build, Install, Tests).
 # Herleitung: das Doppelte der laengsten gemessenen Dauer (Zeilen "STUFE ... dauer=") aus sechs gruenen Laeufen
 # des Workflows e2e auf main, je API 31 und 36 (Messtabelle in PR #69), aufgerundet auf volle Minuten,
 # mindestens 5 min. Gemessene Hoechstwerte: sammlung 733 s, treadmill-plan 376 s, storage-a 319 s,
 # storage-b 43 s, recover-a 73 s, recover-b 57 s, m2-flow 101 s, readiness 106 s.
+# plan-adapt (neu, noch ohne Messung) wie readiness: 5 min.
+# m3-flow: im PR #101 gemessen 82 s (API 31) und 83 s (API 36), doppelt 166 s, also 5 min; im Shard stufen, weil der kuerzer ist (auf main
+# zuletzt ca. 15 min Job gegen ca. 20 min fuer sammlung).
 # Waechst eine Stufe deutlich, hier neu messen und nachziehen.
 grenze_s() {
   case "$1" in
     sammlung) echo 1500 ;;
     treadmill-plan) echo 780 ;;
     storage-a) echo 660 ;;
-    storage-b | recover-a | recover-b | m2-flow | readiness) echo 300 ;;
+    storage-b | recover-a | recover-b | m2-flow | readiness | plan-adapt | m3-flow) echo 300 ;;
   esac
 }
 # Waechter: Jede Zeile `stufe <name> ...` unten muss in einem Shard stehen, sonst liefe sie in der CI nie,
@@ -103,6 +142,13 @@ case "${E2E_STUFE_LIMIT_S:-}" in
   "") ;;
   *[!0-9]*) echo "E2E_STUFE_LIMIT_S keine positive ganze Zahl"; exit 1 ;;
   *) [ "$E2E_STUFE_LIMIT_S" -gt 0 ] 2>/dev/null || { echo "E2E_STUFE_LIMIT_S keine positive ganze Zahl"; exit 1; } ;;
+esac
+# Ebenso das Zeitlimit je adb-Aufruf (leer: adb_limit_s oben).
+case "${E2E_ADB_LIMIT_S:-}" in
+  "") ;;
+  *[!0-9]*) echo "E2E_ADB_LIMIT_S keine positive ganze Zahl"; exit 1 ;;
+  *) [ "$E2E_ADB_LIMIT_S" -gt 0 ] 2>/dev/null || { echo "E2E_ADB_LIMIT_S keine positive ganze Zahl"; exit 1; }
+    adb_limit_s=$E2E_ADB_LIMIT_S ;;
 esac
 
 # shot_watch <testlog> <stufe>: je neue vollstaendige Zeile "E2E_<zeit> SHOT <name>" genau ein Foto
@@ -218,9 +264,11 @@ stufe() {
   done
   wait "$pid"
   rc=$?
-  kill "$gpid" 2>/dev/null
+  # Samt Kindern (laufender adb-Aufruf und sein Waechter), sonst liefen sie weiter.
+  beende_baum "$gpid"
+  wait "$gpid" 2>/dev/null
   if [ -n "$spid" ]; then
-    kill "$spid" 2>/dev/null
+    beende_baum "$spid"
     wait "$spid" 2>/dev/null
     echo "FOTOS Stufe $name: $(find "$out/shots" -name "$name-*.png" | wc -l | tr -d ' ')"
   fi
@@ -262,7 +310,7 @@ stufe() {
 a uninstall "$pkg" >/dev/null 2>&1
 gps_feed &
 fpid=$!
-trap 'kill "$fpid" 2>/dev/null' EXIT
+trap 'beende_baum "$fpid"' EXIT
 
 stufe sammlung 0 integration_test/all_test.dart
 stufe treadmill-plan 0 integration_test/e2e_treadmill_test.dart --dart-define=TREADMILL_PLAN=true
@@ -272,5 +320,7 @@ stufe recover-a 1 integration_test/e2e_recover_test.dart --no-uninstall --dart-d
 stufe recover-b 0 integration_test/e2e_recover_test.dart --dart-define=PHASE=b
 stufe m2-flow 0 integration_test/e2e_m2_flow_test.dart
 stufe readiness 0 integration_test/e2e_readiness_test.dart
+stufe plan-adapt 0 integration_test/e2e_plan_adapt_test.dart
+stufe m3-flow 0 integration_test/e2e_m3_flow_test.dart
 [ "$ran" -gt 0 ] || { echo "keine Stufe gelaufen (Auswahl: '$auswahl')"; exit 1; }
 exit "$rc_all"

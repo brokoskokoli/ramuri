@@ -280,3 +280,23 @@ List<PlanUnit> restoreRecoveryEased(
         u,
   ];
 }
+
+/// Empfehlung bei „fix“ (FR-0216, PAR-173): Der Plan bleibt, aber die App
+/// empfiehlt für heute einen lockeren Lauf, wenn bei „adaptiv“ genau diese
+/// Einheit gelockert würde: offene harte Einheit [unit] von [today]
+/// ([recoveryEasable]) und ein Wert von [today] in einem Band nach
+/// [PlanReadinessDay.eases]. Bei „adaptiv“ nie (dort lockert der Plan selbst),
+/// ohne Wert, mit dem Wert eines anderen Tags oder ohne Zahl nicht.
+bool recoveryRecommendsEasy({
+  required PlanAdaptationMode mode,
+  required PlanReadinessDay? readiness,
+  required PlanUnit? unit,
+  required DateTime today,
+}) {
+  if (mode != PlanAdaptationMode.fixed) return false;
+  if (readiness == null || unit == null || !readiness.eases) return false;
+  final day = planDay(today);
+  return planDay(readiness.day) == day &&
+      planDay(unit.day) == day &&
+      recoveryEasable(unit);
+}

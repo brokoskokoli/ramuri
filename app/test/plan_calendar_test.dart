@@ -19,7 +19,7 @@ import 'history_summary_test.dart' show started;
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
 /// Mittwoch, 11.11.2026, mittags; die Woche beginnt am Montag, 9.11.
-final _now = DateTime.utc(2026, 11, 11, 12);
+final _now = DateTime(2026, 11, 11, 12);
 final _mon = DateTime.utc(2026, 11, 9);
 DateTime _d(int n) => _mon.add(Duration(days: n));
 
@@ -169,7 +169,7 @@ Future<(StorageSession, FakeClock)> _seed({
   int walkRunWeeks = 0,
 }) async {
   final session = await FakeStorage().open(_key);
-  final clock = FakeClock(_now);
+  final clock = LocalFakeClock(_now);
   final goal = _goal(
     capMinutes: capMinutes,
     targetDate: targetDate,
@@ -759,6 +759,33 @@ void main() {
       expect(key('calendar_free_run_2026-11-09'), findsNothing);
     });
 
+    testWidgets('Lauf am Tag einer offenen Einheit: der Plan zählt ihn '
+        'beim Öffnen als diese Einheit, nicht als Lauf ohne Plan (PAR-231, '
+        'FR-0171)', (tester) async {
+      // Heute (Mi 11.11.) offene Einheit, um 7 Uhr frei gelaufen.
+      final (session, clock) = await _seed(
+        extra: [_u(2, PlanUnitKind.easy, 30)],
+        freeRuns: {2: null},
+      );
+      final plans = (session as PlanStorage).plans;
+      expect((await plans.unitOn(_d(2)))!.runId, isNull);
+      // Echter Controller: das Öffnen ordnet zu.
+      await _pump(
+        tester,
+        session,
+        clock,
+        controller: PlanController(session: session, clock: clock),
+      );
+      Finder inDay(String text) => find.descendant(
+        of: key('calendar_day_2026-11-11'),
+        matching: find.textContaining(text),
+      );
+      expect(key('calendar_free_run_2026-11-11'), findsNothing);
+      expect(inDay('Lauf ohne Plan'), findsNothing);
+      expect(inDay('erledigt'), findsOneWidget);
+      expect((await plans.unitOn(_d(2)))!.runId, isNotNull);
+    });
+
     testWidgets('Wochengrenze: intensive Einheit auf einen Montag neben einer '
         'intensiven am Sonntag davor ist ein Konflikt (PAR-059)', (
       tester,
@@ -1321,7 +1348,7 @@ void main() {
         ],
       );
       // Heute ist Freitag, 13.11.: der Ruhetag am Mi 11.11. ist vergangen.
-      clock.set(DateTime.utc(2026, 11, 13, 12));
+      clock.set(DateTime(2026, 11, 13, 12));
       final spy = _Spy(session, clock);
       await _pump(tester, session, clock, controller: spy);
       expect(key('calendar_rest_fixed_${_k(2)}'), findsOneWidget);

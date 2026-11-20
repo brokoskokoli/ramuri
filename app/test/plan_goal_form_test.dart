@@ -13,11 +13,12 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
 
 import 'app_harness.dart';
+import 'history_summary_test.dart' show seedRun;
 
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
 /// Mittwoch, 11.11.2026, mittags.
-final _now = DateTime.utc(2026, 11, 11, 12);
+final _now = DateTime(2026, 11, 11, 12);
 final _today = DateTime.utc(2026, 11, 11);
 
 TrainingGoal _goal({
@@ -146,7 +147,7 @@ Future<void> _pump(
 }
 
 Future<(StorageSession, FakeClock)> _empty() async =>
-    (await FakeStorage().open(_key), FakeClock(_now));
+    (await FakeStorage().open(_key), LocalFakeClock(_now));
 
 /// Speicher mit Ziel und erster Fassung, angelegt am Tag von [clock].
 Future<StorageSession> _withPlan(TrainingGoal goal, FakeClock clock) async {
@@ -256,7 +257,7 @@ void main() {
       WidgetTester tester,
     ) async {
       final session = await FakeStorage().open(_key);
-      final clock = FakeClock(localNow);
+      final clock = LocalFakeClock(localNow);
       await session.profile.save(
         const ProfileRecord(
           trainingDaysMask: 0x15,
@@ -322,7 +323,7 @@ void main() {
 
     testWidgets('Gestern als Zieldatum wird als „in der Vergangenheit“ '
         'abgelehnt, auch westlich von UTC', (tester) async {
-      final clock = FakeClock(DateTime(2026, 11, 1, 12));
+      final clock = LocalFakeClock(DateTime(2026, 11, 1, 12));
       final session = await _withPlan(
         _goal(target: DateTime(2026, 11, 10), createdAt: clock.now()),
         clock,
@@ -345,7 +346,7 @@ void main() {
   testWidgets('Ändern: Formular vorbelegt, Änderung rechnet mit goalChange', (
     tester,
   ) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     final session = await _withPlan(_goal(), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
@@ -635,7 +636,7 @@ void main() {
   testWidgets('Zieldatum vor heute wird mit heute geprüft, nicht mit dem '
       'Anlegetag', (tester) async {
     // Angelegt am 1.11. mit Zieldatum 5.11.; heute ist der 11.11.
-    final clock = FakeClock(DateTime.utc(2026, 11, 1, 12));
+    final clock = LocalFakeClock(DateTime.utc(2026, 11, 1, 12));
     final session = await _withPlan(
       _goal(
         target: DateTime(2026, 11, 5),
@@ -738,7 +739,7 @@ void main() {
       'setzt das Datum, schätzt neu ein und speichert den angebotenen Tag', (
     tester,
   ) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     final session = await _withPlan(
       _goal(target: DateTime(2026, 11, 25)),
       clock,
@@ -880,7 +881,7 @@ void main() {
   testWidgets('Ändern: Stand nur Anzeige, keine Frage zu 30 min', (
     tester,
   ) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     final session = await _withPlan(_goal(), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
@@ -904,7 +905,7 @@ void main() {
     'Ändern: checkGoal rechnet mit den Eingaben des Speicherns '
     '(Geh-Lauf der letzten Fassung), Hinweis und Plan stimmen überein',
     () async {
-      final clock = FakeClock(_now);
+      final clock = LocalFakeClock(_now);
       final session = await _withPlan(_goal(), clock);
       final c = _controller(session, clock);
       addTearDown(c.dispose);
@@ -926,7 +927,7 @@ void main() {
   testWidgets('PAR-115 beim Ändern: Geh-Lauf-Plan verlangt die Bestätigung', (
     tester,
   ) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     final session = await _withPlan(_goal(canRun30: ContinuousRun30.no), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
@@ -1087,7 +1088,7 @@ void main() {
   });
 
   testWidgets('Regler: geänderter Wert wird gespeichert', (tester) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     final session = await _withPlan(_goal(), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
@@ -1212,7 +1213,7 @@ void main() {
 
   testWidgets('Ändern ohne Stand am Ziel und ohne Läufe: Einschätzen und '
       'Speichern gehen', (tester) async {
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     // Angelegt mit Stand aus Läufen: weder Wochenumfang noch 30 min.
     final session = await _withPlan(
       _goal(canRun30: ContinuousRun30.unknown),
@@ -1269,7 +1270,7 @@ void main() {
     // außerhalb der Spanne.
     final storage = FakeStorage();
     final session = await storage.open(_key);
-    final clock = FakeClock(_now);
+    final clock = LocalFakeClock(_now);
     storage.data.references.add(
       StoredReference(
         id: 1,
@@ -1330,7 +1331,7 @@ void main() {
     testWidgets('englisch, ${brightness.name}: Formular und Einstieg', (
       tester,
     ) async {
-      final clock = FakeClock(_now);
+      final clock = LocalFakeClock(_now);
       final session = await _withPlan(_goal(), clock);
       final c = _controller(session, clock);
       await _pump(
@@ -1383,5 +1384,211 @@ void main() {
       isTrue, // PAR-198: Standard an bei Zeitzielen
     );
     expect(tester.takeException(), isNull);
+  });
+
+  group('Referenz aus einem gespeicherten Lauf (FR-0129, FR-0131)', () {
+    PredictionStore store(StorageSession s) =>
+        (s as PredictionStorage).prediction;
+
+    /// Gleichmäßiger Lauf vor [daysAgo] Tagen: [minutes] mit [speed] m/s.
+    Future<int> run(
+      StorageSession s, {
+      int daysAgo = 3,
+      int minutes = 24,
+      double speed = 3.5,
+      int? rpe,
+    }) async {
+      final id = await seedRun(
+        s,
+        _now.subtract(Duration(days: daysAgo, hours: 2)),
+        minutes: minutes,
+        speed: speed,
+      );
+      if (rpe != null) await s.subjective.save(id, RunSubjective(rpe: rpe));
+      return id;
+    }
+
+    Future<void> openForm(
+      WidgetTester tester,
+      StorageSession session,
+      FakeClock clock, {
+      String locale = 'de',
+    }) async {
+      final c = _controller(session, clock);
+      await _pump(
+        tester,
+        session: session,
+        clock: clock,
+        controller: c,
+        locale: locale,
+      );
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_create_goal')),
+      );
+    }
+
+    testWidgets('Abschnitt trägt den Zusatz „freiwillig“', (tester) async {
+      final (session, clock) = await _empty();
+      await openForm(tester, session, clock);
+      expect(de.planFormReferences, contains('freiwillig'));
+      expect(en.planFormReferences, contains('optional'));
+      expect(find.text(de.planFormReferences), findsOneWidget);
+    });
+
+    testWidgets('Lauf mit RPE 9 über 5 km: Vorschlag im Zielformular; '
+        'Bestätigen speichert ihn als Referenz mit Lauf-ID (PAR-185)', (
+      tester,
+    ) async {
+      final (session, clock) = await _empty();
+      final id = await run(session, rpe: 9);
+      await openForm(tester, session, clock);
+      expect(find.byKey(const Key('plan_form_suggestion')), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('plan_form_suggestion_text')))
+            .data,
+        contains('5,04 km'),
+      );
+      // Ohne Bestätigung keine Referenz.
+      expect(await store(session).references(), isEmpty);
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_form_suggestion_accept')),
+      );
+      final refs = await store(session).references();
+      expect(refs, hasLength(1));
+      expect(refs.single.reference.kind, ReferenceKind.confirmedRun);
+      expect(refs.single.reference.runId, '$id');
+      expect(refs.single.reference.distanceMeters, closeTo(5040, 60));
+      expect(find.byKey(const Key('plan_form_suggestion')), findsNothing);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('plan_form_reference'))).data,
+        startsWith('Gilt: 5,0'),
+      );
+    });
+
+    testWidgets('Vorschlag ablehnen: keine Referenz, Vorschlag weg', (
+      tester,
+    ) async {
+      final (session, clock) = await _empty();
+      final id = await run(session, rpe: 9);
+      await openForm(tester, session, clock);
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_form_suggestion_reject')),
+      );
+      expect(await store(session).references(), isEmpty);
+      expect(await store(session).rejectedSuggestions(), {id});
+      expect(find.byKey(const Key('plan_form_suggestion')), findsNothing);
+    });
+
+    testWidgets('Lockerer Lauf ist kein Vorschlag (PAR-185)', (tester) async {
+      final (session, clock) = await _empty();
+      await run(session, rpe: 5);
+      await openForm(tester, session, clock);
+      expect(find.byKey(const Key('plan_form_suggestion')), findsNothing);
+    });
+
+    testWidgets('Aus einem Lauf übernehmen mit RPE 5: Hinweis, Abbrechen '
+        'speichert nichts, Trotzdem übernehmen speichert; Löschen des Laufs '
+        'entfernt die Referenz', (tester) async {
+      final (session, clock) = await _empty();
+      // Zu kurz und zu alt: nicht in der Liste.
+      await run(session, daysAgo: 1, minutes: 10, rpe: 9);
+      await run(session, daysAgo: 100, rpe: 9);
+      final id = await run(session, rpe: 5);
+      await openForm(tester, session, clock);
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_form_reference_add')),
+      );
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('prediction_form_from_run')),
+      );
+      expect(find.byKey(const Key('reference_run_0')), findsOneWidget);
+      expect(find.byKey(const Key('reference_run_1')), findsNothing);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('reference_run_0_rpe'))).data,
+        de.referenceRunRpe(5),
+      );
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('reference_run_0')),
+      );
+      expect(find.text(de.referenceLooseBody), findsOneWidget);
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('reference_run_loose_cancel')),
+      );
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('reference_run_cancel')),
+      );
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('prediction_form_cancel')),
+      );
+      expect(await store(session).references(), isEmpty);
+
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_form_reference_add')),
+      );
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('prediction_form_from_run')),
+      );
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('reference_run_0')),
+      );
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('reference_run_loose_confirm')),
+      );
+      final refs = await store(session).references();
+      expect(refs, hasLength(1));
+      final r = refs.single.reference;
+      expect(r.kind, ReferenceKind.confirmedRun);
+      expect(r.runId, '$id');
+      expect(r.distanceMeters, closeTo(5040, 60));
+      expect(r.seconds, closeTo(24 * 60, 5));
+      expect(calendarDay(r.date), DateTime.utc(2026, 11, 8));
+      expect(
+        tester.widget<Text>(find.byKey(const Key('plan_form_reference'))).data,
+        startsWith('Gilt: 5,0'),
+      );
+
+      // Bestehendes Verhalten: mit dem Lauf verschwindet die Referenz.
+      await session.deleteRun(id);
+      expect(await store(session).references(), isEmpty);
+    });
+
+    for (final locale in ['de', 'en']) {
+      testWidgets('$locale, große Schrift: Abschnitt mit Vorschlag ohne '
+          'Überlauf', (tester) async {
+        final (session, clock) = await _empty();
+        await run(session, rpe: 9);
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await openForm(tester, session, clock, locale: locale);
+        // Die Liste baut nur Sichtbares; bis zum Vorschlag scrollen.
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('plan_form_suggestion_accept')),
+          300,
+          scrollable: find
+              .descendant(
+                of: find.byKey(const Key('plan_form')),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('plan_form_suggestion')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }

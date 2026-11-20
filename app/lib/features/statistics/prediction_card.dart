@@ -10,6 +10,8 @@ import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
 import 'prediction_controller.dart';
 import 'reference_form.dart';
+import 'reference_run_picker.dart';
+import 'reference_suggestion_box.dart';
 
 /// Karte „Prognose“ auf Fortschritt (WP20 Teil C, FR-0128 bis FR-0134).
 ///
@@ -104,11 +106,19 @@ class _PredictionCardState extends State<PredictionCard> {
     }
   }
 
+  /// Von Hand oder „Aus einem Lauf übernehmen“ (FR-0129) wie im
+  /// Zielformular. Nach dem Speichern lädt der Controller neu; ein Vorschlag
+  /// zum übernommenen Lauf verschwindet damit (PAR-185).
   Future<void> _add() async {
     final reference = await showReferenceForm(
       context,
       now: widget.clock.now(),
       formatter: AppSettingsScope.formatterOf(context),
+      loadRuns: storedReferenceRuns(
+        session: widget.session,
+        clock: widget.clock,
+        offload: OffloadScope.of(context),
+      ),
     );
     if (reference != null) await _run(_c.addReference(reference));
   }
@@ -205,7 +215,7 @@ class _PredictionCardState extends State<PredictionCard> {
             ),
           )
           ..add(
-            _Action(
+            SuggestionAction(
               key: const Key('prediction_retry'),
               label: l10n.predictionRetry,
               onPressed: _c.reload,
@@ -310,7 +320,18 @@ class _PredictionCardState extends State<PredictionCard> {
     if (suggestion != null) {
       out
         ..add(const SizedBox(height: 12))
-        ..add(_suggestion(context, suggestion, formatter));
+        ..add(
+          ReferenceSuggestionBox(
+            suggestion: suggestion,
+            formatter: formatter,
+            onAccept: _c.busy
+                ? null
+                : () => _run(_c.acceptSuggestion(suggestion)),
+            onReject: _c.busy
+                ? null
+                : () => _run(_c.rejectSuggestion(suggestion)),
+          ),
+        );
     }
 
     out.add(const SizedBox(height: 4));
@@ -318,18 +339,18 @@ class _PredictionCardState extends State<PredictionCard> {
       Wrap(
         spacing: 8,
         children: [
-          _Action(
+          SuggestionAction(
             key: const Key('prediction_add'),
             label: l10n.predictionAddReference,
             onPressed: _c.busy ? null : _add,
           ),
           if (state.active != null)
-            _Action(
+            SuggestionAction(
               key: const Key('prediction_delete'),
               label: l10n.predictionDeleteReference,
               onPressed: _c.busy ? null : () => _delete(state.active!),
             ),
-          _Action(
+          SuggestionAction(
             key: const Key('prediction_explain'),
             label: l10n.predictionExplainLink,
             onPressed: () => _explain(context, prediction.metadata),
@@ -402,75 +423,6 @@ class _PredictionCardState extends State<PredictionCard> {
     return out;
   }
 
-  Widget _suggestion(
-    BuildContext context,
-    ReferenceSuggestion s,
-    UnitFormatter formatter,
-  ) {
-    final l10n = AppLocalizations.of(context);
-    final c = RamuriColors.of(context);
-    final theme = Theme.of(context).textTheme;
-    final lang = Localizations.localeOf(context).languageCode;
-    return DecoratedBox(
-      key: const Key('prediction_suggestion'),
-      decoration: BoxDecoration(
-        color: c.tint,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Semantics(
-              header: true,
-              child: Text(
-                l10n.predictionSuggestionTitle,
-                style: theme.labelLarge!.copyWith(fontWeight: FontWeight.w800),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              l10n.predictionSuggestionBody(
-                DateFormat.yMMMd(lang).format(s.run.date),
-                formatter.distance(s.run.distanceMeters),
-                clockTimeText(s.run.movingSeconds),
-              ),
-              key: const Key('prediction_suggestion_text'),
-              style: theme.bodyMedium,
-            ),
-            for (final b in s.branches)
-              Text(switch (b) {
-                SuggestionBranch.hardAndSteady => l10n.predictionSuggestionHard,
-                SuggestionBranch.beatsReference =>
-                  l10n.predictionSuggestionBeats,
-              }, style: theme.bodySmall!.copyWith(color: c.textMuted)),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 8,
-              children: [
-                _Action(
-                  key: const Key('prediction_suggestion_accept'),
-                  label: l10n.predictionSuggestionAccept,
-                  onPressed: _c.busy
-                      ? null
-                      : () => _run(_c.acceptSuggestion(s)),
-                ),
-                _Action(
-                  key: const Key('prediction_suggestion_reject'),
-                  label: l10n.predictionSuggestionReject,
-                  onPressed: _c.busy
-                      ? null
-                      : () => _run(_c.rejectSuggestion(s)),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _explain(BuildContext context, PredictionMetadata m) {
     final l10n = AppLocalizations.of(context);
     final lang = Localizations.localeOf(context).languageCode;
@@ -535,28 +487,6 @@ class _PredictionCardState extends State<PredictionCard> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Action extends StatelessWidget {
-  const _Action({super.key, required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    // Vordergrund aus dem Textknopf-Theme (`accent`): `action` ist für dunkle
-    // Flächen und gefüllte Knöpfe, auf der hellen Karte unlesbar.
-    return TextButton(
-      style: TextButton.styleFrom(
-        minimumSize: const Size(0, RamuriTheme.minTarget),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        textStyle: RamuriType.of(context).link,
-      ),
-      onPressed: onPressed,
-      child: Text(label),
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,8 +8,12 @@ import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../settings/app_settings.dart';
+import '../../offload_scope.dart';
 import '../statistics/prediction_card.dart';
+import '../statistics/prediction_controller.dart';
 import '../statistics/reference_form.dart';
+import '../statistics/reference_run_picker.dart';
+import '../statistics/reference_suggestion_box.dart';
 import 'plan_controller.dart';
 import 'plan_texts.dart';
 
@@ -92,6 +98,10 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   // Gespeicherte, aber unbrauchbare Referenz (nur Anzeige, K49).
   ReferencePerformance? _unusedReference;
 
+  /// Vorschlag eines Laufs als Referenz wie in der Prognosekarte (PAR-185);
+  /// `null` ohne Prognose-Daten im Speicher.
+  PredictionController? _prediction;
+
   /// Die Einschätzung samt genau dem Entwurf, der eingeschätzt wurde;
   /// gespeichert wird dieser Entwurf.
   ({TrainingGoal draft, GoalDraftCheck check})? _check;
@@ -151,6 +161,15 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     }
     for (final c in [_hours, _minutes, _seconds, _maxSession, _weekly]) {
       c.addListener(_changed);
+    }
+    if (widget.session is PredictionStorage) {
+      _prediction = PredictionController(
+        session: widget.session,
+        clock: widget.clock,
+        // Nur der Vorschlag wird gezeigt; die VO₂max ändert ihn nicht.
+        hasVo2maxEstimate: false,
+        offload: OffloadScope.of(context),
+      )..addListener(_predictionChanged);
     }
     _load();
   }
@@ -212,7 +231,14 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     for (final c in [_hours, _minutes, _seconds, _maxSession, _weekly]) {
       c.dispose();
     }
+    _prediction
+      ?..removeListener(_predictionChanged)
+      ..dispose();
     super.dispose();
+  }
+
+  void _predictionChanged() {
+    if (mounted) setState(() {});
   }
 
   /// Jede Änderung verwirft die Einschätzung: Gespeichert wird nur, was
@@ -424,27 +450,71 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   Future<void> _addReference() async {
     final l = AppLocalizations.of(context);
     _releaseFocus();
+    final offload = OffloadScope.of(context);
     final reference = await showReferenceForm(
       context,
       now: widget.clock.now(),
       formatter: AppSettingsScope.formatterOf(context),
+      loadRuns: storedReferenceRuns(
+        session: widget.session,
+        clock: widget.clock,
+        offload: offload,
+      ),
     );
     if (reference == null || !mounted) return;
     final store = (widget.session as PredictionStorage).prediction;
     try {
       await store.addReference(reference);
-      final active = await store.activeReference();
-      final unused = active == null ? await _unusedReferenceOf() : null;
-      if (!mounted) return;
-      // Die Referenz geht in die Einschätzung eines Zeitziels ein.
-      _set(() {
-        _reference = active;
-        _unusedReference = unused;
-      });
+      await _refreshReference();
     } on Object {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(l.planFormReferenceFailed)));
+    }
+    // Ein übernommener Lauf ist kein Vorschlag mehr; eine neue Referenz
+    // ändert Zweig 2 (PAR-185).
+    unawaited(_prediction?.reload());
+  }
+
+  /// Liest die geltende Referenz neu; sie geht in die Einschätzung eines
+  /// Zeitziels ein.
+  Future<void> _refreshReference() async {
+    final store = (widget.session as PredictionStorage).prediction;
+    final active = await store.activeReference();
+    final unused = active == null ? await _unusedReferenceOf() : null;
+    if (!mounted) return;
+    _set(() {
+      _reference = active;
+      _unusedReference = unused;
+    });
+  }
+
+  /// Bestätigt den Vorschlag: gespeichert als bestätigter Lauf mit Lauf-ID
+  /// (FR-0131), nie ohne diese Bestätigung.
+  Future<void> _acceptSuggestion(ReferenceSuggestion s) async {
+    final l = AppLocalizations.of(context);
+    final ok = await _prediction!.acceptSuggestion(s);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l.planFormReferenceFailed)));
+      return;
+    }
+    try {
+      await _refreshReference();
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l.planFormReferenceFailed)));
+    }
+  }
+
+  Future<void> _rejectSuggestion(ReferenceSuggestion s) async {
+    final l = AppLocalizations.of(context);
+    final ok = await _prediction!.rejectSuggestion(s);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l.predictionActionFailed)));
     }
   }
 
@@ -663,13 +733,20 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            l.planFormRegulatorRelaxed,
-            style: text.bodySmall?.copyWith(color: c.textLabel),
+          // Flexible: bei großer Schrift umbrechen statt überlaufen.
+          Flexible(
+            child: Text(
+              l.planFormRegulatorRelaxed,
+              style: text.bodySmall?.copyWith(color: c.textLabel),
+            ),
           ),
-          Text(
-            l.planFormRegulatorDemanding,
-            style: text.bodySmall?.copyWith(color: c.textLabel),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              l.planFormRegulatorDemanding,
+              textAlign: TextAlign.end,
+              style: text.bodySmall?.copyWith(color: c.textLabel),
+            ),
           ),
         ],
       ),
@@ -792,6 +869,20 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
         key: const Key('plan_form_reference'),
         style: text.bodyMedium,
       ),
+      if (_prediction?.state.suggestion case final suggestion?) ...[
+        const SizedBox(height: 8),
+        ReferenceSuggestionBox(
+          keyPrefix: 'plan_form_suggestion',
+          suggestion: suggestion,
+          formatter: formatter,
+          onAccept: _prediction!.busy
+              ? null
+              : () => _acceptSuggestion(suggestion),
+          onReject: _prediction!.busy
+              ? null
+              : () => _rejectSuggestion(suggestion),
+        ),
+      ],
       Align(
         alignment: AlignmentDirectional.centerStart,
         child: TextButton.icon(

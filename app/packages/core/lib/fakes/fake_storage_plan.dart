@@ -53,6 +53,9 @@ class FakePlanRepository implements PlanRepository {
 
   @override
   Future<void> assignRun(int unitId, int? runId) async {
+    if (_d.failAssignRun) {
+      throw const StorageException(StorageFailure.failed);
+    }
     final u = _d.planUnits[unitId];
     if (u == null || (runId != null && !_d.runs.containsKey(runId))) {
       throw const StorageException(StorageFailure.notFound);

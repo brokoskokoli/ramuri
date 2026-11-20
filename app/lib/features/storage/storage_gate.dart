@@ -53,8 +53,8 @@ class _StorageGateState extends State<StorageGate> {
       FileHandoffScope.of(context) != null;
 
   /// Weg "Aus Archiv wiederherstellen" im Dialog "nicht zu öffnen" (SEC-0009):
-  /// Datei wählen, Kopf vorprüfen, Passwort, das Archiv vollständig prüfen, ohne etwas zu
-  /// schreiben, erst dann die Bestätigung, dass die alte Datei gelöscht wird.
+  /// Datei wählen, Kopf vorprüfen, Versuch mit dem leeren Passwort, nur sonst
+  /// Passwort, das Archiv vollständig prüfen, ohne etwas zu schreiben, erst dann die Bestätigung, dass die alte Datei gelöscht wird.
   /// Bis zur Bestätigung bleibt alles unberührt; ein falsches Passwort kostet
   /// nichts. Danach Neubeginn und Einspielen in die leere Datenbank, bevor die
   /// App bereit meldet. Die gewählte Kopie wird immer entsorgt.
@@ -83,11 +83,13 @@ class _StorageGateState extends State<StorageGate> {
       final check = ArchiveScope.headerCheckOf(context);
       if (!await precheckPickedArchive(context, check, path)) return;
       if (!mounted) return;
-      var wrong = false;
+      // Zuerst das leere Passwort (Archiv ohne Passwort, SEC-0011); nur wenn
+      // es nicht passt, fragt die App.
+      var attempt = ArchivePasswordAttempt.empty;
       String password;
       while (true) {
         if (!mounted) return;
-        final asked = await askArchivePassword(context, wrong: wrong);
+        final asked = await nextArchivePassword(context, attempt);
         if (asked == null || !mounted) return;
         password = asked;
         final cancel = ArchiveCancel();
@@ -101,7 +103,7 @@ class _StorageGateState extends State<StorageGate> {
           break;
         } on ArchiveImportException catch (e) {
           if (e.failure == ArchiveImportFailure.wrongPasswordOrDamaged) {
-            wrong = true;
+            attempt = attempt.next;
             continue;
           }
           if (e.failure == ArchiveImportFailure.cancelled) {

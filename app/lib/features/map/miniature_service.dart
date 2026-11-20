@@ -16,8 +16,11 @@ const int miniatureMaxParallel = 4;
 /// ein echter Fehler kostet höchstens diese Versuche, nie einen Dauerversuch.
 const int miniatureMaxAttempts = 3;
 
-/// Fassung der Miniatur: bei jeder Änderung an Größe oder Aussehen hochzählen, dann entstehen neue Bilder.
-const String miniatureVersion = 'v1';
+/// Fassung der Miniatur: bei jeder Änderung an Größe, Aussehen oder Linienführung (Trennung der Linie an Pausen,
+/// Ausfällen nach Absturz und Lücken) hochzählen, dann entstehen neue Bilder. Bilder einer älteren Fassung werden
+/// nicht mehr gelesen; sie bleiben verschlüsselt im Speicher, bis die Verdrängung, das Löschen des Laufs oder
+/// „Alles löschen“ sie entfernt. v2: Linie am Ausfall nach Absturz getrennt (FR-0204, FR-0042).
+const String miniatureVersion = 'v2';
 
 /// Die Variante einer Miniatur im Schlüssel: Fassung, Größe und die Farben der Karte. Die Karte ist in beiden Themen
 /// hell ([style] ist heute vom Thema unabhängig), deshalb gibt es keinen eigenen Teil für hell und dunkel; hängt der
