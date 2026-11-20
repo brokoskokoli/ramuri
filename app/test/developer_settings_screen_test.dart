@@ -59,8 +59,8 @@ Future<DeveloperModeStore> _pumpAll(
 }
 
 void pageTests() {
-  testWidgets('Seite: Titel, Abschnitte Entwicklermodus, Kamera, Messpaare in '
-      'dieser Reihenfolge', (tester) async {
+  testWidgets('Seite: Titel, Abschnitte Entwicklermodus, Kamera, Messpaare, '
+      'Kamera gegen Gurt in dieser Reihenfolge', (tester) async {
     await _pumpAll(tester);
     expect(find.widgetWithText(AppBar, 'Entwicklereinstellungen'), findsOne);
     expect(find.text('Entwicklermodus'), findsOneWidget);
@@ -68,9 +68,11 @@ void pageTests() {
       key('about_dev_switch'),
       key('about_ppg_camera_card'),
       key('about_pairs'),
+      key('dev_compare'),
     ].map((f) => tester.getTopLeft(f).dy).toList();
     expect(y[0], lessThan(y[1]));
     expect(y[1], lessThan(y[2]));
+    expect(y[2], lessThan(y[3]));
   });
 
   testWidgets('Seite: Englisch', (tester) async {
@@ -178,8 +180,9 @@ void pairsTests() {
     expect(
       find.text(
         '1 Morgen mit Gurt-RR, 1 ohne. Gespeichert wird, wenn bei der '
-        'Morgenmessung eine Pulsquelle mit RR verbunden ist. Die App wertet '
-        'den Gurt nicht aus.',
+        'Morgenmessung eine Pulsquelle mit RR verbunden ist. Den Vergleich '
+        'zeigt der Abschnitt „Kamera gegen Gurt“; er geht in keine Auswertung '
+        'ein.',
       ),
       findsOneWidget,
     );

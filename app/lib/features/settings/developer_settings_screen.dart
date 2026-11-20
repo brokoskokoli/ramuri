@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../reminders/reminder_controller.dart';
+import 'belt_compare_screen.dart';
 import 'morning_pairs_section.dart';
 import 'ppg_camera_section.dart';
 
 /// Seite „Entwicklereinstellungen“ (FR-0217): bündelt alles, was es nur im
 /// Entwicklermodus gibt – in dieser Reihenfolge Schalter „Entwicklermodus“,
-/// „Kamera für die Pulsmessung“ (FR-0220) und „Messpaare“. Erreichbar über die
+/// „Kamera für die Pulsmessung“ (FR-0220), „Messpaare“ und „Kamera gegen
+/// Gurt“. Erreichbar über die
 /// Übersicht (nur bei eingeschaltetem Modus) und den Verweis auf „Über“.
 ///
 /// Schaltet man den Modus hier aus, schließt sich die Seite; wer sie geöffnet
@@ -26,7 +28,8 @@ class DeveloperSettingsScreen extends StatefulWidget {
 
   final DeveloperModeStore developerMode;
 
-  /// Morgenmessungen für „Messpaare“; ohne Speicher entfällt der Teil.
+  /// Morgenmessungen für „Messpaare“ und „Kamera gegen Gurt“; ohne Speicher
+  /// entfallen beide.
   final MorningStore? morning;
 
   /// Kamera und gespeicherte Kamerawahl für „Kamera für die Pulsmessung“
@@ -121,6 +124,12 @@ class _DeveloperSettingsScreenState extends State<DeveloperSettingsScreen> {
                   store: widget.morning!,
                   clock: widget.clock,
                 ),
+              ),
+              const SizedBox(height: 8),
+              RamuriCard(
+                key: const Key('dev_compare_card'),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: BeltCompareSection(store: widget.morning!),
               ),
             ],
           ],

@@ -126,6 +126,9 @@ void main() {
     expect(e.offset, 4);
     expect(e.beltWindowMs[1], 2000);
     expect(e.beltWindowMs[2], isNotNull);
+    final under = [..._raw]..[6] = 276; // 269,5 ms
+    final u = _match(compareMorningWithBelt(_camera(), _packets(under)));
+    expect(u.beltWindowMs[2], isNull);
     final over = [..._raw]..[5] = 2049;
     final o = _match(compareMorningWithBelt(_camera(), _packets(over)));
     expect(o.beltWindowMs[1], isNull);
