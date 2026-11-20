@@ -97,6 +97,12 @@ Future<void> _tapKey(WidgetTester tester, String key) =>
 String _text(WidgetTester tester, String key) =>
     tester.widget<Text>(find.byKey(Key(key))).data!;
 
+String _buttonText(WidgetTester tester, String key) => tester
+    .widget<Text>(
+      find.descendant(of: find.byKey(Key(key)), matching: find.byType(Text)),
+    )
+    .data!;
+
 void main() {
   late AppLocalizations de;
   late AppLocalizations en;
@@ -237,19 +243,34 @@ void main() {
     });
 
     testWidgets('Ungültige Referenz (Tempo außerhalb, PAR-208): Fehler im '
-        'Formular, nichts übernommen', (tester) async {
-      // 5 km in 10 min: schneller als 2:30 min/km.
+        'Formular mit Werten und Datum des Laufs, nichts übernommen', (
+      tester,
+    ) async {
+      // 5 km in 10 min: schneller als 2:30 min/km. Der Lauf liegt klar vor
+      // heute, damit das Datumsfeld nicht zufällig stimmt.
       final host = await _open(
         tester,
-        runs: [_run('9', daysAgo: 1, seconds: 10 * 60, rpe: 9)],
+        runs: [_run('9', daysAgo: 20, seconds: 10 * 60, rpe: 9)],
       );
+      final runDay = DateFormat.yMMMd('de').format(_day(20));
+      expect(runDay, isNot(DateFormat.yMMMd('de').format(_day(0))));
       await _tapKey(tester, 'prediction_form_from_run');
       await _tapKey(tester, 'reference_run_0');
       expect(host.closed, isFalse);
       expect(find.byKey(const Key('prediction_form_error')), findsOneWidget);
-      // Die Felder zeigen die Werte des Laufs.
+      // Die Felder zeigen die Werte des Laufs, auch das Datum.
       expect(find.text('5,00'), findsOneWidget);
       expect(find.text('10'), findsOneWidget);
+      expect(_buttonText(tester, 'prediction_form_date'), runDay);
+      // Nach einer Korrektur von Hand trägt die Referenz das Laufdatum.
+      await tester.enterText(
+        find.byKey(const Key('prediction_form_minutes')),
+        '25',
+      );
+      await _tapKey(tester, 'prediction_form_save');
+      expect(host.closed, isTrue);
+      expect(host.result!.seconds, 25 * 60);
+      expect(host.result!.date, _day(20));
     });
 
     for (final lang in ['de', 'en']) {
