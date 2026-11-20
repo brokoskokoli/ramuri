@@ -5,6 +5,7 @@ import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
+import 'package:running_app/features/plan/plan_started_unit.dart';
 
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
@@ -1985,5 +1986,203 @@ void main() {
         expect((await ok.goals.goal())!.targetDate, localDay(ok, 0));
       },
     );
+  });
+
+  group('PAR-231: Läufe zählen automatisch für die offene Einheit', () {
+    /// Beendeter Lauf, der am Tag [d] um [h]:[m] UTC beginnt und [minutes]
+    /// dauert (Versatz null, Ortstag = UTC-Tag).
+    Future<int> runAt(
+      StorageSession s,
+      DateTime d,
+      int h,
+      int m, {
+      int minutes = 40,
+    }) async {
+      final start = d.add(Duration(hours: h, minutes: m));
+      final r = await s.runs.create(startedAt: start);
+      await s.runs.setState(
+        r.id,
+        RunState.finished,
+        endedAt: start.add(Duration(minutes: minutes)),
+        endedUtcOffset: Duration.zero,
+      );
+      return r.id;
+    }
+
+    Future<Map<int, int?>> assigned(_Env e) async => {
+      for (final u in await e.plans.unitsBetween(
+        DateTime.utc(2000),
+        planFarFuture,
+      ))
+        if (u.runId != null) u.id!: u.runId,
+    };
+
+    test('Lauf um 17:30, Plan um 19:00 desselben Tags: die heutige Einheit '
+        'ist erledigt (FR-0156)', () async {
+      final e = await _Env.open();
+      final run = await runAt(e.session, _today, 17, 30);
+      e.clock.set(_today.add(const Duration(hours: 19)));
+      expect(
+        await e.controller.saveGoal(_goal(days: {1, 3, 5})),
+        PlanActionResult.done,
+      );
+      final unit = await e.controller.unitOn(_today);
+      expect(unit, isNotNull);
+      expect(unit!.runId, run);
+    });
+
+    test('Lauf gestern, Plan heute: keine Einheit gestern, nichts '
+        'zugeordnet', () async {
+      final e = await _Env.open();
+      await runAt(e.session, _day(-1), 17, 30);
+      await e.controller.saveGoal(_goal(days: {2, 3, 5}));
+      expect(await e.controller.unitOn(_day(-1)), isNull);
+      expect(await assigned(e), isEmpty);
+      expect((await e.plans.history()).map((v) => v.trigger), [
+        PlanTrigger.create,
+      ]);
+    });
+
+    test('Idempotenz: Plan und App erneut öffnen ändert nichts und rechnet '
+        'nicht noch einmal', () async {
+      final e = await _Env.open();
+      final run = await runAt(e.session, _today, 7, 0);
+      await e.controller.saveGoal(_goal(days: {1, 3, 5}));
+      final before = await assigned(e);
+      final versions = (await e.plans.history()).length;
+      expect(before.values, [run]);
+      await e.controller.open();
+      await e.controller.open();
+      // Neuer Controller wie nach einem Neustart der App.
+      final again = PlanController(
+        session: e.session,
+        clock: e.clock,
+        reader: e.reader,
+      );
+      await again.open();
+      again.dispose();
+      expect(await assigned(e), before);
+      expect((await e.plans.history()).length, versions);
+    });
+
+    test('Öffnen ordnet einen Lauf der Woche nachträglich zu', () async {
+      final e = await _Env.open();
+      await e.controller.saveGoal(_goal(days: {1, 3, 5}));
+      expect(await assigned(e), isEmpty);
+      final run = await runAt(e.session, _today, 7, 0);
+      await e.controller.open();
+      expect((await e.controller.unitOn(_today))!.runId, run);
+    });
+
+    test('Verschobene Einheit: Lauf am neuen Tag zählt, die Einheit am '
+        'alten Tag bleibt ohne Lauf', () async {
+      final e = await _Env.open();
+      await e.controller.saveGoal(_goal());
+      expect(await e.controller.unitOn(_today), isNull);
+      final run = await runAt(e.session, _today, 7, 0);
+      await e.controller.open();
+      expect(await assigned(e), isEmpty);
+      final tomorrow = (await e.controller.unitOn(_day(1)))!;
+      expect(
+        await e.controller.confirmMove(tomorrow.id!, _today),
+        PlanActionResult.done,
+      );
+      final moved = (await e.controller.unitOn(_today))!;
+      expect(moved.kind, tomorrow.kind);
+      expect(moved.runId, run);
+      expect((await e.controller.unitOn(_day(1)))?.runId, isNull);
+      expect((await assigned(e)).values, [run]);
+    });
+
+    test('Bestehende Zuordnung bleibt, auch wenn später ein längerer Lauf '
+        'folgt', () async {
+      final e = await _Env.open();
+      await e.controller.saveGoal(_goal(days: {1, 3, 5}));
+      final short = await runAt(e.session, _today, 6, 0, minutes: 20);
+      final unit = (await e.controller.unitOn(_today))!;
+      expect(
+        await e.controller.assignRun(unit.id!, short),
+        PlanActionResult.done,
+      );
+      await runAt(e.session, _today, 10, 0, minutes: 90);
+      await e.controller.open();
+      expect((await e.controller.unitOn(_today))!.runId, short);
+      expect((await assigned(e)).values, [short]);
+    });
+
+    test('Zwei Läufe am Tag der Einheit: der längere zählt', () async {
+      final e = await _Env.open();
+      await runAt(e.session, _today, 6, 0, minutes: 20);
+      final long = await runAt(e.session, _today, 9, 0, minutes: 50);
+      await e.controller.saveGoal(_goal(days: {1, 3, 5}));
+      expect((await e.controller.unitOn(_today))!.runId, long);
+    });
+
+    test(
+      'Ein Lauf seit „Einheit starten“ bleibt dem Merker überlassen',
+      () async {
+        final e = await _Env.open();
+        await e.controller.saveGoal(_goal(days: {1, 3, 5}));
+        final unit = (await e.controller.unitOn(_today))!;
+        e.clock.set(_today.add(const Duration(hours: 13)));
+        await PlanStartedUnitStore(
+          session: e.session,
+          clock: e.clock,
+        ).remember(unit.id!, _dayText(_today));
+        await runAt(e.session, _today, 13, 1);
+        await e.controller.open();
+        expect((await e.controller.unitOn(_today))!.runId, isNull);
+      },
+    );
+
+    test(
+      'Lauf Sonntag 23:50 bis Montag 00:20: die Einheit vom Sonntag '
+      'trägt den Lauf, auch wenn die Zuordnung erst am Montag läuft',
+      () async {
+        final e = await _Env.open();
+        final sunday = _day(4);
+        expect(sunday.weekday, DateTime.sunday);
+        await e.controller.saveGoal(_goal(days: {3, 5, 7}));
+        expect((await e.controller.unitOn(sunday))?.runId, isNull);
+        final run = await runAt(e.session, sunday, 23, 50, minutes: 30);
+        // Uhr am Montag kurz nach Mitternacht: die Woche beginnt heute, der
+        // Starttag des Laufs liegt davor.
+        e.clock.set(_day(5).add(const Duration(minutes: 25)));
+        expect(
+          await e.controller.autoAssignRuns(since: sunday),
+          PlanActionResult.done,
+        );
+        expect((await e.controller.unitOn(sunday))!.runId, run);
+        expect((await e.controller.unitOn(_day(5)))?.runId, isNull);
+      },
+    );
+
+    test('Neustart nach langer Pause ordnet den Lauf des Tages zu', () async {
+      // Lange Pause (PAR-181) mit anstehendem neuem Einstieg.
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      await e.controller.saveGoal(_goal());
+      e.clock.set(_now);
+      await _finishedRun(e.session, 70);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      // Ein Lauf, der heute nach Ortszeit des Laufs (UTC+14) um 22:00
+      // beginnt und nach Mitternacht endet: Die Pausenprüfung zählt ihn
+      // für morgen (Tag des Laufendes), die Pause besteht also heute
+      // noch; für den Plan zählt der Starttag (PAR-231), also heute.
+      final start = _today.add(const Duration(hours: 8));
+      final r = await e.session.runs.create(startedAt: start);
+      await e.session.runs.setState(
+        r.id,
+        RunState.finished,
+        endedAt: start.add(const Duration(hours: 3)),
+        endedUtcOffset: const Duration(hours: 14),
+      );
+      expect(await e.controller.newStartPossible(), isTrue);
+      expect(
+        await e.controller.restartAfterLongPause(_goal(days: {1, 3, 5})),
+        PlanActionResult.done,
+      );
+      expect((await e.controller.unitOn(_today))!.runId, r.id);
+    });
   });
 }
