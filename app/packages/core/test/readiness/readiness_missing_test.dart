@@ -51,6 +51,8 @@ List<MorningMeasurement> _history(int from, int to) => [
     _m(_back(i), hr: 54.0 + (i % 5) * 2, rmssd: 36.0 + (i % 5) * 4),
 ];
 
+/// Modell mit „jetzt“ um [nowHour]:[nowMinute] Ortszeit mit Versatz
+/// [offset]; Vorgabe 8:00, also im Standardfenster 4–11.
 ReadinessResult _run(
   List<MorningMeasurement> all, {
   DateTime? today,
@@ -60,13 +62,23 @@ ReadinessResult _run(
   MorningWindow window = MorningWindow.standard,
   bool loadRequested = true,
   LoadDay? loadDay,
+  int nowHour = 8,
+  int nowMinute = 0,
+  Duration offset = _cet,
 }) {
   final day = today ?? _today;
   return computeReadiness(
     ReadinessInputs(
       today: day,
-      now: day.add(const Duration(hours: 12)),
-      dayStart: day.subtract(_cet),
+      now: DateTime.utc(
+        day.year,
+        day.month,
+        day.day,
+        nowHour,
+        nowMinute,
+      ).subtract(offset),
+      utcOffset: offset,
+      dayStart: day.subtract(offset),
       hrvHealthConnect: hrvHc,
       cameraDeviations: cameraDeviations(all, today: day),
       morningMeasurements: all,
@@ -132,21 +144,21 @@ void main() {
       );
     });
 
-    test('Kamera-Messung um 11:30: außerhalb des Zeitfensters mit Fenster', () {
+    test('Kamera-Messung um 11:30, jetzt 12:00: außerhalb des Zeitfensters, '
+        'Hinweis auf morgen ab 4 statt Knopf', () {
       final r = _run([
         ..._history(1, 20),
         _m(_today, hour: 11, minute: 30, outside: true),
-      ]);
-      expect(
-        _hrv(r),
-        const ReadinessMissingReason(
-          ReadinessMissingCode.cameraOutsideWindow,
-          windowStartHour: 4,
-          windowEndHour: 11,
-          catchUp: [ReadinessCatchUp.startMorning],
-        ),
+      ], nowHour: 12);
+      const expected = ReadinessMissingReason(
+        ReadinessMissingCode.cameraOutsideWindow,
+        windowStartHour: 4,
+        windowEndHour: 11,
+        catchUp: [ReadinessCatchUp.nextMorningWindow],
+        nextWindowStartHour: 4,
       );
-      expect(_rhr(r)!.code, ReadinessMissingCode.cameraOutsideWindow);
+      expect(_hrv(r), expected);
+      expect(_rhr(r), expected);
     });
 
     test('Fenster aus der Einstellung steht im Grund', () {
@@ -346,6 +358,231 @@ void main() {
     });
   });
 
+  group('Morgenfenster: Knopf oder Hinweis auf die nächste Messung', () {
+    const sleep = ReadinessFactorId.sleep;
+    final outside = [
+      ..._history(1, 20),
+      _m(_today, hour: 11, minute: 30, outside: true),
+    ];
+
+    test('jetzt 10:59, Messung um 3:30 außerhalb: Knopf bleibt', () {
+      final r = _run(
+        [..._history(1, 20), _m(_today, hour: 3, minute: 30, outside: true)],
+        nowHour: 10,
+        nowMinute: 59,
+      );
+      for (final reason in [_hrv(r)!, _rhr(r)!]) {
+        expect(reason.code, ReadinessMissingCode.cameraOutsideWindow);
+        expect(reason.catchUp, [ReadinessCatchUp.startMorning]);
+        expect(reason.nextWindowStartHour, isNull);
+      }
+    });
+
+    test('jetzt genau 11:00 (Ende): kein Knopf, Hinweis morgen ab 4', () {
+      final r = _run(outside, nowHour: 11);
+      for (final reason in [_hrv(r)!, _rhr(r)!]) {
+        expect(reason.catchUp, [ReadinessCatchUp.nextMorningWindow]);
+        expect(reason.nextWindowStartHour, 4);
+        expect(reason.nextWindowToday, isFalse);
+      }
+    });
+
+    test('jetzt genau 4:00 (Beginn): Knopf', () {
+      final r = _run(_history(1, 20), nowHour: 4);
+      expect(_hrv(r)!.catchUp, [ReadinessCatchUp.startMorning]);
+      expect(r.missingReasons[sleep]!.catchUp, [
+        ReadinessCatchUp.sleepAtMorning,
+        ReadinessCatchUp.startMorning,
+      ]);
+    });
+
+    test('keine Messung heute, jetzt 14:00: überall Hinweis, Health Connect '
+        'bleibt', () {
+      final hc = deviationForSeries(
+        byDay: {_back(1): 40, _back(2): 41},
+        today: _today,
+        factor: ReadinessFactor.hrv,
+        source: ReadinessSource.healthConnect,
+        rules: DeviationRules.hrv,
+      );
+      final r = _run(_history(1, 20), hrvHc: hc, nowHour: 14);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.noMeasurementToday,
+          catchUp: [
+            ReadinessCatchUp.nextMorningWindow,
+            ReadinessCatchUp.healthConnectSync,
+          ],
+          nextWindowStartHour: 4,
+        ),
+      );
+      expect(
+        _rhr(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.noMeasurementToday,
+          catchUp: [ReadinessCatchUp.nextMorningWindow],
+          nextWindowStartHour: 4,
+        ),
+      );
+      expect(
+        r.missingReasons[sleep],
+        const ReadinessMissingReason(
+          ReadinessMissingCode.sleepNoEntry,
+          catchUp: [
+            ReadinessCatchUp.sleepAtMorning,
+            ReadinessCatchUp.nextMorningWindow,
+          ],
+          nextWindowStartHour: 4,
+        ),
+      );
+      for (final reason in r.missingReasons.values) {
+        expect(reason.catchUp, isNot(contains(ReadinessCatchUp.startMorning)));
+      }
+    });
+
+    test(
+      'vor Fensterbeginn (jetzt 3:00, keine Messung): Hinweis heute ab 4',
+      () {
+        final r = _run(_history(1, 20), nowHour: 3);
+        for (final reason in [_hrv(r)!, _rhr(r)!, r.missingReasons[sleep]!]) {
+          expect(reason.catchUp, contains(ReadinessCatchUp.nextMorningWindow));
+          expect(
+            reason.catchUp,
+            isNot(contains(ReadinessCatchUp.startMorning)),
+          );
+          expect(reason.nextWindowStartHour, 4);
+          expect(reason.nextWindowToday, isTrue);
+        }
+      },
+    );
+
+    test('unbrauchbare Messung heute, jetzt 12:00: Hinweis statt Knopf', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, quality: PpgQuality.unusable),
+      ], nowHour: 12);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.cameraQualityUnusable,
+          catchUp: [ReadinessCatchUp.nextMorningWindow],
+          nextWindowStartHour: 4,
+        ),
+      );
+    });
+
+    test('Messung um 2:00 außerhalb, jetzt 3:00: Hinweis heute ab 4', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, hour: 2, outside: true),
+      ], nowHour: 3);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.cameraOutsideWindow,
+          windowStartHour: 4,
+          windowEndHour: 11,
+          catchUp: [ReadinessCatchUp.nextMorningWindow],
+          nextWindowStartHour: 4,
+          nextWindowToday: true,
+        ),
+      );
+    });
+
+    test('unbrauchbare Messung um 5:00, Fenster danach 6–9, jetzt 5:30: '
+        'Hinweis heute ab 6', () {
+      final r = _run(
+        [..._history(1, 20), _m(_today, hour: 5, quality: PpgQuality.unusable)],
+        window: const MorningWindow(6, 9),
+        nowHour: 5,
+        nowMinute: 30,
+      );
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(
+          ReadinessMissingCode.cameraQualityUnusable,
+          catchUp: [ReadinessCatchUp.nextMorningWindow],
+          nextWindowStartHour: 6,
+          nextWindowToday: true,
+        ),
+      );
+    });
+
+    test('eigenes Fenster 6–9 wirkt auf Knopf und Hinweis', () {
+      const w = MorningWindow(6, 9);
+      ReadinessMissingReason at(int hour, {int minute = 0}) => _hrv(
+        _run(_history(1, 20), window: w, nowHour: hour, nowMinute: minute),
+      )!;
+      expect(at(5, minute: 59).catchUp, [ReadinessCatchUp.nextMorningWindow]);
+      expect(at(5, minute: 59).nextWindowStartHour, 6);
+      expect(at(5, minute: 59).nextWindowToday, isTrue);
+      expect(at(6).catchUp, [ReadinessCatchUp.startMorning]);
+      expect(at(8, minute: 59).catchUp, [ReadinessCatchUp.startMorning]);
+      // Im Standardfenster wäre 10:00 noch offen.
+      expect(at(10).catchUp, [ReadinessCatchUp.nextMorningWindow]);
+      expect(at(10).nextWindowStartHour, 6);
+      expect(at(10).nextWindowToday, isFalse);
+      expect(at(9).catchUp, [ReadinessCatchUp.nextMorningWindow]);
+    });
+
+    test('Versatz +1 h und +2 h: Grenze in Ortszeit', () {
+      // Derselbe UTC-Zeitpunkt 9:30 ist bei +1 h 10:30 (offen), bei +2 h
+      // 11:30 (zu).
+      final nowUtc = DateTime.utc(2026, 11, 14, 9, 30);
+      ReadinessMissingReason at(Duration offset) => _hrv(
+        computeReadiness(
+          ReadinessInputs(
+            today: _today,
+            now: nowUtc,
+            utcOffset: offset,
+            dayStart: _today.subtract(offset),
+            cameraDeviations: cameraDeviations(_history(1, 20), today: _today),
+            morningMeasurements: _history(1, 20),
+            release: _dev,
+          ),
+        ),
+      )!;
+      expect(at(_cet).catchUp, [ReadinessCatchUp.startMorning]);
+      expect(at(_cest).catchUp, [ReadinessCatchUp.nextMorningWindow]);
+      expect(at(_cest).nextWindowStartHour, 4);
+    });
+
+    test(
+      'Sommerzeitwechsel: Fensterbeginn folgt dem Versatz am Umstelltag',
+      () {
+        // 29.03.2026: Beginn der Sommerzeit (02:00 → 03:00). 02:30 UTC ist
+        // 4:30 Sommerzeit (offen); mit dem Winterversatz wäre es 3:30 (zu).
+        final dst = DateTime.utc(2026, 3, 29);
+        final nowUtc = DateTime.utc(2026, 3, 29, 2, 30);
+        final history = [
+          for (var i = 1; i <= 20; i++)
+            _m(
+              dst.subtract(Duration(days: i)),
+              hr: 54.0 + (i % 5) * 2,
+              rmssd: 36.0 + (i % 5) * 4,
+            ),
+        ];
+        ReadinessMissingReason at(Duration offset) => _hrv(
+          computeReadiness(
+            ReadinessInputs(
+              today: dst,
+              now: nowUtc,
+              utcOffset: offset,
+              dayStart: dst.subtract(_cet),
+              cameraDeviations: cameraDeviations(history, today: dst),
+              morningMeasurements: history,
+              release: _dev,
+            ),
+          ),
+        )!;
+        expect(at(_cest).catchUp, [ReadinessCatchUp.startMorning]);
+        expect(at(_cet).catchUp, [ReadinessCatchUp.nextMorningWindow]);
+        expect(at(_cet).nextWindowToday, isTrue);
+      },
+    );
+  });
+
   group('Validierungssperre ohne Entwicklermodus (K62)', () {
     const locked = CameraRelease(developerMode: false, rmssdOptIn: false);
 
@@ -368,6 +605,22 @@ void main() {
         expect(reason.code.name, isNot(startsWith('camera')));
       }
     });
+
+    test(
+      'außerhalb des Fensters: auch kein Hinweis auf die nächste Messung',
+      () {
+        for (final hour in [3, 12]) {
+          final r = _run(_history(1, 20), release: locked, nowHour: hour);
+          for (final reason in r.missingReasons.values) {
+            expect(
+              reason.catchUp,
+              isNot(contains(ReadinessCatchUp.nextMorningWindow)),
+            );
+            expect(reason.nextWindowStartHour, isNull);
+          }
+        }
+      },
+    );
   });
 
   group('Schlaf', () {
@@ -391,7 +644,7 @@ void main() {
     });
 
     test('nur außerhalb des Fensters gemessen: kein „Schlaf angeben“', () {
-      final r = _run([_m(_today, hour: 12, outside: true)]);
+      final r = _run([_m(_today, hour: 12, outside: true)], nowHour: 13);
       expect(
         r.missingReasons[ReadinessFactorId.sleep]!.catchUp,
         isNot(contains(ReadinessCatchUp.enterSleep)),

@@ -222,7 +222,7 @@ class _ReadinessDetailScreenState extends State<ReadinessDetailScreen> {
                                 ..._catchUp(
                                   context,
                                   id,
-                                  r.missingReasons[id]?.catchUp ?? const [],
+                                  r.missingReasons[id],
                                   canEnterSleep: canEnterSleep,
                                 ),
                               ],
@@ -351,10 +351,11 @@ class _ReadinessDetailScreenState extends State<ReadinessDetailScreen> {
   List<Widget> _catchUp(
     BuildContext context,
     ReadinessFactorId id,
-    List<ReadinessCatchUp> ways, {
+    ReadinessMissingReason? reason, {
     required bool canEnterSleep,
   }) {
     final l = AppLocalizations.of(context);
+    final ways = reason?.catchUp ?? const <ReadinessCatchUp>[];
     Widget button(Key key, String label, VoidCallback onPressed) => Align(
       alignment: AlignmentDirectional.centerStart,
       child: TextButton(
@@ -386,6 +387,10 @@ class _ReadinessDetailScreenState extends State<ReadinessDetailScreen> {
                     l.readinessCatchUpStartMorning,
                     _startMorning,
                   ),
+          ReadinessCatchUp.nextMorningWindow => hint(
+            c,
+            readinessNextWindowText(l, reason!),
+          ),
           ReadinessCatchUp.enterSleep =>
             canEnterSleep
                 ? button(
