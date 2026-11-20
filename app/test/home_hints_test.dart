@@ -20,9 +20,9 @@ import 'history_summary_test.dart' show seedRun, text;
 
 final Uint8List _appKey = Uint8List.fromList(List.filled(32, 7));
 
-/// Mittwoch, 11.11.2026, mittags (UTC, Versatz 0).
-final _now = DateTime.utc(2026, 11, 11, 12);
-final _created = DateTime.utc(2026, 11, 2, 12); // Montag der Vorwoche
+/// Mittwoch, 11.11.2026, mittags Ortszeit (Zone des Testprozesses).
+final _now = DateTime(2026, 11, 11, 12);
+final _created = DateTime(2026, 11, 2, 12); // Montag der Vorwoche
 
 TrainingGoal _goal([
   ContinuousRun30 canRun30 = ContinuousRun30.yes,
@@ -626,7 +626,7 @@ void main() {
         'Aufheben zeigt „Plan angepasst“ bis „Verstanden“', (tester) async {
       final d = Device();
       final s = await _preopen(d);
-      d.clock.set(DateTime.utc(2026, 11, 4, 12));
+      d.clock.set(DateTime(2026, 11, 4, 12));
       final c = _controller(d, s);
       expect(await c.reportWarning(), PlanActionResult.done);
       c.dispose();
