@@ -262,13 +262,19 @@ PpgMeasurement ratePpg(PpgChannelResult r) {
   );
 }
 
-/// Stufe nur aus den Signalbedingungen, für die laufende Anzeige beim Messen (FR-0214, FR-0215):
-/// wie [PpgMeasurement.quality], aber ohne die HRV-Bedingung aus PAR-230
-/// ([PpgQualityReason.fewConsistentBeats]). Ein kurzes Fenster hat nie genug Differenzen für die
-/// HRV; die Anzeige soll dennoch „gut“ zeigen, wenn das Signal sauber ist. Das Endergebnis
-/// bewertet weiter [ratePpg] (unverändert).
-PpgQuality ppgSignalStage(PpgMeasurement m) {
-  if (m.quality != PpgQuality.limited) return m.quality;
-  final rest = m.reasons.where((r) => r != PpgQualityReason.fewConsistentBeats);
-  return rest.isEmpty ? PpgQuality.good : PpgQuality.limited;
+/// Laufende Signalstufe beim Messen (PAR-234, FR-0214, FR-0215), aus der Auswertung [m] eines
+/// kurzen Live-Fensters: „unbrauchbar“ mit denselben Gründen wie das Endergebnis; „gut“, wenn
+/// Q mindestens [ppgLimitedQuality] ist und höchstens [ppgLiveMaxInvalidIntervals] Schlagabstand
+/// im Fenster ungültig ist; sonst „eingeschränkt“. Zeitrauschen, der Anteil von
+/// [ppgLimitedValidFraction] gültigen Intervallen und die HRV-Bedingung (PAR-230) zählen hier
+/// nicht. Nur Anzeige: Das Endergebnis bewertet weiter [ratePpg] (unverändert).
+PpgQuality ppgLiveStage(PpgMeasurement m) {
+  if (m.quality == PpgQuality.unusable) return PpgQuality.unusable;
+  final q = m.signalQuality;
+  final invalid = m.intervals - m.validIntervals;
+  return q != null &&
+          q >= ppgLimitedQuality &&
+          invalid <= ppgLiveMaxInvalidIntervals
+      ? PpgQuality.good
+      : PpgQuality.limited;
 }

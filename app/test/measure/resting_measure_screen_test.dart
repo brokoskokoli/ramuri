@@ -35,6 +35,9 @@ const goodLive = PpgMeasurement(
   reasons: [],
   bpm: 62.4,
   rmssdMs: 42.7,
+  signalQuality: 0.8,
+  validIntervals: 12,
+  intervals: 12,
 );
 
 PpgMeasurement unusable(PpgQualityReason r) =>

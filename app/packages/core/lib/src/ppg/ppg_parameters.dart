@@ -120,6 +120,10 @@ const double ppgLimitedQuality = 0.3;
 const double ppgLimitedValidFraction = 0.7;
 const double ppgLimitedTimingNoiseMs = 25.0;
 
+/// Laufende Signalstufe (PAR-234): „gut“ nur mit höchstens so vielen ungültigen Schlagabständen im
+/// Live-Fenster (nur Anzeige, keine Schwelle der Auswertung).
+const int ppgLiveMaxInvalidIntervals = 1;
+
 /// Messfenster der Referenz in Sekunden seit Aufnahmebeginn, Abschn. 2: Filter ab 3 s
 /// (Einschwingen), Auswertung von 5 bis 65 s, Daten bis 66,5 s (Filterrand).
 const PpgWindow ppgStandardWindow = PpgWindow(

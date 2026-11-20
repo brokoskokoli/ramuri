@@ -502,28 +502,78 @@ void main() {
     });
   });
 
-  group('ppgSignalStage: laufende Anzeige ohne HRV-Bedingung (PAR-230)', () {
-    test('allein zu wenige HRV-Differenzen: Endergebnis eingeschränkt, Anzeige gut', () {
-      final m = ratePpg(channel(hrvDiffs: 19));
-      expect(m.quality, PpgQuality.limited);
-      expect(m.reasons, [PpgQualityReason.fewConsistentBeats]);
-      expect(ppgSignalStage(m), PpgQuality.good);
+  group('ppgLiveStage: laufende Signalstufe (PAR-234)', () {
+    test(
+      'zu wenige HRV-Differenzen: Endergebnis eingeschränkt, Live-Stufe gut',
+      () {
+        final m = ratePpg(channel(hrvDiffs: 4, valid: 5, total: 5));
+        expect(m.quality, PpgQuality.limited);
+        expect(m.reasons, [PpgQualityReason.fewConsistentBeats]);
+        expect(ppgLiveStage(m), PpgQuality.good);
+      },
+    );
+
+    test('Zeitrauschen und Anteil unter 70 % zählen live nicht', () {
+      for (final c in [
+        channel(noise: 30, hrvDiffs: 4, valid: 5, total: 5),
+        channel(noise: double.nan, hrvDiffs: 4, valid: 5, total: 5),
+        // 3 von 4 gültig (75 %) und 2 von 3 (67 %): je ein ungültiger Abstand
+        channel(valid: 3, total: 4, hrvDiffs: 2),
+        channel(valid: 2, total: 3, hrvDiffs: 1),
+      ]) {
+        final m = ratePpg(c);
+        expect(m.quality, PpgQuality.limited);
+        expect(ppgLiveStage(m), PpgQuality.good, reason: '${m.reasons}');
+      }
     });
 
-    test('Signalbedingungen gelten weiter', () {
-      for (final c in [
-        channel(quality: 0.28, hrvDiffs: 19),
-        channel(valid: 45, hrvDiffs: 19),
-        channel(noise: 30, hrvDiffs: 19),
-        channel(noise: double.nan, hrvDiffs: 19),
-      ]) {
-        expect(ppgSignalStage(ratePpg(c)), PpgQuality.limited);
-      }
+    test('Grenze: höchstens ein ungültiger Schlagabstand', () {
       expect(
-        ppgSignalStage(ratePpg(channel(quality: 0.2))),
+        ppgLiveStage(ratePpg(channel(valid: 6, total: 7))),
+        PpgQuality.good,
+      );
+      expect(
+        ppgLiveStage(ratePpg(channel(valid: 5, total: 7))),
+        PpgQuality.limited,
+      );
+      expect(
+        ppgLiveStage(ratePpg(channel(valid: 7, total: 7))),
+        PpgQuality.good,
+      );
+    });
+
+    test('Grenze: Signalqualität ab 0,3 gut, darunter eingeschränkt', () {
+      expect(ppgLiveStage(ratePpg(channel(quality: 0.3))), PpgQuality.good);
+      expect(ppgLiveStage(ratePpg(channel(quality: 0.29))), PpgQuality.limited);
+      expect(
+        ppgLiveStage(
+          const PpgMeasurement(quality: PpgQuality.limited, reasons: []),
+        ),
+        PpgQuality.limited,
+        reason: 'ohne Q nie gut (fail closed)',
+      );
+    });
+
+    test('unbrauchbar wie beim Endergebnis', () {
+      expect(ppgLiveStage(ratePpg(channel(quality: 0.2))), PpgQuality.unusable);
+      // 4 von 9 gültig (unter 50 %)
+      expect(
+        ppgLiveStage(ratePpg(channel(valid: 4, total: 9))),
         PpgQuality.unusable,
       );
-      expect(ppgSignalStage(ratePpg(channel())), PpgQuality.good);
+      for (final r in [
+        PpgQualityReason.noFinger,
+        PpgQualityReason.flatSignal,
+        PpgQualityReason.frameGap,
+        PpgQualityReason.insufficientData,
+      ]) {
+        expect(
+          ppgLiveStage(
+            PpgMeasurement(quality: PpgQuality.unusable, reasons: [r]),
+          ),
+          PpgQuality.unusable,
+        );
+      }
     });
   });
 

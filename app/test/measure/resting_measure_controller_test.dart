@@ -936,11 +936,18 @@ void main() {
           // höchstens Fenster plus Vorlauf, nicht das wachsende Fenster
           expect(frames.length, lessThan(30 * (restingLiveWindowSeconds + 3)));
         }
-        final last = live.last;
+        // je Takt zwei Fenster: Puls über PAR-226, Stufe über PAR-234
+        final pulse = live.toList()[live.length - 2].$2;
+        final stage = live.last.$2;
         expect(
-          last.$2.start,
-          closeTo(last.$2.dataEnd - restingLiveWindowSeconds, 0.1),
+          pulse.start,
+          closeTo(pulse.dataEnd - restingLiveWindowSeconds, 0.1),
         );
+        expect(
+          stage.start,
+          closeTo(stage.dataEnd - restingLiveStageWindowSeconds, 0.1),
+        );
+        expect(stage.dataEnd, pulse.dataEnd);
         final fin = calls.singleWhere(
           (c) => identical(c.$2, ppgStandardWindow),
         );
@@ -948,28 +955,6 @@ void main() {
         expect(fin.$1.length, greaterThan(30 * 66));
       },
     );
-
-    test('sauberes Signal: laufende Stufe gut, obwohl das Zwischenfenster zu wenige HRV-Differenzen hat', () async {
-      final live = <PpgMeasurement>[];
-      final r = await Rig.make(
-        evaluate: (f, w) async {
-          final m = evaluatePpg(f, window: w);
-          if (!identical(w, ppgStandardWindow)) live.add(m);
-          return m;
-        },
-      );
-      await r.c.startNow();
-      await FrameSource().emitUntil(r.cam, 20);
-      await pump();
-      expect(r.c.phase, RestingMeasurePhase.measuring);
-      // Die Auswertung selbst bleibt bei PAR-230: eingeschränkt, allein
-      // wegen zu weniger Differenzen für die HRV.
-      expect(live.last.quality, PpgQuality.limited);
-      expect(live.last.reasons, [PpgQualityReason.fewConsistentBeats]);
-      expect(r.c.liveQuality, PpgQuality.good);
-      expect(r.c.liveHint, isNull);
-      expect(r.c.livePulse, inInclusiveRange(66, 75));
-    });
 
     test(
       'Standardauswertung läuft auf eigenem Isolate und liefert einen Wert',
@@ -1116,6 +1101,165 @@ void main() {
       expect(c2.adoptFailed, isTrue);
       expect((await r.session.profile.read()).restingHeartRateBpm, first);
       expect(await RestingHrOrigin.read(r.session.settings), isNotNull);
+    });
+  });
+
+  group('Laufende Signalstufe über die letzten 5 s (PAR-234)', () {
+    /// Spielt [src] bis [until] Sekunden ein und liefert je volle Sekunde
+    /// (Sensorzeit) Stufe, Puls und die Auswertung des Stufenfensters.
+    Future<List<({double t, PpgQuality? q, int? pulse, PpgMeasurement? m})>>
+    record(PulseSource src, double until) async {
+      PpgMeasurement? stage;
+      final r = await Rig.make(
+        evaluate: (f, w) async {
+          final m = evaluatePpg(f, window: w);
+          if (!identical(w, ppgStandardWindow) &&
+              w.dataEnd - w.start <= restingLiveStageWindowSeconds + 1e-9) {
+            stage = m;
+          }
+          return m;
+        },
+      );
+      await r.c.startNow();
+      final out =
+          <({double t, PpgQuality? q, int? pulse, PpgMeasurement? m})>[];
+      await src.emitEachSecond(r.cam, until, (t) {
+        expect(r.c.phase, RestingMeasurePhase.measuring);
+        out.add((t: t, q: r.c.liveQuality, pulse: r.c.livePulse, m: stage));
+      });
+      return out;
+    }
+
+    // Erstes volles Stufenfenster: Beginn des Messfensters plus 5 s.
+    final full = ppgStandardWindow.start + restingLiveStageWindowSeconds;
+
+    test('sauberes Signal 60/min: nach dem Filtervorlauf „gut“, obwohl zu '
+        'wenige HRV-Differenzen (PAR-230 gilt live nicht)', () async {
+      final rows = await record(PulseSource.bpm(60), 30);
+      final after = rows.where((e) => e.t >= full).toList();
+      expect(after.map((e) => e.q), everyElement(PpgQuality.good));
+      // Die Auswertung des kurzen Fensters selbst bleibt nach PAR-230
+      // eingeschränkt, allein wegen zu weniger Differenzen für die HRV.
+      expect(after.last.m!.quality, PpgQuality.limited);
+      expect(
+        after.last.m!.reasons,
+        contains(PpgQualityReason.fewConsistentBeats),
+      );
+      expect(after.last.pulse, inInclusiveRange(58, 62));
+    });
+
+    for (final bpm in [50.0, 80.0]) {
+      test(
+        'sauberes Signal ${bpm.round()}/min: stabil „gut“ über 20 s',
+        () async {
+          final rows = await record(PulseSource.bpm(bpm), full + 20);
+          final after = rows.where((e) => e.t >= full).toList();
+          expect(after.length, greaterThanOrEqualTo(20));
+          expect(after.map((e) => e.q), everyElement(PpgQuality.good));
+        },
+      );
+    }
+
+    test(
+      'ein fehlender Schlag (ein ungültiger Abstand): weiter „gut“',
+      () async {
+        final probe = PulseSource.bpm(60);
+        final k = probe.beatAfter(20);
+        final rows = await record(
+          PulseSource(periodAt: (_) => 1.0, dropBeats: {k}),
+          35,
+        );
+        final after = rows.where((e) => e.t >= full).toList();
+        expect(
+          after.map((e) => e.m!.intervals - e.m!.validIntervals),
+          contains(1),
+          reason: 'der fehlende Schlag macht genau einen Abstand ungültig',
+        );
+        expect(after.map((e) => e.q), everyElement(PpgQuality.good));
+      },
+    );
+
+    test('zwei ungültige Abstände im Fenster: „eingeschränkt“', () async {
+      final probe = PulseSource.bpm(60);
+      final k = probe.beatAfter(20);
+      // Ein kurzer Ausschlag zwischen zwei Schlägen stört beide benachbarten
+      // Abstände.
+      final rows = await record(
+        PulseSource(
+          periodAt: (_) => 1.0,
+          spikeHeight: 2,
+          spikes: [probe.midAfterBeat(k)],
+        ),
+        35,
+      );
+      final two = rows.where(
+        (e) => e.m != null && e.m!.intervals - e.m!.validIntervals == 2,
+      );
+      expect(two, isNotEmpty);
+      expect(two.map((e) => e.q), everyElement(PpgQuality.limited));
+      for (final e in two) {
+        expect(e.m!.signalQuality, greaterThanOrEqualTo(ppgLimitedQuality));
+      }
+      expect(rows.last.q, PpgQuality.good);
+    });
+
+    test(
+      '3 s Rauschen: Stufe verlässt „gut“ und kehrt danach zurück',
+      () async {
+        const a = 20.0;
+        const b = 23.0;
+        final rows = await record(
+          PulseSource(periodAt: (_) => 1.0, noisyAt: (t) => t >= a && t < b),
+          40,
+        );
+        expect(
+          rows.where((e) => e.t >= full && e.t <= a).map((e) => e.q),
+          everyElement(PpgQuality.good),
+        );
+        expect(
+          rows.where((e) => e.t > a && e.t <= b).map((e) => e.q),
+          contains(isNot(PpgQuality.good)),
+        );
+        expect(
+          rows
+              .where((e) => e.t >= b + restingLiveStageWindowSeconds + 2)
+              .map((e) => e.q),
+          everyElement(PpgQuality.good),
+        );
+      },
+    );
+
+    test('Pulswechsel 60 → 80/min: Puls folgt verzögert (12 s), Stufe bleibt '
+        '„gut“', () async {
+      // Übergang über 4 s (stetig wie beim Menschen, kein Sprung).
+      const change = 25.0;
+      const ramp = 4.0;
+      final rows = await record(
+        PulseSource(
+          periodAt: (t) => 1.0 - 0.25 * ((t - change) / ramp).clamp(0.0, 1.0),
+        ),
+        change + ramp + 14,
+      );
+      int? pulseAt(double t) => rows.firstWhere((e) => e.t == t).pulse;
+      int invalid(double t) {
+        final m = rows.firstWhere((e) => e.t == t).m!;
+        return m.intervals - m.validIntervals;
+      }
+
+      expect(pulseAt(change), inInclusiveRange(58, 62));
+      // 5 s nach dem Ende des Übergangs liegt das 5-s-Fenster ganz bei
+      // 80/min, das 12-s-Fenster des angezeigten Pulses noch nicht.
+      expect(
+        rows.firstWhere((e) => e.t == change + ramp + 5).m!.bpm,
+        closeTo(80, 2),
+      );
+      expect(pulseAt(change + ramp + 5), lessThan(76));
+      expect(pulseAt(change + ramp + 13), inInclusiveRange(78, 82));
+      expect(invalid(change + ramp + 5), lessThanOrEqualTo(1));
+      expect(
+        rows.where((e) => e.t >= full).map((e) => e.q),
+        everyElement(PpgQuality.good),
+      );
     });
   });
 }
