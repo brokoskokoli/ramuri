@@ -121,16 +121,31 @@ class HealthConnectController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// Nach einem Import, der neue Sätze gespeichert hat (Auslöser „veränderter Erholungszustand“, FR-0157). Ohne
+  /// Werte; Fehler darin bleiben still.
+  VoidCallback? onNewData;
+
+  /// Ein Import über den Dienst; meldet neue Sätze an [onNewData].
+  Future<HealthImportResult> _run(HealthImportTrigger trigger) async {
+    final result = await importer.run(trigger);
+    if (healthImportStoredNew(result)) {
+      try {
+        onNewData?.call();
+      } catch (_) {}
+    }
+    return result;
+  }
+
   /// Import beim App-Start und beim Öffnen von „Heute“; Fehler bleiben still, die Sperre hält der Dienst.
   void runInBackground(HealthImportTrigger trigger) {
-    importer.run(trigger).then<void>((_) {}, onError: (Object _) {});
+    _run(trigger).then<void>((_) {}, onError: (Object _) {});
   }
 
   /// Import wie [runInBackground], danach Zustand neu lesen, damit offene Löschfragen beim Öffnen der App gezeigt werden
   /// können (SEC-0007, nicht nur auf der Health-Connect-Seite). Fehler bleiben still.
   Future<void> importThenLoad(HealthImportTrigger trigger) async {
     try {
-      await importer.run(trigger);
+      await _run(trigger);
     } catch (_) {}
     try {
       await load();
@@ -265,7 +280,7 @@ class HealthConnectController extends ChangeNotifier {
     fetching = true;
     _notify();
     try {
-      return await importer.run(HealthImportTrigger.manual);
+      return await _run(HealthImportTrigger.manual);
     } finally {
       fetching = false;
       lastImport = await _readLastImport();
@@ -273,3 +288,10 @@ class HealthConnectController extends ChangeNotifier {
     }
   }
 }
+
+/// Hat der Import neue (oder überschriebene) Sätze gespeichert?
+bool healthImportStoredNew(HealthImportResult result) =>
+    result.status == HealthImportStatus.done &&
+    result.kinds.values.any(
+      (k) => k.status == HealthKindStatus.imported && k.stored > 0,
+    );

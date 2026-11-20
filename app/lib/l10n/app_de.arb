@@ -3799,6 +3799,8 @@
   "@planAdaptReasonReadiness": {"description": "FR-0216, PAR-173, Plan-Seite: Grund"},
   "planAdaptReasonFixed": "Du hast „Plan an Gesundheitsdaten anpassen“ auf „fix“ gestellt, deshalb gilt die harte Einheit heute wieder.",
   "@planAdaptReasonFixed": {"description": "FR-0216, Plan-Seite: Grund"},
+  "planAdaptRecommendEasy": "Für heute wird ein lockerer Lauf empfohlen.",
+  "@planAdaptRecommendEasy": {"description": "FR-0216, PAR-173, Heute: Empfehlung bei „fix“ unter der Karte Erholung"},
   "referenceFromRun": "Aus einem Lauf übernehmen",
   "@referenceFromRun": {"description": "FR-0129, FR-0131: Referenz aus einem Lauf übernehmen"},
   "referenceRunPickerTitle": "Lauf als Referenz wählen",

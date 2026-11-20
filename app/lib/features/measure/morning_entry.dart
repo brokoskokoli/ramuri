@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../plan/plan_recovery_trigger.dart';
 import 'device_info.dart';
 import 'morning_belt.dart';
 import 'morning_launcher.dart';
@@ -65,7 +66,8 @@ Future<MorningEntryState?> loadMorningEntry({
 
 /// Öffnet die Morgenmessung über der aktuellen Seite; mit der Kamera aus dem
 /// [PpgCameraScope]. Ohne Kamera passiert nichts (es gibt dann auch keinen
-/// Einstieg).
+/// Einstieg). Danach prüft [recovery] (sonst der [PlanRecoveryScope]) den
+/// Plan von heute (FR-0157).
 Future<void> openMorningMeasurement(
   BuildContext context, {
   required StorageSession session,
@@ -74,10 +76,14 @@ Future<void> openMorningMeasurement(
   DeviceInfoReader device = readDeviceInfo,
   MorningMeasureHooks hooks = const MorningMeasureHooks(),
   MorningBelt? belt,
+  PlanRecoveryTrigger? recovery,
 }) async {
   final camera = PpgCameraScope.maybeOf(context);
   if (camera == null || session is! MorningStorage) return;
   final evaluate = PpgCameraScope.evaluateOf(context);
+  // Nach der Morgenmessung den Plan von heute prüfen (FR-0157, nur bei
+  // „adaptiv“ wirksam); ohne Scope und ohne [recovery] nicht.
+  final trigger = recovery ?? PlanRecoveryScope.maybeOf(context);
   await Navigator.of(context).push<void>(
     MaterialPageRoute(
       builder: (_) => MorningMeasureHost(
@@ -93,6 +99,7 @@ Future<void> openMorningMeasurement(
       ),
     ),
   );
+  await trigger?.recheck();
 }
 
 /// Öffnet die Seite Morgenwerte über der aktuellen Seite.

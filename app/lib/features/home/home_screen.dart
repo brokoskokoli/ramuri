@@ -13,6 +13,8 @@ import '../history/run_detail_screen.dart';
 import '../plan/plan_change_card.dart';
 import '../plan/plan_controller.dart';
 import '../plan/plan_goal_form.dart';
+import '../plan/plan_recovery_trigger.dart';
+import '../plan/plan_adapt_recommendation.dart';
 import '../plan/plan_started_unit.dart';
 import '../plan/plan_texts.dart';
 import '../recalculation/recalculation_controller.dart';
@@ -136,6 +138,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final PlanController _plan = PlanController(
     session: widget.session,
     clock: widget.clock,
+    // Wie die Plan-Seite: die Wochenprüfung beim Öffnen nimmt den Wert von
+    // heute über PAR-173 auf (FR-0158, nur bei „adaptiv“).
+    readinessToday: planReadinessSource(
+      () => loadReadinessToday(
+        session: widget.session,
+        clock: widget.clock,
+        recalculation: widget.recalculation.service,
+      ),
+    ),
   );
 
   /// Der Ortstag, für den die Seite zuletzt geladen und gebaut wurde.
@@ -258,6 +269,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   ReadinessActions _readinessActions(BuildContext context) {
     final session = widget.session;
     final camera = PpgCameraScope.maybeOf(context) != null;
+    // Die Detailseite liegt über der Hülle (Root-Navigator), außerhalb des
+    // Scopes der Sitzung: den Auslöser darum hier mitgeben.
+    final recovery = PlanRecoveryScope.maybeOf(context);
     return ReadinessActions(
       reload: _loadReadiness,
       startMorning: camera && session is MorningStorage
@@ -265,6 +279,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               context,
               session: session,
               clock: widget.clock,
+              recovery: recovery,
               belt: MorningBelt.of(
                 widget.sensors,
                 session.settings,
@@ -433,6 +448,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           snapshot: readiness,
           warning: warning,
           actions: _readinessActions(context),
+        ),
+      // Bei „fix“ nur eine Empfehlung unter der Karte „Erholung“, der Plan
+      // bleibt (FR-0216, PAR-173); nicht unter Warnsignal (FR-0203 vorn).
+      if (extended &&
+          !warning &&
+          ready &&
+          s.warning == null &&
+          readiness.today != null &&
+          recoveryRecommendsEasy(
+            mode: s.adaptation,
+            readiness: PlanReadinessDay.of(readiness.today!, readiness.result),
+            unit: unit,
+            today: _date(_today),
+          ))
+        PlanAdaptRecommendation(
+          onEasyRun: unit!.id != null && !_busy ? () => _easyRun(unit) : null,
         ),
       if (card != null && !warning && extended) hintCard(false),
       if (pause != null)
