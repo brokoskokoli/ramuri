@@ -304,6 +304,57 @@ void main() {
     expect(key('home_assign_failed'), findsNothing);
   });
 
+  testWidgets('Frei laufen, Zuordnung scheitert: Hinweis, Lauf gespeichert, '
+      'Einheit offen; nach Neustart nachgeholt (PAR-231)', (tester) async {
+    final d = Device();
+    await _preopen(d, days: {1, 3, 5});
+    d.storage.data.failAssignRun = true;
+    await d.start(tester, const Locale('de'));
+    await _runAndFinish(d, tester, 'home_start_run');
+    expect(key('home_assign_failed'), findsOneWidget);
+    expect(key('home_assign_not_recalculated'), findsNothing);
+    expect(find.byType(AlertDialog), findsNothing);
+    final run = (await d.session.runs.list()).single;
+    expect(run.state, RunState.finished);
+    expect((await _unitToday(d.session))!.runId, isNull);
+    expect(key('home_today_done'), findsNothing);
+    expect(key('home_start_unit'), findsOneWidget);
+
+    // Speicher wieder schreibbar: Beim Öffnen holt die App die Zuordnung nach.
+    d.storage.data.failAssignRun = false;
+    await d.stop(tester);
+    await d.start(tester, const Locale('de'));
+    expect((await _unitToday(d.session))!.runId, run.id);
+    expect(text('home_today_done'), 'Heute erledigt.');
+    expect(key('home_start_unit'), findsNothing);
+  });
+
+  for (final rest in [true, false]) {
+    testWidgets(
+      rest
+          ? 'Frei laufen am Ruhetag, Zuordnung würde scheitern: kein Hinweis'
+          : 'Frei laufen ohne Plan, Zuordnung würde scheitern: kein Hinweis',
+      (tester) async {
+        final d = Device();
+        final s = await _preopen(d, days: rest ? {1, 3, 5} : null);
+        if (rest) await _restToday(s);
+        d.storage.data.failAssignRun = true;
+        await d.start(tester, const Locale('de'));
+        await _runAndFinish(d, tester, 'home_start_run');
+        final run = (await d.session.runs.list()).single;
+        expect(run.state, RunState.finished);
+        expect(key('home_assign_failed'), findsNothing);
+        expect(key('home_assign_not_recalculated'), findsNothing);
+        expect(find.byType(AlertDialog), findsNothing);
+        if (rest) {
+          expect((await _unitToday(d.session))!.runId, isNull);
+        } else {
+          expect(await _unitToday(d.session), isNull);
+        }
+      },
+    );
+  }
+
   testWidgets('Einheit starten, dann abgebrochen: keine Zuordnung', (
     tester,
   ) async {
