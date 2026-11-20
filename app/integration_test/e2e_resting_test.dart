@@ -52,6 +52,17 @@ Future<void> _chooseCamera(WidgetTester t, String camera) async {
     'Kamera $camera in den Entwicklereinstellungen',
   );
   await tapKey(t, 'about_ppg_camera_$camera');
+  // Die Auswahl zeigt sich erst, wenn sie gespeichert ist.
+  await waitFor(
+    t,
+    () => find
+        .byWidgetPredicate(
+          (w) => w is RadioGroup<String> && w.groupValue == camera,
+        )
+        .evaluate()
+        .isNotEmpty,
+    'Kamera gewaehlt (about_ppg_camera_$camera)',
+  );
   await back(t);
 }
 
