@@ -6,16 +6,18 @@ import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_started_unit.dart';
 
+import 'helpers/local_clock.dart';
+
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
-/// Mittwoch, 11.11.2026, mittags (UTC).
-final _now = DateTime.utc(2026, 11, 11, 12);
+/// Mittwoch, 11.11.2026, mittags Ortszeit.
+final _now = DateTime(2026, 11, 11, 12);
 final _today = DateTime.utc(2026, 11, 11);
 const _day = '2026-11-11';
 
 /// Speicher mit Ziel (Mo, Mi, Fr) und erster Fassung; heute ist eine Einheit.
 Future<(StorageSession, FakeClock, int)> _withPlan() async {
-  final clock = FakeClock(_now);
+  final clock = LocalFakeClock(_now);
   final s = await FakeStorage().open(_key);
   final c = PlanController(
     session: s,

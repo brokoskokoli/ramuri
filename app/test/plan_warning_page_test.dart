@@ -18,7 +18,7 @@ import 'app_harness.dart';
 /// (PAR-200) auf der Plan-Seite.
 
 final Uint8List _k = Uint8List.fromList(List.generate(32, (i) => i));
-final _now = DateTime.utc(2026, 11, 11, 12);
+final _now = DateTime(2026, 11, 11, 12);
 final _today = DateTime.utc(2026, 11, 11);
 
 Finder key(String k) => find.byKey(Key(k));
@@ -54,7 +54,7 @@ Future<(StorageSession, FakeClock)> _withPlan({
   Duration age = Duration.zero,
 }) async {
   final session = await FakeStorage().open(_k);
-  final clock = FakeClock(_now);
+  final clock = LocalFakeClock(_now);
   final c = _controller(session, clock);
   expect(
     await c.saveGoal(_goal(capMinutes: capMinutes)),

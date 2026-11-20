@@ -13,6 +13,9 @@ import 'package:running_app/features/sensors/run_heart_rate.dart';
 import 'package:running_app/features/sensors/sensor_manager.dart';
 import 'package:running_app/features/storage/storage_start.dart';
 
+import 'helpers/local_clock.dart';
+
+export 'helpers/local_clock.dart';
 export 'helpers/widget_helpers.dart';
 
 /// "Gerät" für App-Tests: Speicher und Schlüsselablage bleiben über mehrere
@@ -20,7 +23,9 @@ export 'helpers/widget_helpers.dart';
 class Device {
   final FakeStorage storage = FakeStorage();
   final FakeKeyStore keyStore = FakeKeyStore();
-  final FakeClock clock = FakeClock(DateTime.utc(2026, 6, 1));
+
+  /// Folgt dem Versatz der Prozesszone wie die Systemuhr der App.
+  final FakeClock clock = LocalFakeClock(DateTime.utc(2026, 6, 1));
   final FakePermissionStatus permissions = FakePermissionStatus();
   final FakeLocationAccess locationAccess = FakeLocationAccess();
   final FakeLocationSource location = FakeLocationSource();

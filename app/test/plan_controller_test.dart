@@ -7,10 +7,12 @@ import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_started_unit.dart';
 
+import 'helpers/local_clock.dart';
+
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
-/// Mittwoch, 11.11.2026, mittags (Ortstag in Europa derselbe).
-final _now = DateTime.utc(2026, 11, 11, 12);
+/// Mittwoch, 11.11.2026, mittags Ortszeit (Zone des Testprozesses).
+final _now = DateTime(2026, 11, 11, 12);
 final _today = DateTime.utc(2026, 11, 11);
 DateTime _day(int n) => _today.add(Duration(days: n));
 
@@ -37,7 +39,7 @@ class _Env {
     this.session, {
     List<RunFigures> runs = const [],
     RunFiguresLoader? loadRuns,
-  }) : clock = FakeClock(_now) {
+  }) : clock = LocalFakeClock(_now) {
     reader = PlanDataReader(
       session: session,
       clock: clock,
@@ -246,7 +248,7 @@ void main() {
       );
       expect((await e.plans.history()).length, versions);
       // Am Tag nach der Einheit ist sie vergangen.
-      e.clock.set(easy.day.add(const Duration(days: 1, hours: 12)));
+      e.clock.set(localAt(easy.day.add(const Duration(days: 1)), 12));
       expect(
         await e.controller.replaceUnit(easy.id!, PlanUnitKind.long),
         PlanActionResult.rejected,
@@ -328,7 +330,7 @@ void main() {
       expect(await e.controller.clearRestDay(first.day), PlanActionResult.done);
       expect(await e.plans.unitOn(first.day), isNull);
       // Vergangene Ruhetage bleiben (heute aus der Uhr).
-      e.clock.set(second.day.add(const Duration(days: 1, hours: 12)));
+      e.clock.set(localAt(second.day.add(const Duration(days: 1)), 12));
       expect(
         await e.controller.clearRestDay(second.day),
         PlanActionResult.rejected,
@@ -662,7 +664,7 @@ void main() {
         hardSessionEnabled: g.hardSessionEnabled,
         canRun30: ContinuousRun30.no,
       );
-      e.clock.set(_day(-3));
+      e.clock.set(localAt(_day(-3)));
       expect(await e.controller.saveGoal(walkRun), PlanActionResult.done);
       e.clock.set(_now);
       final before = (await e.plans.history()).length;
@@ -1066,7 +1068,7 @@ void main() {
       final planned = <int>[0];
       final runs = <RunFigures>[];
       final e = await _Env.open(loadRuns: () async => runs);
-      e.clock.set(_day(-21));
+      e.clock.set(localAt(_day(-21)));
       await e.controller.saveGoal(_goal());
       planned[0] = await week(e, monday(0));
       if (share > 0) {
@@ -1079,7 +1081,7 @@ void main() {
           ),
         );
       }
-      e.clock.set(_day(14));
+      e.clock.set(localAt(_day(14)));
       return (e, planned[0]);
     }
 
@@ -1143,9 +1145,9 @@ void main() {
       final (e, planned) = await prepare();
       // Gemeldet am Dienstag, geöffnet am Mittwoch derselben Woche: die
       // Wochenprüfung ist fällig, das Melden hat den Prüftag nicht gesetzt.
-      e.clock.set(_day(13));
+      e.clock.set(localAt(_day(13)));
       await e.controller.reportWarning();
-      e.clock.set(_day(14));
+      e.clock.set(localAt(_day(14)));
       await e.controller.open();
       expect(
         await e.session.settings.get(planLastCheckDayKey),
@@ -1167,9 +1169,9 @@ void main() {
       final (e, _) = await prepare();
       // Gemeldet am Dienstag, geöffnet am Mittwoch derselben Woche: die
       // Wochenprüfung ist fällig, das Melden hat den Prüftag nicht gesetzt.
-      e.clock.set(_day(13));
+      e.clock.set(localAt(_day(13)));
       await e.controller.reportWarning();
-      e.clock.set(_day(14));
+      e.clock.set(localAt(_day(14)));
       await e.controller.open(); // Wochenbewertung: genau eine neue Fassung
       final n = (await e.plans.history()).length;
       await e.controller.open();
@@ -1178,7 +1180,7 @@ void main() {
       await e.controller.recalculate();
       expect((await e.plans.history()).length, n);
       // Neuer Tag ohne neue Woche: gemessene Werte allein ergeben nichts.
-      e.clock.set(_day(15));
+      e.clock.set(localAt(_day(15)));
       await e.controller.open();
       expect((await e.plans.history()).length, n);
     });
@@ -1214,9 +1216,9 @@ void main() {
     Future<void> prepare() async {
       runs = <RunFigures>[];
       e = await _Env.open(loadRuns: () async => runs);
-      e.clock.set(_day(-21));
+      e.clock.set(localAt(_day(-21)));
       await e.controller.saveGoal(_goal());
-      e.clock.set(DateTime.utc(2026, 11, 24, 12));
+      e.clock.set(DateTime(2026, 11, 24, 12));
     }
 
     Future<List<PlanUnit>> week(int n) async => [
@@ -1340,7 +1342,7 @@ void main() {
         // Samstag der laufenden Woche; ein lockerer Lauf (RPE 3) am Dienstag.
         final current = (await week(1)).firstWhere(easy);
         await addRun(current.day, current.minutes, unit: current, rpe: 3);
-        e.clock.set(DateTime.utc(2026, 11, 28, 12));
+        e.clock.set(DateTime(2026, 11, 28, 12));
         final v = await opened();
         expect(v?.reason, 'fatigue');
       },
@@ -1394,11 +1396,11 @@ void main() {
     test('goalChange am Montag bewertet die Vorwoche mit '
         '(Grund goalChange mit Gründen, NB8 6)', () async {
       final e = await _Env.open();
-      e.clock.set(_day(-21));
+      e.clock.set(localAt(_day(-21)));
       await e.controller.saveGoal(_goal());
       final mon1 = DateTime.utc(2026, 11, 23);
       // Montag der Folgewoche: Ziel geändert, Vorwoche ohne Läufe.
-      e.clock.set(mon1.add(const Duration(hours: 12)));
+      e.clock.set(localAt(mon1, 12));
       await e.controller.saveGoal(_goal(target: DateTime.utc(2027, 5, 1)));
       final h = await e.plans.history();
       expect(h.last.trigger, PlanTrigger.goalChange);
@@ -1456,7 +1458,7 @@ void main() {
       await e.plans.assignRun(units[0].id!, ids[0]);
       await e.plans.assignRun(units[1].id!, ids[1]);
 
-      e.clock.set(thursday.add(const Duration(hours: 12)));
+      e.clock.set(localAt(thursday, 12));
       await e.controller.open();
       final proposal = e.controller.state.walkRunProposal;
       expect(proposal?.suggestion.position, const WalkRunPosition(4, 1));
@@ -1488,7 +1490,7 @@ void main() {
   group('Öffnen: Pausenregel vor Wochenprüfung (NB6)', () {
     Future<_Env> prepared(int pauseDays, {bool recorded = true}) async {
       final e = await _Env.open();
-      e.clock.set(_day(-80));
+      e.clock.set(localAt(_day(-80)));
       await e.controller.saveGoal(_goal());
       e.clock.set(_now);
       await _finishedRun(e.session, pauseDays);
@@ -1700,7 +1702,7 @@ void main() {
   group('Neuer Einstieg: Neustart möglich (NB5 5)', () {
     Future<bool> possible(DateTime target) async {
       final e = await _Env.open();
-      e.clock.set(_day(-80));
+      e.clock.set(localAt(_day(-80)));
       expect(
         await e.controller.saveGoal(_goal(target: target)),
         PlanActionResult.done,
@@ -1721,7 +1723,7 @@ void main() {
 
     test('nein ohne anstehenden Einstieg (keine lange Pause)', () async {
       final e = await _Env.open();
-      e.clock.set(_day(-80));
+      e.clock.set(localAt(_day(-80)));
       await e.controller.saveGoal(_goal());
       e.clock.set(_now);
       await _finishedRun(e.session, 20);
@@ -1732,7 +1734,7 @@ void main() {
     test('Einschätzung des neuen Einstiegs rechnet mit dem neuen Stand, auch '
         'nach der vorläufigen Vorgabe', () async {
       final e = await _Env.open();
-      e.clock.set(_day(-80));
+      e.clock.set(localAt(_day(-80)));
       await e.controller.saveGoal(_goal());
       e.clock.set(_now);
       await _finishedRun(e.session, 70);
@@ -1955,7 +1957,7 @@ void main() {
     /// Lange Pause mit anstehendem neuem Einstieg (PAR-181).
     Future<_Env> pausing() async {
       final e = await _Env.open();
-      e.clock.set(_day(-80));
+      e.clock.set(localAt(_day(-80)));
       await e.controller.saveGoal(_goal());
       e.clock.set(_now);
       await _finishedRun(e.session, 70);
@@ -1989,8 +1991,8 @@ void main() {
   });
 
   group('PAR-231: Läufe zählen automatisch für die offene Einheit', () {
-    /// Beendeter Lauf, der am Tag [d] um [h]:[m] UTC beginnt und [minutes]
-    /// dauert (Versatz null, Ortstag = UTC-Tag).
+    /// Beendeter Lauf, der am Tag [d] um [h]:[m] Ortszeit beginnt und
+    /// [minutes] dauert (Versatz der Prozesszone).
     Future<int> runAt(
       StorageSession s,
       DateTime d,
@@ -1998,13 +2000,14 @@ void main() {
       int m, {
       int minutes = 40,
     }) async {
-      final start = d.add(Duration(hours: h, minutes: m));
+      final start = localAt(d, h, m);
+      final end = start.add(Duration(minutes: minutes));
       final r = await s.runs.create(startedAt: start);
       await s.runs.setState(
         r.id,
         RunState.finished,
-        endedAt: start.add(Duration(minutes: minutes)),
-        endedUtcOffset: Duration.zero,
+        endedAt: end,
+        endedUtcOffset: end.timeZoneOffset,
       );
       return r.id;
     }
@@ -2021,7 +2024,7 @@ void main() {
         'ist erledigt (FR-0156)', () async {
       final e = await _Env.open();
       final run = await runAt(e.session, _today, 17, 30);
-      e.clock.set(_today.add(const Duration(hours: 19)));
+      e.clock.set(localAt(_today, 19));
       expect(
         await e.controller.saveGoal(_goal(days: {1, 3, 5})),
         PlanActionResult.done,
@@ -2124,7 +2127,7 @@ void main() {
         final e = await _Env.open();
         await e.controller.saveGoal(_goal(days: {1, 3, 5}));
         final unit = (await e.controller.unitOn(_today))!;
-        e.clock.set(_today.add(const Duration(hours: 13)));
+        e.clock.set(localAt(_today, 13));
         await PlanStartedUnitStore(
           session: e.session,
           clock: e.clock,
@@ -2147,7 +2150,7 @@ void main() {
         final run = await runAt(e.session, sunday, 23, 50, minutes: 30);
         // Uhr am Montag kurz nach Mitternacht: die Woche beginnt heute, der
         // Starttag des Laufs liegt davor.
-        e.clock.set(_day(5).add(const Duration(minutes: 25)));
+        e.clock.set(localAt(_day(5), 0, 25));
         expect(
           await e.controller.autoAssignRuns(since: sunday),
           PlanActionResult.done,
@@ -2160,7 +2163,7 @@ void main() {
     test('Neustart nach langer Pause ordnet den Lauf des Tages zu', () async {
       // Lange Pause (PAR-181) mit anstehendem neuem Einstieg.
       final e = await _Env.open();
-      e.clock.set(_day(-80));
+      e.clock.set(localAt(_day(-80)));
       await e.controller.saveGoal(_goal());
       e.clock.set(_now);
       await _finishedRun(e.session, 70);
