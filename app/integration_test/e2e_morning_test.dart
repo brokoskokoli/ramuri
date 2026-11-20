@@ -493,7 +493,7 @@ void main() {
     await waitFor(t, () => has('home_start_run'), 'S1 Heute (home_start_run)');
     await entryLoaded(t, MorningCard, 'S1 Heute');
     expect(has('morning_card'), isFalse, reason: 'S1 keine Karte');
-    await shotHellDunkel(t, 's1_heute_ohne', 'home_start_run');
+    await shotHellDunkel(t, 's1_heute_ohne', 'home_screen');
     await tapKey(t, 'home_overview');
     await waitFor(t, () => has('overview_about'), 'S1 Uebersicht');
     await entryLoaded(t, MorningTile, 'S1 Uebersicht');
@@ -673,7 +673,7 @@ void main() {
       reason: 'S3 nur die erste gueltige des Morgens zaehlt (K67)',
     );
     await closeResultToHome(t);
-    await shotHellDunkel(t, 's3_heute_karte', 'home_start_run');
+    await shotHellDunkel(t, 's3_heute_karte', 'home_screen');
 
     step('MORNING S4 schlecht_dann_gueltig');
     // 4) schlechte Qualitaet -> Noch einmal -> gueltig; die schlechte wird im

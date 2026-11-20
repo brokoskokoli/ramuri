@@ -57,7 +57,9 @@ Brightness themeAt(WidgetTester t, String key) =>
 /// Fotopaar dunkel und hell: schaltet die Systemhelligkeit der Testumgebung
 /// auf dunkel, wartet ([waitFor], Frist [timeout]), bis das Thema am Widget
 /// [key] dunkel ist, und setzt die Marke `<name>_dunkel`; danach dasselbe hell
-/// mit `<name>_hell`. Am Ende gilt wieder die Systemhelligkeit
+/// mit `<name>_hell`. [key] gehoert zur Seite selbst (z. B. Scaffold), nicht
+/// zu einem Teil mit eigenem festen Thema (Karte `RamuriCardTone.panel` ist
+/// immer dunkel), sonst wird hell nie erreicht. Am Ende gilt wieder die Systemhelligkeit
 /// (`clearPlatformBrightnessTestValue`), auch wenn das Warten scheitert, damit
 /// ein roter Schritt die folgenden nicht dunkel weiterlaufen laesst. [pause]
 /// wie bei [shot]: ohne [e2eShots] kommen keine Pausen dazu, nur das Warten
