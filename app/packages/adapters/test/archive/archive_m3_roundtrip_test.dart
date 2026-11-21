@@ -80,6 +80,9 @@ final _m3Settings = <String, String>{
 final _technical = <String, String>{
   SettingKeys.developerMode: '1',
   HealthImportService.lastImportKey: '2026-12-01T06:00:00.000Z',
+  // Fehlerzähler der App: Gerätezustand ohne Werte, nicht im Archiv.
+  SettingKeys.errorCounts:
+      '[{"type":"StateError","place":"unknown","count":2}]',
 };
 
 void main() {

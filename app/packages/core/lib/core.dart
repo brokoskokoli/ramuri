@@ -72,6 +72,7 @@ export 'src/archive/framed_archive_cipher.dart';
 export 'src/consent/consent_service.dart';
 export 'src/consent/consent_sources.dart';
 export 'src/consent/consented_source.dart';
+export 'src/consent/consented_health_reader.dart';
 export 'src/export/export_run.dart';
 export 'src/export/fit_crc.dart';
 export 'src/export/fit_encoder.dart';

@@ -95,8 +95,8 @@ abstract interface class FileHandoff {
 
   /// Absoluter Ordner, in den der Aufrufer eine große Datei schreibt, bevor
   /// er sie mit [ExportFile.inExportDirectory] übergibt. Er ist nur Ablage
-  /// für die Übergabe: Die Plattform räumt ihn beim Start und vor jedem
-  /// Teilen auf (außer der geteilten Datei). `null`, wenn es keinen gibt.
+  /// für die Übergabe: Die Plattform räumt ihn beim Start, vor jedem
+  /// Teilen (außer der geteilten Datei) und mit [clearExports] auf. `null`, wenn es keinen gibt.
   /// Wirft nie.
   Future<String?> exportDirectory();
 
@@ -112,6 +112,31 @@ abstract interface class FileHandoff {
   /// Entfernt die Kopie aus [pickFile] (nach dem Import, auch bei Fehlern).
   /// Die Plattform räumt sie außerdem beim Prozessstart. Wirft nie.
   Future<void> discardPicked();
+
+  /// Leert die Ablagen der Übergabe ([exportDirectory] und die Kopie aus
+  /// [pickFile]) samt Unterordnern, beim Löschen von Daten (SEC-0004: „Alles
+  /// löschen“, „Lauf löschen“). Mit [unlessSharing] bleibt alles liegen,
+  /// solange eine Übergabe offen ist (das System liest die Datei womöglich
+  /// noch); die Plattform räumt dann beim nächsten Prozessstart. Mit
+  /// [exportsOnly] nur [exportDirectory], die Kopie aus [pickFile] bleibt
+  /// (Neubeginn nach Schlüsselverlust: die Wiederherstellung liest das gewählte
+  /// Archiv danach noch; es entfernt [discardPicked]). Wirft nie.
+  Future<ExportClearResult> clearExports({
+    bool unlessSharing = false,
+    bool exportsOnly = false,
+  });
+}
+
+/// Ergebnis von [FileHandoff.clearExports].
+enum ExportClearResult {
+  /// Die geleerten Ablagen sind leer (auch: es lag nichts darin).
+  cleared,
+
+  /// Nichts geleert, weil eine Übergabe offen ist (nur mit `unlessSharing`).
+  keptWhileSharing,
+
+  /// Nicht sicher leer (Fehler der Plattform, kein Kanal).
+  failed,
 }
 
 /// Ergebnis von [FileHandoff.pickFile]: [path] nur bei [FileHandoffResult.completed].

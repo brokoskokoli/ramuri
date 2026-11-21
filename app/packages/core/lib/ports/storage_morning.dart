@@ -337,6 +337,13 @@ abstract interface class MorningStore {
   /// andere der Messung bleibt unverändert. Unbekannte Messung: `notFound`.
   Future<void> setSleepBand(int measurementId, SleepBand? band);
 
+  /// Löscht die Schlafstufe an allen [measurementIds] in einer Transaktion
+  /// (ganz oder gar nicht, PAR-164K: Abwählen an allen zählenden
+  /// Morgenmessungen); alles andere der Messungen bleibt unverändert. Doppelte
+  /// Ids sind erlaubt, eine leere Liste ändert nichts. Eine unbekannte Messung:
+  /// `notFound`, und keine Messung ändert sich.
+  Future<void> clearSleepBands(Iterable<int> measurementIds);
+
   /// Gurt-RR-Pakete der Messung nach Empfangszeit, dann Id sortiert; ohne
   /// Pakete leer. Unbekannte Messung: `notFound`.
   Future<List<StoredRrPacket>> beltPackets(int measurementId);

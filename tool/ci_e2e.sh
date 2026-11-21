@@ -53,6 +53,18 @@
 # auf stderr und macht weiter wie nach einem fehlgeschlagenen Aufruf; so greift auch das Zeitlimit je Stufe.
 # E2E_ADB_LIMIT_S=<s> (positive ganze Zahl) ersetzt es (lokal, Selbsttest); ein anderer Wert ist ein Fehler vor
 # der ersten Stufe.
+# Tageswechsel (tageswechsel_stufen unten): Die Stufen mit gefuehrter Einheit warten kurz vor Mitternacht den
+# Tageswechsel ab (waitPastLateEvening in app/integration_test/support/e2e_plan_form.dart, Fenster 23:45-23:59
+# Ortszeit des Emulators). Dieses Warten zaehlt nicht gegen das Zeitlimit der Stufe:
+# - Zeigt die Emulatoruhr (`adb shell date +%H:%M:%S`) beim Start einer solchen Stufe 23:45-23:59, wartet der Host
+#   vor dem Start bis 00:00 und meldet "STUFE <name> wartet auf Tageswechsel <s> s"; erst danach beginnt die
+#   Zeitmessung der Stufe.
+# - Geraet die Stufe erst waehrend des Laufs in das Fenster, meldet der Test "PUB_<zeit> TAGESWECHSEL warten" und
+#   danach "PUB_<zeit> TAGESWECHSEL ende"; die Zeit dazwischen zieht der Host vom Zeitlimit ab (hoechstens
+#   tageswechsel_max_s) und meldet "STUFE <name> Tageswechsel im Test abgewartet <s> s".
+# Andere Stufen warten nie, auch nicht bei diesen Zeilen. Ist die Uhr nicht lesbar, wartet der Host nicht.
+# E2E_UHR_VERSATZ_S=<s> (ganze Zahl >= 0) stellt die vom Host gelesene Emulatoruhr um <s> vor (Selbsttest und
+# Nachweislauf; die Uhr der App bleibt unveraendert); ein anderer Wert ist ein Fehler vor der ersten Stufe.
 set -u
 out="${1:-e2e-out}"
 mkdir -p "$out"
@@ -114,6 +126,15 @@ grenze_s() {
     storage-b | recover-a | recover-b | m2-flow | readiness | plan-adapt | m3-flow) echo 300 ;;
   esac
 }
+# Stufen mit gefuehrter Einheit, die kurz vor Mitternacht den Tageswechsel abwarten (waitPastLateEvening).
+tageswechsel_stufen="m2-flow treadmill-plan"
+# Obergrenze des Wartens in s: das Fenster dauert hoechstens 15 min (23:45-00:00), dazu 1 min Spielraum. Haengt
+# der Test im Warten oder bleibt die Uhr stehen, zaehlt die Zeit darueber wieder gegen das Zeitlimit.
+tageswechsel_max_s=960
+# Waechter: Jede Stufe der Warteliste muss es geben (Tippfehler wuerden das Warten still abschalten).
+for n in $tageswechsel_stufen; do
+  grep -q "^stufe $n [01] " "$0" || { echo "Stufe $n in tageswechsel_stufen gibt es nicht"; exit 1; }
+done
 # Waechter: Jede Zeile `stufe <name> ...` unten muss in einem Shard stehen, sonst liefe sie in der CI nie,
 # und ein Zeitlimit haben.
 for n in $(grep '^stufe [^ ]* [01] ' "$0" | cut -d' ' -f2); do
@@ -150,6 +171,45 @@ case "${E2E_ADB_LIMIT_S:-}" in
   *) [ "$E2E_ADB_LIMIT_S" -gt 0 ] 2>/dev/null || { echo "E2E_ADB_LIMIT_S keine positive ganze Zahl"; exit 1; }
     adb_limit_s=$E2E_ADB_LIMIT_S ;;
 esac
+
+# Takt der Warteschleife je Stufe in s (Zustand, Zeitlimit, NEED_KILL, Foto); leer wie 2. E2E_TAKT_S=<s> (Zahl > 0,
+# auch mit Nachkommastellen, nur Selbsttest) verkuerzt ihn; ein anderer Wert ist ein Fehler vor der ersten Stufe.
+case "${E2E_TAKT_S:-}" in
+  "") takt_s=2 ;;
+  *[!0-9.]* | .* | *. | *.*.* ) echo "E2E_TAKT_S keine positive Zahl"; exit 1 ;;
+  *) case "$E2E_TAKT_S" in *[1-9]*) takt_s=$E2E_TAKT_S ;; *) echo "E2E_TAKT_S keine positive Zahl"; exit 1 ;; esac ;;
+esac
+
+# Versatz der Emulatoruhr (nur Selbsttest und Nachweislauf); leer wie 0.
+case "${E2E_UHR_VERSATZ_S:-}" in
+  "") uhr_versatz_s=0 ;;
+  *[!0-9]*) echo "E2E_UHR_VERSATZ_S keine ganze Zahl >= 0"; exit 1 ;;
+  *) uhr_versatz_s=$E2E_UHR_VERSATZ_S ;;
+esac
+
+# uhr_s: Sekunden seit Mitternacht der Emulatoruhr (Ortszeit des Geraets) plus E2E_UHR_VERSATZ_S; Exit 1, wenn
+# die Uhr nicht lesbar ist.
+uhr_s() {
+  uz=$(a shell date +%H:%M:%S 2>/dev/null | tr -d '\r')
+  case "$uz" in [0-2][0-9]:[0-5][0-9]:[0-6][0-9]) ;; *) return 1 ;; esac
+  uh=${uz%%:*}; ur=${uz#*:}; um=${ur%%:*}; us=${ur#*:}
+  # Fuehrende Null weg (sonst oktal); zweistellig, also hoechstens eine.
+  uh=${uh#0}; um=${um#0}; us=${us#0}
+  echo $(((uh * 3600 + um * 60 + us + uhr_versatz_s) % 86400))
+}
+
+# im_fenster <s>: 23:45:00 bis 23:59:59 (wie waitPastLateEvening).
+im_fenster() { [ "$1" -ge 85500 ]; }
+
+# tageswechsel_vorab <stufe>: Liegt die Emulatoruhr beim Start einer Stufe aus tageswechsel_stufen im Fenster,
+# bis 00:00 warten (hoechstens tageswechsel_max_s), bevor die Zeitmessung der Stufe beginnt.
+tageswechsel_vorab() {
+  case " $tageswechsel_stufen " in *" $1 "*) ;; *) return 0 ;; esac
+  uw=$(uhr_s) && im_fenster "$uw" || return 0
+  tw0=$(date +%s)
+  while uw=$(uhr_s) && im_fenster "$uw" && [ $(($(date +%s) - tw0)) -lt "$tageswechsel_max_s" ]; do sleep 1; done
+  echo "STUFE $1 wartet auf Tageswechsel $(($(date +%s) - tw0)) s"
+}
 
 # shot_watch <testlog> <stufe>: je neue vollstaendige Zeile "E2E_<zeit> SHOT <name>" genau ein Foto
 # <out>/shots/<stufe>-<name>.png (der Test steht dabei 2,5 s); ungueltiger Name -> kein Foto.
@@ -224,6 +284,12 @@ stufe() {
   ran=$((ran + 1))
   log="$out/flutter-test-$name.log"
   limit="${E2E_STUFE_LIMIT_S:-$(grenze_s "$name")}"
+  tageswechsel_vorab "$name"
+  # Warten im Test (Zeilen TAGESWECHSEL warten/ende) nur bei Stufen aus tageswechsel_stufen abziehen.
+  case " $tageswechsel_stufen " in *" $name "*) tw=1 ;; *) tw=0 ;; esac
+  tw_ab=""
+  tw_bis=""
+  pause=0
   t0=$(date +%s)
   a logcat -c
   : >"$log"
@@ -242,7 +308,18 @@ stufe() {
   killed=1
   zeitlimit=0
   while kill -0 "$pid" 2>/dev/null; do
-    el=$(($(date +%s) - t0))
+    jetzt=$(date +%s)
+    if [ "$tw" = 1 ]; then
+      if [ -z "$tw_ab" ] && grep -q 'PUB_[^ ]* TAGESWECHSEL warten' "$log" 2>/dev/null; then tw_ab=$jetzt; fi
+      if [ -n "$tw_ab" ] && [ -z "$tw_bis" ] && grep -q 'PUB_[^ ]* TAGESWECHSEL ende' "$log" 2>/dev/null; then
+        tw_bis=$jetzt
+      fi
+      if [ -n "$tw_ab" ]; then
+        pause=$((${tw_bis:-$jetzt} - tw_ab))
+        [ "$pause" -le "$tageswechsel_max_s" ] || pause=$tageswechsel_max_s
+      fi
+    fi
+    el=$((jetzt - t0 - pause))
     if [ "$el" -ge "$limit" ]; then
       echo "Zeitlimit in Stufe $name nach $el s"
       zeitlimit=1
@@ -260,7 +337,7 @@ stufe() {
       a shell am force-stop "$pkg"
       killed=0
     fi
-    sleep 2
+    sleep "$takt_s"
   done
   wait "$pid"
   rc=$?
@@ -276,6 +353,7 @@ stufe() {
     # Das Testende nach dem Prozessende ist erwartet; fehlt das Zeichen, ist die Stufe rot.
     if [ "$killed" = 0 ]; then rc=0; else rc=1; echo "kein NEED_KILL in Stufe $name"; fi
   fi
+  [ -z "$tw_ab" ] || echo "STUFE $name Tageswechsel im Test abgewartet $pause s"
   # Nach dem Zeitlimit immer rot, auch wenn NEED_KILL schon kam.
   [ "$zeitlimit" = 0 ] || rc=1
   echo "STUFE $name rc=$rc dauer=$(($(date +%s) - t0))s"

@@ -35,7 +35,19 @@ Einstieg in die Spezifikation von ramuri (Adaptive Running & Fitness App). Der S
 
 ## Weitere Dokumente
 
-- Architektur: [Überblick](architecture/overview.md), [Fachliches Datenmodell](architecture/data-model.md), [ADR-0001: Nur lokale Datenhaltung](architecture/adr/ADR-0001-nur-lokale-datenhaltung.md)
+- Architektur: [Überblick](architecture/overview.md) (logische Sicht), [Code-Landkarte](architecture/code-map.md) (Pakete, Ordner, Regeln, wohin neuer Code gehört), [Fachliches Datenmodell](architecture/data-model.md), [Kategorien der Berechnungsverfahren](architecture/algorithm-categories.md)
+- Architekturentscheidungen mit Status (Datum und Bezüge im [Überblick](architecture/overview.md#architekturentscheidungen)):
+  - [ADR-0001: Nur lokale Datenhaltung](architecture/adr/ADR-0001-nur-lokale-datenhaltung.md) — Accepted
+  - [ADR-0002: Flutter, Android-Mindestversion und Projektaufbau](architecture/adr/ADR-0002-flutter-mindestversion-projektaufbau.md) — Accepted
+  - [ADR-0003: Speicherung und Verschlüsselung](architecture/adr/ADR-0003-speicherung-und-verschluesselung.md) — Accepted
+  - [ADR-0004: Algorithmen, Rohdaten und Versionierung](architecture/adr/ADR-0004-algorithmen-rohdaten-versionierung.md) — Accepted
+  - [ADR-0005: Aufzeichnung im Hintergrund und Wiederanlauf](architecture/adr/ADR-0005-aufzeichnung-hintergrund-wiederanlauf.md) — Accepted
+  - [ADR-0006: Bluetooth-Sensoren](architecture/adr/ADR-0006-bluetooth-sensoren.md) — Accepted
+  - [ADR-0007: Health Connect](architecture/adr/ADR-0007-health-connect.md) — Accepted
+  - [ADR-0008: Verschlüsselung des Archivs](architecture/adr/ADR-0008-verschluesselung-des-archivs.md) — Accepted
+  - [ADR-0009: Kartenkacheln nach Einwilligung](architecture/adr/ADR-0009-kartenkacheln-nach-einwilligung.md) — Accepted
+  - [ADR-0010: Plan: Speicherung und Neuberechnung](architecture/adr/ADR-0010-plan-speicherung-und-neuberechnung.md) — Accepted
+  - [ADR-0011: Kamera-PPG](architecture/adr/ADR-0011-kamera-ppg.md) — Accepted
 - Verträge: [Schnittstellen](contracts/README.md)
 - Qualität: [Tests und Abnahme](quality/testing.md), [Sicherheit und Datenschutz](quality/security.md), [Nichtfunktionales](quality/non-functional.md)
 - [Modellparameter (Startwerte, Version 4)](model-parameters.md)
