@@ -1,6 +1,8 @@
-/// Port zu Health Connect (ADR-0007, WP32 Teil A): nur Lesen, je Datenart getrennt. Reine Schnittstelle ohne Logik;
-/// Einwilligung und Import liegen in `src/health/health_import.dart`. Der Port liegt in `core`, damit der Import ohne
-/// Flutter testbar ist; der Adapter in `adapters` implementiert ihn.
+/// Port zu Health Connect (ADR-0007, WP32 Teil A): nur Lesen, je Datenart getrennt, aufgeteilt in Rechte
+/// ([HealthConnectPermissions]) und Lesen ([HealthConnectReader]). Reine Schnittstelle ohne Logik; Einwilligung und
+/// Import liegen in `src/health/health_import.dart`, der Wächter vor dem Lesen in
+/// `src/consent/consented_health_reader.dart`. Der Port liegt in `core`, damit der Import ohne Flutter testbar ist;
+/// der Adapter in `adapters` implementiert ihn.
 library;
 
 /// Die sechs Datenarten aus ADR-0007 Punkt 2; [key] ist der Wert im Kanal (`HealthKind` in `HealthConnectLogic.kt`).
@@ -91,7 +93,9 @@ class HealthPage {
   final String? nextToken;
 }
 
-abstract interface class HealthConnectPort {
+/// Rechte und Zustand von Health Connect, ohne Lesen. Das bekommt, wer nur Zustand und Rechte zeigt oder anfragt
+/// (Seite „Health Connect“).
+abstract interface class HealthConnectPermissions {
   Future<HealthSdkStatus> sdkStatus();
 
   /// Die Arten, deren Leserecht Health Connect jetzt erteilt hat.
@@ -103,7 +107,11 @@ abstract interface class HealthConnectPort {
   /// Öffnet die Installationsseite von Health Connect im Play Store (ohne Netzzugriff der App). `false`, wenn sich
   /// nichts öffnen ließ; wirft nie.
   Future<bool> openInstall();
+}
 
+/// Lesen von Health Connect. Nur der Import bekommt es, und zwar nur über den Einwilligungs-Wächter
+/// `ConsentedHealthReader` (SEC-0001, SEC-0002); niemand sonst hält diesen Typ.
+abstract interface class HealthConnectReader {
   /// Liest eine Seite einer Art im Zeitfenster [from, to]. Fehlt das Recht dieser Art, wirft der Adapter
   /// [HealthReadError.permissionMissing] und liest nichts. Pulsverlauf nur für Fenster bis 24 h.
   Future<HealthPage> readPage({
@@ -114,3 +122,8 @@ abstract interface class HealthConnectPort {
     int? pageSize,
   });
 }
+
+/// Der ganze Port, wie ihn der Adapter (Kanal `ramuri/health`) umsetzt. Nur die Verdrahtung hält ihn und reicht die
+/// Teile getrennt weiter: [HealthConnectPermissions] an die Seite, [HealthConnectReader] nur in den Wächter.
+abstract interface class HealthConnectPort
+    implements HealthConnectPermissions, HealthConnectReader {}
