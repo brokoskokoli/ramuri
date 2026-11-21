@@ -1,5 +1,6 @@
 #!/bin/sh
-# Gate: tool/gate.sh [--fast | --changed]. Spec-Prüfung, Datenschutz und, sobald app/ existiert, Flutter.
+# Gate: tool/gate.sh [--fast | --changed | --stage <stufe> | --list-stages] [--dry-run]. Spec-Prüfung, Datenschutz
+# und, sobald app/ existiert, Flutter.
 #   (ohne Option)  voll: alle Schritte, Pflicht vor Review-Abgabe und Fertigmeldung. Nimmt den Gate-Lock.
 #   --fast         Zwischenstand: spec, privat, Netz, Format und Analyse aller Pakete, Tests nur der gegenüber
 #                  der Basis (merge-base main) geänderten Pakete und der von ihnen abhängigen (app ← adapters ← core); kein Release/Drift/Kotlin, keine Zeitzonen, kein Lock;
@@ -8,6 +9,16 @@
 #                  (getrackt, ungetrackt, committet) gegenüber main unverändert sind (auf main gegenüber dem Stand vor
 #                  dem letzten Commit), und Drift/Kotlin/Release nur, wenn sich ihre Eingaben (Listen unten) geändert haben.
 #                  Nimmt den Gate-Lock.
+#   --stage <stufe> wie voll, führt aber nur die Schritte einer Stufe aus (für parallele CI-Jobs). Jeder Schritt gehört
+#                  zu genau einer Stufe (Selbsttest tool/gate_stages_test.sh); alle Stufen zusammen = voller Lauf.
+#                  Stufen außer tools und analyze holen vorher die Pakete (Vorbereitung "pub get", nur wenn
+#                  app/.dart_tool/package_config.json fehlt). Nimmt den Gate-Lock.
+#   --list-stages  gibt die Stufen aus, eine je Zeile, und endet.
+#   --dry-run      (Selbsttest) führt nichts aus, sondern gibt je Schritt "PLAN <stufe> <name>" aus (Vorbereitung:
+#                  "VORB <stufe> <name>"); mit jeder anderen Option kombinierbar außer --list-stages. Kein Lock.
+# Stufen: tools (Spec, privat, Netz, Architektur, Selbsttests der Werkzeuge), analyze (Flutter-Version, pub get,
+# core flutterfrei, Format und Analyse aller Pakete, Lock unverändert), app und je Paket unter app/packages sein
+# Verzeichnisname (Tests), zones (Zeitzonen), drift (Drift-Schema), android (Kotlin-Tests), release (Release-APK).
 # Im Zweifel (kein main, Fehler beim Vergleich) wird geprüft statt ausgelassen.
 # Ablauf: Stufe "schnell" (billige Prüfungen, Format und Analyse aller Pakete) zeigt alle Ergebnisse; ist dort etwas
 # rot, endet das Gate danach. Danach (Tests, drift, kotlin, release, lock) bricht es beim ersten roten Schritt ab.
@@ -24,21 +35,52 @@ GATE_KOTLIN_PATHS="app/android tool/gate.sh :(glob)app/**/pubspec.*"
 GATE_RELEASE_PATHS="app/android app/lib app/packages app/assets app/l10n.yaml tool/check_release_manifest.py tool/check_release_apk.sh tool/gate.sh :(glob)app/**/pubspec.*"
 GATE_RELEASE_NAME="release: INTERNET, CAMERA, VIBRATE, uses-feature, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, keine Debug-Quellen"
 
+aufruf="Aufruf: sh tool/gate.sh [--fast | --changed | --stage <stufe> | --list-stages] [--dry-run]"
 mode=full
-case "${1:-}" in
-  "") ;;
-  --fast) mode=fast ;;
-  --changed) mode=changed ;;
-  *) echo "Aufruf: sh tool/gate.sh [--fast | --changed]"; exit 2 ;;
-esac
+only_stage=
+list_stages=0
+dry_run=0
+n_modus=0
+want_stage=0
+for a in "$@"; do   # ohne shift: "$@" bleibt für den Neustart unter dem Lock erhalten
+  if [ $want_stage -eq 1 ]; then
+    [ -n "$a" ] || { echo "$aufruf"; exit 2; }
+    only_stage=$a; want_stage=0; continue
+  fi
+  case "$a" in
+    --fast) mode=fast; n_modus=$((n_modus + 1)) ;;
+    --changed) mode=changed; n_modus=$((n_modus + 1)) ;;
+    --stage) want_stage=1; n_modus=$((n_modus + 1)) ;;
+    --list-stages) list_stages=1; n_modus=$((n_modus + 1)) ;;
+    --dry-run) dry_run=1 ;;
+    *) echo "$aufruf"; exit 2 ;;
+  esac
+done
+[ $want_stage -eq 0 ] || { echo "$aufruf"; exit 2; }
+[ $n_modus -le 1 ] || { echo "$aufruf (höchstens eine von --fast, --changed, --stage, --list-stages)"; exit 2; }
+[ $list_stages -eq 0 ] || [ $dry_run -eq 0 ] || { echo "$aufruf"; exit 2; }
 
 self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
+# Stufe eines Pakets: app heißt app, die Pakete unter app/packages nach ihrem Verzeichnis.
+pkg_stage() { if [ "$1" = app ]; then echo app; else basename "$1"; fi; }
+# Alle Stufen in der Reihenfolge des vollen Laufs.
+stages() {
+  echo tools
+  echo analyze
+  for p in app app/packages/*; do [ -d "$p" ] && pkg_stage "$p"; done
+  echo zones drift android release | tr ' ' '\n'
+}
+if [ $list_stages -eq 1 ]; then stages; exit 0; fi
+if [ -n "$only_stage" ]; then
+  stages | grep -qx -- "$only_stage" || { echo "unbekannte Stufe: $only_stage (bekannt: $(stages | tr '\n' ' '))"; exit 2; }
+fi
+
 # Lock (nicht bei --fast): das Skript startet sich einmal unter dem Lock neu. Erst ein nicht blockierender Versuch
 # (lockf Exit 75 bzw. flock -E 75 = belegt), dann ein einmaliger Hinweis und blockierendes Warten.
 # macOS: /usr/bin/lockf. Sonst flock (Linux). Gibt es beides nicht oder ist CI=true, läuft das Gate ohne Lock.
-if [ "$mode" != fast ] && [ -z "${GATE_LOCK_HELD:-}" ]; then
+if [ "$mode" != fast ] && [ $dry_run -eq 0 ] && [ -z "${GATE_LOCK_HELD:-}" ]; then
   if [ -x /usr/bin/lockf ]; then locker=lockf
   elif [ "${CI:-}" != true ] && command -v flock >/dev/null 2>&1; then locker=flock
   else locker=
@@ -77,8 +119,12 @@ abbruch() {
   echo "GATE ABGEBROCHEN"; exit 143
 }
 trap abbruch INT TERM
+# step <stufe> <name> <befehl...>: nur, wenn keine Stufe gewählt ist oder es die gewählte ist.
 step() {
-  name=$1; shift; log=$(mktemp); t0=$(date +%s)
+  stufe=$1; name=$2; shift 2
+  [ -z "$only_stage" ] || [ "$stufe" = "$only_stage" ] || return 0
+  if [ $dry_run -eq 1 ]; then echo "PLAN $stufe $name"; return 0; fi
+  log=$(mktemp); t0=$(date +%s)
   "$@" </dev/null >"$log" 2>&1 & cur=$!
   wait "$cur"; rc=$?; cur=
   dt=$(( $(date +%s) - t0 ))
@@ -99,17 +145,22 @@ spec() {
   [ "$before" = "$after" ] || { echo "Generierte Abschnitte waren veraltet; spec_tool build hat sie aktualisiert, bitte committen."; return 1; }
   python3 tool/spec_tool.py check
 }
-step "spec" spec
-step "privat" sh tool/check_private.sh
+step tools "spec" spec
+step tools "Architektur-Doku-Prüfung Selbsttest" python3 tool/check_docs_links_test.py
+step tools "privat" sh tool/check_private.sh
 # SEC-0002, SEC-0008, ADR-0009: Netz-APIs und Kartenbibliotheken nur im Kartenadapter (fail-closed mit Freigabeliste tool/net_allowed_packages.txt, siehe tool/check_net.py; der Selbsttest tool/check_net_test.py belegt jede Umgehung als rot).
-[ -f app/pubspec.yaml ] && step "Netz nur im Kartenadapter" python3 tool/check_net.py
-[ -f app/pubspec.yaml ] && step "Netz-Prüfung Selbsttest" python3 tool/check_net_test.py
-[ -f app/pubspec.yaml ] && step "Release-Manifest-Prüfung Selbsttest" python3 tool/check_release_manifest_test.py
+[ -f app/pubspec.yaml ] && step tools "Netz nur im Kartenadapter" python3 tool/check_net.py
+[ -f app/pubspec.yaml ] && step tools "Netz-Prüfung Selbsttest" python3 tool/check_net_test.py
+# Zyklen-Ratsche: keine neuen Zyklen zwischen core-Modulen bzw. App-Features (Grundlinie im Skript, docs/architecture/code-map.md).
+[ -f app/pubspec.yaml ] && step tools "Architektur (keine neuen Zyklen)" python3 tool/check_architecture.py
+[ -f app/pubspec.yaml ] && step tools "Architekturprüfung Selbsttest" python3 tool/check_architecture_test.py
+[ -f app/pubspec.yaml ] && step tools "Release-Manifest-Prüfung Selbsttest" python3 tool/check_release_manifest_test.py
 # WP30: Versionsrechnung des Release-Builds und Tag-Regel des Pre-Push-Hooks (bash explizit, läuft auch unter Linux/dash).
-step "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh
-step "Pre-Push-Regeln Selbsttest" bash tool/hooks/pre-push_test.sh
-step "ci_e2e Selbsttest (Attrappen)" sh tool/ci_e2e_test.sh
-step "ci_ndk Selbsttest (Attrappen)" bash tool/ci_ndk_test.sh
+step tools "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh
+step tools "Pre-Push-Regeln Selbsttest" bash tool/hooks/pre-push_test.sh
+step tools "ci_e2e Selbsttest (Attrappen)" sh tool/ci_e2e_test.sh
+step tools "ci_ndk Selbsttest (Attrappen)" bash tool/ci_ndk_test.sh
+step tools "Gate-Stufen Selbsttest" sh tool/gate_stages_test.sh
 
 # --- Flutter und Dart: je Paket (app und app/packages/*) ---
 is_flutter() { grep -Eq '^[[:space:]]+sdk:[[:space:]]*flutter[[:space:]]*$' "$1/pubspec.yaml"; }
@@ -156,8 +207,9 @@ paths_changed() {
 }
 
 # Für --changed: Schritt nur bei geänderten Eingaben (Liste siehe oben im Skript), sonst SKIP.
-step_wenn_geaendert() {   # <Eingaben> <Name> <Funktion>
-  if paths_changed "$1"; then step "$2" "$3"; else echo "SKIP  $2 (Eingaben unverändert: $1)"; fi
+step_wenn_geaendert() {   # <Stufe> <Eingaben> <Name> <Funktion>
+  [ -z "$only_stage" ] || [ "$1" = "$only_stage" ] || return 0
+  if paths_changed "$2"; then step "$1" "$3" "$4"; else echo "SKIP  $3 (Eingaben unverändert: $2)"; fi
 }
 
 # Pfade der Pakete in app/packages, von denen <Paket> über path-Abhängigkeiten (auch transitiv) abhängt.
@@ -194,7 +246,7 @@ pkg_test() {
   ( cd "$1" || exit 1
     [ -d test ] || { echo "test/ fehlt in $1"; exit 1; }
     if is_flutter .; then
-      if [ "$1" = app ]; then flutter test --coverage; else flutter test; fi
+      flutter test
     else dart test; fi )
 }
 
@@ -389,21 +441,29 @@ if [ -f app/pubspec.yaml ]; then
   else
     # --- Stufe schnell: alle Schritte laufen, auch nach einem roten ---
     if [ "$mode" != fast ]; then
-      step "flutter version" flutter_version
+      step analyze "flutter version" flutter_version
     fi
     lock_before=$(lock_hash)
     if [ "$mode" != fast ] || paths_changed ":(glob)app/**/pubspec.*" || [ ! -f app/.dart_tool/package_config.json ]; then
-      step "pub get" sh -c 'cd app && flutter pub get --enforce-lockfile'
+      step analyze "pub get" sh -c 'cd app && flutter pub get --enforce-lockfile'
     else
       echo "SKIP  pub get (pubspec.* unverändert)"
     fi
     if [ "$mode" != fast ]; then
-      step "core flutterfrei" core_flutterfrei
+      step analyze "core flutterfrei" core_flutterfrei
     fi
+    # Einzelne Stufe außer tools/analyze: Pakete holen, falls noch nicht aufgelöst (frischer Checkout in CI).
+    case "$only_stage" in
+      "" | tools | analyze) ;;
+      *) if [ $dry_run -eq 1 ]; then echo "VORB $only_stage pub get"
+         elif [ ! -f app/.dart_tool/package_config.json ]; then
+           step "$only_stage" "pub get (Vorbereitung)" sh -c 'cd app && flutter pub get --enforce-lockfile'
+         fi ;;
+    esac
     for p in app app/packages/*; do
-      if [ ! -f "$p/pubspec.yaml" ]; then step "$p pubspec" sh -c "echo 'pubspec.yaml fehlt in $p'; exit 1"; continue; fi
-      step "$p format" pkg_format "$p"
-      step "$p analyze" pkg_analyze "$p"
+      if [ ! -f "$p/pubspec.yaml" ]; then step analyze "$p pubspec" sh -c "echo 'pubspec.yaml fehlt in $p'; exit 1"; continue; fi
+      step analyze "$p format" pkg_format "$p"
+      step analyze "$p analyze" pkg_analyze "$p"
     done
     ende_schnelle_stufe
     # --- Stufe schwer: Tests, Drift, Kotlin, Release, Lock; erster roter Schritt beendet das Gate ---
@@ -415,24 +475,26 @@ if [ -f app/pubspec.yaml ]; then
         deps_p=$(pkg_deps "$p")
         paths_changed "$spec_p" || { [ -n "$deps_p" ] && paths_changed "$deps_p"; } || { echo "SKIP  $p test (Paket und Abhängigkeiten gegenüber der Basis unverändert)"; continue; }
       fi
-      step "$p test" pkg_test "$p"
+      step "$(pkg_stage "$p")" "$p test" pkg_test "$p"
     done
     if [ "$mode" = fast ]; then
       echo "FAST  ohne Zeitzonen, drift schema, kotlin test, release, lock unverändert (nur das volle Gate gilt vor der Fertigmeldung)"
     else
-      step "Tageszuordnung in Zeitzonen ($GATE_TZ_ZONES)" zeitzonen_tests
+      step zones "Tageszuordnung in Zeitzonen ($GATE_TZ_ZONES)" zeitzonen_tests
       if [ "$mode" = changed ]; then
-        step_wenn_geaendert "$GATE_DRIFT_PATHS" "drift schema" drift_aktuell
-        step_wenn_geaendert "$GATE_KOTLIN_PATHS" "kotlin test" kotlin_tests
-        step_wenn_geaendert "$GATE_RELEASE_PATHS" "$GATE_RELEASE_NAME" release_rechte
+        step_wenn_geaendert drift "$GATE_DRIFT_PATHS" "drift schema" drift_aktuell
+        step_wenn_geaendert android "$GATE_KOTLIN_PATHS" "kotlin test" kotlin_tests
+        step_wenn_geaendert release "$GATE_RELEASE_PATHS" "$GATE_RELEASE_NAME" release_rechte
       else
-        step "drift schema" drift_aktuell
-        step "kotlin test" kotlin_tests
-        step "$GATE_RELEASE_NAME" release_rechte
+        step drift "drift schema" drift_aktuell
+        step android "kotlin test" kotlin_tests
+        step release "$GATE_RELEASE_NAME" release_rechte
       fi
-      step "lock unverändert" lock_unveraendert
+      step analyze "lock unverändert" lock_unveraendert
     fi
   fi
 fi
 total=$(( $(date +%s) - t_start ))
-[ $fail -eq 0 ] && echo "GATE GRÜN ($total s gesamt)" || { echo "GATE ROT ($total s gesamt)"; exit 1; }
+[ $dry_run -eq 0 ] || { echo "GATE TROCKENLAUF (nichts ausgeführt)"; exit 0; }
+[ -z "$only_stage" ] || only_stage_text=", Stufe $only_stage"
+[ $fail -eq 0 ] && echo "GATE GRÜN ($total s gesamt${only_stage_text:-})" || { echo "GATE ROT ($total s gesamt${only_stage_text:-})"; exit 1; }

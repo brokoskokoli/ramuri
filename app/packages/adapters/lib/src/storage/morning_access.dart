@@ -110,6 +110,27 @@ class DriftMorningStore implements MorningStore {
       });
 
   @override
+  Future<void> clearSleepBands(Iterable<int> measurementIds) =>
+      guarded(() async {
+        final ids = measurementIds.toSet();
+        if (ids.isEmpty) return;
+        await _db.transaction(() async {
+          for (final id in ids) {
+            final n =
+                await (_db.update(
+                  _db.morningMeasurements,
+                )..where((t) => t.id.equals(id))).write(
+                  const d.MorningMeasurementsCompanion(sleepBand: Value(null)),
+                );
+            // Abbruch rollt die schon gelöschten Stufen zurück.
+            if (n == 0) {
+              throw const StorageException(StorageFailure.notFound);
+            }
+          }
+        });
+      });
+
+  @override
   Future<MorningRawSignal?> rawSignal(int measurementId) => guarded(() async {
     await _requireMeasurement(measurementId);
     final r = await (_db.select(

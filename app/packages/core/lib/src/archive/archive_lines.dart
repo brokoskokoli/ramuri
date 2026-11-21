@@ -28,6 +28,7 @@ const Set<String> archiveExcludedSettingKeys = {
   SettingKeys.ppgCameraManual,
   SettingKeys.ppgCameraAuto,
   HealthImportService.lastImportKey,
+  SettingKeys.errorCounts,
 };
 
 /// Zeilen je Seite beim Lesen.

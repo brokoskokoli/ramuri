@@ -11,7 +11,8 @@
 // hell/dunkel, 5b Gurtzeile ohne bekannten Gurt (Test-Speicher ohne Geraete),
 // 6 Gurt bekannt, aber getrennt: Autoverbinden beim Oeffnen („verbunden“, auch
 // nach erneutem Oeffnen), Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
-// 6b Kamera gegen Gurt: je Gurt-Paar eine Zeile, Detail oeffnet sich,
+// 6b Kamera gegen Gurt: je Gurt-Paar eine Zeile, die von S6 mit Zuordnung (Gurt
+// folgt dem Schlagplan der Fake-Kamera), Detail mit Kurve,
 // 7 Ruhephase ueberspringen (Fortschritt, vermerkt), 8 Entwicklermodus aus ->
 // 7b Uhrzeit der Morgen-Erinnerung ueber den Zeitwaehler (geplanter Zeitpunkt
 // am Plattformkanal und im Speicher), 7c feste Uhr: Messung um 23:58 und um
@@ -864,8 +865,11 @@ void main() {
     step('MORNING S6 gurt_paar');
     // 6) Gurt mit RR: Paar gespeichert, Zaehler, Teilen mit Warnung. Der Gurt
     // ist bekannt, aber getrennt; das Oeffnen des Einstiegs verbindet ihn
-    // selbst (Autoverbinden, WP37 C2), ohne dass der Test verbindet.
+    // selbst (Autoverbinden, WP37 C2), ohne dass der Test verbindet. Der Gurt
+    // sendet die Schlagabstaende der Fake-Kamera (RR-Art passend zur Kamera),
+    // damit S6b die Zuordnung findet.
     w.sensor.sendRr = true;
+    w.sensor.rrFollowsPpgCamera = cam;
     await t.runAsync(
       () => testDevices.upsert(
         'fake-gurt-1',
@@ -972,9 +976,10 @@ void main() {
 
     step('MORNING S6b kamera_gegen_gurt');
     // 6b) Kamera gegen Gurt (FR-0217): je Morgen mit Gurt-RR eine Zeile, das
-    // Detail oeffnet sich. Nur Anwesenheit und Zuordnung (ja/nein) ins Log,
-    // keine Werte. Die Test-Quellen liefern einen gleichmaessigen Gurt, daher
-    // ist „keine Zuordnung“ ebenso zulaessig wie RMSSD Kamera und Gurt.
+    // Detail oeffnet sich. Nur Anzahl und Zuordnung (ja/nein) ins Log, keine
+    // Werte. Der Gurt folgt in S6 dem Schlagplan der Fake-Kamera, daher
+    // verlangt die Zeile von S6 (die neueste, oben) eine Zuordnung (RMSSD
+    // Kamera und Gurt) und das Detail die Kurve.
     final compareRows = find.byWidgetPredicate(
       (wd) =>
           wd.key is ValueKey<String> &&
@@ -1008,8 +1013,11 @@ void main() {
         .toList();
     final matched = rowTexts.any((x) => x.startsWith(rmssdPrefix));
     final noMatch = rowTexts.contains(l10n6.devCompareNoMatch);
-    log('S6b zeilen=${compareRows.evaluate().length} zuordnung=$matched');
-    expect(matched || noMatch, isTrue, reason: 'S6b Zeile mit Vergleich');
+    log(
+      'S6b zeilen=${compareRows.evaluate().length} zuordnung=$matched keine=$noMatch',
+    );
+    expect(matched, isTrue, reason: 'S6b Zeile von S6 mit Zuordnung');
+    expect(noMatch, isFalse, reason: 'S6b Zeile von S6 nicht ohne Zuordnung');
     await t.tap(compareRows.first);
     await waitFor(
       t,
@@ -1018,8 +1026,8 @@ void main() {
     );
     expect(
       has('dev_compare_chart'),
-      matched,
-      reason: 'S6b Kurve genau mit Zuordnung',
+      isTrue,
+      reason: 'S6b Kurve im Detail (Zuordnung)',
     );
     await shot(t, 's6b_vergleich_detail');
     await back(t); // Detail -> Entwicklereinstellungen
@@ -1028,6 +1036,8 @@ void main() {
       () => has('about_dev_switch') || has('dev_compare'),
       'S6b zurueck',
     );
+    // Ab S7 wieder die Standard-RR-Art des Test-Gurts.
+    w.sensor.rrFollowsPpgCamera = null;
 
     step('MORNING S7 ruhephase_ueberspringen');
     // 7) Ruhephase ueberspringen: die Messung startet sofort, der Fortschritt

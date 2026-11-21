@@ -103,11 +103,16 @@ class WorldFiles extends FakeDatabaseFiles {
   /// Löschen tut nichts (Datei lässt sich nicht entfernen), ohne Fehler.
   bool stubborn = false;
 
+  /// Läuft nach dem Löschen der Datei wie `FileDatabaseFiles.alsoDelete`
+  /// (etwa die echte Verdrahtung aus `databaseFilesFor`).
+  Future<void> Function()? alsoDelete;
+
   @override
   Future<void> deleteAll() async {
     await w.step('Dateien löschen');
     if (stubborn) return;
     await super.deleteAll();
+    await alsoDelete?.call();
     w.inner = FakeStorage(encryptionActive: w.inner.encryptionActive)
       ..openFailure = w.openFailureAfterDelete;
     w.oldFileKey = null;

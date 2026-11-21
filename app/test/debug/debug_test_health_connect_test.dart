@@ -54,9 +54,9 @@ void main() {
       }
       final store = FakeHealthImportStore();
       final r = await HealthImportService(
-        port: hc,
+        permissions: hc,
+        reader: ConsentedHealthReader(hc, consents),
         store: store,
-        consents: consents,
         clock: clock,
       ).run(HealthImportTrigger.manual);
       expect(r.status, HealthImportStatus.done);
@@ -100,9 +100,9 @@ void main() {
       addTearDown(db.close);
       final store = DriftHealthStore(db);
       final r = await HealthImportService(
-        port: hc,
+        permissions: hc,
+        reader: ConsentedHealthReader(hc, consents),
         store: store,
-        consents: consents,
         clock: clock,
       ).run(HealthImportTrigger.manual);
       expect(r.status, HealthImportStatus.done);
@@ -136,9 +136,9 @@ void main() {
       addTearDown(db.close);
       final store = DriftHealthStore(db);
       await HealthImportService(
-        port: hc,
+        permissions: hc,
+        reader: ConsentedHealthReader(hc, consents),
         store: store,
-        consents: consents,
         clock: clock,
       ).run(HealthImportTrigger.manual);
       expect(await store.count(HealthDataKind.hrvRmssd), expected);
@@ -164,9 +164,9 @@ void main() {
       addTearDown(db.close);
       final store = DriftHealthStore(db);
       await HealthImportService(
-        port: hc,
+        permissions: hc,
+        reader: ConsentedHealthReader(hc, consents),
         store: store,
-        consents: consents,
         clock: clock,
       ).run(HealthImportTrigger.manual);
       expect(await store.count(HealthDataKind.vo2Max), 1);
@@ -222,9 +222,9 @@ void main() {
         addTearDown(db.close);
         final store = DriftHealthStore(db);
         final r = await HealthImportService(
-          port: hc,
+          permissions: hc,
+          reader: ConsentedHealthReader(hc, consents),
           store: store,
-          consents: consents,
           clock: clock,
         ).run(HealthImportTrigger.manual);
         expect(r.status, HealthImportStatus.done);

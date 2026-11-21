@@ -125,6 +125,7 @@ class _RunningAppState extends State<RunningApp> {
           mapHolder: _map,
           healthConnect: dependencies.healthConnect,
           healthHolder: _health,
+          errors: dependencies.errors,
         ),
       ),
     );

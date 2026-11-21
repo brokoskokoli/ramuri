@@ -21,6 +21,18 @@ final List<StorageContractCase> morningContractCases = [
     _sleepBand,
   ),
   const StorageContractCase(
+    'Morgenmessung: Schlafstufe an mehreren Messungen löschen, Neuöffnen',
+    _clearSleepBands,
+  ),
+  const StorageContractCase(
+    'Morgenmessung: Schlafstufen löschen mit unbekannter Messung ändert nichts',
+    _clearSleepBandsRollback,
+  ),
+  const StorageContractCase(
+    'Morgenmessung: Schlafstufen löschen, leere Liste und doppelte Id',
+    _clearSleepBandsEdges,
+  ),
+  const StorageContractCase(
     'Morgenmessung: Fenster, Ruhe-Übersprung, unbrauchbare Stufe, Kamera-Rohsignal bitgenau',
     _extended,
   ),
@@ -539,5 +551,67 @@ Future<void> _sleepBand(StorageContractHarness h) async {
     StorageFailure.notFound,
     'unbekannte Messung',
   );
+  await s.close();
+}
+
+Future<void> _clearSleepBands(StorageContractHarness h) async {
+  var s = await h.open();
+  final a = await _m(s).add(_measurement(0, band: SleepBand.over8));
+  final b = await _m(s).add(_measurement(10, band: SleepBand.under5));
+  final c = await _m(s).add(_measurement(20, band: SleepBand.from5to6));
+  await _m(s).clearSleepBands([a, b]);
+  for (var round = 0; round < 2; round++) {
+    final byId = {for (final e in await _m(s).list()) e.id: e.value};
+    expectEq(
+      _fields(byId[a]!),
+      _fields(_measurement(0, bpm: 52.3, band: null)),
+      'a: nur die Schlafstufe gelöscht (Runde $round)',
+    );
+    expectEq(
+      _fields(byId[b]!),
+      _fields(_measurement(10, bpm: 52.3, band: null)),
+      'b: nur die Schlafstufe gelöscht (Runde $round)',
+    );
+    expectEq(byId[c]!.sleepBand, SleepBand.from5to6, 'andere unberührt');
+    await s.close();
+    s = await h.open();
+  }
+  await s.close();
+}
+
+Future<void> _clearSleepBandsRollback(StorageContractHarness h) async {
+  var s = await h.open();
+  final a = await _m(s).add(_measurement(0, band: SleepBand.over8));
+  final b = await _m(s).add(_measurement(10, band: SleepBand.under5));
+  // Die unbekannte Id kommt zuletzt: a und b wären schon geschrieben.
+  await expectFails(
+    () => _m(s).clearSleepBands([a, b, b + 99]),
+    StorageFailure.notFound,
+    'unbekannte Messung',
+  );
+  for (var round = 0; round < 2; round++) {
+    final byId = {for (final e in await _m(s).list()) e.id: e.value};
+    expectEq(byId[a]!.sleepBand, SleepBand.over8, 'a unverändert ($round)');
+    expectEq(byId[b]!.sleepBand, SleepBand.under5, 'b unverändert ($round)');
+    await s.close();
+    s = await h.open();
+  }
+  await s.close();
+}
+
+Future<void> _clearSleepBandsEdges(StorageContractHarness h) async {
+  var s = await h.open();
+  final a = await _m(s).add(_measurement(0, band: SleepBand.over8));
+  final b = await _m(s).add(_measurement(10, band: SleepBand.under5));
+  await _m(s).clearSleepBands(const []);
+  var byId = {for (final e in await _m(s).list()) e.id: e.value};
+  expectEq(byId[a]!.sleepBand, SleepBand.over8, 'leere Liste: a unverändert');
+  expectEq(byId[b]!.sleepBand, SleepBand.under5, 'leere Liste: b unverändert');
+  await _m(s).clearSleepBands([a, a]);
+  await s.close();
+  s = await h.open();
+  byId = {for (final e in await _m(s).list()) e.id: e.value};
+  expectTrue(byId[a]!.sleepBand == null, 'doppelte Id: a gelöscht');
+  expectEq(byId[b]!.sleepBand, SleepBand.under5, 'doppelte Id: b unberührt');
   await s.close();
 }

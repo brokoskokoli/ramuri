@@ -225,4 +225,88 @@ class ExportFilesTest {
         assertEquals(emptyList<String>(), dir.list()!!.toList())
         dir.parentFile.deleteRecursively()
     }
+    @Test fun clearHandoffEmptiesExportsAndImportsWithSubfolders() {
+        val cache = tempDir()
+        val other = File(cache, "other").apply { mkdirs() }
+        File(other, "keep.bin").writeText("bleibt")
+        val exports = File(cache, ExportFiles.DIR).apply { mkdirs() }
+        File(exports, "run.gpx").writeText("x")
+        File(exports, "sub/deeper").mkdirs()
+        File(exports, "sub/deeper/archive.ramuri").writeText("x")
+        val imports = File(cache, ExportFiles.IMPORT_DIR).apply { mkdirs() }
+        File(imports, ExportFiles.IMPORT_NAME).writeText("x")
+        File(imports, "sub").mkdirs()
+        File(imports, "sub/rest.bin").writeText("x")
+        assertTrue(ExportFiles.clearHandoff(cache))
+        assertEquals(0, exports.list()!!.size)
+        assertEquals(0, imports.list()!!.size)
+        // Nur die beiden Ablagen, sonst nichts im Cache.
+        assertTrue(File(other, "keep.bin").isFile)
+        cache.deleteRecursively()
+    }
+
+    @Test fun clearHandoffOnEmptyOrMissingFoldersSucceeds() {
+        val cache = tempDir()
+        assertTrue(ExportFiles.clearHandoff(cache))
+        File(cache, ExportFiles.DIR).mkdirs()
+        File(cache, ExportFiles.IMPORT_DIR).mkdirs()
+        assertTrue(ExportFiles.clearHandoff(cache))
+        assertTrue(File(cache, ExportFiles.DIR).isDirectory)
+        cache.deleteRecursively()
+    }
+
+    @Test fun clearHandoffReportsALeftoverAndStillClearsTheOtherFolder() {
+        val cache = tempDir()
+        val exports = File(cache, ExportFiles.DIR).apply { mkdirs() }
+        val locked = File(exports, "locked").apply { mkdirs() }
+        File(locked, "run.gpx").writeText("x")
+        val imports = File(cache, ExportFiles.IMPORT_DIR).apply { mkdirs() }
+        File(imports, ExportFiles.IMPORT_NAME).writeText("x")
+        locked.setWritable(false)
+        try {
+            // Als root greifen Dateirechte nicht; dann ist der Fehlerfall hier nicht nachstellbar.
+            org.junit.Assume.assumeFalse(locked.canWrite())
+            assertFalse(ExportFiles.clearHandoff(cache))
+            assertEquals(0, imports.list()!!.size)
+        } finally {
+            locked.setWritable(true)
+            cache.deleteRecursively()
+        }
+    }
+    @Test fun clearHandoffExportsOnlyEmptiesExportsAndKeepsImports() {
+        val cache = tempDir()
+        val exports = File(cache, ExportFiles.DIR).apply { mkdirs() }
+        File(exports, "run.gpx").writeText("x")
+        File(exports, "sub/deeper").mkdirs()
+        File(exports, "sub/deeper/archive.ramuri").writeText("x")
+        val imports = File(cache, ExportFiles.IMPORT_DIR).apply { mkdirs() }
+        File(imports, ExportFiles.IMPORT_NAME).writeText("gewählt")
+        assertTrue(ExportFiles.clearHandoff(cache, exportsOnly = true))
+        assertEquals(0, exports.list()!!.size)
+        // Die gewählte Archivkopie bleibt für die Wiederherstellung lesbar.
+        assertEquals(listOf(ExportFiles.IMPORT_NAME), imports.list()!!.toList())
+        assertEquals("gewählt", File(imports, ExportFiles.IMPORT_NAME).readText())
+        cache.deleteRecursively()
+    }
+
+    @Test fun clearHandoffExportsOnlyOnEmptyOrMissingFolderSucceeds() {
+        val cache = tempDir()
+        assertTrue(ExportFiles.clearHandoff(cache, exportsOnly = true))
+        File(cache, ExportFiles.DIR).mkdirs()
+        assertTrue(ExportFiles.clearHandoff(cache, exportsOnly = true))
+        assertTrue(File(cache, ExportFiles.DIR).isDirectory)
+        cache.deleteRecursively()
+    }
+
+    @Test fun clearHandoffWithoutSwitchStillEmptiesBothFolders() {
+        val cache = tempDir()
+        val exports = File(cache, ExportFiles.DIR).apply { mkdirs() }
+        File(exports, "run.gpx").writeText("x")
+        val imports = File(cache, ExportFiles.IMPORT_DIR).apply { mkdirs() }
+        File(imports, ExportFiles.IMPORT_NAME).writeText("x")
+        assertTrue(ExportFiles.clearHandoff(cache, exportsOnly = false))
+        assertEquals(0, exports.list()!!.size)
+        assertEquals(0, imports.list()!!.size)
+        cache.deleteRecursively()
+    }
 }

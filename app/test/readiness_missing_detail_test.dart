@@ -51,6 +51,37 @@ MorningMeasurement _morning(
   outsideWindow: false,
 );
 
+/// Speicher, dessen Löschen mehrerer Schlafstufen scheitert (ganz, wie eine
+/// abgebrochene Transaktion); alles andere geht an [inner].
+class _ClearFailsStore implements MorningStore {
+  _ClearFailsStore(this.inner);
+  final MorningStore inner;
+
+  @override
+  Future<int> add(
+    MorningMeasurement measurement, {
+    List<RrPacket> beltPackets = const [],
+    MorningRawSignal? rawSignal,
+  }) => inner.add(measurement, beltPackets: beltPackets, rawSignal: rawSignal);
+
+  @override
+  Future<List<StoredMorningMeasurement>> list() => inner.list();
+
+  @override
+  Future<void> setSleepBand(int id, SleepBand? band) =>
+      inner.setSleepBand(id, band);
+
+  @override
+  Future<void> clearSleepBands(Iterable<int> ids) async =>
+      throw const StorageException(StorageFailure.failed);
+
+  @override
+  Future<List<StoredRrPacket>> beltPackets(int id) => inner.beltPackets(id);
+
+  @override
+  Future<MorningRawSignal?> rawSignal(int id) => inner.rawSignal(id);
+}
+
 class _Env {
   _Env(this.session, this.clock);
 
@@ -58,6 +89,12 @@ class _Env {
   final FakeClock clock;
 
   MorningStore get morning => (session as MorningStorage).morning;
+
+  /// Speicher für „Schlaf angeben“; mit [failClear] scheitert das Abwählen.
+  late final MorningStore sleepStore = failClear
+      ? _ClearFailsStore(morning)
+      : morning;
+  bool failClear = false;
 
   late final ReadinessService service = ReadinessService(
     session: session,
@@ -67,7 +104,7 @@ class _Env {
   ReadinessActions actions({bool startMorning = true}) => ReadinessActions(
     reload: service.load,
     startMorning: startMorning ? (_) async {} : null,
-    saveSleep: (entry, band) => saveReadinessSleep(morning, entry, band),
+    saveSleep: (entry, band) => saveReadinessSleep(sleepStore, entry, band),
   );
 }
 
@@ -441,6 +478,40 @@ void main() {
         expect(_key('readiness_detail_missing_sleep'), findsOneWidget);
         final after = (await tester.runAsync(env.service.load))!;
         expect(after.result.missing, contains(ReadinessFactorId.sleep));
+      });
+
+      // Scheitert das Abwählen, bleibt an jeder Messung die alte Stufe und
+      // die frühere zählt weiter; keine spätere rückt nach.
+      testWidgets('zwei Geräte mit Stufe: Abwählen scheitert, nichts ändert '
+          'sich', (tester) async {
+        final (env, a, b) = await twoDevices(tester, bandA: SleepBand.over8);
+        env.failClear = true;
+        final s = (await tester.runAsync(env.service.load))!;
+        expect(s.sleepEntry!.measurementId, a);
+        await open(tester, s, actions: env.actions());
+        await _tap(tester, 'readiness_detail_change_sleep');
+        await _tap(tester, 'readiness_sleep_over8');
+        await tester.runAsync(() async {});
+        await tester.pumpAndSettle();
+        expect(_key('readiness_sleep_failed'), findsOneWidget);
+        expectSelected(tester, SleepBand.over8, true);
+        final stored = await bands(tester, env);
+        expect(stored[a], SleepBand.over8);
+        expect(stored[b], SleepBand.from6to7);
+        await _tap(tester, 'readiness_sleep_done');
+        await tester.runAsync(() async {});
+        await tester.pumpAndSettle();
+        expect(_key('readiness_detail_change_sleep'), findsOneWidget);
+        expect(_key('readiness_detail_missing_sleep'), findsNothing);
+        final after = (await tester.runAsync(env.service.load))!;
+        expect(after.sleepEntry!.measurementId, a);
+        expect(after.sleepEntry!.band, SleepBand.over8);
+        expect(
+          after.result.facts
+              .singleWhere((f) => f.kind == ReadinessFactKind.sleepDuration)
+              .hours,
+          sleepBandHours(SleepBand.over8),
+        );
       });
 
       testWidgets('zwei Geräte: andere Stufe landet an derselben Messung', (

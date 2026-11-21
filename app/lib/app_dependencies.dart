@@ -1,6 +1,7 @@
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 
+import 'error_counter.dart';
 import 'features/reminders/reminder_controller.dart';
 import 'features/archive/archive_wiring.dart';
 import 'features/map/map_services.dart';
@@ -35,7 +36,9 @@ class AppDependencies {
     this.map,
     ReminderScheduler? reminders,
     this.reminderDebug,
-  }) : reminders = reminders ?? const _NoReminders(),
+    ErrorCounter? errors,
+  }) : errors = errors ?? ErrorCounter(),
+       reminders = reminders ?? const _NoReminders(),
        fileHandoff = fileHandoff ?? const _NoFileHandoff(),
        ppgCamera = ppgCamera ?? const _NoPpgCamera(),
        healthConnect = healthConnect ?? const _NoHealthConnect(),
@@ -46,7 +49,23 @@ class AppDependencies {
            SensorManager(
              sensor: heartRateSensor ?? const _NoHeartRateSensor(),
              clock: clock,
-           );
+           ) {
+    storageStart.addListener(_bindErrors);
+    _bindErrors();
+  }
+
+  /// Zähler unbehandelter und still abgefangener Fehler (nur Typ und Ort). Er
+  /// speichert in den Einstellungen der jeweils geöffneten Sitzung.
+  final ErrorCounter errors;
+
+  void _bindErrors() {
+    final state = storageStart.state;
+    if (state is StorageReady) {
+      errors.attach(state.session.settings, clock);
+    } else {
+      errors.detach();
+    }
+  }
 
   /// Uhr der App (Tests setzen eine Fake-Uhr).
   final Clock clock;
@@ -127,6 +146,7 @@ class AppDependencies {
     HealthConnectPort? healthConnect,
     Clock clock = const SystemClock(),
     bool debugReminders = false,
+    ErrorCounter? errors,
   }) {
     final sensor =
         heartRateSensor ??
@@ -160,6 +180,7 @@ class AppDependencies {
     );
     return AppDependencies(
       clock: clock,
+      errors: errors,
       heartRateSensor: sensor,
       ppgCamera: ppgCamera ?? MethodChannelPpgCamera(),
       healthConnect: healthConnect ?? MethodChannelHealthConnect(),
@@ -184,8 +205,8 @@ class AppDependencies {
       },
       archiveRestore: (session, serialize) async {
         final path = await databasePath();
-        final files = databaseFilesFor(path, mapCache);
-        final storage = encryptedStorageFor(path, mapCache);
+        final files = databaseFilesFor(path, mapCache, fileHandoff);
+        final storage = encryptedStorageFor(path, mapCache, fileHandoff);
         final key = await keyStore.read(storageKeyName);
         if (key == null) {
           throw const ArchiveRestoreException(
@@ -234,37 +255,75 @@ class AppDependencies {
         generateKey: generateStorageKey,
         wire: () async {
           final path = await databasePath();
-          return storageWiringFor(path, mapCache);
+          return storageWiringFor(path, mapCache, fileHandoff);
         },
       ),
     );
   }
 }
 
-/// Die verschlüsselte Datenbank; "Alles löschen" räumt den Kartenspeicher mit ab (WP13, SEC-0004).
+/// Die verschlüsselte Datenbank; "Alles löschen" räumt den Kartenspeicher (WP13) und die Ablagen der Übergabe
+/// ([FileHandoff.clearExports]) mit ab (SEC-0004).
 EncryptedStorage encryptedStorageFor(
   String path,
   EncryptedMapTileStore mapCache,
-) => EncryptedStorage(path, onDeleteAll: mapCache.delete);
+  FileHandoff exports,
+) => EncryptedStorage(
+  path,
+  onDeleteAll: deleteAllOutsideDatabase(mapCache.delete, exports),
+);
 
-/// Die Dateien der Datenbank; der Neubeginn nach Schlüsselverlust räumt den Kartenspeicher mit ab, ein Tausch durch
-/// eine Wiederherstellung verwirft die Miniaturen (ihre Lauf-Nummern gehören danach zu anderen Läufen).
+/// Was "Alles löschen" bzw. der Neubeginn nach Schlüsselverlust außerhalb der Datenbank entfernt (SEC-0004):
+/// Kartenspeicher ([deleteMapCache]) und Export- und Importdateien ([FileHandoff.clearExports], auch während einer
+/// offenen Übergabe); mit [exportsOnly] nur die Exportdateien (die gewählte Archivkopie der Wiederherstellung wird
+/// danach noch gelesen). Beides läuft, auch wenn das erste scheitert; danach wirft die Funktion, wenn eines nicht sicher
+/// entfernt ist (die Sitzung meldet dann [StorageFailure.deletedNotErased], der Neubeginn
+/// [StorageResetProblem.filesNotDeleted]). Der Fehler trägt keine Pfade oder Inhalte.
+Future<void> Function() deleteAllOutsideDatabase(
+  Future<void> Function() deleteMapCache,
+  FileHandoff exports, {
+  bool exportsOnly = false,
+}) => () async {
+  Object? failure;
+  try {
+    await deleteMapCache();
+  } on Object catch (e) {
+    failure = e;
+  }
+  if (await exports.clearExports(exportsOnly: exportsOnly) !=
+      ExportClearResult.cleared) {
+    failure ??= StateError('exports_not_cleared');
+  }
+  if (failure != null) throw failure;
+};
+
+/// Die Dateien der Datenbank; der Neubeginn nach Schlüsselverlust räumt den Kartenspeicher und die Exportdateien
+/// ([deleteAllOutsideDatabase] mit `exportsOnly`, SEC-0004) mit ab, ein Tausch durch eine Wiederherstellung verwirft
+/// die Miniaturen (ihre Lauf-Nummern gehören danach zu anderen Läufen).
 FileDatabaseFiles databaseFilesFor(
   String path,
   EncryptedMapTileStore mapCache,
+  FileHandoff exports,
 ) => FileDatabaseFiles(
   path,
-  alsoDelete: mapCache.delete,
+  alsoDelete: deleteAllOutsideDatabase(
+    mapCache.delete,
+    exports,
+    exportsOnly: true,
+  ),
   beforeReplace: mapCache.deleteAllThumbnails,
   beforeReplaceFallback: mapCache.delete,
 );
 
 /// Verdrahtung der Speicherung beim App-Start.
-StorageWiring storageWiringFor(String path, EncryptedMapTileStore mapCache) =>
-    StorageWiring(
-      storage: encryptedStorageFor(path, mapCache),
-      files: databaseFilesFor(path, mapCache),
-    );
+StorageWiring storageWiringFor(
+  String path,
+  EncryptedMapTileStore mapCache,
+  FileHandoff exports,
+) => StorageWiring(
+  storage: encryptedStorageFor(path, mapCache, exports),
+  files: databaseFilesFor(path, mapCache, exports),
+);
 
 /// Vorgabe ohne Plattform (Tests): keine Kamera, Start endet mit Grund.
 class _NoHealthConnect implements HealthConnectPort {
@@ -348,6 +407,13 @@ class _NoFileHandoff implements FileHandoff {
 
   @override
   Future<void> discardPicked() async {}
+
+  /// Ohne Plattform gibt es keine Ablage, also nichts zu leeren.
+  @override
+  Future<ExportClearResult> clearExports({
+    bool unlessSharing = false,
+    bool exportsOnly = false,
+  }) async => ExportClearResult.cleared;
 }
 
 /// Vorgabe ohne Plattform: Der Stand ist unbekannt (Tests, die ihn nicht

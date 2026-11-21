@@ -167,4 +167,10 @@ abstract final class SettingKeys {
   /// Liegt nur hier in der verschlüsselten Datenbank (SEC-0009), nicht im
   /// System-Speicher des Adapters.
   static const String morningReminderTime = 'morning.reminder_time';
+
+  /// Zähler unbehandelter und still abgefangener Fehler der App (JSON-Liste mit
+  /// `type`, `place`, `count`; nur Fehlertyp und Ortskennung, nie Nachricht oder
+  /// Werte, SEC-0009). Gerätezustand, nicht im Archiv (Vertrag 4.3); „Alles
+  /// löschen“ leert die Tabelle und damit auch die Zähler.
+  static const String errorCounts = 'diagnostics.error_counts';
 }
