@@ -65,12 +65,16 @@ class MethodChannelFileHandoff implements FileHandoff {
 
   /// Antworten: `cleared`, `busy` (nur mit `unlessBusy`, Übergabe offen);
   /// jede andere Antwort und jeder Fehler (auch ein fehlender Kanal) heißt
-  /// nicht sicher leer.
+  /// nicht sicher leer. `exportsOnly` leert nur die Exportablage.
   @override
-  Future<ExportClearResult> clearExports({bool unlessSharing = false}) async {
+  Future<ExportClearResult> clearExports({
+    bool unlessSharing = false,
+    bool exportsOnly = false,
+  }) async {
     try {
       final answer = await _channel.invokeMethod<String>('clearExports', {
         'unlessBusy': unlessSharing,
+        'exportsOnly': exportsOnly,
       });
       return switch (answer) {
         'cleared' => ExportClearResult.cleared,

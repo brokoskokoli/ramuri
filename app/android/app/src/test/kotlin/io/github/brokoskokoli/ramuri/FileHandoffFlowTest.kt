@@ -7,6 +7,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import io.flutter.plugin.common.MethodCall
+import java.nio.file.Files
 
 class FileHandoffFlowTest {
     private val log = mutableListOf<String>()
@@ -42,9 +44,13 @@ class FileHandoffFlowTest {
     private val clears = mutableListOf<String>()
 
     /** `clearExports` mit protokolliertem Leeren; [ok] ist das Ergebnis des Leerens. */
-    private fun clear(unlessBusy: Boolean?, ok: Boolean = true) =
-        flow.clearExports(unlessBusy, clear = {
+    /** `exportsOnly` je Aufruf des Leerens, in Reihenfolge. */
+    private val clearScopes = mutableListOf<Boolean>()
+
+    private fun clear(unlessBusy: Boolean?, ok: Boolean = true, exportsOnly: Boolean? = null) =
+        flow.clearExports(unlessBusy, exportsOnly, clear = { only ->
             clears.add(if (onBackground) "bg" else "main")
+            clearScopes.add(only)
             ok
         }) { log.add("clear:$it") }
 
@@ -85,6 +91,82 @@ class FileHandoffFlowTest {
         assertEquals(listOf("clear:CLEARED"), log)
     }
 
+    @Test fun exportsOnlyIsPassedToTheClear() {
+        clear(unlessBusy = false, exportsOnly = true)
+        drain()
+        assertEquals(listOf("bg"), clears)
+        assertEquals(listOf(true), clearScopes)
+        assertEquals(listOf("clear:CLEARED"), log)
+    }
+
+    @Test fun missingOrFalseExportsOnlyClearsBothFolders() {
+        clear(unlessBusy = false, exportsOnly = null)
+        clear(unlessBusy = false, exportsOnly = false)
+        drain()
+        assertEquals(listOf(false, false), clearScopes)
+        assertEquals(listOf("clear:CLEARED", "clear:CLEARED"), log)
+    }
+
+    /** Cache mit je einer Datei in `exports/` (auch im Unterordner) und `imports/`. */
+    private fun cacheWithBothFolders(): File {
+        val cache = Files.createTempDirectory("handoff").toFile()
+        File(cache, "${ExportFiles.DIR}/sub").mkdirs()
+        File(cache, "${ExportFiles.DIR}/run.gpx").writeText("x")
+        File(cache, "${ExportFiles.DIR}/sub/archive.ramuri").writeText("x")
+        File(cache, ExportFiles.IMPORT_DIR).mkdirs()
+        File(cache, "${ExportFiles.IMPORT_DIR}/${ExportFiles.IMPORT_NAME}").writeText("gewählt")
+        return cache
+    }
+
+    private fun callClear(args: Map<String, Any>?, cache: File) =
+        flow.clearExportsCall(MethodCall("clearExports", args), cache) { log.add("clear:$it") }
+
+    @Test fun channelCallWithExportsOnlyKeepsThePickedArchive() {
+        val cache = cacheWithBothFolders()
+        try {
+            callClear(mapOf("unlessBusy" to false, "exportsOnly" to true), cache)
+            drain()
+            assertEquals(listOf("clear:CLEARED"), log)
+            assertEquals(0, File(cache, ExportFiles.DIR).list()!!.size)
+            // Die gewählte Archivkopie bleibt für die Wiederherstellung lesbar.
+            val picked = File(cache, "${ExportFiles.IMPORT_DIR}/${ExportFiles.IMPORT_NAME}")
+            assertEquals(listOf(ExportFiles.IMPORT_NAME), File(cache, ExportFiles.IMPORT_DIR).list()!!.toList())
+            assertEquals("gewählt", picked.readText())
+        } finally {
+            cache.deleteRecursively()
+        }
+    }
+
+    @Test fun channelCallWithoutExportsOnlyEmptiesBothFolders() {
+        for (args in listOf(mapOf<String, Any>("unlessBusy" to false), mapOf("exportsOnly" to false), null)) {
+            val cache = cacheWithBothFolders()
+            try {
+                log.clear()
+                callClear(args, cache)
+                drain()
+                assertEquals(listOf("clear:CLEARED"), log)
+                assertEquals(0, File(cache, ExportFiles.DIR).list()!!.size)
+                assertEquals(0, File(cache, ExportFiles.IMPORT_DIR).list()!!.size)
+            } finally {
+                cache.deleteRecursively()
+            }
+        }
+    }
+
+    @Test fun channelCallReadsUnlessBusy() {
+        val cache = cacheWithBothFolders()
+        try {
+            beginShare("a")
+            drain()
+            callClear(mapOf("unlessBusy" to true, "exportsOnly" to true), cache)
+            drain()
+            assertEquals(listOf("clear:BUSY"), log)
+            assertEquals(2, File(cache, ExportFiles.DIR).list()!!.size)
+        } finally {
+            cache.deleteRecursively()
+        }
+    }
+
     @Test fun runDeletionClearsWhenNoHandoffIsOpen() {
         clear(unlessBusy = true)
         drain()
@@ -106,7 +188,7 @@ class FileHandoffFlowTest {
     @Test fun failedOrThrowingClearIsReportedAsFailure() {
         clear(unlessBusy = false, ok = false)
         drain()
-        flow.clearExports(false, clear = { throw java.io.IOException("x") }) { log.add("clear:$it") }
+        flow.clearExports(false, null, clear = { throw java.io.IOException("x") }) { log.add("clear:$it") }
         drain()
         assertEquals(listOf("clear:FAILED", "clear:FAILED"), log)
     }
