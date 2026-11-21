@@ -8,6 +8,9 @@ class _Port implements HealthConnectPort {
   HealthSdkStatus status = HealthSdkStatus.available;
   Set<HealthDataKind> granted = {...HealthDataKind.values};
   final data = <HealthDataKind, List<HealthRecord>>{};
+
+  /// Mehrere Seiten je Art (Token = Index der nächsten Seite); vor [data].
+  final pages = <HealthDataKind, List<List<HealthRecord>>>{};
   final reads = <HealthDataKind>[];
   final windows = <(DateTime, DateTime)>[];
   int statusCalls = 0;
@@ -44,6 +47,11 @@ class _Port implements HealthConnectPort {
     reads.add(kind);
     windows.add((from, to));
     if (failWith != null) throw failWith!;
+    final paged = pages[kind];
+    if (paged != null) {
+      final i = int.parse(pageToken ?? '0');
+      return HealthPage(paged[i], i + 1 < paged.length ? '${i + 1}' : null);
+    }
     return HealthPage(data[kind] ?? const [], null);
   }
 }
@@ -100,9 +108,9 @@ void main() {
     clock = FakeClock(_t0);
     consents = ConsentService(_Consents(), clock);
     svc = HealthImportService(
-      port: port,
+      permissions: port,
+      reader: ConsentedHealthReader(port, consents),
       store: store,
-      consents: consents,
       clock: clock,
     );
   });
@@ -305,9 +313,9 @@ void main() {
     await grantAll();
     final stored = await FakeStorage().open(Uint8List(32));
     HealthImportService fresh() => HealthImportService(
-      port: port,
+      permissions: port,
+      reader: ConsentedHealthReader(port, consents),
       store: store,
-      consents: consents,
       clock: clock,
       settings: stored.settings,
     );
@@ -354,9 +362,9 @@ void main() {
           at: _t0,
         );
         final s = HealthImportService(
-          port: port,
+          permissions: port,
+          reader: ConsentedHealthReader(port, consents),
           store: store,
-          consents: consents,
           clock: clock,
           settings: stored.settings,
         );
@@ -371,9 +379,9 @@ void main() {
   test('ohne Einwilligung oder Recht bleibt der Speicher unberührt', () async {
     final stored = await FakeStorage().open(Uint8List(32));
     HealthImportService build() => HealthImportService(
-      port: port,
+      permissions: port,
+      reader: ConsentedHealthReader(port, consents),
       store: store,
-      consents: consents,
       clock: clock,
       settings: stored.settings,
     );
@@ -405,9 +413,9 @@ void main() {
       await consents.revoke(healthSourceKey(HealthDataKind.sleep));
     });
     final s = HealthImportService(
-      port: revoking,
+      permissions: revoking,
+      reader: ConsentedHealthReader(revoking, consents),
       store: store,
-      consents: consents,
       clock: clock,
     );
     final r = await s.run(HealthImportTrigger.manual);
@@ -416,6 +424,48 @@ void main() {
       HealthKindStatus.revokedWhileReading,
     );
     expect(await store.count(HealthDataKind.sleep), 0);
+  });
+
+  test(
+    'Widerruf zwischen zwei Seiten: keine weitere Seite, nichts gespeichert',
+    () async {
+      const kind = HealthDataKind.sleep;
+      await consents.grant(healthSourceKey(kind));
+      port.pages[kind] = [
+        [_sleep('s1')],
+        [_sleep('s2')],
+        [_sleep('s3')],
+      ];
+      final revoking = _RevokingPort(port, () async {
+        if (port.reads.length == 1) {
+          await consents.revoke(healthSourceKey(kind));
+        }
+      });
+      final s = HealthImportService(
+        permissions: revoking,
+        reader: ConsentedHealthReader(revoking, consents),
+        store: store,
+        clock: clock,
+      );
+      final r = await s.run(HealthImportTrigger.manual);
+      expect(r.kinds[kind]!.status, HealthKindStatus.revokedWhileReading);
+      expect(port.reads, [kind]);
+      expect(store.upsertCalls, 0);
+      expect(await store.count(kind), 0);
+    },
+  );
+
+  test('mit Einwilligung werden alle Seiten gelesen und gespeichert', () async {
+    const kind = HealthDataKind.sleep;
+    await consents.grant(healthSourceKey(kind));
+    port.pages[kind] = [
+      [_sleep('s1')],
+      [_sleep('s2')],
+    ];
+    final r = await svc.run(HealthImportTrigger.manual);
+    expect(r.kinds[kind]!.status, HealthKindStatus.imported);
+    expect(port.reads, [kind, kind]);
+    expect(await store.count(kind), 2);
   });
 
   test(
@@ -438,9 +488,9 @@ void main() {
         await consents.revoke(healthSourceKey(HealthDataKind.heartRate));
       }, onlyKind: HealthDataKind.heartRate);
       final s = HealthImportService(
-        port: revoking,
+        permissions: revoking,
+        reader: ConsentedHealthReader(revoking, consents),
         store: store,
-        consents: consents,
         clock: clock,
       );
       final r = await s.run(HealthImportTrigger.manual);
@@ -534,7 +584,12 @@ class _RevokingPort implements HealthConnectPort {
     String? pageToken,
     int? pageSize,
   }) async {
-    final p = await _inner.readPage(kind: kind, from: from, to: to);
+    final p = await _inner.readPage(
+      kind: kind,
+      from: from,
+      to: to,
+      pageToken: pageToken,
+    );
     if (onlyKind == null || onlyKind == kind) await _onRead();
     return p;
   }

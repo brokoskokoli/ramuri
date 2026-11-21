@@ -146,7 +146,7 @@ class _ReadyRootState extends State<ReadyRoot> {
     final hc = widget.healthConnect;
     final session = widget.session;
     if (hc != null && session is HealthStorage) {
-      _health = HealthConnectController(
+      _health = healthConnectSession(
         port: hc,
         store: (session as HealthStorage).health,
         settings: session.settings,
