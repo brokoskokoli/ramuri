@@ -135,6 +135,17 @@ class _World {
     }
   }
 
+  /// Der Läufer taucht nach einer Zeit ohne Position gut eine Kachelhöhe (Zoom [z]) weiter nördlich wieder auf
+  /// (gleiches Tempo, rund 3 m/s): Die Karte folgt dorthin und bräuchte Kacheln einer Reihe, die noch nie geladen war.
+  Future<void> jumpTile(WidgetTester tester, int z) async {
+    // Kachelhöhe in Grad Breite bei dieser Breite (Mercator), plus ein Viertel Rand.
+    final height = 360 / math.pow(2, z) * math.cos(lat * math.pi / 180);
+    final n = (height * 1.25 / 0.000027).ceil();
+    clock.advance(Duration(seconds: n));
+    _i += n;
+    await step(tester);
+  }
+
   /// Steht an der letzten Stelle: ein Punkt je Sekunde ohne Bewegung (löst die Autopause aus).
   Future<void> stand(WidgetTester tester, {int n = 1}) async {
     for (var k = 0; k < n; k++) {
@@ -723,25 +734,70 @@ void main() {
       },
     );
 
-    _testRun('Widerruf bei offener Karte: Linie, keine Anfrage mehr', (
-      tester,
-    ) async {
-      final w = _World(consent: ConsentState.granted);
+    // Karte offen, 20 Punkte, dann (bei [revoke]) der Widerruf; danach 60 Punkte und ein Sprung über eine
+    // Kachelgrenze der Zoomstufe der geladenen Kacheln. Liefert die Zahl der Kachel- und aller Anfragen vor der
+    // Bewegung.
+    Future<({int tiles, int requests})> openMoveAndJump(
+      WidgetTester tester,
+      _World w, {
+      required bool revoke,
+    }) async {
       await w.startRun();
       await tester.pumpWidget(_app(w));
       await _toMap(tester);
       await w.step(tester, n: 20);
       await settleUntilMapIdle(tester, w.inner);
       expect(key('live_route_map'), findsOneWidget);
-      await tester.runAsync(w.map.revoke);
-      await tester.pump();
-      await settleUntilMapIdle(tester, w.inner);
-      expect(key('live_route_map'), findsNothing);
-      expect(key('live_map_line'), findsOneWidget);
-      final requests = w.requests;
+      final seg = w.tiles.first.pathSegments;
+      final z = int.parse(seg[seg.length - 3]);
+      if (revoke) {
+        await tester.runAsync(w.map.revoke);
+        await tester.pump();
+        await settleUntilMapIdle(tester, w.inner);
+        expect(key('live_route_map'), findsNothing);
+        expect(key('live_map_line'), findsOneWidget);
+      }
+      final before = (tiles: w.tiles.length, requests: w.requests);
       await w.step(tester, n: 60);
+      await w.jumpTile(tester, z);
+      await w.step(tester, n: 5);
       await settleUntilMapIdle(tester, w.inner);
-      expect(w.requests, requests, reason: 'nach dem Widerruf keine Anfrage');
+      return before;
+    }
+
+    _testRun(
+      'Kontrolle: ohne Widerruf löst dieselbe Bewegung Kachelanfragen aus',
+      (tester) async {
+        final w = _World(consent: ConsentState.granted);
+        final before = await openMoveAndJump(tester, w, revoke: false);
+        expect(
+          w.tiles.length,
+          greaterThan(before.tiles),
+          reason: 'die Bewegung braucht neue Kacheln',
+        );
+      },
+    );
+
+    _testRun('Widerruf bei offener Karte: Linie, keine Anfrage mehr', (
+      tester,
+    ) async {
+      final w = _World(consent: ConsentState.granted);
+      final before = await openMoveAndJump(tester, w, revoke: true);
+      expect(
+        w.tiles.length,
+        before.tiles,
+        reason: 'nach dem Widerruf keine Kachel',
+      );
+      expect(
+        w.requests,
+        before.requests,
+        reason: 'nach dem Widerruf keine Anfrage',
+      );
+      expect(
+        find.byType(LiveRouteMap),
+        findsNothing,
+        reason: 'auch keine Karte ohne Schlüssel unter der Linie',
+      );
       expect(w.run.phase, RecordingPhase.running);
     });
   });
