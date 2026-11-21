@@ -5,6 +5,7 @@ import 'edwards_trimp.dart';
 import '../plan/plan_registry.dart';
 import '../prediction/prediction_registry.dart';
 import 'heart_rate_reserve.dart';
+import 'high_heart_rate_time.dart';
 import 'reserve_zones.dart';
 import 'vo2max_estimator.dart';
 import 'vo2max_long_term.dart';
@@ -36,6 +37,7 @@ class AlgorithmRegistry {
     ..register(vo2maxEstimatorFamily, const AcsmReserveVo2maxEstimator())
     ..register(vo2maxLongTermFamily, const SmoothedVo2maxLongTerm())
     ..register(aerobicEfficiencyFamily, const MedianAerobicEfficiency())
+    ..register(highHeartRateTimeFamily, const HighHeartRateTime())
     ..register(performancePredictionFamily, const RiegelPrediction())
     ..register(planFamily, const WeeklyTimeCourse())
     ..register(targetIntensityFamily, const RankedTargetIntensity())

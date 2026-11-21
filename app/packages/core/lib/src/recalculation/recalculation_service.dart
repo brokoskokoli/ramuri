@@ -7,10 +7,12 @@ import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
 import '../fitness/banister_trimp.dart';
 import '../fitness/edwards_trimp.dart';
+import '../fitness/high_heart_rate_time.dart';
 import '../fitness/load_profile.dart';
 import '../fitness/vo2max_estimator.dart';
 import '../profile/heart_rate_resolution.dart';
 import '../settings/load_settings.dart';
+import 'high_heart_rate_value.dart';
 import 'run_analysis.dart';
 import 'run_load_values.dart';
 import 'value_calculation_service.dart';
@@ -455,23 +457,36 @@ class RecalculationService {
 
   /// Prüft, ob gespeicherte Lauf- oder Tageswerte mit einer anderen Methode,
   /// Methoden- oder Parameterversion gerechnet sind als die App sie jetzt
-  /// verwendet: VO2max und TRIMP (die Basis ändert sich mit dem Profil, das
-  /// Ergebnis mit der Methode) sowie alle Tageswerte aus [dayValueKeys]
+  /// verwendet: VO2max, TRIMP und die Zeit bei mindestens 80 % HFmax (die
+  /// Basis ändert sich mit dem Profil, das Ergebnis mit der Methode) sowie
+  /// alle Tageswerte aus [dayValueKeys]
   /// ([dayValueMethods]). Zonenzeiten gehören bewusst nicht dazu: sie werden
   /// nie neu gerechnet (L11), das Angebot käme nach jeder Bestätigung wieder.
   /// Aus demselben Grund zählen nur Tageswerte an Tagen, die [confirm] neu
-  /// rechnet ([ValueCalculationService.recalculableDays]).
+  /// rechnet ([ValueCalculationService.recalculableDays]). Fehlt einem Lauf,
+  /// den die Neuberechnung erfasst ([hasRecalculatedRunValue]), die Zeit bei
+  /// mindestens 80 % HFmax (Lauf von vor dieser Methode), ist das ebenfalls
+  /// eine neue Methodenversion: [confirm] legt sie an (ADR-0004).
   Future<RecalculationOffer?> checkVersions() async {
     const estimator = AcsmReserveVo2maxEstimator();
+    const high = HighHeartRateTime();
     // TRIMP-Modell des aktiven Belastungsprofils; nicht anwendbar: nicht
     // vergleichen (die Rückweg-Ursache deckt das ab, [loadBasisChanged]).
     final resolution = await _calc.loadResolution(await _calc.profileBasis());
     final LoadModel? trimp = resolution.model;
     for (final r in await session.runs.list()) {
-      for (final p in await session.values.read(ValueOwner.run(r.id))) {
+      final stored = await session.values.read(ValueOwner.run(r.id));
+      if (r.state == RunState.finished &&
+          r.endedAt != null &&
+          hasRecalculatedRunValue(stored) &&
+          !stored.any((p) => p.original.key == highHeartRateTimeValueKey)) {
+        return _offer(RecalculationCause.algorithmVersion);
+      }
+      for (final p in stored) {
         final c = p.current;
         final (method, version) = switch (p.original.key) {
           vo2maxRunValueKey => (estimator.method, estimator.methodVersion),
+          highHeartRateTimeValueKey => (high.method, high.methodVersion),
           trimpRunValueKey when trimp != null => (
             trimp.method,
             trimp.methodVersion,
@@ -560,10 +575,14 @@ class RecalculationService {
         ? const ValueSnapshot(runValues: {}, dayValues: {})
         : await _calc.buildSnapshot(loadProfile: target, coefficients: change);
     if (!factorOnly) {
-      await session.values.swapCurrentAll({
-        ...snapshot.runValues,
-        ...snapshot.dayValues,
-      });
+      final swap = {...snapshot.runValues, ...snapshot.dayValues};
+      // Neue Laufwerte (Lauf von vor einer Methode) in derselben Transaktion
+      // wie der Tausch.
+      if (snapshot.runCreates.isEmpty) {
+        await session.values.swapCurrentAll(swap);
+      } else {
+        await session.values.writeAll(create: snapshot.runCreates, swap: swap);
+      }
     }
     // Ab hier ist getauscht: ein Fehler beim Erledigen des Angebots darf nicht
     // als gescheiterte Neuberechnung gemeldet werden.
@@ -636,7 +655,7 @@ class RecalculationService {
       // Kein Inhalt in Meldungen; der Zähler hält den neuen Fehlversuch.
     }
     return RecalculationResult(
-      runCount: snapshot.runValues.length,
+      runCount: snapshot.runCount,
       dayCount: snapshot.dayValues.length,
       offerCleared: cleared,
     );
@@ -714,10 +733,8 @@ class RecalculationService {
       if (r.state == RunState.finished && r.endedAt != null)
         // Laufwert (VO2max) ODER TRIMP: ein Lauf nur mit TRIMP wechselt beim
         // Profilwechsel mit, `buildSnapshot` tauscht dann nur den TRIMP.
-        if ((await session.values.read(ValueOwner.run(r.id))).any(
-          (p) =>
-              p.original.key == vo2maxRunValueKey ||
-              p.original.key == trimpRunValueKey,
+        if (hasRecalculatedRunValue(
+          await session.values.read(ValueOwner.run(r.id)),
         ))
           r.id,
   ];

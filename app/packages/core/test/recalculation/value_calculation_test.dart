@@ -119,6 +119,7 @@ void main() {
       vo2maxLongTermValueKey,
       aerobicEfficiencyValueKey,
       ...runLoadValueKeys,
+      highHeartRateTimeValueKey,
     });
     for (final p in pairs) {
       for (final v in [p.original, p.current]) {
