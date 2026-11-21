@@ -13,6 +13,7 @@ class HealthConnectController extends ChangeNotifier {
     required SettingsStore settings,
     required ConsentStore consentStore,
     required this.clock,
+    this.countError,
   }) : _settings = settings,
        consents = ConsentService(consentStore, clock) {
     importer = HealthImportService(
@@ -30,6 +31,15 @@ class HealthConnectController extends ChangeNotifier {
   final Clock clock;
   final SettingsStore _settings;
   late final HealthImportService importer;
+
+  /// Zählt die hier still abgefangenen Fehler (nur Typ und Ort, `ErrorCounter.record`); `null`: nicht verdrahtet.
+  final void Function(Object error, StackTrace stack)? countError;
+
+  void _count(Object error, StackTrace stack) {
+    try {
+      countError?.call(error, stack);
+    } catch (_) {}
+  }
 
   bool loaded = false;
   HealthSdkStatus sdk = HealthSdkStatus.unavailable;
@@ -122,7 +132,7 @@ class HealthConnectController extends ChangeNotifier {
   }
 
   /// Nach einem Import, der neue Sätze gespeichert hat (Auslöser „veränderter Erholungszustand“, FR-0157). Ohne
-  /// Werte; Fehler darin bleiben still.
+  /// Werte; Fehler darin bleiben still und werden nur gezählt.
   VoidCallback? onNewData;
 
   /// Ein Import über den Dienst; meldet neue Sätze an [onNewData].
@@ -131,25 +141,31 @@ class HealthConnectController extends ChangeNotifier {
     if (healthImportStoredNew(result)) {
       try {
         onNewData?.call();
-      } catch (_) {}
+      } catch (e, s) {
+        _count(e, s);
+      }
     }
     return result;
   }
 
-  /// Import beim App-Start und beim Öffnen von „Heute“; Fehler bleiben still, die Sperre hält der Dienst.
+  /// Import beim App-Start und beim Öffnen von „Heute“; Fehler bleiben still (nur gezählt), die Sperre hält der Dienst.
   void runInBackground(HealthImportTrigger trigger) {
-    _run(trigger).then<void>((_) {}, onError: (Object _) {});
+    _run(trigger).then<void>((_) {}, onError: _count);
   }
 
   /// Import wie [runInBackground], danach Zustand neu lesen, damit offene Löschfragen beim Öffnen der App gezeigt werden
-  /// können (SEC-0007, nicht nur auf der Health-Connect-Seite). Fehler bleiben still.
+  /// können (SEC-0007, nicht nur auf der Health-Connect-Seite). Fehler bleiben still (nur gezählt).
   Future<void> importThenLoad(HealthImportTrigger trigger) async {
     try {
       await _run(trigger);
-    } catch (_) {}
+    } catch (e, s) {
+      _count(e, s);
+    }
     try {
       await load();
-    } catch (_) {}
+    } catch (e, s) {
+      _count(e, s);
+    }
   }
 
   /// Liest Zustand, Einwilligungen, Rechte und offene Löschfragen neu. Fehlt ein Recht für eine eingewilligte Art (oder ist Health Connect nicht mehr
