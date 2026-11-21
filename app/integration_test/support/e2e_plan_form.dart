@@ -149,7 +149,11 @@ Future<void> revealInPlanForm(
   }
 }
 
-/// Taste, die auf Fuehrungs- und Werteseite doppelt vorkommt: die sichtbare tippen.
+/// Taste, die auf Fuehrungs- und Werteseite doppelt vorkommt: unter allen
+/// Treffern von [key] die treffbare tippen (Frist 10 s, sonst
+/// `keine sichtbare Taste <key>`). Danach folgt wie bei `tapKey` nur ein
+/// Frame, keine feste Pause; die Wirkung prueft der Aufrufer mit `waitFor`
+/// (Schluesselname in der Meldung).
 Future<void> tapVisible(WidgetTester t, String key) async {
   final end = DateTime.now().add(const Duration(seconds: 10));
   while (true) {
@@ -158,25 +162,13 @@ Future<void> tapVisible(WidgetTester t, String key) async {
       final f = all.at(i);
       if (hittable(t, f)) {
         await t.tap(f);
-        await pumpFor(t, const Duration(milliseconds: 300));
+        await t.pump();
         return;
       }
     }
     if (DateTime.now().isAfter(end)) fail('keine sichtbare Taste $key');
     await pumpFor(t, const Duration(milliseconds: 200));
   }
-}
-
-/// Zurueck erst, wenn der Tipp die Taste trifft (nicht im Seitenuebergang).
-Future<void> tapBack(WidgetTester t) async {
-  final f = find.byType(BackButton);
-  final end = DateTime.now().add(const Duration(seconds: 10));
-  while (f.evaluate().isEmpty || !hittable(t, f.last)) {
-    if (DateTime.now().isAfter(end)) fail('Zurueck nicht tippbar');
-    await pumpFor(t, const Duration(milliseconds: 100));
-  }
-  await t.tap(f.last);
-  await pumpFor(t, const Duration(seconds: 1));
 }
 
 /// Profil (Maximal- und Ruhepuls) ueber die Oberflaeche setzen und zurueck
@@ -199,7 +191,7 @@ Future<void> enterProfile(WidgetTester t, StorageSession s) async {
   expect(prof.restingHeartRateBpm, 60);
   while (!has('home_plan')) {
     if (find.byType(BackButton).evaluate().isEmpty) break;
-    await tapBack(t);
+    await back(t);
   }
   await waitFor(t, () => has('home_plan'), 'Heute');
 }
