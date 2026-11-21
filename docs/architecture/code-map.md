@@ -114,6 +114,7 @@ Heute geltende Regeln und wo sie geprüft werden. Weitere Regeln ergänzt die Ä
 |---|---|
 | `core` ist frei von Flutter, `dart:ui` und `adapters`. | Schritt „core flutterfrei“ in `tool/gate.sh` (Abhängigkeits-Walk und Übersetzung außerhalb des Workspace). |
 | Netz nur im Kartenadapter (`app/packages/adapters/lib/src/map/`), Pakete nur laut `tool/net_allowed_packages.txt`. | `tool/check_net.py` mit Selbsttest `tool/check_net_test.py`, beide in `tool/gate.sh`. |
+| Keine neuen Zyklen zwischen Modulen in `core` (Ordner unter `app/packages/core/lib/src/`) bzw. zwischen Features der App (Ordner unter `app/lib/features/`); Kante ist jedes `import`, `export` oder `part` einer Datei des anderen Moduls. Die Zahl der Module in Zyklen darf nur sinken (Grundlinie `CORE_CYCLE_MODULES`, `APP_CYCLE_FEATURES` im Skript). | `tool/check_architecture.py` mit Selbsttest `tool/check_architecture_test.py`, beide in `tool/gate.sh` (auch `--fast`). |
 | Zeit nur über den Port `Clock` (`app/packages/core/lib/ports/clock.dart`); kein `DateTime.now()` in Fachlogik. | Keine maschinelle Prüfung; Tests setzen `FakeClock` bzw. `LocalFakeClock` (`app/test/helpers/local_clock.dart`). |
 | Debug-Quellen (`app/lib/debug/`) nur aus `app/lib/main_debug.dart`, nie im Release-Build. | `tool/check_release_apk.sh` (Marker der Debug-Quellen fehlen im Release-APK), aus `tool/gate.sh`. |
 
