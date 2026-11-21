@@ -379,10 +379,10 @@ final Map<String, List<Object>> parCodeValues = {
   ],
   'PAR-058': [
     _plan.completedIntensiveMinHighHrMinutes,
-    HighHeartRateTime.minSharePercent,
+    _fit.highHeartRateMinSharePercent,
     _plan.completedIntensiveMinRpe,
     // Auslegung: „Zeit bei mindestens 80 % HFmax“.
-    HighHeartRateTime.minSharePercent,
+    _fit.highHeartRateMinSharePercent,
   ],
   'PAR-206': [
     _feas.fitsUpToPercentPerWeek,

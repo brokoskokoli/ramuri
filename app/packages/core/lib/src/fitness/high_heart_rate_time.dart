@@ -7,8 +7,8 @@ import 'fitness_result.dart';
 import 'heart_rate_basis.dart';
 import 'heart_rate_time.dart';
 
-/// Zeit eines Laufs bei mindestens [HighHeartRateTime.minSharePercent] %
-/// HFmax (PAR-058, Pulskriterium für absolvierte intensive Einheiten).
+/// Zeit eines Laufs bei mindestens
+/// [FitnessParameters.highHeartRateMinSharePercent] % HFmax (PAR-058, Pulskriterium für absolvierte intensive Einheiten).
 class HighHeartRateTimeResult {
   const HighHeartRateTimeResult({
     required this.micros,
@@ -59,9 +59,6 @@ class HighHeartRateTime extends HighHeartRateTimeModel {
 
   static const methodId = 'high-hr-time';
 
-  /// Untergrenze in Prozent von HFmax, inklusiv (PAR-058: „mindestens 80 %“).
-  static const int minSharePercent = 80;
-
   @override
   String get method => methodId;
   @override
@@ -104,8 +101,9 @@ class HighHeartRateTime extends HighHeartRateTimeModel {
     }
     var above = 0;
     for (final e in time.microsByBpm.entries) {
-      // Ganzzahlig: bpm / max >= 80 %, ohne Rundung an der Grenze.
-      if (e.key * FitnessParameters.percent >= minSharePercent * max) {
+      // Ganzzahlig: bpm / max >= Anteil, ohne Rundung an der Grenze.
+      if (e.key * FitnessParameters.percent >=
+          p.highHeartRateMinSharePercent * max) {
         above += e.value;
       }
     }
