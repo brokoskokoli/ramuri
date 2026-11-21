@@ -197,6 +197,8 @@ im_fenster() { [ "$1" -ge 85500 ]; }
 # bis 00:00 warten (hoechstens tageswechsel_max_s), bevor die Zeitmessung der Stufe beginnt.
 tageswechsel_vorab() {
   case " $tageswechsel_stufen " in *" $1 "*) ;; *) return 0 ;; esac
+  # NACHWEIS (voruebergehend): Host-Uhr beim Start auf 23:52:00 vorstellen.
+  uhr_versatz_s=0; uw=$(uhr_s) && uhr_versatz_s=$(((85920 - uw + 86400) % 86400)); echo "NACHWEIS Versatz gesetzt"
   uw=$(uhr_s) && im_fenster "$uw" || return 0
   tw0=$(date +%s)
   while uw=$(uhr_s) && im_fenster "$uw" && [ $(($(date +%s) - tw0)) -lt "$tageswechsel_max_s" ]; do sleep 1; done
