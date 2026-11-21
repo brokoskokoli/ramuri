@@ -337,3 +337,20 @@ String readinessCardText(AppLocalizations l, ReadinessResult r) {
       return l.readinessInsufficientText;
   }
 }
+
+/// Hinweis statt „Morgenmessung starten“ außerhalb des Morgenfensters
+/// (FR-0111): ab wann die nächste Messung zählt, heute oder morgen.
+String readinessNextWindowText(AppLocalizations l, ReadinessMissingReason r) {
+  final hour = r.nextWindowStartHour ?? 0;
+  final time = l.localeName.startsWith('de') ? '$hour' : _hourEn(hour);
+  return r.nextWindowToday
+      ? l.readinessCatchUpNextWindowToday(time)
+      : l.readinessCatchUpNextWindowTomorrow(time);
+}
+
+/// Volle Stunde im 12-Stunden-Format („4 am“, „12 pm“).
+String _hourEn(int hour) {
+  final h = hour % 24;
+  final twelve = h % 12 == 0 ? 12 : h % 12;
+  return '$twelve ${h < 12 ? 'am' : 'pm'}';
+}

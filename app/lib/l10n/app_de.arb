@@ -590,6 +590,18 @@
   "@recalcDeclineFailed": {
     "description": "Fehlermeldung, wenn das Ablehnen nicht gespeichert wurde"
   },
+  "recalcUncomputableTitle": "Nicht berechenbare Läufe",
+  "@recalcUncomputableTitle": {
+    "description": "Titel der Karte in den Einstellungen für nicht berechenbare Läufe ohne Angebot (FR-0219)"
+  },
+  "recalcUncomputableIntro": "Bei einigen Läufen ließen sich die Werte nach drei Versuchen nicht berechnen. Die Aufzeichnungen sind vollständig gespeichert.",
+  "@recalcUncomputableIntro": {
+    "description": "Satz der Karte für nicht berechenbare Läufe (FR-0219)"
+  },
+  "recalcUncomputableFailed": "Die Berechnung ist wieder fehlgeschlagen. Die Aufzeichnungen sind unverändert.",
+  "@recalcUncomputableFailed": {
+    "description": "Fehlermeldung, wenn der neue Versuch der nicht berechenbaren Läufe scheitert (FR-0219)"
+  },
   "recalcOffered": "Eine Neuberechnung ist möglich. Du findest sie in den Einstellungen.",
   "@recalcOffered": {
     "description": "Hinweis nach dem Speichern des Profils"
@@ -3755,6 +3767,10 @@
   "@readinessCatchUpHealthConnect": {"description": "Erholung: Weg zum Nachholen (FR-0111)"},
   "readinessCatchUpWellbeing": "Nach dem nächsten Lauf in der Zusammenfassung angeben.",
   "@readinessCatchUpWellbeing": {"description": "Erholung: Weg zum Nachholen (FR-0111)"},
+  "readinessCatchUpNextWindowToday": "Die nächste Morgenmessung zählt heute ab {time} Uhr.",
+  "@readinessCatchUpNextWindowToday": {"description": "Erholung: Hinweis statt „Morgenmessung starten“ außerhalb des Morgenfensters (FR-0111); time: Fensterbeginn (de: Stunde, en: z. B. 4 am)", "placeholders": {"time": {"type": "String"}}},
+  "readinessCatchUpNextWindowTomorrow": "Die nächste Morgenmessung zählt morgen ab {time} Uhr.",
+  "@readinessCatchUpNextWindowTomorrow": {"description": "Erholung: Hinweis statt „Morgenmessung starten“ außerhalb des Morgenfensters (FR-0111); time: Fensterbeginn (de: Stunde, en: z. B. 4 am)", "placeholders": {"time": {"type": "String"}}},
   "readinessSleepSheetDone": "Fertig",
   "@readinessSleepSheetDone": {"description": "Erholung: Schlaf nachträglich angeben (PAR-164K)"},
   "readinessCappedNote": "Ohne Trainingsbelastung steigt die Zahl nicht über 74.",

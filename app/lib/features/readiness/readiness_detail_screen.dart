@@ -26,9 +26,12 @@ class ReadinessActions {
   /// erreichbar ist (Kamera vorhanden).
   final Future<void> Function(BuildContext context)? startMorning;
 
-  /// Setzt `sleepBand` der Morgenmessung [measurementId] (PAR-164K) über
-  /// denselben Speicherweg wie die Morgenmessung; `null` löscht die Angabe.
-  final Future<void> Function(int measurementId, SleepBand? band)? saveSleep;
+  /// Speichert die Schlafangabe zu [ReadinessSnapshot.sleepEntry] (PAR-164K)
+  /// über denselben Speicherweg wie die Morgenmessung, in der App mit
+  /// [saveReadinessSleep]; `null` löscht die Angabe an allen heute zählenden
+  /// Morgenmessungen.
+  final Future<void> Function(ReadinessSleepEntry entry, SleepBand? band)?
+  saveSleep;
 
   /// Nach einer Änderung: die Karte auf „Heute“ neu laden.
   final VoidCallback? changed;
@@ -85,7 +88,7 @@ class _ReadinessDetailScreenState extends State<ReadinessDetailScreen> {
     await showReadinessSleepSheet(
       context,
       initial: entry.band,
-      save: (band) => save(entry.measurementId, band),
+      save: (band) => save(entry, band),
     );
     if (mounted) await _refresh();
   }
@@ -222,7 +225,7 @@ class _ReadinessDetailScreenState extends State<ReadinessDetailScreen> {
                                 ..._catchUp(
                                   context,
                                   id,
-                                  r.missingReasons[id]?.catchUp ?? const [],
+                                  r.missingReasons[id],
                                   canEnterSleep: canEnterSleep,
                                 ),
                               ],
@@ -351,10 +354,11 @@ class _ReadinessDetailScreenState extends State<ReadinessDetailScreen> {
   List<Widget> _catchUp(
     BuildContext context,
     ReadinessFactorId id,
-    List<ReadinessCatchUp> ways, {
+    ReadinessMissingReason? reason, {
     required bool canEnterSleep,
   }) {
     final l = AppLocalizations.of(context);
+    final ways = reason?.catchUp ?? const <ReadinessCatchUp>[];
     Widget button(Key key, String label, VoidCallback onPressed) => Align(
       alignment: AlignmentDirectional.centerStart,
       child: TextButton(
@@ -386,6 +390,10 @@ class _ReadinessDetailScreenState extends State<ReadinessDetailScreen> {
                     l.readinessCatchUpStartMorning,
                     _startMorning,
                   ),
+          ReadinessCatchUp.nextMorningWindow => hint(
+            c,
+            readinessNextWindowText(l, reason!),
+          ),
           ReadinessCatchUp.enterSleep =>
             canEnterSleep
                 ? button(

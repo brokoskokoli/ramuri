@@ -11,20 +11,35 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
 // Fehlende Faktoren der Erholung (FR-0111, PAR-164K): Grund und Weg zum
-// Nachholen je Faktor, „Schlaf angeben“ an der ersten Morgenmessung des
+// Nachholen je Faktor, „Schlaf angeben“ an der zählenden Morgenmessung des
 // Ortstags, Sperre ohne Entwicklermodus (K62). Fake-Speicher und feste Uhr;
-// heute ist Samstag, der 14.11.2026, 12 Uhr Ortszeit (UTC+1). Nur erfundene
+// heute ist Samstag, der 14.11.2026, 10 Uhr Ortszeit (UTC+1, im
+// Morgenfenster 4–11), außerhalb des Fensters 14 bzw. 3 Uhr. Nur erfundene
 // Werte.
 
 const _offset = Duration(hours: 1);
 
-/// Morgenmessung [daysAgo] Tage vor heute um [hour] Uhr Ortszeit.
-MorningMeasurement _morning(int daysAgo, {int hour = 7}) => MorningMeasurement(
-  measuredAt: DateTime.utc(2026, 11, 14 - daysAgo, hour).subtract(_offset),
+/// Morgenmessung [daysAgo] Tage vor heute um [hour]:[minute] Uhr Ortszeit
+/// mit Gerät [model] und Schlafstufe [band].
+MorningMeasurement _morning(
+  int daysAgo, {
+  int hour = 7,
+  int minute = 0,
+  String model = 'Modell',
+  SleepBand? band,
+}) => MorningMeasurement(
+  measuredAt: DateTime.utc(
+    2026,
+    11,
+    14 - daysAgo,
+    hour,
+    minute,
+  ).subtract(_offset),
   utcOffset: _offset,
   posture: RestingPosture.lying,
   deviceManufacturer: 'Hersteller',
-  deviceModel: 'Modell',
+  deviceModel: model,
+  sleepBand: band,
   method: 'ppg',
   methodVersion: 1,
   quality: PpgQuality.good,
@@ -52,19 +67,24 @@ class _Env {
   ReadinessActions actions({bool startMorning = true}) => ReadinessActions(
     reload: service.load,
     startMorning: startMorning ? (_) async {} : null,
-    saveSleep: morning.setSleepBand,
+    saveSleep: (entry, band) => saveReadinessSleep(morning, entry, band),
   );
 }
 
 /// Speicher mit Messungen an [history] Tagen vor heute und, mit [today],
-/// einer heutigen um 7 Uhr; Entwicklermodus nach [dev].
+/// einer heutigen um 7 Uhr; Entwicklermodus nach [dev]; jetzt um [hour] Uhr
+/// Ortszeit.
 Future<_Env> _env({
   int history = 9,
   bool today = false,
   bool dev = true,
+  int hour = 10,
 }) async {
   final session = await FakeStorage().open(Uint8List(32));
-  final clock = FakeClock(DateTime.utc(2026, 11, 14, 11), utcOffset: _offset);
+  final clock = FakeClock(
+    DateTime.utc(2026, 11, 14, hour).subtract(_offset),
+    utcOffset: _offset,
+  );
   if (dev) await SettingsDeveloperModeStore(session.settings, clock).set(true);
   final morning = (session as MorningStorage).morning;
   for (var i = history; i >= 1; i--) {
@@ -190,6 +210,48 @@ void main() {
         );
       });
 
+      // 11 Uhr Ortszeit ist 10 Uhr UTC: ohne den Versatz des Ortes wäre das
+      // Fenster noch offen.
+      for (final (hour, today) in [(11, false), (14, false), (3, true)]) {
+        testWidgets('außerhalb des Morgenfensters ($hour Uhr): Hinweis statt '
+            'Knopf', (tester) async {
+          final env = (await tester.runAsync(() => _env(hour: hour)))!;
+          final s = (await tester.runAsync(env.service.load))!;
+          await open(tester, s, actions: env.actions());
+          final expected = switch ((de, today)) {
+            (true, false) => 'Die nächste Morgenmessung zählt morgen ab 4 Uhr.',
+            (true, true) => 'Die nächste Morgenmessung zählt heute ab 4 Uhr.',
+            (false, false) =>
+              'Your next morning measurement counts from 4 am tomorrow.',
+            (false, true) =>
+              'Your next morning measurement counts from 4 am today.',
+          };
+          for (final id in ['hrv', 'restingHeartRate', 'sleep']) {
+            expect(
+              _key('readiness_detail_start_morning_$id'),
+              findsNothing,
+              reason: '$id um $hour',
+            );
+            expect(
+              _text('readiness_detail_hint_${id}_nextMorningWindow'),
+              expected,
+              reason: '$id um $hour',
+            );
+          }
+          // Schlaf: der Hinweis auf die Morgenmessung bleibt.
+          expect(
+            _key('readiness_detail_hint_sleep_sleepAtMorning'),
+            findsOneWidget,
+          );
+          expect(
+            find.text(
+              de ? 'Morgenmessung starten' : 'Start morning measurement',
+            ),
+            findsNothing,
+          );
+        });
+      }
+
       testWidgets('Morgenmessung nicht erreichbar: kein Knopf', (tester) async {
         final env = (await tester.runAsync(() => _env()))!;
         final s = (await tester.runAsync(env.service.load))!;
@@ -260,6 +322,162 @@ void main() {
         expect(_key('readiness_detail_change_sleep'), findsNothing);
       });
 
+      // Zwei Geräte am selben Morgen (PAR-164K): A um 6 Uhr ohne Stufe,
+      // B um 6:30 Uhr mit 6–7 h. Gezählt wird die Stufe von B, das Blatt
+      // zeigt und ändert sie.
+      Future<(_Env, int, int)> twoDevices(
+        WidgetTester tester, {
+        SleepBand? bandA,
+      }) async {
+        final env = (await tester.runAsync(() => _env()))!;
+        final ids = (await tester.runAsync(() async {
+          final a = await env.morning.add(_morning(0, hour: 6, band: bandA));
+          final b = await env.morning.add(
+            _morning(
+              0,
+              hour: 6,
+              minute: 30,
+              model: 'Modell B',
+              band: SleepBand.from6to7,
+            ),
+          );
+          return (a, b);
+        }))!;
+        return (env, ids.$1, ids.$2);
+      }
+
+      Future<Map<int, SleepBand?>> bands(WidgetTester t, _Env env) async => {
+        for (final e in (await t.runAsync(env.morning.list))!)
+          e.id: e.value.sleepBand,
+      };
+
+      String sleptAbout(int hours) => de
+          ? 'Du hast rund $hours Stunden geschlafen.'
+          : 'You slept about '
+                '$hours hours.';
+
+      void expectSelected(WidgetTester t, SleepBand b, bool selected) => expect(
+        t.getSemantics(_key('readiness_sleep_${b.code}')),
+        isSemantics(isChecked: selected),
+        reason: b.code,
+      );
+
+      testWidgets('zwei Geräte: Blatt zeigt die gezählte Stufe des späteren', (
+        tester,
+      ) async {
+        final (env, a, b) = await twoDevices(tester);
+        final s = (await tester.runAsync(env.service.load))!;
+        expect(s.sleepEntry!.measurementId, b);
+        expect(s.sleepEntry!.band, SleepBand.from6to7);
+        final sleep = s.result.factors.singleWhere(
+          (f) => f.id == ReadinessFactorId.sleep,
+        );
+        expect(sleep.source, ReadinessFactorSource.selfReport);
+        expect(
+          s.result.facts
+              .singleWhere((f) => f.kind == ReadinessFactKind.sleepDuration)
+              .hours,
+          sleepBandHours(SleepBand.from6to7),
+        );
+        await open(tester, s, actions: env.actions());
+        expect(_key('readiness_detail_change_sleep'), findsOneWidget);
+        await _tap(tester, 'readiness_detail_change_sleep');
+        for (final band in SleepBand.values) {
+          expectSelected(tester, band, band == SleepBand.from6to7);
+        }
+        expect(await bands(tester, env), containsPair(a, null));
+      });
+
+      testWidgets('zwei Geräte: Abwählen entfernt die Stufe an allen', (
+        tester,
+      ) async {
+        final (env, a, b) = await twoDevices(tester);
+        final s = (await tester.runAsync(env.service.load))!;
+        await open(tester, s, actions: env.actions());
+        await _tap(tester, 'readiness_detail_change_sleep');
+        await _tap(tester, 'readiness_sleep_from6to7');
+        await _tap(tester, 'readiness_sleep_done');
+        await tester.runAsync(() async {});
+        await tester.pumpAndSettle();
+        final stored = await bands(tester, env);
+        expect(stored[a], isNull);
+        expect(stored[b], isNull);
+        expect(_key('readiness_detail_missing_sleep'), findsOneWidget);
+        expect(_key('readiness_detail_enter_sleep'), findsOneWidget);
+        final after = (await tester.runAsync(env.service.load))!;
+        expect(after.result.missing, contains(ReadinessFactorId.sleep));
+        expect(after.sleepEntry!.measurementId, a);
+        expect(after.sleepEntry!.band, isNull);
+      });
+
+      // Beide mit Stufe: die frühere zählt; Abwählen darf die spätere nicht
+      // nachrücken lassen.
+      testWidgets('zwei Geräte mit Stufe: Abwählen entfernt beide', (
+        tester,
+      ) async {
+        final (env, a, b) = await twoDevices(tester, bandA: SleepBand.over8);
+        final s = (await tester.runAsync(env.service.load))!;
+        expect(s.sleepEntry!.measurementId, a);
+        expect(s.sleepEntry!.band, SleepBand.over8);
+        // Die Einschätzung zählt dieselbe Stufe wie das Blatt.
+        expect(
+          s.result.facts
+              .singleWhere((f) => f.kind == ReadinessFactKind.sleepDuration)
+              .hours,
+          sleepBandHours(SleepBand.over8),
+        );
+        await open(tester, s, actions: env.actions());
+        await _tap(tester, 'readiness_detail_change_sleep');
+        for (final band in SleepBand.values) {
+          expectSelected(tester, band, band == SleepBand.over8);
+        }
+        await _tap(tester, 'readiness_sleep_over8');
+        await _tap(tester, 'readiness_sleep_done');
+        await tester.runAsync(() async {});
+        await tester.pumpAndSettle();
+        final stored = await bands(tester, env);
+        expect(stored[a], isNull);
+        expect(stored[b], isNull);
+        expect(_key('readiness_detail_missing_sleep'), findsOneWidget);
+        final after = (await tester.runAsync(env.service.load))!;
+        expect(after.result.missing, contains(ReadinessFactorId.sleep));
+      });
+
+      testWidgets('zwei Geräte: andere Stufe landet an derselben Messung', (
+        tester,
+      ) async {
+        final (env, a, b) = await twoDevices(tester);
+        final s = (await tester.runAsync(env.service.load))!;
+        await open(tester, s, actions: env.actions());
+        expect(find.textContaining(sleptAbout(7)), findsWidgets);
+        await _tap(tester, 'readiness_detail_change_sleep');
+        await _tap(tester, 'readiness_sleep_under5');
+        await _tap(tester, 'readiness_sleep_done');
+        await tester.runAsync(() async {});
+        await tester.pumpAndSettle();
+        final stored = await bands(tester, env);
+        expect(stored[b], SleepBand.under5);
+        expect(stored[a], isNull);
+        // Detailseite: neue Stufe, die alte nirgends.
+        expect(find.textContaining(sleptAbout(5)), findsWidgets);
+        expect(find.textContaining(sleptAbout(7)), findsNothing);
+        final after = (await tester.runAsync(env.service.load))!;
+        expect(after.sleepEntry!.measurementId, b);
+        expect(after.sleepEntry!.band, SleepBand.under5);
+        // Karte auf „Heute“ aus demselben Stand.
+        await _pump(
+          tester,
+          Scaffold(
+            body: ReadinessCard(snapshot: after, onWhereFrom: () {}),
+          ),
+          locale: locale,
+          width: width,
+          scale: scale,
+        );
+        expect(_text('readiness_text'), contains(sleptAbout(5)));
+        expect(_text('readiness_text'), isNot(contains(sleptAbout(7))));
+      });
+
       testWidgets(
         'Sperre ohne Entwicklermodus: keine Knöpfe, kein Kamerabezug',
         (tester) async {
@@ -273,6 +491,24 @@ void main() {
           expect(_key('readiness_detail_enter_sleep'), findsNothing);
           expect(_key('readiness_detail_change_sleep'), findsNothing);
           expect(find.byType(TextButton), findsNothing);
+          // Auch außerhalb des Morgenfensters kein Hinweis auf die nächste
+          // Messung.
+          final late = (await tester.runAsync(
+            () => _env(today: true, dev: false, hour: 14),
+          ))!;
+          final sl = (await tester.runAsync(late.service.load))!;
+          await tester.pumpWidget(const SizedBox());
+          await open(tester, sl, actions: late.actions());
+          for (final id in sl.result.missing) {
+            expect(
+              _key('readiness_detail_hint_${id.name}_nextMorningWindow'),
+              findsNothing,
+            );
+          }
+          expect(find.byType(TextButton), findsNothing);
+          // Neuer Zustand der Seite für den Stand um 10 Uhr.
+          await tester.pumpWidget(const SizedBox());
+          await open(tester, s, actions: env.actions());
           for (final id in s.result.missing) {
             expect(
               _key('readiness_detail_start_morning_${id.name}'),

@@ -1124,6 +1124,9 @@ void main() {
         'starten“ steht da', (tester) async {
       final d = Device();
       final s = await _preopen(d);
+      // Im Morgenfenster (4–11 Uhr Ortszeit), sonst steht statt des Knopfs
+      // der Hinweis auf die nächste Messung.
+      d.clock.set(DateTime(2026, 11, 14, 9).toUtc());
       await SettingsDeveloperModeStore(s.settings, d.clock).set(true);
       for (var i = 0; i < 28; i++) {
         await (s as MorningStorage).morning.add(_cam(i));

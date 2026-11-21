@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
@@ -287,9 +289,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             )
           : null,
+      // Nach jeder gespeicherten Schlafstufe (setzen, ändern, abwählen) den
+      // Plan von heute prüfen wie nach der Morgenmessung (FR-0157,
+      // PAR-164K). Die Prüfung läuft ohne Warten auf die Anzeige; scheitert
+      // das Speichern, läuft sie nicht.
       saveSleep: session is MorningStorage
-          ? (id, band) =>
-                (session as MorningStorage).morning.setSleepBand(id, band)
+          ? (entry, band) async {
+              await saveReadinessSleep(
+                (session as MorningStorage).morning,
+                entry,
+                band,
+              );
+              if (recovery != null) unawaited(recovery.recheck());
+            }
           : null,
       changed: () {
         if (!mounted) return;

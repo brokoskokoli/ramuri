@@ -12,7 +12,10 @@ import 'recalculation_controller.dart';
 /// Fehlermeldung in der Karte. Das Ergebnis kommt als Snackbar mit der
 /// Standarddauer wie die übrigen Bestätigungen der App (FR-0058); die Karte
 /// steht danach nicht mehr da, außer es gibt schon ein weiteres Angebot.
-/// Ohne Angebot zeigt sie nichts.
+/// Ohne Angebot zeigt sie, solange ein Lauf nicht berechenbar ist, eine
+/// eigene Karte mit „Neu berechnen“, die nur diese Läufe erneut versucht
+/// (FR-0219); nach einem gescheiterten Versuch steht dort die Fehlermeldung.
+/// Sonst zeigt sie nichts.
 class RecalculationCard extends StatelessWidget {
   const RecalculationCard({super.key, required this.controller});
 
@@ -26,6 +29,11 @@ class RecalculationCard extends StatelessWidget {
       final offer = controller.offer;
       final phase = controller.phase;
       if (offer == null) {
+        if (controller.hasUncomputable ||
+            phase == RecalculationPhase.running ||
+            phase == RecalculationPhase.retryFailed) {
+          return _uncomputableCard(l10n);
+        }
         return const SizedBox.shrink(key: Key('recalc_none'));
       }
       final busy = controller.busy;
@@ -34,7 +42,7 @@ class RecalculationCard extends StatelessWidget {
         RecalculationPhase.running => l10n.recalcRunning,
         RecalculationPhase.failed => l10n.recalcFailed,
         RecalculationPhase.declineFailed => l10n.recalcDeclineFailed,
-        RecalculationPhase.idle => null,
+        RecalculationPhase.idle || RecalculationPhase.retryFailed => null,
       };
       return Padding(
         padding: const EdgeInsets.only(bottom: 24),
@@ -90,6 +98,49 @@ class RecalculationCard extends StatelessWidget {
       );
     },
   );
+
+  /// Karte „Nicht berechenbare Läufe“ ohne Angebot (FR-0219). Die
+  /// Schaltfläche steht nur, solange es einen solchen Lauf gibt: nach einem
+  /// gescheiterten Versuch beginnt der Zähler neu, der Start versucht ihn
+  /// wieder.
+  Widget _uncomputableCard(AppLocalizations l10n) {
+    final busy = controller.busy;
+    final failed = controller.phase == RecalculationPhase.retryFailed;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: RamuriCard(
+        key: const Key('recalc_uncomputable'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeading(l10n.recalcUncomputableTitle),
+            const SizedBox(height: 8),
+            Text(l10n.recalcUncomputableIntro),
+            if (busy) ...[
+              const SizedBox(height: 12),
+              const LinearProgressIndicator(key: Key('recalc_progress')),
+            ],
+            if (failed)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  l10n.recalcUncomputableFailed,
+                  key: const Key('recalc_status'),
+                ),
+              ),
+            if (busy || controller.hasUncomputable) ...[
+              const SizedBox(height: 12),
+              RamuriPrimaryButton(
+                key: const Key('recalc_uncomputable_confirm'),
+                onPressed: busy ? null : controller.retryUncomputable,
+                label: l10n.recalcConfirm,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   /// Bestätigt und meldet den Erfolg als Snackbar ohne eigene Dauer. Der
   /// Messenger wird vor dem Warten geholt: die Karte kann danach verschwunden
