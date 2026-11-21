@@ -3,6 +3,7 @@ import '../../ports/health_import.dart';
 import '../../ports/storage_health.dart';
 import '../../ports/storage_settings.dart';
 import '../consent/consent_service.dart';
+import '../consent/consented_health_reader.dart';
 import '../consent/consent_sources.dart';
 import 'health_parameters.dart';
 
@@ -101,15 +102,19 @@ class HealthImportResult {
 /// und für diese Art „Löschfrage offen“ gemerkt (SEC-0007). Kein Abgleich von
 /// Löschungen. Keine Werte in Fehlern oder Logs.
 ///
+/// Gelesen wird nur über [ConsentedHealthReader]: Der Wächter prüft die Einwilligung vor und nach jeder Seite. Wird sie
+/// zwischen zwei Seiten widerrufen, liest der Dienst keine weitere Seite und speichert für diese Art nichts. Der Dienst
+/// nutzt die Einwilligungen des Wächters ([consents]); Rechte und Zustand fragt er über [permissions].
+///
 /// Die Sperre gilt im Prozess nach der monotonen Uhr und über Neustarts nach dem
 /// Zeitpunkt des letzten Imports (Wanduhr), den [settings] hält
 /// ([lastImportKey], technischer Merker, nicht im Archiv). Ohne [settings] oder
 /// bei Lese-/Schreibfehlern gilt nur die Sperre im Prozess.
 class HealthImportService {
   HealthImportService({
-    required this.port,
+    required this._permissions,
+    required this._reader,
     required this.store,
-    required this.consents,
     required this.clock,
     this.params = const HealthParameters.v4(),
     this.minInterval = healthImportMinInterval,
@@ -121,15 +126,18 @@ class HealthImportService {
   /// Einstellung: Zeitpunkt des letzten Imports (Millisekunden seit 1970, UTC).
   static const String lastImportKey = 'health.last_import_ms';
 
-  final HealthConnectPort port;
+  final HealthConnectPermissions _permissions;
+  final ConsentedHealthReader _reader;
   final HealthImportStore store;
-  final ConsentService consents;
   final Clock clock;
   final HealthParameters params;
   final Duration minInterval;
   final Duration window;
   final Duration overlap;
   final SettingsStore? settings;
+
+  /// Die Einwilligungen des Wächters (eine Instanz für Prüfen und Lesen).
+  ConsentService get consents => _reader.consents;
 
   Duration? _lastStart;
   bool _running = false;
@@ -203,7 +211,7 @@ class HealthImportService {
     // Vor jedem Lesen: Zustand von Health Connect und erteilte Rechte.
     HealthSdkStatus sdk;
     try {
-      sdk = await port.sdkStatus();
+      sdk = await _permissions.sdkStatus();
     } catch (_) {
       return const HealthImportResult(HealthImportStatus.unavailable);
     }
@@ -212,7 +220,7 @@ class HealthImportService {
     }
     Set<HealthDataKind> rights;
     try {
-      rights = await port.grantedKinds();
+      rights = await _permissions.grantedKinds();
     } catch (_) {
       return const HealthImportResult(HealthImportStatus.unavailable);
     }
@@ -245,6 +253,11 @@ class HealthImportService {
         final r = await _readKind(kind, exercises);
         results[kind] = r.$1;
         if (kind == HealthDataKind.exercise) exercises = r.$2;
+      } on _ConsentWithdrawn {
+        // Der Wächter lieferte keine Seite: keine weitere Seite, nichts mehr gespeichert.
+        results[kind] = const HealthKindResult(
+          HealthKindStatus.revokedWhileReading,
+        );
       } on HealthReadException catch (e) {
         if (e.error == HealthReadError.permissionMissing) {
           // Recht zwischen Prüfung und Lesen entzogen.
@@ -310,7 +323,7 @@ class HealthImportService {
         rejected++;
       }
     }
-    // Widerruf während des Lesens: nichts speichern (wie ConsentGuard).
+    // Widerruf nach der letzten Seite: nichts speichern (zusätzlich zum Wächter).
     if (!await consents.isGranted(key)) {
       return (
         const HealthKindResult(HealthKindStatus.revokedWhileReading),
@@ -348,12 +361,13 @@ class HealthImportService {
     final out = <HealthRecord>[];
     String? token;
     for (var i = 0; i < healthImportMaxPages; i++) {
-      final page = await port.readPage(
+      final page = await _reader.readPage(
         kind: kind,
         from: from,
         to: to,
         pageToken: token,
       );
+      if (page == null) throw const _ConsentWithdrawn();
       out.addAll(page.records);
       token = page.nextToken;
       if (token == null) break;
@@ -427,4 +441,9 @@ class HealthImportService {
 
   bool _inRange(double? v, double min, double max) =>
       v != null && v.isFinite && v >= min && v <= max;
+}
+
+/// Der Wächter hat eine Seite verweigert (Einwilligung fehlt oder wurde widerrufen); bleibt im Dienst.
+class _ConsentWithdrawn implements Exception {
+  const _ConsentWithdrawn();
 }
