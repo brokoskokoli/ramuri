@@ -322,6 +322,26 @@ List<MorningMeasurement> morningCountingToday(
   ];
 }
 
+/// Die Morgenmessung, zu der die Schlaf-Selbstangabe von heute gehört
+/// (PAR-164K): aus [counting] (zählende Messungen eines Ortstags, wie
+/// [morningCountingToday]; die Reihenfolge spielt keine Rolle) die früheste mit Stufe, ohne Stufe
+/// die früheste. Die Einschätzung zählt die Stufe dieser Messung, das Blatt
+/// „Schlaf angeben“ zeigt und ändert sie. `null` ohne zählende Messung.
+MorningMeasurement? morningSleepSource(List<MorningMeasurement> counting) {
+  MorningMeasurement? earliest;
+  MorningMeasurement? withBand;
+  for (final m in counting) {
+    if (earliest == null || m.measuredAt.isBefore(earliest.measuredAt)) {
+      earliest = m;
+    }
+    if (m.sleepBand != null &&
+        (withBand == null || m.measuredAt.isBefore(withBand.measuredAt))) {
+      withBand = m;
+    }
+  }
+  return withBand ?? earliest;
+}
+
 /// Darf heute in der Reihe [series] (Gerät) wiederholt werden? Nur, solange
 /// heute in dieser Reihe noch keine gültige Messung vorliegt, gleich in
 /// welcher Haltung; andere Geräte zählen nicht.

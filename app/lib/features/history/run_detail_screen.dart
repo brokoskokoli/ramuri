@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../export/file_handoff_scope.dart';
 import '../export/run_export_action.dart';
 import '../map/map_consent_scope.dart';
 import '../recalculation/recalculation_controller.dart';
@@ -59,6 +60,7 @@ class _RunDetailScreenState extends State<RunDetailScreen> {
       runId,
       serialize: recalculation.exclusive,
       onDeleted: MapConsentScope.of(context)?.deleteRunThumbnails,
+      exports: FileHandoffScope.of(context),
     );
     if (result == DeletionResult.deleted ||
         result == DeletionResult.deletedNotErased) {

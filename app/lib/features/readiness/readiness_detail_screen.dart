@@ -26,9 +26,12 @@ class ReadinessActions {
   /// erreichbar ist (Kamera vorhanden).
   final Future<void> Function(BuildContext context)? startMorning;
 
-  /// Setzt `sleepBand` der Morgenmessung [measurementId] (PAR-164K) über
-  /// denselben Speicherweg wie die Morgenmessung; `null` löscht die Angabe.
-  final Future<void> Function(int measurementId, SleepBand? band)? saveSleep;
+  /// Speichert die Schlafangabe zu [ReadinessSnapshot.sleepEntry] (PAR-164K)
+  /// über denselben Speicherweg wie die Morgenmessung, in der App mit
+  /// [saveReadinessSleep]; `null` löscht die Angabe an allen heute zählenden
+  /// Morgenmessungen.
+  final Future<void> Function(ReadinessSleepEntry entry, SleepBand? band)?
+  saveSleep;
 
   /// Nach einer Änderung: die Karte auf „Heute“ neu laden.
   final VoidCallback? changed;
@@ -85,7 +88,7 @@ class _ReadinessDetailScreenState extends State<ReadinessDetailScreen> {
     await showReadinessSleepSheet(
       context,
       initial: entry.band,
-      save: (band) => save(entry.measurementId, band),
+      save: (band) => save(entry, band),
     );
     if (mounted) await _refresh();
   }
@@ -664,7 +667,7 @@ class _FactorHead extends StatelessWidget {
       spacing: 8,
       children: [
         Text(name, style: t.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-        Text(l.readinessWeight((weight * 100).round()), style: _muted(context)),
+        Text(l.readinessWeight(weight.round()), style: _muted(context)),
         if (score != null) Text(l.readinessPartScore(score!.round())),
       ],
     );

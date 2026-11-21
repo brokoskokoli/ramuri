@@ -183,21 +183,24 @@ Future<List<PlanVersionRecord>> _history(
   StorageSession s,
 ) => tester.runAsync(() => _plans(s).history()).then((h) => h!);
 
-/// Kamera-Morgenmessung um 07:00 am Tag [day] (Entwicklermodus).
+/// Kamera-Morgenmessung um 07:[minute] am Tag [day] mit Gerät [model]
+/// (Entwicklermodus).
 MorningMeasurement _cam(
   Clock clock,
   DateTime day, {
   required double bpm,
   required double rmssd,
   SleepBand? band,
+  String model = 'M1',
+  int minute = 0,
 }) {
-  final at = day.add(const Duration(hours: 7));
+  final at = day.add(Duration(hours: 7, minutes: minute));
   return MorningMeasurement(
     measuredAt: at,
     utcOffset: clock.utcOffsetAt(at),
     posture: RestingPosture.lying,
     deviceManufacturer: 'H',
-    deviceModel: 'M1',
+    deviceModel: model,
     method: 'ppg',
     methodVersion: 1,
     quality: PpgQuality.good,
@@ -480,6 +483,44 @@ void main() {
       expect(history.length, versions + 1);
       expect(history.last.reason, planReasonReadiness);
       expect((await _unit(tester, s, today)).kind, PlanUnitKind.easy);
+      await d.stop(tester);
+    });
+
+    testWidgets('zwei Geräte mit Stufe: Abwählen auf „Heute“ entfernt die '
+        'Stufe an beiden, die spätere rückt nicht nach', (tester) async {
+      final d = Device();
+      // Gerät M1 um 7:00 mit „über 8 h“ (zählt, Wert „normal“), Gerät M2 um
+      // 7:30 mit „unter 5 h“ (würde den Wert senken).
+      final (s, today, a, b) = (await tester.runAsync(() async {
+        final r = await _preopen(d);
+        final a = await _seedCamera(r.$1, d.clock, r.$2, band: SleepBand.over8);
+        final b = await (r.$1 as MorningStorage).morning.add(
+          _cam(
+            d.clock,
+            r.$2,
+            bpm: 55,
+            rmssd: 46,
+            band: SleepBand.under5,
+            model: 'M2',
+            minute: 30,
+          ),
+        );
+        return (r.$1, r.$2, a, b);
+      }))!;
+      await _openDetail(tester, d);
+      expect((await _unit(tester, s, today)).isHard, isTrue);
+      await _enterSleep(
+        tester,
+        SleepBand.over8,
+        button: 'readiness_detail_change_sleep',
+      );
+      expect(await _band(tester, s, a), isNull);
+      expect(await _band(tester, s, b), isNull);
+      expect(
+        find.byKey(const Key('readiness_detail_missing_sleep')),
+        findsOneWidget,
+      );
+      expect((await _unit(tester, s, today)).isHard, isTrue);
       await d.stop(tester);
     });
 

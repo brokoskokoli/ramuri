@@ -16,6 +16,8 @@ import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/debug/debug_test_health_connect.dart';
 import 'package:running_app/debug/debug_test_sensor.dart';
+import 'package:running_app/features/health/health_connect_screen.dart'
+    show HealthKindTexts;
 import 'package:running_app/features/storage/storage_start.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/system_clock.dart';
@@ -96,6 +98,23 @@ bool _on(String kind) {
   final f = find.byKey(Key('health_switch_$kind'));
   return (f.evaluate().first.widget as SwitchListTile).value;
 }
+
+/// Wie [_on], wirft aber nicht, solange der Schalter fehlt (Bedingung fuer
+/// [waitFor]): fehlt er, gilt [value] als nicht erreicht.
+bool _switchIs(String kind, bool value) =>
+    maybeWidget<SwitchListTile>(find.byKey(Key('health_switch_$kind')))
+        ?.value ==
+    value;
+
+/// Texte der Seite Health Connect (fuer Hinweise und Rueckmeldungen).
+AppLocalizations _l10n(WidgetTester t) =>
+    AppLocalizations.of(t.element(find.byKey(const Key('health_main'))));
+
+/// Ob gerade eine Rueckmeldung (SnackBar) mit genau [text] steht.
+bool _snack(String text) => find
+    .descendant(of: find.byType(SnackBar), matching: find.text(text))
+    .evaluate()
+    .isNotEmpty;
 
 /// Anzahl Belastungseinheiten (Laeufe und Nachtraege) laut Belastungsdienst.
 Future<int> _loadUnits(WidgetTester t, AppDependencies d) async {
@@ -179,8 +198,20 @@ void main() {
     );
     expect(await hc.grantedKinds(), isEmpty);
     step('HC1 einwilligen');
+    // Vor dem Tipp fehlen die Rechte (Hinweis unter health_continue), danach
+    // verschwindet der Hinweis: Wirkung des Tipps.
+    final rightsMissing = find.textContaining(_l10n(t).healthRightsMissing);
+    expect(
+      rightsMissing,
+      findsOneWidget,
+      reason: 'Hinweis fehlende Rechte vor health_continue',
+    );
     await tapKey(t, 'health_continue');
-    await pumpFor(t, const Duration(milliseconds: 500));
+    await waitFor(
+      t,
+      () => has('health_main') && rightsMissing.evaluate().isEmpty,
+      'Rechte erteilt nach health_continue (Hinweis weg, health_main)',
+    );
     final granted = await t.runAsync(hc.grantedKinds);
     log('HC1 Rechte ${granted!.map((k) => k.key).toList()..sort()}');
     expect(granted, {HealthDataKind.exercise, HealthDataKind.vo2Max});
@@ -215,7 +246,7 @@ void main() {
     step('HC2 verlauf');
     await _start(t, d);
     await tapKey(t, 'home_history');
-    await pumpFor(t, const Duration(seconds: 1));
+    await waitFor(t, () => has('history_title'), 'Verlauf (history_title)');
     // Läufe früherer Gruppen der Sammlung stehen davor: erst zur Einheit scrollen (Liste baut lazy).
     await t.scrollUntilVisible(
       find.byKey(const Key('health_exercise_debug-exercise-0')),
@@ -286,9 +317,13 @@ void main() {
             .text;
     log('HC3 vorausgefuellte Dauer=$minutes');
     expect(minutes, '40');
+    expect(has('manual_rpe_error'), isFalse, reason: 'vor manual_save');
     await tapKey(t, 'manual_save');
-    await pumpFor(t, const Duration(milliseconds: 500));
-    expect(has('manual_rpe_error'), isTrue, reason: 'ohne RPE kein Speichern');
+    await waitFor(
+      t,
+      () => has('manual_rpe_error'),
+      'ohne RPE kein Speichern (manual_rpe_error)',
+    );
     expect(
       (await t.runAsync(() => session.manualTrainings.list()))!.length,
       manual0,
@@ -315,11 +350,14 @@ void main() {
     step('HC3 verlauf');
     // Zurueck: Verlauf zeigt "uebernommen" an der Einheit, genau ein Nachtrag mit dieser Quelle.
     await back(t);
-    await pumpFor(t, const Duration(seconds: 1));
-    expect(has('health_exercise_taken_debug-exercise-0'), isTrue);
+    await waitFor(
+      t,
+      () => has('health_exercise_taken_debug-exercise-0'),
+      'uebernommen im Verlauf (health_exercise_taken_debug-exercise-0)',
+    );
     // Wiederholter Import aendert nichts an der Zaehlung (gleiche ID wird ueberschrieben).
     await tapKey(t, 'home_today');
-    await pumpFor(t, const Duration(seconds: 2));
+    await waitFor(t, () => has('home_start_run'), 'Heute (home_start_run)');
     expect(await _loadUnits(t, d), units1);
   });
 
@@ -341,17 +379,28 @@ void main() {
     await waitFor(t, () => has('health_delete_dialog'), 'Loeschfrage');
     await shot(t, 'delete_dialog', pause: true);
     await tapDialog(t, 'health_delete_cancel');
-    await waitFor(t, () => !has('health_delete_dialog'), 'Dialog zu');
-    expect(_on('vo2_max'), isTrue, reason: 'Abbrechen schaltet wieder ein');
+    await waitFor(
+      t,
+      () => _switchIs('vo2_max', true),
+      'Abbrechen schaltet wieder ein (health_switch_vo2_max an)',
+    );
     expect(await _counts(t, store), before);
     step('HC4 loeschen');
     // Widerruf und Loeschen.
     await tapKey(t, 'health_switch_vo2_max');
     await waitFor(t, () => has('health_delete_dialog'), 'Loeschfrage 2');
     expect(_on('vo2_max'), isFalse);
+    // Die Rueckmeldung erscheint erst, wenn das Loeschen gespeichert ist.
+    final l10n = _l10n(t);
+    final deleted = l10n.healthDeletedSnack(
+      HealthKindTexts.of(l10n, HealthDataKind.vo2Max).plural,
+    );
     await tapDialog(t, 'health_delete_confirm');
-    await waitFor(t, () => !has('health_delete_dialog'), 'Dialog zu');
-    await pumpFor(t, const Duration(milliseconds: 500));
+    await waitFor(
+      t,
+      () => _snack(deleted),
+      'Rueckmeldung geloescht nach health_delete_confirm',
+    );
     final after = await _counts(t, store);
     log('HC4 nachher ${_fmt(after)}');
     expect(after[HealthDataKind.vo2Max], 0);
@@ -365,6 +414,14 @@ void main() {
     await back(t);
     await back(t);
     await tapKey(t, 'home_statistics');
+    await waitFor(
+      t,
+      () => has('progress_week_title'),
+      'Fortschritt (progress_week_title)',
+    );
+    // Die Vergleichskarte laedt ihre Daten nach dem Aufbau der Seite (eigener
+    // FutureBuilder ohne Marke fuer das Ladeende): feste Pause bleibt, damit
+    // eine zu Unrecht gezeigte Karte Zeit zum Erscheinen hat.
     await pumpFor(t, const Duration(seconds: 2));
     expect(
       has('health_vo2_card'),
@@ -377,9 +434,16 @@ void main() {
     await _openHealth(t);
     await tapKey(t, 'health_switch_exercise');
     await waitFor(t, () => has('health_delete_dialog'), 'Loeschfrage 3');
+    final l10nKeep = _l10n(t);
+    final keptText = l10nKeep.healthKeptSnack(
+      HealthKindTexts.of(l10nKeep, HealthDataKind.exercise).plural,
+    );
     await tapDialog(t, 'health_delete_keep');
-    await waitFor(t, () => !has('health_delete_dialog'), 'Dialog zu');
-    await pumpFor(t, const Duration(milliseconds: 500));
+    await waitFor(
+      t,
+      () => _snack(keptText),
+      'Rueckmeldung behalten nach health_delete_keep',
+    );
     final kept = await _counts(t, store);
     log('HC4 behalten ${_fmt(kept)}');
     expect(kept[HealthDataKind.exercise], before[HealthDataKind.exercise]);
@@ -398,11 +462,22 @@ void main() {
     expect(has('health_install'), isTrue);
     await shot(t, 'unavailable_install', pause: true);
     step('HC6 installieren');
+    expect(fake.installOpened, 0);
     await tapKey(t, 'health_install');
-    await pumpFor(t, const Duration(milliseconds: 500));
+    await waitFor(
+      t,
+      () => fake.installOpened > 0,
+      'Installieren geoeffnet nach health_install',
+    );
     expect(fake.installOpened, 1);
     await tapKey(t, 'health_without');
-    await pumpFor(t, const Duration(seconds: 1));
+    // Ohne Health Connect zurueck auf die Einstellungen (dort war
+    // settings_health verdeckt).
+    await waitFor(
+      t,
+      () => has('settings_health') && !has('health_without'),
+      'Einstellungen nach health_without (settings_health)',
+    );
     step('HC6 rest_der_app');
     // Rest der App normal.
     await back(t);
@@ -410,7 +485,7 @@ void main() {
     await tapKey(t, 'home_today');
     await waitFor(t, () => has('home_start_run'), 'Heute (home_start_run)');
     await tapKey(t, 'home_history');
-    await pumpFor(t, const Duration(seconds: 1));
+    await waitFor(t, () => has('history_title'), 'Verlauf (history_title)');
     expect(find.byType(ErrorWidget), findsNothing);
     log('HC6 installieren-Variante ohne Absturz, Heute und Verlauf offen');
   });
@@ -455,7 +530,7 @@ void _realScenario() {
       await tapKey(t, 'home_today');
       await waitFor(t, () => has('home_start_run'), 'Heute (home_start_run)');
       await tapKey(t, 'home_history');
-      await pumpFor(t, const Duration(seconds: 1));
+      await waitFor(t, () => has('history_title'), 'Verlauf (history_title)');
       expect(find.byType(ErrorWidget), findsNothing);
       log('HC6 Rest der App normal (Heute, Verlauf)');
       return;
@@ -493,9 +568,16 @@ void _realScenario() {
       reason: 'ohne Daten nichts gespeichert',
     );
     await shot(t, 'real_after_dialog', pause: true);
+    expect(find.byType(SnackBar), findsNothing, reason: 'vor health_fetch');
     await tapKey(t, 'health_fetch');
-    await pumpFor(t, const Duration(seconds: 3));
+    // Wirkung: Rueckmeldung zum Abruf; die Seite bleibt bedienbar.
+    await waitFor(
+      t,
+      () => find.byType(SnackBar).evaluate().isNotEmpty,
+      'Rueckmeldung nach health_fetch',
+    );
     expect(has('health_main'), isTrue);
+    expect(find.byType(ErrorWidget), findsNothing);
     await shot(t, 'real_after_fetch', pause: true);
     log('HC5 Abruf ohne Recht ohne Absturz');
   });

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/storage/deletion.dart';
 
 import 'app_harness.dart';
+import 'history_summary_test.dart' show openHistory, seedRun;
 
 final _key = Uint8List.fromList(List.filled(32, 7));
 const _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
@@ -25,6 +26,9 @@ class _Gate {
   bool deletedNotErased = false;
   bool failDelete = false;
   int swaps = 0;
+
+  /// Schreibversuche neuer Laufwerte je Lauf (auch gescheiterte).
+  final runWrites = <int, int>{};
 }
 
 class _GatedValues implements ComputedValueStore {
@@ -59,6 +63,10 @@ class _GatedValues implements ComputedValueStore {
     Map<ValueOwner, List<ComputedValue>> swap = const {},
   }) async {
     gate.swaps++;
+    for (final o in create.keys) {
+      final id = o.runId;
+      if (id != null) gate.runWrites[id] = (gate.runWrites[id] ?? 0) + 1;
+    }
     await gate.hold?.future;
     if (gate.fail) throw const StorageException(StorageFailure.failed);
     return inner.writeAll(create: create, swap: swap);
@@ -836,5 +844,273 @@ void main() {
     );
     expect(find.byKey(const Key('recalc_confirm')), findsOneWidget);
     expect(find.text('Neu berechnen'), findsWidgets);
+  });
+
+  _uncomputableTests();
+}
+
+/// Texte der Karte „Nicht berechenbare Läufe“ (FR-0219).
+const _uncomputableTexts = {
+  'de': (
+    title: 'Nicht berechenbare Läufe',
+    intro:
+        'Bei einigen Läufen ließen sich die Werte nach drei Versuchen nicht '
+        'berechnen. Die Aufzeichnungen sind vollständig gespeichert.',
+    button: 'Neu berechnen',
+    failed:
+        'Die Berechnung ist wieder fehlgeschlagen. Die Aufzeichnungen sind '
+        'unverändert.',
+  ),
+  'en': (
+    title: 'Runs that could not be calculated',
+    intro:
+        'The values of some runs could not be calculated after three '
+        'attempts. The recordings are fully saved.',
+    button: 'Recalculate',
+    failed: 'The calculation failed again. The recordings are unchanged.',
+  ),
+};
+
+/// Wie [_start], dazu zwei Läufe ohne Werte, die nach drei gezählten
+/// Fehlversuchen als nicht berechenbar gelten (der Start versucht sie nicht).
+/// Mit [failures] unter drei gelten sie noch nicht so.
+Future<(Device, List<int>)> _startUncomputable(
+  WidgetTester tester, {
+  String locale = 'de',
+  _Gate? gate,
+  int failures = uncomputableAfterFailures,
+}) async {
+  final d = Device();
+  await _seed(d);
+  final s = await d.storage.open(_key);
+  final ids = [
+    await seedRun(s, DateTime.utc(2026, 5, 20, 8)),
+    await seedRun(s, DateTime.utc(2026, 5, 24, 8)),
+  ];
+  final counter = CalculationFailures(settings: s.settings, clock: d.clock);
+  for (final id in ids) {
+    for (var i = 0; i < failures; i++) {
+      await counter.recordFailure(id);
+    }
+  }
+  await s.close();
+  if (gate != null) d.storageOverride = _GatedStorage(d.storage, gate);
+  await d.start(tester, Locale(locale));
+  await d.skipSetup(tester);
+  return (d, ids);
+}
+
+/// Leere Karte ohne Angebot und ohne nicht berechenbaren Lauf. Sie hat keine
+/// Höhe und gilt in der Liste darum als nicht sichtbar.
+final _none = find.byKey(const Key('recalc_none'), skipOffstage: false);
+
+Future<void> _openSettings(WidgetTester tester) async {
+  await openOverview(tester);
+  final tab = find.byKey(const Key('home_profile_tab'));
+  if (find.byKey(const Key('home_settings')).evaluate().isEmpty &&
+      tab.evaluate().isNotEmpty) {
+    await tester.tap(tab);
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.byKey(const Key('home_settings')));
+  await tester.pumpAndSettle();
+}
+
+Future<Map<int, int>> _failureCounts(Device d) =>
+    CalculationFailures(settings: d.session.settings, clock: d.clock).read();
+
+void _uncomputableTests() {
+  group('Nicht berechenbare Läufe ohne Angebot (FR-0219)', () {
+    for (final MapEntry(key: locale, value: t) in _uncomputableTexts.entries) {
+      testWidgets('Karte mit Satz und Schaltfläche ($locale)', (tester) async {
+        await _startUncomputable(tester, locale: locale);
+        await _openSettings(tester);
+        final card = find.byKey(const Key('recalc_uncomputable'));
+        expect(card, findsOneWidget);
+        expect(find.byKey(const Key('recalc_dialog')), findsNothing);
+        expect(_none, findsNothing);
+        for (final text in [t.title, t.intro]) {
+          expect(
+            find.descendant(of: card, matching: find.text(text)),
+            findsOneWidget,
+          );
+        }
+        final button = find.byKey(const Key('recalc_uncomputable_confirm'));
+        expect(button, findsOneWidget);
+        expect(
+          find.descendant(of: button, matching: find.text(t.button)),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('recalc_status')), findsNothing);
+        expect(find.byKey(const Key('recalc_progress')), findsNothing);
+      });
+
+      testWidgets('ohne nicht berechenbaren Lauf keine Karte ($locale)', (
+        tester,
+      ) async {
+        await _start(tester, locale: Locale(locale));
+        await _openSettings(tester);
+        expect(_none, findsOneWidget);
+        expect(find.byKey(const Key('recalc_uncomputable')), findsNothing);
+        expect(find.byKey(const Key('recalc_dialog')), findsNothing);
+        expect(find.text(t.title), findsNothing);
+      });
+    }
+
+    testWidgets('zwei Fehlversuche: noch keine Karte', (tester) async {
+      await _startUncomputable(tester, failures: 2);
+      await _openSettings(tester);
+      expect(_none, findsOneWidget);
+      expect(find.byKey(const Key('recalc_uncomputable')), findsNothing);
+    });
+
+    testWidgets('Zähler nach dem Start erreicht: Einstellungen lesen neu', (
+      tester,
+    ) async {
+      final d = await _start(tester);
+      final id = (await d.session.runs.list()).first.id;
+      final counter = CalculationFailures(
+        settings: d.session.settings,
+        clock: d.clock,
+      );
+      for (var i = 0; i < uncomputableAfterFailures; i++) {
+        await counter.recordFailure(id);
+      }
+      await _openSettings(tester);
+      expect(find.byKey(const Key('recalc_uncomputable')), findsOneWidget);
+    });
+
+    testWidgets(
+      'mit Angebot nur die Neuberechnungs-Karte; sie versucht die Läufe mit',
+      (tester) async {
+        final gate = _Gate();
+        final (d, ids) = await _startUncomputable(tester, gate: gate);
+        await _changeMaxAndOpenSettings(tester);
+        expect(find.byKey(const Key('recalc_dialog')), findsOneWidget);
+        expect(find.byKey(const Key('recalc_uncomputable')), findsNothing);
+        expect(
+          find.byKey(const Key('recalc_uncomputable_confirm')),
+          findsNothing,
+        );
+        await tester.tap(find.byKey(const Key('recalc_confirm')));
+        await tester.pumpAndSettle();
+        for (final id in ids) {
+          expect(gate.runWrites[id], 1, reason: 'Lauf $id');
+        }
+        expect(await _failureCounts(d), isEmpty);
+        expect(find.byKey(const Key('recalc_dialog')), findsNothing);
+        expect(find.byKey(const Key('recalc_uncomputable')), findsNothing);
+      },
+    );
+
+    testWidgets('Neu berechnen gelingt: ein Versuch je Lauf, Karte und '
+        'Kennzeichnung weg', (tester) async {
+      final gate = _Gate();
+      final (d, ids) = await _startUncomputable(tester, gate: gate);
+      await openHistory(d, tester);
+      for (final id in ids) {
+        expect(find.byKey(Key('history_uncomputable_$id')), findsOneWidget);
+      }
+      await _openSettings(tester);
+      expect(gate.runWrites, isEmpty);
+      await tester.tap(find.byKey(const Key('recalc_uncomputable_confirm')));
+      await tester.pumpAndSettle();
+      for (final id in ids) {
+        expect(gate.runWrites[id], 1, reason: 'Lauf $id');
+        expect(await d.session.values.read(ValueOwner.run(id)), isNotEmpty);
+      }
+      expect(await _failureCounts(d), isEmpty);
+      expect(find.byKey(const Key('recalc_uncomputable')), findsNothing);
+      expect(_none, findsOneWidget);
+      expect(find.byKey(const Key('recalc_status')), findsNothing);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await openHistory(d, tester);
+      for (final id in ids) {
+        expect(find.byKey(Key('history_run_$id')), findsOneWidget);
+        expect(find.byKey(Key('history_uncomputable_$id')), findsNothing);
+      }
+    });
+
+    for (final MapEntry(key: locale, value: t) in _uncomputableTexts.entries) {
+      testWidgets('Neu berechnen scheitert: Meldung ohne Inhalt, Zähler 1, '
+          'der nächste Start versucht den Lauf ($locale)', (tester) async {
+        final gate = _Gate();
+        final (d, ids) = await _startUncomputable(
+          tester,
+          locale: locale,
+          gate: gate,
+        );
+        await _openSettings(tester);
+        gate.fail = true;
+        await tester.tap(find.byKey(const Key('recalc_uncomputable_confirm')));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        final card = find.byKey(const Key('recalc_uncomputable'));
+        expect(card, findsOneWidget);
+        final status = find.byKey(const Key('recalc_status'));
+        expect(find.descendant(of: card, matching: status), findsOneWidget);
+        expect((status.evaluate().single.widget as Text).data, t.failed);
+        expect(find.textContaining('StorageException'), findsNothing);
+        expect(find.textContaining('failed.'), findsNothing);
+        expect(find.byKey(const Key('recalc_progress')), findsNothing);
+        // Kein Lauf ist mehr nicht berechenbar: nichts mehr zu versuchen.
+        expect(
+          find.byKey(const Key('recalc_uncomputable_confirm')),
+          findsNothing,
+        );
+        expect(await _failureCounts(d), {for (final id in ids) id: 1});
+        for (final id in ids) {
+          expect(gate.runWrites[id], 1, reason: 'Lauf $id');
+        }
+        // Der nächste Start versucht die Läufe; sie gelingen jetzt.
+        gate.fail = false;
+        await d.stop(tester);
+        await d.start(tester, Locale(locale));
+        await tester.pumpAndSettle();
+        for (final id in ids) {
+          expect(gate.runWrites[id], 2, reason: 'Lauf $id');
+          expect(await d.session.values.read(ValueOwner.run(id)), isNotEmpty);
+        }
+        expect(await _failureCounts(d), isEmpty);
+        await _openSettings(tester);
+        expect(find.byKey(const Key('recalc_uncomputable')), findsNothing);
+      });
+    }
+
+    testWidgets('während des Versuchs: Fortschritt, Sperre, kein zweiter '
+        'Aufruf', (tester) async {
+      final gate = _Gate();
+      final (d, ids) = await _startUncomputable(tester, gate: gate);
+      await _openSettings(tester);
+      final hold = gate.hold = Completer<void>();
+      final button = find.byKey(const Key('recalc_uncomputable_confirm'));
+      await tester.tap(button);
+      await tester.pump();
+      expect(find.byKey(const Key('recalc_progress')), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.descendant(of: button, matching: find.byType(FilledButton)),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(button, warnIfMissed: false);
+      await tester.pump();
+      // Die Seite ist gesperrt.
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.byKey(const Key('recalc_uncomputable')), findsOneWidget);
+      hold.complete();
+      gate.hold = null;
+      await tester.pumpAndSettle();
+      for (final id in ids) {
+        expect(gate.runWrites[id], 1, reason: 'Lauf $id');
+      }
+      expect(await _failureCounts(d), isEmpty);
+      expect(find.byKey(const Key('recalc_progress')), findsNothing);
+      expect(find.byKey(const Key('recalc_uncomputable')), findsNothing);
+    });
   });
 }

@@ -39,6 +39,11 @@ enum DebugPpgScenario {
   noCamera,
 }
 
+/// Stand der Sensorzeit einer Aufnahme der Fake-Kamera: [run] zählt die gestarteten Aufnahmen
+/// (je Start neu, Sensorzeit beginnt bei 0), [seconds] ist die Sensorzeit des nächsten Bildes,
+/// [speed] der beim Start festgehaltene Zeitraffer.
+typedef DebugPpgSensorTime = ({int run, double seconds, double speed});
+
 /// Die drei erfundenen Rückkameras der Debug-Quelle (FR-0220), in der Reihenfolge von
 /// [PpgCamera.cameras]: Standardkamera, eine physische Kamera der Standardkamera (nutzbar)
 /// und eine Kamera ohne Blitz (nicht nutzbar).
@@ -134,6 +139,13 @@ class DebugTestPpgCamera implements PpgCamera {
 
   StreamController<PpgCameraEvent>? _active;
 
+  int _runs = 0;
+  DebugPpgSensorTime? _sensorTime;
+
+  /// Sensorzeit der laufenden oder zuletzt gelaufenen Aufnahme (`null` vor der ersten). Der
+  /// Test-Gurt folgt damit dem Schlagplan ([debugPpgBeatTime]) auch im Zeitraffer.
+  DebugPpgSensorTime? get sensorTime => _sensorTime;
+
   static PpgCameraStopReason? _stopOf(DebugPpgScenario s) => switch (s) {
     DebugPpgScenario.noCamera => PpgCameraStopReason.noCamera,
     DebugPpgScenario.permissionDenied ||
@@ -183,6 +195,8 @@ class DebugTestPpgCamera implements PpgCamera {
         // Zeitraffer beim Start festhalten: eine Umschaltung im Panel gilt erst ab dem nächsten
         // Start (sonst spränge `due` und der Rest der Messung käme in einem Schwall).
         final sp = speed;
+        final run = ++_runs;
+        _sensorTime = (run: run, seconds: 0, speed: sp);
         final delay = Duration(microseconds: (1e6 / fps / sp).round());
         // Die Sensorzeit folgt der Wanduhr (mal [speed]) wie bei einer echten Kamera:
         // Kommt die App zeitweise nicht zum Zug, kommen die versäumten Bilder
@@ -202,6 +216,8 @@ class DebugTestPpgCamera implements PpgCamera {
             }
             t = gen.nextTime();
           } while (t < end && t <= due && !cancelled);
+          // Bilder bis vor t sind gesendet.
+          _sensorTime = (run: run, seconds: t, speed: sp);
           await Future<void>.delayed(delay);
         }
         if (cancelled) return;
@@ -240,6 +256,33 @@ const PpgCameraDetails debugCameraDetails = PpgCameraDetails(
   saturatedFraction: 0.02,
 );
 
+/// Mittlerer Schlagabstand der Fake-Kamera in s (ca. 70/min).
+const double debugPpgBeatPeriodSeconds = 0.85;
+
+/// Größte Abweichung der nicht periodischen Schwankung in [debugPpgBeatTime] (s).
+const double debugPpgBeatJitterSeconds = 0.03;
+
+/// Schlagplan der Fake-Kamera: Zeitpunkt von Schlag [b] in Sensorzeit (s). Alle ca. 0,85 s
+/// mit langsamer Schwankung (Periode 4,5 s) und einer nicht periodischen, deterministischen
+/// Schwankung von höchstens ±[debugPpgBeatJitterSeconds] aus einem Hash des Index (kein Zufall).
+/// Ohne sie wiederholten sich die Abstände nach 90 Schlägen, und die Zuordnung Kamera gegen
+/// Gurt (FR-0217) wäre mehrdeutig. Kamera und Test-Gurt (`DebugTestSensor`) nutzen denselben Plan.
+/// Erfundene Werte, keine Messdaten.
+double debugPpgBeatTime(int b) =>
+    b * debugPpgBeatPeriodSeconds +
+    0.04 * math.sin(2 * math.pi * b * debugPpgBeatPeriodSeconds / 4.5) +
+    debugPpgBeatJitterSeconds * _hashNoise(b + 0x5EED);
+
+/// Deterministisches weißes Rauschen in [-1, 1] aus einem Hash des Index (kein Zufall, die Tests
+/// bleiben stabil; ein Sinus des Index wäre ein Ton und kein Rauschen).
+double _hashNoise(int i) {
+  var x = (i * 2654435761 + 0x9E3779B9) & 0xFFFFFFFF;
+  x = ((x ^ (x >> 15)) * 2246822519) & 0xFFFFFFFF;
+  x = ((x ^ (x >> 13)) * 3266489917) & 0xFFFFFFFF;
+  x = x ^ (x >> 16);
+  return x / 0x7FFFFFFF - 1;
+}
+
 /// Synthetische Bildstatistik: Pulsform mit dikroter Welle auf Grundlinie, deterministisches Rauschen.
 class _Generator {
   _Generator(this.fps, this.weak, this.noFinger);
@@ -253,22 +296,14 @@ class _Generator {
 
   double nextTime() => ++_n / fps;
 
-  /// Deterministisches weißes Rauschen in [-1, 1] aus einem Hash des Index (kein Zufall, die Tests
-  /// bleiben stabil; ein Sinus des Index wäre ein Ton und kein Rauschen).
-  double _noise(int i) {
-    var x = (i * 2654435761 + 0x9E3779B9) & 0xFFFFFFFF;
-    x = ((x ^ (x >> 15)) * 2246822519) & 0xFFFFFFFF;
-    x = ((x ^ (x >> 13)) * 3266489917) & 0xFFFFFFFF;
-    x = x ^ (x >> 16);
-    return x / 0x7FFFFFFF - 1;
-  }
+  double _noise(int i) => _hashNoise(i);
 
   double _pulse(double t) {
-    // Schlagzeitpunkte alle ca. 0,85 s mit langsamer Schwankung.
-    final k = (t / 0.85).floor();
+    // Schlagzeitpunkte nach dem gemeinsamen Schlagplan (debugPpgBeatTime).
+    final k = (t / debugPpgBeatPeriodSeconds).floor();
     var s = 0.0;
     for (var b = k - 1; b <= k + 1; b++) {
-      final tb = b * 0.85 + 0.04 * math.sin(2 * math.pi * b * 0.85 / 4.5);
+      final tb = debugPpgBeatTime(b);
       final d = t - tb;
       s +=
           math.exp(-((d - 0.12) * (d - 0.12)) / (2 * 0.05 * 0.05)) +
