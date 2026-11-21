@@ -106,8 +106,9 @@ Future<void> observeFrames(
 /// reichen für Fakes im Arbeitsspeicher, deren Arbeit außerhalb der Test-Uhr
 /// begonnen hat. Arbeit, die echte Zeit braucht (Isolates, Bilddekodierung
 /// der Engine, echte Dateien – etwa beim Öffnen der Kartenquelle), holen sie
-/// unter Last nicht sicher ein: Solche Tests warten weiter fest oder mit
-/// [settleStorage] und einer Bedingung.
+/// unter Last nicht sicher ein: Solche Tests warten mit [settleReal] und
+/// einer Bedingung (Kartentests über `settleUntilMapIdle` in
+/// `test/helpers/widget_helpers.dart`).
 const _realTurns = 3;
 
 /// [_realTurns] Durchläufe der echten Ereignisschleife, ohne Wartezeit.

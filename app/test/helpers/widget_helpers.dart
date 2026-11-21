@@ -39,12 +39,20 @@ Future<void> tapFinderAfterSettle(WidgetTester tester, Finder f) async {
 /// die Dekodierung (Stil, TileJSON, Kacheln, in Isolates und mit echter Zeit)
 /// kann noch Folgeanfragen auslösen. Erst wenn die Bedingung über zwei Frames
 /// hält – also über die volle Echtzeitscheibe des zweiten Frames, in der
-/// keine Folgeanfrage kam –, gilt die Arbeit als fertig. Danach endet die
-/// Scheibe sofort, statt wie früher sechs Frames Stillstand abzuwarten.
-Future<void> settleUntilMapIdle(WidgetTester tester, FakeInner net) async {
-  var last = -1;
+/// keine Folgeanfrage kam –, gilt die Arbeit als fertig, und der Helfer
+/// endet, statt wie früher sechs Frames Stillstand abzuwarten.
+///
+/// Der erste Frame vergleicht mit der Anfragezahl beim Aufruf. Gibt die Zahl
+/// der Frames zurück; nach [maxFrames] Frames schlägt der Test fehl, die
+/// Meldung nennt „keine Kachelanfrage offen“.
+Future<int> settleUntilMapIdle(
+  WidgetTester tester,
+  FakeInner net, {
+  int maxFrames = 250,
+}) {
+  var last = net.requests.length;
   var idleFrames = 0;
-  await settleReal(
+  return settleReal(
     tester,
     until: () => idleFrames >= 2,
     onFrame: () {
@@ -55,6 +63,7 @@ Future<void> settleUntilMapIdle(WidgetTester tester, FakeInner net) async {
     what: 'keine Kachelanfrage offen',
     frame: const Duration(milliseconds: 300),
     realSlice: const Duration(milliseconds: 40),
+    maxFrames: maxFrames,
   );
 }
 
