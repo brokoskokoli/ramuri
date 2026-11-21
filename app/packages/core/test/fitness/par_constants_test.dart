@@ -309,6 +309,12 @@ final Map<String, List<Object>> parCodeValues = {
     ..._doc([2, 1], 'Zahl der Lauftage der Fallunterscheidung.'),
     _pct(_plan.longestRunShare(2)),
   ],
+  'PAR-197': [
+    const GoalParameters().minRunDays,
+    ..._doc([2, 3, 4, 3], 'Aufzählung der Einheiten je Zahl der Lauftage.'),
+    ..._doc([6], 'Ab 6 Tagen nur nach Festlegung des Nutzers.'),
+    const GoalParameters().maxRunDays,
+  ],
   'PAR-198': [
     _plan.hardMinRunDays,
     _plan.hardMinContinuousMinutes,
@@ -508,6 +514,14 @@ final Map<String, List<Object>> parCodeValues = {
     _plan.walkRunRepeatRpe,
     ..._doc([5, 3, 2], 'Woche 5, Lauf 3 und Lauf 2 der Abfolge (PAR-135).'),
     _plan.walkRunRepeatRpe,
+  ],
+  'PAR-141': [
+    ..._doc([2, 1], 'Beispiele für die Zahl der Trainingstage.'),
+    // Wochen je Programmwoche: höchstens maxSessionsPerWeek Einheiten je
+    // Woche, also maxSessionsPerWeek / Trainingstage.
+    walkRunProgram.maxSessionsPerWeek / 2,
+    walkRunProgram.maxSessionsPerWeek / 1,
+    walkRunProgram.shortenedWalkSeconds / 60,
   ],
   'PAR-175': [_hint.maxDaysInRow],
   'PAR-178': [
@@ -733,6 +747,14 @@ final Map<String, List<Object>> parCodeValues = {
     ..._doc([0], 'Anzeigewert darunter.'),
   ],
   'PAR-229': [morningBeltCompareAmbiguityRatio],
+  'PAR-234': [
+    ..._doc(
+      [5],
+      'Fenster im App-Paket (restingLiveStageWindowSeconds), nicht aus core erreichbar.',
+    ),
+    ppgLimitedQuality,
+    _pct(ppgLimitedValidFraction),
+  ],
   'PAR-230': [
     ppgInconsistentBeatMs,
     ppgInconsistentMedianRadius,
@@ -750,7 +772,6 @@ const Map<String, String> parExceptions = {
   'PAR-044': 'Verweist nur auf andere PAR; deren Werte sind dort geprüft.',
   'PAR-048': 'Drift (Phase 4) ist nicht umgesetzt; keine Konstante im Code.',
   'PAR-196': 'Regler in Stunden je Woche ohne festen Startwert.',
-  'PAR-197': 'Aufzählung der Einheiten je Lauftag, keine Schwelle.',
   'PAR-203': 'Regel ohne Zahl (alles änderbar).',
   'PAR-231': 'Zuordnungsregel ohne Zahl.',
   'PAR-049': 'Grundsatz zu Texten, keine Zahl.',
@@ -773,7 +794,6 @@ const Map<String, String> parExceptions = {
   'PAR-105': 'RPE-Skala und Wortlaut, keine Schwelle.',
   'PAR-106': 'Texte der Grundlage, keine Zahl.',
   'PAR-116': 'Eintrag ohne Zielintensität, keine Zahl.',
-  'PAR-141': 'Streckung des Programms je Lauftage, keine benannte Konstante.',
   'PAR-142': 'Rechtlicher Hinweis zur Quelle, keine Zahl.',
   'PAR-147': 'Stufe als Verweis auf andere Bedingungen, keine eigene Zahl.',
   'PAR-148': 'Zahlen sind Beispiele aus PAR-149 und OQ-0006.',
@@ -792,9 +812,8 @@ const Map<String, String> parExceptions = {
   'PAR-174': 'Wortliste, keine Zahl.',
   'PAR-179': 'Auslöser ohne Zahl.',
   'PAR-184': 'Kein Text, keine Zahl.',
-  'PAR-186':
-      'Begriff „mehrere geeignete Einheiten“; im Code keine eigene Konstante.',
-  'PAR-188': 'Die Planänderung bekommt die Ermüdung als Wahrheitswert, keine Schwelle.',
+  'PAR-186': 'Kein Code liest die Schwelle; FR-0161 und FR-0165 sind noch nicht umgesetzt.',
+  'PAR-188': 'Schwellen als Literale im App-Paket (plan_data_reader.dart), nicht aus core erreichbar.',
   'PAR-189': 'Quellenregel ohne Zahl.',
   'PAR-190': 'Beispielrechnung zur Bandbreite, keine eigenen Konstanten.',
   'PAR-217': 'Konstante im Android-Code (PpgFrameStats.kt), nicht aus Dart erreichbar.',
@@ -804,7 +823,6 @@ const Map<String, String> parExceptions = {
   'PAR-224': 'Konstante im App-Paket (resting_measure_controller.dart), nicht aus core erreichbar.',
   'PAR-225': 'Konstante im App-Paket (resting_measure_controller.dart), nicht aus core erreichbar.',
   'PAR-226': 'Konstante im App-Paket (resting_measure_controller.dart), nicht aus core erreichbar.',
-  'PAR-234': 'Konstante im App-Paket (resting_measure_controller.dart), nicht aus core erreichbar.',
 };
 
 /// Eine Zeile einer PAR-Tabelle.
