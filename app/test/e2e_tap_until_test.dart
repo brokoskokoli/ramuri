@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../integration_test/support/e2e_plan_form.dart';
 import '../integration_test/support/e2e_support.dart';
 
 // tapUntil wartet auf die Wirkung, statt nach festem Polster erneut zu tippen
@@ -284,6 +285,39 @@ void main() {
     await tapKey(t, 'k');
     expect(taps, 1);
     expect(t.binding.clock.now().difference(vorher), Duration.zero);
+  });
+
+  testWidgets('tapVisible: zwei gleichnamige Tasten, eine verdeckt -> nur '
+      'die sichtbare, ein Tipp, nur ein Frame', (t) async {
+    var verdeckt = 0;
+    var sichtbar = 0;
+    await t.pumpWidget(
+      _ZweiGleiche(onVerdeckt: () => verdeckt++, onSichtbar: () => sichtbar++),
+    );
+    // Die verdeckte Taste steht im Baum vor der sichtbaren.
+    expect(find.byKey(const Key('doppelt')), findsNWidgets(2));
+    final vorher = t.binding.clock.now();
+    await tapVisible(t, 'doppelt');
+    expect(sichtbar, 1);
+    expect(verdeckt, 0);
+    expect(t.binding.clock.now().difference(vorher), Duration.zero);
+  });
+
+  testWidgets('tapVisible: keine treffbare Taste -> keine sichtbare Taste '
+      '<key>', (t) async {
+    var verdeckt = 0;
+    await t.pumpWidget(_ZweiGleiche(onVerdeckt: () => verdeckt++));
+    await expectLater(
+      tapVisible(t, 'doppelt'),
+      throwsA(
+        isA<TestFailure>().having(
+          (e) => e.message,
+          'message',
+          'keine sichtbare Taste doppelt',
+        ),
+      ),
+    );
+    expect(verdeckt, 0);
   });
 
   testWidgets('tapKey: Taste erscheint erst nach dem Aufruf -> gewartet, '
@@ -621,4 +655,50 @@ class _ErscheintState extends State<_Erscheint> {
       ),
     ),
   );
+}
+
+/// Taste `doppelt` unter einer Abdeckung (im Baum zuerst) und, wenn
+/// [onSichtbar] gesetzt ist, eine zweite, treffbare Taste mit demselben
+/// Schluessel darunter.
+class _ZweiGleiche extends StatelessWidget {
+  const _ZweiGleiche({required this.onVerdeckt, this.onSichtbar});
+
+  final VoidCallback onVerdeckt;
+  final VoidCallback? onSichtbar;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Column(
+        children: [
+          SizedBox(
+            height: 100,
+            child: Stack(
+              children: [
+                Center(
+                  child: TextButton(
+                    key: const Key('doppelt'),
+                    onPressed: onVerdeckt,
+                    child: const Text('verdeckt'),
+                  ),
+                ),
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onSichtbar != null)
+            TextButton(
+              key: const Key('doppelt'),
+              onPressed: onSichtbar,
+              child: const Text('sichtbar'),
+            ),
+        ],
+      ),
+    );
+  }
 }

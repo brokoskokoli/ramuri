@@ -135,14 +135,18 @@ void main() {
       await waitFor(
         t,
         () => txt('guided_section') != first,
-        'Wechsel nach Ueberspringen',
+        'Wechsel nach Ueberspringen (guided_section)',
       );
-      await waitFor(t, () => has('guided_skip_undo'), 'Hinweis Rueckgaengig');
+      await waitFor(
+        t,
+        () => has('guided_skip_undo'),
+        'Hinweis Rueckgaengig (guided_skip_undo)',
+      );
       await tapVisible(t, 'guided_skip_undo');
       await waitFor(
         t,
         () => txt('guided_section') == first,
-        'Abschnitt nach Rueckgaengig',
+        'Abschnitt nach Rueckgaengig (guided_section)',
       );
       log('M2 skip_undone');
       // Der Hinweis des ersten Sprungs ist weg, bevor erneut gesprungen wird.
@@ -151,7 +155,7 @@ void main() {
       await waitFor(
         t,
         () => txt('guided_section') != first,
-        'Wechsel nach Ueberspringen',
+        'Wechsel nach Ueberspringen (guided_section)',
       );
       expect(
         has('map_consent_dialog'),
@@ -179,6 +183,7 @@ void main() {
       step('M2 beenden');
       // Beenden: kein Karten-Dialog davor oder darueber.
       await tapVisible(t, 'run_pause');
+      await waitFor(t, () => has('run_resume'), 'Pause (run_resume)');
       await tapVisible(t, 'run_finish');
       await waitFor(t, () => has('run_finish_confirm'), 'Beenden-Dialog');
       expect(
