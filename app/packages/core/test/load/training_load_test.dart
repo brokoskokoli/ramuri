@@ -434,6 +434,46 @@ void main() {
     );
   });
 
+  group('Rückfall an der Grenze (PAR-090)', () {
+    // Fenster des Tages 260: Tage 219 bis 260. Darin 16 Tage mit je drei
+    // und 26 Tage mit je zwei Einheiten, also 100 erwartete Einheiten.
+    List<LoadUnit> window({required int unrated, int extraUnrated = 0}) {
+      final units = <LoadUnit>[for (var i = 0; i < 219; i++) _run(i, 50)];
+      var left = unrated;
+      for (var i = 219; i <= 260; i++) {
+        final n = i < 235 ? 3 : 2;
+        for (var k = 0; k < n; k++) {
+          if (left > 0 && i >= 240) {
+            units.add(LoadUnit.run(day: _d(i)));
+            left--;
+          } else {
+            units.add(_run(i, 50));
+          }
+        }
+      }
+      for (var k = 0; k < extraUnrated; k++) {
+        units.add(LoadUnit.run(day: _d(260)));
+      }
+      return units;
+    }
+
+    bool fallback(TrainingLoadSeries r) => r.days.last.ctlProvisionalReasons
+        .contains(LoadProvisionalReason.missingUnits);
+
+    test('genau 10 % fehlen (10 von 100): nicht vorläufig', () {
+      final r = _calc(window(unrated: 10), today: 260);
+      expect(r.days.last.day, _d(260));
+      expect(fallback(r), isFalse);
+      expect(r.days.last.tsbThresholdsLocked, isFalse);
+    });
+
+    test('knapp über 10 % (11 von 101): vorläufig', () {
+      final r = _calc(window(unrated: 10, extraUnrated: 1), today: 260);
+      expect(fallback(r), isTrue);
+      expect(r.days.last.tsbThresholdsLocked, isTrue);
+    });
+  });
+
   test('Laufzeit: 5 Jahre täglich', () {
     final units = <LoadUnit>[];
     for (var i = 0; i < 365 * 5 + 1; i++) {

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
+import 'package:running_app/error_counter.dart';
 import 'package:running_app/features/archive/archive_wiring.dart';
 import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/run/run_ports.dart';
@@ -79,6 +80,9 @@ class Device {
   /// Kartenanbieter (WP13); `null`: nicht verdrahtet.
   MapServices? map;
 
+  /// Zähler still abgefangener und unbehandelter Fehler der App (nur Typ und Ort).
+  final ErrorCounter errors = ErrorCounter();
+
   /// Erinnerungen (FR-0174); `null`: nicht verdrahtet.
   ReminderScheduler? reminders;
 
@@ -146,6 +150,7 @@ class Device {
       RunningApp(
         dependencies: AppDependencies(
           storageStart: controller,
+          errors: errors,
           sensors: sensors,
           clock: clock,
           offload: offload,

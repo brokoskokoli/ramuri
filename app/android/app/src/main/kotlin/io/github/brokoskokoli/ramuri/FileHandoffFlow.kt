@@ -1,6 +1,7 @@
 package io.github.brokoskokoli.ramuri
 
 import android.content.Intent
+import io.flutter.plugin.common.MethodCall
 import java.io.File
 
 /** Wirkungen auf den Kanal; die Entscheidungen liegen in [FileHandoffFlow]. */
@@ -124,17 +125,37 @@ class FileHandoffFlow<R>(
      * ist: [ClearOutcome.BUSY] ohne Leeren, die Datei bleibt bis zum nächsten Prozessstart.
      * Fehlt das Argument (`null`) oder ist es `false` (Alles löschen), wird immer geleert.
      * Eine offene Übergabe bleibt davon unberührt; ihre Antwort kommt weiter über [answers].
+     * [exportsOnly] `true` (Neubeginn nach Schlüsselverlust) geht an [clear]: nur `exports/`
+     * leeren; fehlt es (`null`) oder ist es `false`, beide Ordner.
      */
-    fun clearExports(unlessBusy: Boolean?, clear: () -> Boolean, answer: (ClearOutcome) -> Unit) {
+    fun clearExports(
+        unlessBusy: Boolean?,
+        exportsOnly: Boolean?,
+        clear: (exportsOnly: Boolean) -> Boolean,
+        answer: (ClearOutcome) -> Unit,
+    ) {
         if (unlessBusy == true && busy) {
             answer(ClearOutcome.BUSY)
             return
         }
+        val only = exportsOnly == true
         threads.background {
-            val ok = runCatching(clear).getOrDefault(false)
+            val ok = runCatching { clear(only) }.getOrDefault(false)
             threads.main { answer(if (ok) ClearOutcome.CLEARED else ClearOutcome.FAILED) }
         }
     }
+
+    /**
+     * Kanalaufruf `clearExports`: liest `unlessBusy` und `exportsOnly` aus [call] und leert über
+     * [ExportFiles.clearHandoff] unter [cacheDir]; Regel wie [clearExports].
+     */
+    fun clearExportsCall(call: MethodCall, cacheDir: File, answer: (ClearOutcome) -> Unit) =
+        clearExports(
+            call.argument<Boolean>("unlessBusy"),
+            call.argument<Boolean>("exportsOnly"),
+            clear = { only -> ExportFiles.clearHandoff(cacheDir, only) },
+            answer,
+        )
 
     /** Hält [source] bis zur Antwort des Dokumentenziels. */
     fun beginSave(result: R, source: HandoffSource): Boolean = begin(result, Kind.SAVE, source)

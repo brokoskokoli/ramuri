@@ -25,9 +25,15 @@ class _ObservingHandoff extends FakeFileHandoff {
   final List<bool> runGoneAtClear = [];
 
   @override
-  Future<ExportClearResult> clearExports({bool unlessSharing = false}) async {
+  Future<ExportClearResult> clearExports({
+    bool unlessSharing = false,
+    bool exportsOnly = false,
+  }) async {
     runGoneAtClear.add(await session.runs.get(runId) == null);
-    return super.clearExports(unlessSharing: unlessSharing);
+    return super.clearExports(
+      unlessSharing: unlessSharing,
+      exportsOnly: exportsOnly,
+    );
   }
 }
 
