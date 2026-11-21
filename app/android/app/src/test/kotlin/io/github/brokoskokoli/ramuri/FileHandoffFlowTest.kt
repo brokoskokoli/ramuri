@@ -42,9 +42,13 @@ class FileHandoffFlowTest {
     private val clears = mutableListOf<String>()
 
     /** `clearExports` mit protokolliertem Leeren; [ok] ist das Ergebnis des Leerens. */
-    private fun clear(unlessBusy: Boolean?, ok: Boolean = true) =
-        flow.clearExports(unlessBusy, clear = {
+    /** `exportsOnly` je Aufruf des Leerens, in Reihenfolge. */
+    private val clearScopes = mutableListOf<Boolean>()
+
+    private fun clear(unlessBusy: Boolean?, ok: Boolean = true, exportsOnly: Boolean? = null) =
+        flow.clearExports(unlessBusy, exportsOnly, clear = { only ->
             clears.add(if (onBackground) "bg" else "main")
+            clearScopes.add(only)
             ok
         }) { log.add("clear:$it") }
 
@@ -85,6 +89,22 @@ class FileHandoffFlowTest {
         assertEquals(listOf("clear:CLEARED"), log)
     }
 
+    @Test fun exportsOnlyIsPassedToTheClear() {
+        clear(unlessBusy = false, exportsOnly = true)
+        drain()
+        assertEquals(listOf("bg"), clears)
+        assertEquals(listOf(true), clearScopes)
+        assertEquals(listOf("clear:CLEARED"), log)
+    }
+
+    @Test fun missingOrFalseExportsOnlyClearsBothFolders() {
+        clear(unlessBusy = false, exportsOnly = null)
+        clear(unlessBusy = false, exportsOnly = false)
+        drain()
+        assertEquals(listOf(false, false), clearScopes)
+        assertEquals(listOf("clear:CLEARED", "clear:CLEARED"), log)
+    }
+
     @Test fun runDeletionClearsWhenNoHandoffIsOpen() {
         clear(unlessBusy = true)
         drain()
@@ -106,7 +126,7 @@ class FileHandoffFlowTest {
     @Test fun failedOrThrowingClearIsReportedAsFailure() {
         clear(unlessBusy = false, ok = false)
         drain()
-        flow.clearExports(false, clear = { throw java.io.IOException("x") }) { log.add("clear:$it") }
+        flow.clearExports(false, null, clear = { throw java.io.IOException("x") }) { log.add("clear:$it") }
         drain()
         assertEquals(listOf("clear:FAILED", "clear:FAILED"), log)
     }

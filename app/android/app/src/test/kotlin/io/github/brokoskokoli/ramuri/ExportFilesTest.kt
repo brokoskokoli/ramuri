@@ -273,4 +273,39 @@ class ExportFilesTest {
             cache.deleteRecursively()
         }
     }
+    @Test fun clearHandoffExportsOnlyEmptiesExportsAndKeepsImports() {
+        val cache = tempDir()
+        val exports = File(cache, ExportFiles.DIR).apply { mkdirs() }
+        File(exports, "run.gpx").writeText("x")
+        File(exports, "sub/deeper").mkdirs()
+        File(exports, "sub/deeper/archive.ramuri").writeText("x")
+        val imports = File(cache, ExportFiles.IMPORT_DIR).apply { mkdirs() }
+        File(imports, ExportFiles.IMPORT_NAME).writeText("gewählt")
+        assertTrue(ExportFiles.clearHandoff(cache, exportsOnly = true))
+        assertEquals(0, exports.list()!!.size)
+        // Die gewählte Archivkopie bleibt für die Wiederherstellung lesbar.
+        assertEquals("gewählt", File(imports, ExportFiles.IMPORT_NAME).readText())
+        cache.deleteRecursively()
+    }
+
+    @Test fun clearHandoffExportsOnlyOnEmptyOrMissingFolderSucceeds() {
+        val cache = tempDir()
+        assertTrue(ExportFiles.clearHandoff(cache, exportsOnly = true))
+        File(cache, ExportFiles.DIR).mkdirs()
+        assertTrue(ExportFiles.clearHandoff(cache, exportsOnly = true))
+        assertTrue(File(cache, ExportFiles.DIR).isDirectory)
+        cache.deleteRecursively()
+    }
+
+    @Test fun clearHandoffWithoutSwitchStillEmptiesBothFolders() {
+        val cache = tempDir()
+        val exports = File(cache, ExportFiles.DIR).apply { mkdirs() }
+        File(exports, "run.gpx").writeText("x")
+        val imports = File(cache, ExportFiles.IMPORT_DIR).apply { mkdirs() }
+        File(imports, ExportFiles.IMPORT_NAME).writeText("x")
+        assertTrue(ExportFiles.clearHandoff(cache, exportsOnly = false))
+        assertEquals(0, exports.list()!!.size)
+        assertEquals(0, imports.list()!!.size)
+        cache.deleteRecursively()
+    }
 }
