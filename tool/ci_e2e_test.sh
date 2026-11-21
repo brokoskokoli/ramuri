@@ -2,7 +2,8 @@
 # Test fuer tool/ci_e2e.sh mit Attrappen fuer adb und flutter (kein Emulator): Shard-Zuordnung,
 # unbekannte Namen, Mindeststufen, Waechter ueber all_test.dart, Rot einer Stufe, NEED_KILL, kein E2E_ im Log,
 # letzte Schrittmarke vor dem Fehler, Bildschirmfotos bei SHOT-Marken (E2E_SHOTS=1), Zeitlimit je Stufe
-# (E2E_STUFE_LIMIT_S, haengende Attrappe), Zeitlimit je adb-Aufruf (E2E_ADB_LIMIT_S, haengende adb-Attrappe).
+# (E2E_STUFE_LIMIT_S, haengende Attrappe), Zeitlimit je adb-Aufruf (E2E_ADB_LIMIT_S, haengende adb-Attrappe),
+# Warten auf den Tageswechsel ausserhalb des Zeitlimits (Uhr der Attrappe per FAKE_UHR, Warteliste mit Waechter).
 # Aufruf: sh tool/ci_e2e_test.sh
 script=$(cd "$(dirname "$0")" && pwd)/ci_e2e.sh
 tmp=$(mktemp -d) || exit 1
@@ -20,6 +21,19 @@ case "${FAKE_ADB_HANG:+$*}" in *"${FAKE_ADB_HANG:-}"*) [ -z "${FAKE_ADB_HANG:-}"
     [ -z "${FAKE_ADB_HANG_EINMAL:-}" ] || : > "$FAKE_ADB_HANG_EINMAL"
     echo "$$" >> "$FAKE_PIDS"; exec sleep 40
   fi ;;
+esac
+# Uhr: mit FAKE_UHR=<HH:MM:SS> antwortet "shell date" mit dieser Zeit und stellt sie je Aufruf um
+# FAKE_UHR_SCHRITT_S vor (Zustand in $FAKE_UHR_DATEI); ohne FAKE_UHR keine Antwort (Uhr nicht lesbar).
+case "$*" in *"shell date +%H:%M:%S"*)
+  [ -n "${FAKE_UHR:-}" ] || exit 0
+  [ -s "$FAKE_UHR_DATEI" ] || { IFS=: read -r h m s <<E
+$FAKE_UHR
+E
+    echo $(((${h#0} * 3600 + ${m#0} * 60 + ${s#0}))) > "$FAKE_UHR_DATEI"; }
+  t=$(cat "$FAKE_UHR_DATEI")
+  echo $(((t + ${FAKE_UHR_SCHRITT_S:-0}) % 86400)) > "$FAKE_UHR_DATEI"
+  printf '%02d:%02d:%02d\r\n' $((t / 3600)) $((t / 60 % 60)) $((t % 60))
+  exit 0 ;;
 esac
 case "$*" in
   *"dumpsys package"*) echo 'android.permission.ACCESS_FINE_LOCATION: granted=true' ;;
@@ -40,6 +54,8 @@ echo "E2E_WERT=geheim123"
 # SHOT-Marken wie shot() in e2e_support.dart: Zeile E2E_, danach steht der Test (hier 1 s).
 [ -z "${FAKE_SHOT_LINES:-}" ] || for n in s1_hell 'Gross' '../boese' 'a b' s1-dunkel_2; do
   echo "E2E_12:00:00.000 SHOT $n"; sleep 1; done
+# Warten auf den Tageswechsel im Test (waitPastLateEvening): Zeilen wie logPub, dazwischen 6 s.
+[ -z "${FAKE_TAGESWECHSEL:-}" ] || { echo "PUB_23:45:00.000 TAGESWECHSEL warten"; sleep 6; echo "PUB_00:00:00.000 TAGESWECHSEL ende"; }
 case "$*" in *PHASE=write* | *PHASE=a*) [ -n "${FAKE_NOKILL:-}" ] || { echo "E2E_X NEED_KILL"; sleep 3; } ;; esac
 [ -z "${FAKE_STEPS:-}" ] || { echo "PUB_00 SCHRITT A1 start"; echo "PUB_01 SCHRITT A1 rot"; echo "00:02 +0 -1: A [E]"; echo "PUB_02 SCHRITT B1 start"; }
 [ -z "${FAKE_FAIL:-}" ] || { echo "PUB_01 M2 form_error key=planFormErrorStand"; i=0; while [ $i -lt 60 ]; do echo "zeile $i"; i=$((i + 1)); done; echo "Expected: x"; exit 1; }
@@ -50,14 +66,14 @@ exit 0
 X
 chmod +x "$tmp/bin/adb" "$tmp/bin/flutter"
 export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" FAKE_SHOTS="$tmp/shots" FAKE_ARGS="$tmp/args" FAKE_STOPS="$tmp/stops" \
-  FAKE_PIDS="$tmp/pids" ANDROID_SERIAL=emulator-5554
+  FAKE_PIDS="$tmp/pids" FAKE_UHR_DATEI="$tmp/uhr" ANDROID_SERIAL=emulator-5554
 unset E2E_SHARD E2E_STUFEN E2E_SHOTS E2E_STUFE_LIMIT_S E2E_ADB_LIMIT_S FAKE_ADB_HANG FAKE_ADB_HANG_EINMAL FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP FAKE_STEPS FAKE_SHOT_LINES \
-  FAKE_NOFOCUS FAKE_HANG
+  FAKE_NOFOCUS FAKE_HANG FAKE_UHR FAKE_UHR_SCHRITT_S FAKE_TAGESWECHSEL E2E_UHR_VERSATZ_S
 fails=0
 # run <Name> <rc> <Aufrufe-der-Testdateien (Anzahl)> [VAR=Wert ...]
 run() {
   name=$1 want_rc=$2 want_calls=$3; shift 3
-  : > "$FAKE_LOG"; : > "$FAKE_ARGS"; : > "$FAKE_STOPS"; : > "$FAKE_PIDS"; rm -rf "$tmp/out"
+  : > "$FAKE_LOG"; : > "$FAKE_ARGS"; : > "$FAKE_STOPS"; : > "$FAKE_PIDS"; : > "$FAKE_UHR_DATEI"; rm -rf "$tmp/out"
   t_start=$(date +%s)
   env "$@" sh "$script" "$tmp/out" > "$tmp/stdout" 2>&1; rc=$?
   dauer=$(($(date +%s) - t_start))
@@ -202,6 +218,50 @@ sed 's|^shard_sammlung="sammlung |&neu |; s|^\[ "\$ran" -gt 0 \]|stufe neu 0 int
 script="$tmp/ci_e2e_neu.sh"
 run "Stufe ohne Zeitlimit -> Fehler vor dem Lauf" 1 0 X=1
 grep -q 'Stufe neu hat kein Zeitlimit' "$tmp/stdout" || { echo "FAIL Waechter Zeitlimit: Meldung fehlt"; fails=$((fails + 1)); }
+script=$script_orig
+# Tageswechsel: Die Emulatoruhr der Attrappe laeuft je Abfrage 60 s vor (zehn Abfragen von 23:50 bis 00:00, je 1 s
+# Pause im Host, also ca. 10 s Warten); die Attrappe von flutter laeuft 6 s (FAKE_SLEEP), Grenze 12 s. Zaehlte das
+# Warten mit, laege die Stufe bei ca. 16 s und waere rot.
+run "Tageswechsel: Start 23:50, m2-flow wartet, Limit gehalten" 0 1 E2E_STUFEN=m2-flow FAKE_UHR=23:50:00 FAKE_UHR_SCHRITT_S=60 FAKE_SLEEP=1 E2E_STUFE_LIMIT_S=12
+grep -q '^STUFE m2-flow wartet auf Tageswechsel [0-9]* s$' "$tmp/stdout" && echo "OK   Tageswechsel: Wartezeile ohne Werte" || { echo "FAIL Tageswechsel: Wartezeile fehlt"; fails=$((fails + 1)); }
+gew=$(sed -n 's/^STUFE m2-flow wartet auf Tageswechsel \([0-9]*\) s$/\1/p' "$tmp/stdout")
+[ "${gew:-0}" -ge 8 ] && [ "$dauer" -ge 14 ] && echo "OK   Tageswechsel: wirklich gewartet ($gew s)" || { echo "FAIL Tageswechsel: gewartet '${gew:-}' s, Lauf $dauer s"; fails=$((fails + 1)); }
+grep -q 'Zeitlimit in Stufe' "$tmp/stdout" && { echo "FAIL Tageswechsel: Warten zaehlte gegen das Zeitlimit"; fails=$((fails + 1)); }
+grep -q '^STUFE m2-flow rc=0 dauer=[0-9]s$' "$tmp/stdout" && echo "OK   Tageswechsel: Dauer der Stufe ohne Warten" || { echo "FAIL Tageswechsel: Dauer der Stufe enthaelt das Warten"; fails=$((fails + 1)); }
+run "Tageswechsel: Start 23:50, treadmill-plan wartet" 0 1 E2E_STUFEN=treadmill-plan FAKE_UHR=23:50:00 FAKE_UHR_SCHRITT_S=120
+grep -q '^STUFE treadmill-plan wartet auf Tageswechsel [0-9]* s$' "$tmp/stdout" || { echo "FAIL Tageswechsel: treadmill-plan wartet nicht"; fails=$((fails + 1)); }
+run "Tageswechsel: Start 23:40, m2-flow wartet nicht" 0 1 E2E_STUFEN=m2-flow FAKE_UHR=23:40:00 FAKE_UHR_SCHRITT_S=60
+grep -q 'wartet auf Tageswechsel' "$tmp/stdout" && { echo "FAIL Tageswechsel: Start 23:40 hat gewartet"; fails=$((fails + 1)); }
+[ "$dauer" -lt 5 ] || { echo "FAIL Tageswechsel: Start 23:40 lief $dauer s"; fails=$((fails + 1)); }
+run "Tageswechsel: Start 00:00, m2-flow wartet nicht" 0 1 E2E_STUFEN=m2-flow FAKE_UHR=00:00:00 FAKE_UHR_SCHRITT_S=60
+grep -q 'wartet auf Tageswechsel' "$tmp/stdout" && { echo "FAIL Tageswechsel: Start 00:00 hat gewartet"; fails=$((fails + 1)); }
+run "Tageswechsel: Start 23:44:59, m2-flow wartet nicht" 0 1 E2E_STUFEN=m2-flow FAKE_UHR=23:44:59 FAKE_UHR_SCHRITT_S=0
+grep -q 'wartet auf Tageswechsel' "$tmp/stdout" && { echo "FAIL Tageswechsel: Start 23:44:59 hat gewartet"; fails=$((fails + 1)); }
+run "Tageswechsel: Start 23:50, ungekennzeichnete Stufe wartet nie" 0 1 E2E_STUFEN=readiness FAKE_UHR=23:50:00 FAKE_UHR_SCHRITT_S=60
+grep -q 'wartet auf Tageswechsel' "$tmp/stdout" && { echo "FAIL Tageswechsel: readiness hat gewartet"; fails=$((fails + 1)); }
+[ "$dauer" -lt 5 ] || { echo "FAIL Tageswechsel: readiness lief $dauer s"; fails=$((fails + 1)); }
+# Uhr nicht lesbar (keine Antwort): nicht warten.
+run "Tageswechsel: Uhr nicht lesbar, kein Warten" 0 1 E2E_STUFEN=m2-flow
+grep -q 'wartet auf Tageswechsel' "$tmp/stdout" && { echo "FAIL Tageswechsel: ohne Uhr gewartet"; fails=$((fails + 1)); }
+# Versatz: Uhr 23:40 plus 600 s = 23:50, also Warten.
+run "Tageswechsel: Versatz stellt die Uhr ins Fenster" 0 1 E2E_STUFEN=m2-flow FAKE_UHR=23:40:00 FAKE_UHR_SCHRITT_S=300 E2E_UHR_VERSATZ_S=600
+grep -q '^STUFE m2-flow wartet auf Tageswechsel [0-9]* s$' "$tmp/stdout" || { echo "FAIL Tageswechsel: Versatz wirkt nicht"; fails=$((fails + 1)); }
+run "Tageswechsel: Versatz abc -> Fehler" 1 0 E2E_STUFEN=m2-flow E2E_UHR_VERSATZ_S=abc
+grep -q 'E2E_UHR_VERSATZ_S keine ganze Zahl' "$tmp/stdout" || { echo "FAIL Tageswechsel: Meldung Versatz fehlt"; fails=$((fails + 1)); }
+# Warten im Test (Zeilen TAGESWECHSEL warten/ende, 6 s dazwischen), Grenze 4 s: gekennzeichnete Stufe gruen,
+# ungekennzeichnete rot.
+run "Tageswechsel im Test: m2-flow zieht das Warten ab" 0 1 E2E_STUFEN=m2-flow FAKE_TAGESWECHSEL=1 E2E_STUFE_LIMIT_S=4
+grep -q '^STUFE m2-flow Tageswechsel im Test abgewartet [0-9]* s$' "$tmp/stdout" && echo "OK   Tageswechsel im Test: Zeile ohne Werte" || { echo "FAIL Tageswechsel im Test: Zeile fehlt"; fails=$((fails + 1)); }
+grep -q 'Zeitlimit in Stufe' "$tmp/stdout" && { echo "FAIL Tageswechsel im Test: Warten zaehlte gegen das Zeitlimit"; fails=$((fails + 1)); }
+run "Tageswechsel im Test: ungekennzeichnete Stufe zaehlt es" 1 1 E2E_STUFEN=readiness FAKE_TAGESWECHSEL=1 E2E_STUFE_LIMIT_S=4
+grep -q '^Zeitlimit in Stufe readiness nach [0-9]* s$' "$tmp/stdout" || { echo "FAIL Tageswechsel im Test: readiness ohne Zeitlimit"; fails=$((fails + 1)); }
+grep -q 'Tageswechsel im Test abgewartet' "$tmp/stdout" && { echo "FAIL Tageswechsel im Test: readiness zog Warten ab"; fails=$((fails + 1)); }
+# Waechter: eine Stufe der Warteliste, die es nicht gibt, ist ein Fehler vor dem ersten Lauf.
+sed 's|^tageswechsel_stufen="m2-flow |&m2-flwo |' "$script" > "$tmp/ci_e2e_neu.sh"
+grep -q '^tageswechsel_stufen="m2-flow m2-flwo ' "$tmp/ci_e2e_neu.sh" || { echo "FAIL Aufbau: Kopie ohne falsche Stufe"; fails=$((fails + 1)); }
+script="$tmp/ci_e2e_neu.sh"
+run "Warteliste mit unbekannter Stufe -> Fehler vor dem Lauf" 1 0 E2E_STUFEN=m2-flow
+grep -q 'Stufe m2-flwo in tageswechsel_stufen gibt es nicht' "$tmp/stdout" || { echo "FAIL Waechter Warteliste: Meldung fehlt"; fails=$((fails + 1)); }
 script=$script_orig
 # Waechter: Testdatei, die weder eingebunden noch Stufe ist, auch als Kommentar.
 : > app/integration_test/e2e_neu_test.dart
