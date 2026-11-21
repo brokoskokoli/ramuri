@@ -15,6 +15,8 @@ import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/map/map_source_holder.dart';
 import 'package:running_app/features/map/miniature_service.dart';
 
+import 'support/settle_storage.dart';
+
 class _Consents implements ConsentStore {
   final Map<String, ConsentState> data = {};
   @override
@@ -107,14 +109,9 @@ final _route = [
   [_a, _b],
 ];
 
-Future<void> _wait(WidgetTester tester, [int rounds = 8]) async {
-  for (var i = 0; i < rounds; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 25)),
-    );
-    await tester.pump(const Duration(milliseconds: 50));
-  }
-}
+/// [rounds] Frames zu 50 ms Testzeit, ohne Echtzeit-Pausen.
+Future<void> _wait(WidgetTester tester, [int rounds = 8]) =>
+    observeFrames(tester, rounds, frame: const Duration(milliseconds: 50));
 
 void main() {
   setUp(() => clearMapMemoryCache());
@@ -479,12 +476,12 @@ void main() {
     );
 
     Future<void> until(WidgetTester tester, bool Function() ok) async {
-      for (var i = 0; i < 200 && !ok(); i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 10)),
-        );
-        await tester.pump(const Duration(milliseconds: 20));
-      }
+      await settleStorage(
+        tester,
+        until: ok,
+        what: 'Aufnahme gestartet',
+        frame: const Duration(milliseconds: 20),
+      );
       expect(ok(), isTrue);
     }
 
@@ -522,12 +519,11 @@ void main() {
           pause(tester);
           expect(service.paused, isTrue);
           final t = ask(1)!;
-          for (var i = 0; i < 10; i++) {
-            await tester.runAsync(
-              () => Future<void>.delayed(const Duration(milliseconds: 10)),
-            );
-            await tester.pump(const Duration(milliseconds: 50));
-          }
+          await observeFrames(
+            tester,
+            10,
+            frame: const Duration(milliseconds: 50),
+          );
           expect(captures, 0);
           expect(w.inner.requests, isEmpty);
           resume(tester);
@@ -671,12 +667,13 @@ void main() {
         });
         for (var i = 0; i < miniatureMaxAttempts; i++) {
           final t = ask(9)!;
-          for (var k = 0; k < 100 && captures <= i; k++) {
-            await tester.runAsync(
-              () => Future<void>.delayed(const Duration(milliseconds: 10)),
-            );
-            await tester.pump(const Duration(milliseconds: 20));
-          }
+          await settleStorage(
+            tester,
+            until: () => captures > i,
+            what: 'Aufnahme ${i + 1} läuft',
+            frame: const Duration(milliseconds: 20),
+            maxFrames: 100,
+          );
           expect(captures, i + 1, reason: 'Aufnahme läuft');
           t.cancel();
           await _drive(tester, t);
@@ -724,11 +721,11 @@ Future<Uint8List?> _drive(WidgetTester tester, MiniatureTicket t) async {
       done = true;
     }),
   );
-  for (var i = 0; i < 200 && !done; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 10)),
-    );
-    await tester.pump(const Duration(milliseconds: 20));
-  }
+  await settleStorage(
+    tester,
+    until: () => done,
+    what: 'Miniatur-Auftrag fertig',
+    frame: const Duration(milliseconds: 20),
+  );
   return out;
 }

@@ -154,6 +154,9 @@ step tools "privat" sh tool/check_private.sh
 # Zyklen-Ratsche: keine neuen Zyklen zwischen core-Modulen bzw. App-Features (Grundlinie im Skript, docs/architecture/code-map.md).
 [ -f app/pubspec.yaml ] && step tools "Architektur (keine neuen Zyklen)" python3 tool/check_architecture.py
 [ -f app/pubspec.yaml ] && step tools "Architekturprüfung Selbsttest" python3 tool/check_architecture_test.py
+# Feste Wartezeiten (Future.delayed) in app/test/ nur weniger, nie mehr (Ratsche, Grundlinie im Skript).
+[ -f app/pubspec.yaml ] && step tools "Wartezeiten in App-Tests" python3 tool/check_test_waits.py
+[ -f app/pubspec.yaml ] && step tools "Wartezeiten-Prüfung Selbsttest" python3 tool/check_test_waits_test.py
 [ -f app/pubspec.yaml ] && step tools "Release-Manifest-Prüfung Selbsttest" python3 tool/check_release_manifest_test.py
 # WP30: Versionsrechnung des Release-Builds und Tag-Regel des Pre-Push-Hooks (bash explizit, läuft auch unter Linux/dash).
 step tools "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh
