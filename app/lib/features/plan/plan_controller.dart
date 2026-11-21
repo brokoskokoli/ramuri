@@ -637,8 +637,9 @@ class PlanController extends ChangeNotifier {
       final rpe = (await session.subjective.read(r.id))?.subjective.rpe;
       double? highHr;
       for (final p in await session.values.read(ValueOwner.run(r.id))) {
-        if (p.current.key == highHeartRateTimeValueKey)
+        if (p.current.key == highHeartRateTimeValueKey) {
           highHr = p.current.value;
+        }
       }
       result.add(
         PlanCalendarRun(
