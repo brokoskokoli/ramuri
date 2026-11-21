@@ -197,7 +197,9 @@ void main() {
       expect(c.calculationFailed, isFalse);
       expect(
         await w.session.values.read(ValueOwner.run(run.id)),
-        hasLength(1 + runLoadValueKeys.length),
+        hasLength(
+          2 + runLoadValueKeys.length,
+        ), // VO2max, Last, Zeit ≥ 80 % HFmax
       );
       expect(
         await w.session.values.read(const ValueOwner.day('2030-03-02')),
@@ -237,7 +239,9 @@ void main() {
       await completePendingValueRefresh(w.session, w.clock);
       expect(
         await w.session.values.read(ValueOwner.run(run.id)),
-        hasLength(1 + runLoadValueKeys.length),
+        hasLength(
+          2 + runLoadValueKeys.length,
+        ), // VO2max, Last, Zeit ≥ 80 % HFmax
       );
       expect(
         await w.session.settings.get(
@@ -298,7 +302,9 @@ void main() {
       await done;
       expect(
         await w.session.values.read(ValueOwner.run(run.id)),
-        hasLength(1 + runLoadValueKeys.length),
+        hasLength(
+          2 + runLoadValueKeys.length,
+        ), // VO2max, Last, Zeit ≥ 80 % HFmax
       );
     },
   );
@@ -325,7 +331,9 @@ void main() {
       expect(c.calculationFailed, isFalse);
       expect(
         await w.session.values.read(ValueOwner.run(run.id)),
-        hasLength(1 + runLoadValueKeys.length),
+        hasLength(
+          2 + runLoadValueKeys.length,
+        ), // VO2max, Last, Zeit ≥ 80 % HFmax
       );
     },
   );
@@ -362,7 +370,9 @@ void main() {
       await completePendingValueRefresh(w.session, w.clock);
       expect(
         await w.session.values.read(ValueOwner.run(run.id)),
-        hasLength(1 + runLoadValueKeys.length),
+        hasLength(
+          2 + runLoadValueKeys.length,
+        ), // VO2max, Last, Zeit ≥ 80 % HFmax
       );
     },
   );
@@ -450,7 +460,7 @@ void main() {
     );
     expect(
       await w.session.values.read(ValueOwner.run(run.id)),
-      hasLength(1 + runLoadValueKeys.length),
+      hasLength(2 + runLoadValueKeys.length), // VO2max, Last, Zeit ≥ 80 % HFmax
     );
   });
 }
