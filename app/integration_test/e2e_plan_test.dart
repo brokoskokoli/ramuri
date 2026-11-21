@@ -161,11 +161,14 @@ void main() {
     await tapKey(t, 'plan_recalculate');
     await waitFor(t, () => has('plan_recalculate_dialog'), 'Rueckfrage');
     await tapDialog(t, 'plan_recalculate_cancel');
+    // Abbrechen aendert nichts; Wirkung: plan_recalculate wieder bedienbar
+    // (solange die Rueckfrage offen ist, liegt sie davor).
     await waitFor(
       t,
-      () => !has('plan_recalculate_dialog'),
-      'Rueckfrage geschlossen',
+      () => hittable(t, find.byKey(const Key('plan_recalculate'))),
+      'plan_recalculate bedienbar nach plan_recalculate_cancel',
     );
+    expect(find.byType(ErrorWidget), findsNothing);
     expect((await t.runAsync(plans.history))!, hasLength(2));
     // Der aktuelle Plan bleibt bei "Neu berechnen" unveraendert (keine neue
     // Fassung, gleiche Einheiten); die Meldung sagt "neu berechnet", nicht Fehler.
@@ -232,7 +235,13 @@ void main() {
     await tapDialog(t, 'plan_menu_report');
     await waitFor(t, () => has('plan_warning_dialog'), 'Rueckfrage Melden');
     await tapDialog(t, 'plan_warning_cancel');
-    await waitFor(t, () => !has('plan_warning_dialog'), 'Rueckfrage zu');
+    // Abbrechen aendert nichts; Wirkung: plan_menu wieder bedienbar.
+    await waitFor(
+      t,
+      () => hittable(t, find.byKey(const Key('plan_menu'))),
+      'plan_menu bedienbar nach plan_warning_cancel',
+    );
+    expect(find.byType(ErrorWidget), findsNothing);
     expect(await t.runAsync(store.read), isNull);
     expect((await t.runAsync(plans.history))!, hasLength(versions));
     expect(has('plan_warning_banner'), isFalse);

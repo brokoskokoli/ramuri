@@ -52,7 +52,6 @@ void main() {
         await pumpFor(t, const Duration(seconds: 8));
         step('RECOVER_B lauf_beenden');
         await finishRun(t);
-        await pumpFor(t, const Duration(seconds: 2));
         final after = await countRunsFinished(t, w);
         expect(after.length, 1, reason: 'kein zweiter Lauf entstanden');
         expect(after.first.state, RunState.finished);
