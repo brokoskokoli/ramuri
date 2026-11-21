@@ -626,7 +626,6 @@ final Map<String, List<Object>> parCodeValues = {
   'PAR-164K/165K': [
     ..._doc([5, 5, 6, 6, 7, 7, 8, 8], 'Grenzen der Schlafstufen; nur Text.'),
     ...morningSleepBandHours,
-    ..._doc([2026, 11, 18], 'Datum der Entscheidung.'),
   ],
   'PAR-165': [
     readinessSleepAnchorHours,
@@ -849,15 +848,15 @@ List<ParRow> parseParTables(String text, String source) {
 }
 
 final _references = RegExp(
-  r'\b(?:PAR|FR|NFR|OQ|DEC|SEC|ADR|SRC)-\d+K?(?:/\d+K)?|\[[A-Z]+\d+\]|\bK-?\d+\b|\bR\d+\b',
+  r'\b\d{4}-\d{2}-\d{2}\b|\b(?:PAR|FR|NFR|OQ|DEC|SEC|ADR|SRC)-\d+K?(?:/\d+K)?|\[[A-Z]+\d+\]|\bK-?\d+\b|\bR\d+\b',
 );
 final _number = RegExp(
   r'([−-]?)(\d+):(\d{2})(?!\d)|([−-]?)(\d{1,3}(?:[  ]\d{3})+(?!\d)|\d+(?:,\d+)?)',
 );
 
-/// Zahlen einer Zelle: Verweise (PAR-, FR-, Quellen) entfallen, Dezimalkomma
-/// wird gelesen, „m:ss“ ergibt Minuten, ein Bereich „2–4“ ergibt beide
-/// Grenzen, „−2“ (Minuszeichen) ist negativ.
+/// Zahlen einer Zelle: Verweise (PAR-, FR-, Quellen) und Datumsangaben
+/// entfallen, Dezimalkomma wird gelesen, „m:ss“ ergibt Minuten, ein Bereich
+/// „2–4“ ergibt beide Grenzen, „−2“ (Minuszeichen) ist negativ.
 List<double> extractNumbers(String cell) {
   final s = cell.replaceAll(_references, ' ');
   final out = <double>[];
@@ -980,6 +979,9 @@ void main() {
         extractNumbers('nach PAR-027 und FR-0062 [Q20], PAR-161K: 7 Tage'),
         [7],
       );
+      expect(extractNumbers('7 Tage (Entscheidung Maintainer 2026-11-18)'), [
+        7,
+      ]);
     });
 
     test('Tabellen: nur Kopf „ID“, Wert aus „Startwert“', () {
