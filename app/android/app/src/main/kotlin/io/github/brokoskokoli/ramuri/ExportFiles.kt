@@ -8,9 +8,9 @@ import java.util.concurrent.Executors
 /**
  * Exportdateien zum Teilen (FR-0201, WP11). Sie liegen in `cacheDir/exports/`: Der Cache ist
  * vom Backup ausgenommen (data_extraction_rules.xml), und nur dieser Ordner ist über den
- * FileProvider freigegeben (res/xml/file_paths.xml). Gelöscht wird beim Prozessstart und vor
- * jedem neuen Teilen, nicht direkt nach dem Teilen-Menü: Der Empfänger liest die Datei oft
- * erst später.
+ * FileProvider freigegeben (res/xml/file_paths.xml). Gelöscht wird beim Prozessstart, vor
+ * jedem neuen Teilen und bei „Alles löschen“ bzw. „Lauf löschen“ ([clearHandoff]), nicht
+ * direkt nach dem Teilen-Menü: Der Empfänger liest die Datei oft erst später.
  *
  * Eine Datei kommt entweder als Bytes über den Kanal ([write]) oder liegt schon unter dem
  * Ordner, weil Dart sie dort geschrieben hat ([resolve], [adopt]); dann gehen nur Name und
@@ -79,6 +79,17 @@ object ExportFiles {
     fun clear(dir: File): Boolean {
         dir.listFiles()?.forEach { it.deleteRecursively() }
         return dir.listFiles().isNullOrEmpty()
+    }
+
+    /**
+     * „Alles löschen“ und „Lauf löschen“ (SEC-0004): leert [DIR] und [IMPORT_DIR] unter
+     * [cacheDir] samt Unterordnern; beide Ordner werden versucht, auch wenn einer scheitert.
+     * Liefert, ob danach beide leer sind (ein fehlender Ordner gilt als leer).
+     */
+    fun clearHandoff(cacheDir: File): Boolean {
+        val exports = runCatching { clear(File(cacheDir, DIR)) }.getOrDefault(false)
+        val imports = runCatching { clear(File(cacheDir, IMPORT_DIR)) }.getOrDefault(false)
+        return exports && imports
     }
 
     /**
