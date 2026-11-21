@@ -4,7 +4,10 @@ import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:adapters/adapters.dart' show BleHeartRateSensor;
 import 'package:running_app/app_dependencies.dart';
+import 'package:running_app/debug/debug_test_ppg_camera.dart';
 import 'package:running_app/debug/debug_test_sensor.dart';
+
+import 'belt_camera_support.dart';
 
 void main() {
   debugWiringTests();
@@ -111,6 +114,91 @@ void main() {
     // künstlichen Zone und würde dort nie fertig; pump() führt es aus.
     unawaited(sub.cancel());
     await tester.pump();
+  });
+
+  group('RR-Art passend zur Fake-Kamera', () {
+    int rr1024(int b) =>
+        ((debugPpgBeatTime(b + 1) - debugPpgBeatTime(b)) * 1024).round();
+
+    testWidgets(
+      'Abstände des Schlagplans lückenlos, in Reihenfolge, höchstens 9 je Paket, auch im Zeitraffer',
+      (tester) async {
+        final run = await runCameraWithBelt(tester, follow: true);
+        final sent = [for (final r in run.readings) ...r.rrIntervals];
+        expect(sent, [for (var b = 0; b < sent.length; b++) rr1024(b)]);
+        // Der Gurt deckt die ganze Aufnahme ab (bis zum letzten Bild).
+        expect(
+          debugPpgBeatTime(sent.length),
+          greaterThanOrEqualTo(run.frames.last.t),
+        );
+        expect(
+          run.readings.every(
+            (r) => r.rrIntervals.length <= DebugTestSensor.maxRrPerPacket,
+          ),
+          isTrue,
+        );
+        // Im Zeitraffer 30 kommen je Takt mehrere Schläge: volle Pakete.
+        expect(
+          run.readings.where(
+            (r) => r.rrIntervals.length == DebugTestSensor.maxRrPerPacket,
+          ),
+          isNotEmpty,
+        );
+      },
+    );
+
+    testWidgets('mit ausgeschaltetem sendRr keine RR', (tester) async {
+      final run = await runCameraWithBelt(tester, follow: true, sendRr: false);
+      expect(run.readings, isNotEmpty);
+      expect(run.readings.every((r) => r.rrIntervals.isEmpty), isTrue);
+    });
+
+    testWidgets('neue Aufnahme: der Plan beginnt wieder bei Schlag 0', (
+      tester,
+    ) async {
+      final cam = DebugTestPpgCamera(speed: 30, wallClock: () => Duration.zero);
+      final sensor = DebugTestSensor(
+        FakeClock(DateTime.utc(2030)),
+        interval: beltTakt,
+        sendRr: true,
+      )..rrFollowsPpgCamera = cam;
+      final ev = <HeartRateReading>[];
+      final sub = sensor.connect('fake-gurt-1').listen((e) {
+        if (e is HeartRateReading) ev.add(e);
+      });
+      // Vor der ersten Aufnahme: Pakete ohne RR.
+      await tester.pump(beltTakt * 3);
+      expect(ev, hasLength(3));
+      expect(ev.every((r) => r.rrIntervals.isEmpty), isTrue);
+      for (var i = 0; i < 2; i++) {
+        final vorher = ev.length;
+        var done = false;
+        cam.start().listen((_) {}, onDone: () => done = true);
+        while (!done) {
+          await tester.pump(beltTakt);
+        }
+        await tester.pump(beltTakt);
+        final sent = [for (final r in ev.skip(vorher)) ...r.rrIntervals];
+        expect(sent, isNotEmpty);
+        expect(sent, [for (var b = 0; b < sent.length; b++) rr1024(b)]);
+      }
+      // Nach dem Ende der Aufnahme kommen keine Schläge mehr dazu.
+      final nachEnde = ev.length;
+      await tester.pump(beltTakt * 3);
+      expect(ev.skip(nachEnde).every((r) => r.rrIntervals.isEmpty), isTrue);
+      unawaited(sub.cancel());
+      await tester.pump();
+    });
+
+    testWidgets('ohne Kamera (Standard): ein RR je Paket aus dem Puls', (
+      tester,
+    ) async {
+      final run = await runCameraWithBelt(tester, follow: false);
+      expect(run.readings, isNotEmpty);
+      for (final r in run.readings) {
+        expect(r.rrIntervals, [(1024 * 60 / r.beatsPerMinute).round()]);
+      }
+    });
   });
 }
 

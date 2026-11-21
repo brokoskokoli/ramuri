@@ -40,6 +40,26 @@ class FakeFileHandoff implements FileHandoff {
     discardCount++;
   }
 
+  /// Ergebnis von [clearExports]; Vorgabe: geleert.
+  ExportClearResult nextClear = ExportClearResult.cleared;
+
+  /// `unlessSharing` je Aufruf von [clearExports], in Reihenfolge.
+  final List<bool> clearCalls = [];
+
+  /// `exportsOnly` je Aufruf von [clearExports], in Reihenfolge (parallel zu
+  /// [clearCalls]).
+  final List<bool> clearExportsOnly = [];
+
+  @override
+  Future<ExportClearResult> clearExports({
+    bool unlessSharing = false,
+    bool exportsOnly = false,
+  }) async {
+    clearCalls.add(unlessSharing);
+    clearExportsOnly.add(exportsOnly);
+    return nextClear;
+  }
+
   @override
   Future<String?> exportDirectory() async => directory;
 }

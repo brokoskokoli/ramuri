@@ -100,10 +100,14 @@ spec() {
   python3 tool/spec_tool.py check
 }
 step "spec" spec
+step "Architektur-Doku-Prüfung Selbsttest" python3 tool/check_docs_links_test.py
 step "privat" sh tool/check_private.sh
 # SEC-0002, SEC-0008, ADR-0009: Netz-APIs und Kartenbibliotheken nur im Kartenadapter (fail-closed mit Freigabeliste tool/net_allowed_packages.txt, siehe tool/check_net.py; der Selbsttest tool/check_net_test.py belegt jede Umgehung als rot).
 [ -f app/pubspec.yaml ] && step "Netz nur im Kartenadapter" python3 tool/check_net.py
 [ -f app/pubspec.yaml ] && step "Netz-Prüfung Selbsttest" python3 tool/check_net_test.py
+# Zyklen-Ratsche: keine neuen Zyklen zwischen core-Modulen bzw. App-Features (Grundlinie im Skript, docs/architecture/code-map.md).
+[ -f app/pubspec.yaml ] && step "Architektur (keine neuen Zyklen)" python3 tool/check_architecture.py
+[ -f app/pubspec.yaml ] && step "Architekturprüfung Selbsttest" python3 tool/check_architecture_test.py
 [ -f app/pubspec.yaml ] && step "Release-Manifest-Prüfung Selbsttest" python3 tool/check_release_manifest_test.py
 # WP30: Versionsrechnung des Release-Builds und Tag-Regel des Pre-Push-Hooks (bash explizit, läuft auch unter Linux/dash).
 step "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh

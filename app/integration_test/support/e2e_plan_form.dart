@@ -207,11 +207,17 @@ Future<void> enterProfile(WidgetTester t, StorageSession s) async {
 /// Kurz vor Mitternacht den Tageswechsel abwarten (hoechstens 15 min): Der
 /// Lauftag wird danach festgelegt, und die gefuehrte Einheit (ca. 6 min, Frist
 /// bis 15 min) darf Mitternacht nicht ueberqueren, weil `home_today_done`
-/// gegen "heute" prueft.
+/// gegen "heute" prueft. Die Zeilen `TAGESWECHSEL warten` und `TAGESWECHSEL ende`
+/// (ohne Werte) melden dem Host Beginn und Ende des Wartens; tool/ci_e2e.sh zieht
+/// die Zeit dazwischen vom Zeitlimit der Stufe ab.
 Future<void> waitPastLateEvening(WidgetTester t) async {
-  while (DateTime.now().hour == 23 && DateTime.now().minute >= 45) {
+  bool late() => DateTime.now().hour == 23 && DateTime.now().minute >= 45;
+  if (!late()) return;
+  logPub('TAGESWECHSEL warten');
+  while (late()) {
     await pumpFor(t, const Duration(seconds: 1));
   }
+  logPub('TAGESWECHSEL ende');
 }
 
 /// Dauer des ersten Abschnitts der heutigen Einheit in Sekunden (Standard 300,

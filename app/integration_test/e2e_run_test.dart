@@ -36,8 +36,8 @@ void main() {
     await pumpFor(t, const Duration(seconds: 6));
     step('RUN lauf_beenden');
     await finishRun(t);
-    // Der Abschluss schreibt asynchron in die Datenbank.
-    await pumpFor(t, const Duration(seconds: 2));
+    // Der Abschluss schreibt asynchron in die Datenbank: countRunsFinished
+    // wartet, bis der Lauf als beendet gespeichert ist.
 
     step('RUN gespeichert_pruefen');
     final after = await countRunsFinished(t, w);

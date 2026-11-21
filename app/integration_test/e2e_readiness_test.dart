@@ -381,7 +381,6 @@ void main() {
     step('READINESS S3 detail');
     await tapKey(t, 'readiness_where_from');
     await waitFor(t, () => has('readiness_detail'), 'Detailseite');
-    await pumpFor(t, const Duration(milliseconds: 500));
     final dWarn = has('readiness_detail_warning');
     log(
       'S3 detail warning=$dWarn level=${txt('readiness_detail_level_word')} title=${txt('readiness_detail_title')} text=${txt('readiness_detail_text')}',
@@ -396,7 +395,6 @@ void main() {
     step('READINESS S3 verlauf');
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf');
-    await pumpFor(t, const Duration(milliseconds: 500));
     final camKeys = _seriesKeys();
     log('S3 reihen=${camKeys.join(',')}');
     expect(camKeys.length, 2, reason: 'S3 zwei Reihen (RMSSD, Ruhepuls)');
@@ -515,7 +513,6 @@ void main() {
     step('READINESS S5 detail');
     await tapKey(t, 'readiness_where_from');
     await waitFor(t, () => has('readiness_detail'), 'Detailseite HC');
-    await pumpFor(t, const Duration(milliseconds: 500));
     expect(
       has('readiness_detail_warning'),
       isFalse,
@@ -534,7 +531,6 @@ void main() {
     step('READINESS S5 verlauf');
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf HC');
-    await pumpFor(t, const Duration(milliseconds: 500));
     final hcKeys = _seriesKeys();
     log('S5 reihen=${hcKeys.join(',')}');
     expect(hcKeys.length, 2, reason: 'S5 zwei Reihen (HRV, Ruhepuls)');
@@ -585,7 +581,6 @@ void main() {
     step('READINESS S6 verlauf');
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf beide');
-    await pumpFor(t, const Duration(milliseconds: 500));
     final keys = _seriesKeys();
     log('S6 reihen=${keys.join(',')}');
     for (final k in keys) {
@@ -650,7 +645,6 @@ void main() {
       _expectSleep(t, 'S7 $label', counts: days == 0);
       await tapKey(t, 'readiness_detail_series_link');
       await waitFor(t, () => has('readiness_history'), 'Verlauf $label');
-      await pumpFor(t, const Duration(milliseconds: 500));
       step('READINESS S7 verlauf');
       final keys7 = _seriesKeys();
       log('S7 $label reihen=${keys7.join(',')}');
