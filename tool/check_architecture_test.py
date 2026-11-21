@@ -32,6 +32,7 @@ CASES = [
     ("Zyklus mit passender Grundlinie", CYCLE, 3, 0, None),
     ("neuer Zyklus über import", CYCLE, 0, 0,
      r"core: 3 Module in Zyklen, Grundlinie 0: neuer Zyklus"),
+    ("ein Modul mehr als die Grundlinie", CYCLE, 2, 0, r"core: 3 Module in Zyklen, Grundlinie 2: neuer Zyklus"),
     ("neuer Zyklus nennt Modulnamen und Datei:Zeile", CYCLE, 0, 0,
      r"c → a: app/packages/core/lib/src/c/c\.dart:1 \(zurück über a → b → c\)"),
     ("neuer Zyklus über export", {C + "c/c.dart": "export '../a/a.dart';\n"}, 0, 0,
