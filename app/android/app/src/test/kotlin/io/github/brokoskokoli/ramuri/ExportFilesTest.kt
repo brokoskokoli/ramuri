@@ -284,6 +284,7 @@ class ExportFilesTest {
         assertTrue(ExportFiles.clearHandoff(cache, exportsOnly = true))
         assertEquals(0, exports.list()!!.size)
         // Die gewählte Archivkopie bleibt für die Wiederherstellung lesbar.
+        assertEquals(listOf(ExportFiles.IMPORT_NAME), imports.list()!!.toList())
         assertEquals("gewählt", File(imports, ExportFiles.IMPORT_NAME).readText())
         cache.deleteRecursively()
     }
