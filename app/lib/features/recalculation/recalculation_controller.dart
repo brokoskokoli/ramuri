@@ -7,8 +7,9 @@ import 'package:flutter/foundation.dart';
 ///
 /// Ein Erfolg ist keine eigene Phase: [RecalculationController.confirm] gibt
 /// das Ergebnis zurück, die Seite meldet es als Snackbar, die Karte steht
-/// danach wieder in [idle].
-enum RecalculationPhase { idle, running, failed, declineFailed }
+/// danach wieder in [idle]. [retryFailed]: Der Versuch der nicht
+/// berechenbaren Läufe ohne Angebot ist gescheitert (FR-0219).
+enum RecalculationPhase { idle, running, failed, declineFailed, retryFailed }
 
 /// Warum die App ohne Nachfrage von Banister auf Edwards umgestellt hat
 /// (FR-0197: ohne Läufe mit Werten ist nichts neu zu rechnen). Die Seite
@@ -81,7 +82,14 @@ class RecalculationController extends ChangeNotifier {
   RecalculationResult? _result;
   bool _disposed = false;
 
+  Set<int> _uncomputable = const {};
+
   RecalculationOffer? get offer => _offer;
+
+  /// Ob mindestens ein Lauf nicht berechenbar ist (FR-0219). Gelesen beim
+  /// Start, nach jeder Datenänderung ([onDataChanged]) und über
+  /// [refreshUncomputable].
+  bool get hasUncomputable => _uncomputable.isNotEmpty;
   RecalculationPhase get phase => _phase;
   RecalculationResult? get result => _result;
 
@@ -151,7 +159,48 @@ class RecalculationController extends ChangeNotifier {
   }
 
   void _dataChanged() {
-    if (!_disposed) onDataChanged?.call();
+    if (_disposed) return;
+    onDataChanged?.call();
+    unawaited(refreshUncomputable());
+  }
+
+  /// Liest neu, welche Läufe nicht berechenbar sind, und meldet nur eine
+  /// Änderung. Ein Lesefehler lässt den alten Stand stehen.
+  Future<void> refreshUncomputable() async {
+    if (_disposed) return;
+    try {
+      final ids = await service.uncomputableRuns();
+      if (_disposed || setEquals(ids, _uncomputable)) return;
+      _uncomputable = ids;
+      notifyListeners();
+    } on Object {
+      // Der alte Stand bleibt; beim nächsten Mal erneut.
+    }
+  }
+
+  /// „Neu berechnen“ ohne Angebot (FR-0219): versucht nur die nicht
+  /// berechenbaren Läufe erneut, über [exclusive] (nie parallel zu anderen
+  /// Berechnungen, [onDataChanged] danach). Während des Versuchs ist [busy]
+  /// gesetzt. Gibt `true` zurück, wenn der Versuch gelang; scheitert er, steht
+  /// [RecalculationPhase.retryFailed] (ohne Inhalt des Fehlers). Während einer
+  /// anderen Berechnung oder ohne nicht berechenbaren Lauf geschieht nichts
+  /// (`false`). Mit Angebot zeigt die Karte nur das Angebot; dessen
+  /// Bestätigung versucht die Läufe mit.
+  Future<bool> retryUncomputable() async {
+    if (busy || !hasUncomputable) return false;
+    _phase = RecalculationPhase.running;
+    notifyListeners();
+    var ok = true;
+    try {
+      await exclusive(service.retryUncomputable);
+    } on Object {
+      ok = false;
+    }
+    await refreshUncomputable();
+    if (_disposed) return ok;
+    _phase = ok ? RecalculationPhase.idle : RecalculationPhase.retryFailed;
+    notifyListeners();
+    return ok;
   }
 
   /// Führt [action] erst aus, wenn der Start (Nachholen beim Start) und alle
