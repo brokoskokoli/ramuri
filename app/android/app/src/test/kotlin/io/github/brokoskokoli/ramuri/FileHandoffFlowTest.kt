@@ -128,10 +128,10 @@ class FileHandoffFlowTest {
             drain()
             assertEquals(listOf("clear:CLEARED"), log)
             assertEquals(0, File(cache, ExportFiles.DIR).list()!!.size)
-            assertEquals(
-                "gewählt",
-                File(cache, "${ExportFiles.IMPORT_DIR}/${ExportFiles.IMPORT_NAME}").readText(),
-            )
+            // Die gewählte Archivkopie bleibt für die Wiederherstellung lesbar.
+            val picked = File(cache, "${ExportFiles.IMPORT_DIR}/${ExportFiles.IMPORT_NAME}")
+            assertEquals(listOf(ExportFiles.IMPORT_NAME), File(cache, ExportFiles.IMPORT_DIR).list()!!.toList())
+            assertEquals("gewählt", picked.readText())
         } finally {
             cache.deleteRecursively()
         }
