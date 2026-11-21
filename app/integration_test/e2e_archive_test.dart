@@ -5,7 +5,9 @@
 // (AppDependencies.archiveExport schreibt die echte, verschluesselte Archivdatei
 // in den Exportordner, AppDependencies.archiveRestore liest sie in die echte
 // verschluesselte Datenbank ein und tauscht sie). Geprueft wird der
-// gespeicherte Zustand vor Export und nach Reimport. Synthetische Daten,
+// gespeicherte Zustand vor Export und nach Reimport, dazu nach "Alles loeschen"
+// der leere Export- und Importordner (SEC-0004; das Archiv liest der Reimport
+// aus einer Kopie ausserhalb). Synthetische Daten,
 // Ausgabe nur Zaehler. Laeuft in der Sammlung (all_test.dart).
 import 'dart:io';
 
@@ -46,6 +48,41 @@ Future<String> _snapshot(WidgetTester t, StorageSession s) async {
     }
     return b.toString();
   }))!;
+}
+
+/// Kopiert das Archiv aus dem Exportordner nach `<cache>/e2e_archive_copy/`,
+/// wie eine vom Nutzer gespeicherte Datei ausserhalb der Ablagen der App:
+/// "Alles loeschen" leert den Exportordner (SEC-0004), der Reimport liest die
+/// Kopie.
+Future<String> _keepCopy(WidgetTester t, String exportDir, String path) async {
+  return (await t.runAsync(() async {
+    final dir = Directory(
+      '${Directory(exportDir).parent.path}/e2e_archive_copy',
+    );
+    await dir.create(recursive: true);
+    final copy = '${dir.path}/${path.substring(path.lastIndexOf('/') + 1)}';
+    await File(path).copy(copy);
+    return copy;
+  }))!;
+}
+
+/// SEC-0004: Nach "Alles loeschen" liegt im Export- und im Importordner nichts
+/// mehr. Ausgabe nur Zaehler.
+Future<void> _expectHandoffEmpty(WidgetTester t, String exportDir) async {
+  final counts = (await t.runAsync(() async {
+    Future<int> count(String p) async {
+      final d = Directory(p);
+      if (!await d.exists()) return 0;
+      return d.list().length;
+    }
+
+    return [
+      await count(exportDir),
+      await count('${Directory(exportDir).parent.path}/imports'),
+    ];
+  }))!;
+  log('ARCHIVE nach_loeschen exports=${counts[0]} imports=${counts[1]}');
+  expect(counts, [0, 0], reason: 'Export- und Importordner leer');
 }
 
 void main() {
@@ -91,10 +128,20 @@ void main() {
     expect(path, isNotNull, reason: 'Archivdatei hat einen Pfad');
     final size = (await t.runAsync(() => File(path!).length()))!;
     expect(size, greaterThan(0), reason: 'Archivdatei nicht leer');
+    final exportDir = (await t.runAsync(
+      () => w.deps.fileHandoff.exportDirectory(),
+    ))!;
+    expect(
+      File(path!).parent.path,
+      Directory(exportDir).resolveSymbolicLinksSync(),
+      reason: 'Archiv liegt im Exportordner',
+    );
+    final copy = await _keepCopy(t, exportDir, path);
 
     step('ARCHIVE loeschen');
-    // Alles loeschen; der Speicher ist danach leer.
+    // Alles loeschen; der Speicher ist danach leer, die Ablagen auch.
     await t.runAsync(() => s.deleteAll());
+    await _expectHandoffEmpty(t, exportDir);
     final emptied = await _snapshot(t, s);
     expect(emptied, isNot(before));
     expect(emptied, isNot(contains('manual')));
@@ -110,7 +157,7 @@ void main() {
     final restore = (await t.runAsync(
       () => w.deps.archiveRestore!(s, <T>(a) => a()),
     ))!;
-    s = (await t.runAsync(() => restore(path: path!, password: _password)))!;
+    s = (await t.runAsync(() => restore(path: copy, password: _password)))!;
     w.deps.storageStart.adoptSession(s);
     await pumpFor(t, const Duration(seconds: 1));
 
@@ -135,7 +182,7 @@ void main() {
     final failure = await t.runAsync<ArchiveImportFailure?>(() async {
       try {
         await again(
-          path: path!,
+          path: copy,
           password: 'falsches Passwort 2',
           resetConfirmed: true,
         );
@@ -150,7 +197,7 @@ void main() {
       isTrue,
       reason: 'unveraendert nach Fehler (Werte nie ausgeben)',
     );
-    await t.runAsync(() => File(path!).delete());
+    await t.runAsync(() => File(copy).delete());
 
     step('ARCHIVE ohne_passwort_export');
     // Archiv ohne Passwort (SEC-0011): leeres Passwort, gleiches Format.
@@ -158,9 +205,11 @@ void main() {
     final openFile = (await t.runAsync(() => exportOpen(password: '')))!;
     final openPath = openFile.path;
     expect(openPath, isNotNull, reason: 'Archivdatei hat einen Pfad');
+    final openCopy = await _keepCopy(t, exportDir, openPath!);
 
     step('ARCHIVE ohne_passwort_loeschen');
     await t.runAsync(() => s.deleteAll());
+    await _expectHandoffEmpty(t, exportDir);
     expect(
       (await t.runAsync(() => ArchiveRestoreService.isEmpty(s)))!,
       isTrue,
@@ -172,7 +221,7 @@ void main() {
     final restoreOpen = (await t.runAsync(
       () => w.deps.archiveRestore!(s, <T>(a) => a()),
     ))!;
-    s = (await t.runAsync(() => restoreOpen(path: openPath!, password: '')))!;
+    s = (await t.runAsync(() => restoreOpen(path: openCopy, password: '')))!;
     w.deps.storageStart.adoptSession(s);
     await pumpFor(t, const Duration(seconds: 1));
     expect(
@@ -181,6 +230,6 @@ void main() {
       reason:
           'Inhalt nach Reimport ohne Passwort wie vorher (Werte nie ausgeben)',
     );
-    await t.runAsync(() => File(openPath!).delete());
+    await t.runAsync(() => File(openCopy).parent.delete(recursive: true));
   }, timeout: const Timeout(Duration(minutes: 5)));
 }

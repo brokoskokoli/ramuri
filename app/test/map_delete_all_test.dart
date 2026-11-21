@@ -350,7 +350,7 @@ void main() {
     test(
       'D3: "Alles löschen" der Sitzung räumt den echten Kartenspeicher ab',
       () async {
-        final wiring = storageWiringFor(dbPath, map);
+        final wiring = storageWiringFor(dbPath, map, FakeFileHandoff());
         await map.write('map:/a', bytes(500));
         expect(File(mapFile()).existsSync(), isTrue);
         final session = await wiring.storage.open(key);
@@ -363,7 +363,7 @@ void main() {
     test(
       'D4: Neubeginn nach Schlüsselverlust räumt den echten Kartenspeicher ab',
       () async {
-        final wiring = storageWiringFor(dbPath, map);
+        final wiring = storageWiringFor(dbPath, map, FakeFileHandoff());
         await map.write('map:/a', bytes(500));
         File(dbPath).writeAsBytesSync([1]);
         await wiring.files.deleteAll();
