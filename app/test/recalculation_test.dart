@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/recalculation/recalculation_card.dart';
 import 'package:running_app/features/storage/deletion.dart';
 
 import 'app_harness.dart';
@@ -857,6 +858,7 @@ const _uncomputableTexts = {
         'Bei einigen Läufen ließen sich die Werte nach drei Versuchen nicht '
         'berechnen. Die Aufzeichnungen sind vollständig gespeichert.',
     button: 'Neu berechnen',
+    decline: 'Nicht jetzt',
     failed:
         'Die Berechnung ist wieder fehlgeschlagen. Die Aufzeichnungen sind '
         'unverändert.',
@@ -867,6 +869,7 @@ const _uncomputableTexts = {
         'The values of some runs could not be calculated after three '
         'attempts. The recordings are fully saved.',
     button: 'Recalculate',
+    decline: 'Not now',
     failed: 'The calculation failed again. The recordings are unchanged.',
   ),
 };
@@ -918,6 +921,40 @@ Future<void> _openSettings(WidgetTester tester) async {
 
 Future<Map<int, int>> _failureCounts(Device d) =>
     CalculationFailures(settings: d.session.settings, clock: d.clock).read();
+
+/// Löst ein Angebot direkt über den Dienst aus (Profiländerung HFmax 190 auf
+/// [max]), ohne die Reihe der Berechnungen: so kommt es an, während der
+/// Versuch der nicht berechenbaren Läufe noch wartet.
+Future<void> _offerNow(WidgetTester tester, {int max = 180}) async {
+  final controller = tester
+      .widget<RecalculationCard>(find.byType(RecalculationCard))
+      .controller;
+  final offer = await controller.service.profileChanged(
+    before: const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
+    after: ProfileRecord(maxHeartRateBpm: max, restingHeartRateBpm: 60),
+  );
+  expect(offer, isNotNull);
+  await tester.pump();
+}
+
+/// Ob die Schaltfläche mit [key] die Beschriftung [label] trägt und
+/// bedienbar ist.
+void _expectEnabledButton(Key key, String label) {
+  final button = find.byKey(key);
+  expect(
+    find.descendant(of: button, matching: find.text(label)),
+    findsOneWidget,
+  );
+  final inner = find.descendant(
+    of: button,
+    matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+  );
+  expect(
+    (inner.evaluate().single.widget as ButtonStyleButton).onPressed,
+    isNotNull,
+    reason: '$key bedienbar',
+  );
+}
 
 void _uncomputableTests() {
   group('Nicht berechenbare Läufe ohne Angebot (FR-0219)', () {
@@ -1111,6 +1148,64 @@ void _uncomputableTests() {
       expect(await _failureCounts(d), isEmpty);
       expect(find.byKey(const Key('recalc_progress')), findsNothing);
       expect(find.byKey(const Key('recalc_uncomputable')), findsNothing);
+    });
+    for (final MapEntry(key: locale, value: t) in _uncomputableTexts.entries) {
+      testWidgets('Neu berechnen scheitert, während ein Angebot ankommt: '
+          'Meldung in der Karte des Angebots ($locale)', (tester) async {
+        final gate = _Gate();
+        await _startUncomputable(tester, locale: locale, gate: gate);
+        await _openSettings(tester);
+        gate.fail = true;
+        final hold = gate.hold = Completer<void>();
+        await tester.tap(find.byKey(const Key('recalc_uncomputable_confirm')));
+        await tester.pump();
+        expect(find.byKey(const Key('recalc_progress')), findsOneWidget);
+        await _offerNow(tester);
+        hold.complete();
+        gate.hold = null;
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        final dialog = find.byKey(const Key('recalc_dialog'));
+        expect(dialog, findsOneWidget);
+        expect(find.byKey(const Key('recalc_uncomputable')), findsNothing);
+        final status = find.byKey(const Key('recalc_status'));
+        expect(find.descendant(of: dialog, matching: status), findsOneWidget);
+        expect((status.evaluate().single.widget as Text).data, t.failed);
+        expect(find.textContaining('StorageException'), findsNothing);
+        expect(find.textContaining('failed.'), findsNothing);
+        expect(find.byKey(const Key('recalc_progress')), findsNothing);
+        _expectEnabledButton(const Key('recalc_confirm'), t.button);
+        _expectEnabledButton(const Key('recalc_decline'), t.decline);
+
+        // Ein weiteres Angebot setzt die Meldung zurück.
+        await _offerNow(tester, max: 175);
+        await tester.pumpAndSettle();
+        expect(dialog, findsOneWidget);
+        expect(status, findsNothing);
+      });
+    }
+
+    testWidgets('Neu berechnen gelingt, während ein Angebot ankommt: '
+        'Karte des Angebots ohne Status', (tester) async {
+      final gate = _Gate();
+      final (d, ids) = await _startUncomputable(tester, gate: gate);
+      await _openSettings(tester);
+      final hold = gate.hold = Completer<void>();
+      await tester.tap(find.byKey(const Key('recalc_uncomputable_confirm')));
+      await tester.pump();
+      await _offerNow(tester);
+      hold.complete();
+      gate.hold = null;
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      for (final id in ids) {
+        expect(gate.runWrites[id], 1, reason: 'Lauf $id');
+      }
+      expect(await _failureCounts(d), isEmpty);
+      expect(find.byKey(const Key('recalc_dialog')), findsOneWidget);
+      expect(find.byKey(const Key('recalc_uncomputable')), findsNothing);
+      expect(find.byKey(const Key('recalc_status')), findsNothing);
+      expect(find.byKey(const Key('recalc_progress')), findsNothing);
     });
   });
 }
