@@ -214,6 +214,7 @@ Future<void> _guidedUnit(WidgetTester t) async {
 
   step('TREADMILL_PLAN beenden');
   await tapVisible(t, 'run_pause');
+  await waitFor(t, () => has('run_resume'), 'Pause (run_resume)');
   await tapVisible(t, 'run_finish');
   await waitFor(t, () => has('run_finish_confirm'), 'Beenden-Dialog');
   await tapDialog(t, 'run_finish_confirm');
