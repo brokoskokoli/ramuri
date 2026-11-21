@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
+import '../support/settle_storage.dart';
+
 /// Gemeinsame Hilfen für Widget-Tests. Ein Name je Bedeutung: Varianten mit
 /// anderem Verhalten haben eigene Namen, keine Schalter.
 
@@ -27,34 +29,32 @@ Future<void> tapFinderAfterSettle(WidgetTester tester, Finder f) async {
   await tester.pumpAndSettle();
 }
 
-/// Lässt Quelle und Kacheln (echte Zeit) zur Ruhe kommen: wartet, bis
-/// [requests] sechs Runden lang unverändert bleibt.
+/// Lässt Quelle und Kacheln zur Ruhe kommen: wartet, bis [requests] sechs
+/// Frames (je 300 ms Testzeit) lang unverändert bleibt; ohne Echtzeit-Pausen
+/// ([settleStorage]).
 Future<void> settleUntilRequestsStable(
   WidgetTester tester,
   int Function() requests,
 ) async {
   var last = -1;
   var stable = 0;
-  while (stable < 6) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 40)),
-    );
-    await tester.pump(const Duration(milliseconds: 300));
-    stable = requests() == last ? stable + 1 : 0;
-    last = requests();
-  }
+  await settleStorage(
+    tester,
+    until: () => stable >= 6,
+    onFrame: () {
+      stable = requests() == last ? stable + 1 : 0;
+      last = requests();
+    },
+    what: 'Kachelanfragen sechs Frames lang unverändert',
+    frame: const Duration(milliseconds: 300),
+  );
 }
 
-/// Lässt Lesen, Aufnahme und Speichern (echte Zeit) zur Ruhe kommen: feste
-/// zwölf Runden, ohne Bedingung.
-Future<void> settleRealTimeFixed(WidgetTester tester) async {
-  for (var i = 0; i < 12; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 30)),
-    );
-    await tester.pump(const Duration(milliseconds: 100));
-  }
-}
+/// Lässt Lesen, Aufnahme und Speichern zur Ruhe kommen: feste zwölf Frames
+/// zu je 100 ms Testzeit, ohne Bedingung und ohne Echtzeit-Pausen
+/// ([observeFrames]).
+Future<void> settleFixedFrames(WidgetTester tester) =>
+    observeFrames(tester, 12, frame: const Duration(milliseconds: 100));
 
 /// MaterialApp mit App-Theme (hell oder dunkel), Sprache und den
 /// Lokalisierungen der App, so wie die Widget-Tests sie brauchen. Varianten

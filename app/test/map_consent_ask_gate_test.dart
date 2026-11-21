@@ -12,6 +12,8 @@ import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/map/map_source_holder.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 
+import 'support/settle_storage.dart';
+
 class _Consents implements ConsentStore {
   final Map<String, ConsentState> data = {};
   @override
@@ -54,14 +56,9 @@ MapConsentController _controller([ConsentStore? store]) {
   );
 }
 
-Future<void> _wait(WidgetTester tester, [int rounds = 8]) async {
-  for (var i = 0; i < rounds; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 25)),
-    );
-    await tester.pump(const Duration(milliseconds: 50));
-  }
-}
+/// [rounds] Frames zu 50 ms Testzeit, ohne Echtzeit-Pausen.
+Future<void> _wait(WidgetTester tester, [int rounds = 8]) =>
+    observeFrames(tester, rounds, frame: const Duration(milliseconds: 50));
 
 final _dialog = find.byKey(const Key('map_consent_dialog'));
 

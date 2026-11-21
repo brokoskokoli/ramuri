@@ -20,6 +20,7 @@ import 'package:running_app/features/storage/storage_start.dart';
 import 'app_harness.dart';
 import 'history_summary_test.dart' show openHistory;
 import 'run_detail_test.dart' show seedDetailRun;
+import 'support/settle_storage.dart';
 
 Finder key(String k) => find.byKey(Key(k));
 
@@ -87,14 +88,9 @@ const _route = [
   [RoutePoint(10, 20), RoutePoint(10.001, 20.001)],
 ];
 
-Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 8; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 20)),
-    );
-    await tester.pump(const Duration(milliseconds: 50));
-  }
-}
+/// Acht Frames zu 50 ms Testzeit, ohne Echtzeit-Pausen.
+Future<void> _settle(WidgetTester tester) =>
+    observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
 
 MapConsentController _granted(
   _World w,
