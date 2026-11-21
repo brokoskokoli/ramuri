@@ -117,13 +117,19 @@ abstract interface class FileHandoff {
   /// [pickFile]) samt Unterordnern, beim Löschen von Daten (SEC-0004: „Alles
   /// löschen“, „Lauf löschen“). Mit [unlessSharing] bleibt alles liegen,
   /// solange eine Übergabe offen ist (das System liest die Datei womöglich
-  /// noch); die Plattform räumt dann beim nächsten Prozessstart. Wirft nie.
-  Future<ExportClearResult> clearExports({bool unlessSharing = false});
+  /// noch); die Plattform räumt dann beim nächsten Prozessstart. Mit
+  /// [exportsOnly] nur [exportDirectory], die Kopie aus [pickFile] bleibt
+  /// (Neubeginn nach Schlüsselverlust: die Wiederherstellung liest das gewählte
+  /// Archiv danach noch; es entfernt [discardPicked]). Wirft nie.
+  Future<ExportClearResult> clearExports({
+    bool unlessSharing = false,
+    bool exportsOnly = false,
+  });
 }
 
 /// Ergebnis von [FileHandoff.clearExports].
 enum ExportClearResult {
-  /// Beide Ablagen sind leer (auch: es lag nichts darin).
+  /// Die geleerten Ablagen sind leer (auch: es lag nichts darin).
   cleared,
 
   /// Nichts geleert, weil eine Übergabe offen ist (nur mit `unlessSharing`).

@@ -407,7 +407,7 @@ void main() {
     Future<(HealthConnectController, _ImportPort)> setup() async {
       final storage = FakeStorage();
       final port = _ImportPort();
-      final c = HealthConnectController(
+      final c = healthConnectSession(
         port: port,
         store: storage.data.health,
         settings: FakeSettingsStore(storage.data),

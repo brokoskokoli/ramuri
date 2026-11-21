@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +18,37 @@ import 'storage_world.dart';
 const String _pw = 'synthetisches Testpasswort';
 const String _path = '/cache/imports/archive.bin';
 
+/// Übergabe mit der gewählten Kopie in `imports/`: [pickFile] legt sie an,
+/// [discardPicked] und ein Leeren beider Ablagen entfernen sie.
+class _ImportCopyHandoff extends FakeFileHandoff {
+  bool copyPresent = false;
+
+  @override
+  Future<FilePickResult> pickFile() async {
+    final r = await super.pickFile();
+    copyPresent = r.result == FileHandoffResult.completed;
+    return r;
+  }
+
+  @override
+  Future<void> discardPicked() async {
+    await super.discardPicked();
+    copyPresent = false;
+  }
+
+  @override
+  Future<ExportClearResult> clearExports({
+    bool unlessSharing = false,
+    bool exportsOnly = false,
+  }) async {
+    if (!exportsOnly) copyPresent = false;
+    return super.clearExports(
+      unlessSharing: unlessSharing,
+      exportsOnly: exportsOnly,
+    );
+  }
+}
+
 /// Ersatz für Prüfung und Wiederherstellung. Merkt, wie viele Löschaufrufe
 /// der Dateien zum Zeitpunkt jedes Aufrufs schon liefen.
 class _Fakes {
@@ -29,6 +62,10 @@ class _Fakes {
   final List<Object> restoreErrors = [];
   Completer<void>? verifyGate;
   StorageSession? freshSeen;
+
+  /// Liegt die gewählte Kopie noch? (gesetzt nur im Test mit Verdrahtung)
+  bool Function()? copyReadable;
+  final List<bool?> copyReadableAtRestore = [];
 
   /// Das Archiv hat ein Passwort: die Prüfung mit dem leeren Passwort scheitert
   /// wie beim echten Leser am ersten Stück (vor [verifyGate] und Fehlern).
@@ -79,6 +116,7 @@ class _Fakes {
       ArchiveCancel? cancel,
     }) async {
       events.add('restore(delete=${w.files.deleteCalls})');
+      copyReadableAtRestore.add(copyReadable?.call());
       restores.add((path: path, password: password, reset: resetConfirmed));
       if (restoreErrors.isNotEmpty) throw restoreErrors.removeAt(0);
       return restored;
@@ -90,6 +128,7 @@ Future<(World, _Fakes, FakeFileHandoff, StorageStartController)> _pump(
   WidgetTester tester, {
   bool wired = true,
   FilePickResult pick = const FilePickResult.completed(_path),
+  FakeFileHandoff? fileHandoff,
 }) async {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1;
@@ -105,7 +144,7 @@ Future<(World, _Fakes, FakeFileHandoff, StorageStartController)> _pump(
     '1',
     at: DateTime.utc(2030),
   );
-  final handoff = FakeFileHandoff()..nextPick = pick;
+  final handoff = (fileHandoff ?? FakeFileHandoff())..nextPick = pick;
   final c = w.controller();
   await tester.pumpWidget(
     RunningApp(
@@ -549,6 +588,38 @@ void main() {
     expect(w.files.deleteCalls, 1, reason: 'kein zweiter Neubeginn');
     expect(w.violations, isEmpty);
   });
+
+  testWidgets(
+    'Neubeginn mit echter Verdrahtung leert nur die Exportablage: '
+    'die gewählte Kopie ist beim Einspielen noch lesbar (SEC-0004, SEC-0009)',
+    (tester) async {
+      final h = _ImportCopyHandoff();
+      final (w, f, _, c) = await _pump(tester, fileHandoff: h);
+      final dir = Directory.systemTemp.createTempSync('restore_gate_wire_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final map = EncryptedMapTileStore(
+        directory: () async => dir.path,
+        key: () async => keyOf(9),
+      );
+      w.files.alsoDelete = databaseFilesFor(
+        '${dir.path}/running_app.db',
+        map,
+        h,
+      ).alsoDelete;
+      f.copyReadable = () => h.copyPresent;
+      await _tap(tester, 'not_openable_restore');
+      await _password(tester);
+      expect(h.clearCalls, isEmpty, reason: 'vor der Bestätigung nichts');
+      await _tap(tester, 'restore_confirm_action');
+      expect(f.events, ['verify(delete=0)', 'restore(delete=1)']);
+      expect(h.clearExportsOnly, [true]);
+      expect(h.clearCalls, [false]);
+      expect(f.copyReadableAtRestore, [true]);
+      expect(h.discardCount, 1);
+      expect(h.copyPresent, isFalse, reason: 'discardPicked danach');
+      expect((c.state as StorageReady).session, same(f.restored));
+    },
+  );
 
   testWidgets('Neubeginn scheitert (Datei nicht löschbar): kein Einspielen', (
     tester,

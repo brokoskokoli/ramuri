@@ -172,6 +172,14 @@ case "${E2E_ADB_LIMIT_S:-}" in
     adb_limit_s=$E2E_ADB_LIMIT_S ;;
 esac
 
+# Takt der Warteschleife je Stufe in s (Zustand, Zeitlimit, NEED_KILL, Foto); leer wie 2. E2E_TAKT_S=<s> (Zahl > 0,
+# auch mit Nachkommastellen, nur Selbsttest) verkuerzt ihn; ein anderer Wert ist ein Fehler vor der ersten Stufe.
+case "${E2E_TAKT_S:-}" in
+  "") takt_s=2 ;;
+  *[!0-9.]* | .* | *. | *.*.* ) echo "E2E_TAKT_S keine positive Zahl"; exit 1 ;;
+  *) case "$E2E_TAKT_S" in *[1-9]*) takt_s=$E2E_TAKT_S ;; *) echo "E2E_TAKT_S keine positive Zahl"; exit 1 ;; esac ;;
+esac
+
 # Versatz der Emulatoruhr (nur Selbsttest und Nachweislauf); leer wie 0.
 case "${E2E_UHR_VERSATZ_S:-}" in
   "") uhr_versatz_s=0 ;;
@@ -329,7 +337,7 @@ stufe() {
       a shell am force-stop "$pkg"
       killed=0
     fi
-    sleep 2
+    sleep "$takt_s"
   done
   wait "$pid"
   rc=$?

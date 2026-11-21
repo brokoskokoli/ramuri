@@ -3,33 +3,65 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
-/// Stand und Aktionen der Seite „Health Connect“ (WP32 Teil C2). Eine Instanz je Sitzung; sie
-/// besitzt den [ConsentService] und den [HealthImportService], damit Widerrufe sofort für den Import gelten (SEC-0001).
-/// Keine Werte in Fehlern oder Logs.
-class HealthConnectController extends ChangeNotifier {
-  HealthConnectController({
-    required this.port,
-    required this.store,
-    required SettingsStore settings,
-    required ConsentStore consentStore,
-    required this.clock,
-  }) : _settings = settings,
-       consents = ConsentService(consentStore, clock) {
-    importer = HealthImportService(
-      port: port,
+/// Baut den Controller einer Sitzung aus dem ganzen Port: Die Seite bekommt nur [HealthConnectPermissions], das Lesen
+/// geht nur über [ConsentedHealthReader] in den [HealthImportService] (SEC-0001, SEC-0002). Seite, Import und Wächter
+/// teilen sich eine [ConsentService]-Instanz, damit Widerrufe sofort für den Import gelten.
+HealthConnectController healthConnectSession({
+  required HealthConnectPort port,
+  required HealthImportStore store,
+  required SettingsStore settings,
+  required ConsentStore consentStore,
+  required Clock clock,
+  void Function(Object error, StackTrace stack)? countError,
+}) {
+  final consents = ConsentService(consentStore, clock);
+  return HealthConnectController(
+    permissions: port,
+    importer: HealthImportService(
+      permissions: port,
+      reader: ConsentedHealthReader(port, consents),
       store: store,
-      consents: consents,
       clock: clock,
       settings: settings,
-    );
-  }
+    ),
+    store: store,
+    settings: settings,
+    clock: clock,
+    countError: countError,
+  );
+}
 
-  final HealthConnectPort port;
+/// Stand und Aktionen der Seite „Health Connect“ (WP32 Teil C2). Eine Instanz je Sitzung (siehe
+/// [healthConnectSession]); sie hat nur Rechte und Zustand von Health Connect ([permissions]), kein Lesen, und nutzt die
+/// Einwilligungen des [importer], damit Widerrufe sofort für den Import gelten (SEC-0001). Keine Werte in Fehlern oder
+/// Logs.
+class HealthConnectController extends ChangeNotifier {
+  HealthConnectController({
+    required this.permissions,
+    required this.importer,
+    required this.store,
+    required this._settings,
+    required this.clock,
+    this.countError,
+  });
+
+  final HealthConnectPermissions permissions;
   final HealthImportStore store;
-  final ConsentService consents;
   final Clock clock;
   final SettingsStore _settings;
-  late final HealthImportService importer;
+  final HealthImportService importer;
+
+  /// Dieselbe Instanz wie im Import und im Wächter.
+  ConsentService get consents => importer.consents;
+
+  /// Zählt die hier still abgefangenen Fehler (nur Typ und Ort, `ErrorCounter.record`); `null`: nicht verdrahtet.
+  final void Function(Object error, StackTrace stack)? countError;
+
+  void _count(Object error, StackTrace stack) {
+    try {
+      countError?.call(error, stack);
+    } catch (_) {}
+  }
 
   bool loaded = false;
   HealthSdkStatus sdk = HealthSdkStatus.unavailable;
@@ -100,7 +132,8 @@ class HealthConnectController extends ChangeNotifier {
     if (!questions.contains(kind)) return false;
     try {
       return await consents.isDeleteQuestionOpen(healthSourceKey(kind));
-    } catch (_) {
+    } catch (e, s) {
+      _count(e, s);
       return true;
     }
   }
@@ -122,7 +155,7 @@ class HealthConnectController extends ChangeNotifier {
   }
 
   /// Nach einem Import, der neue Sätze gespeichert hat (Auslöser „veränderter Erholungszustand“, FR-0157). Ohne
-  /// Werte; Fehler darin bleiben still.
+  /// Werte; Fehler darin bleiben still und werden nur gezählt.
   VoidCallback? onNewData;
 
   /// Ein Import über den Dienst; meldet neue Sätze an [onNewData].
@@ -131,33 +164,40 @@ class HealthConnectController extends ChangeNotifier {
     if (healthImportStoredNew(result)) {
       try {
         onNewData?.call();
-      } catch (_) {}
+      } catch (e, s) {
+        _count(e, s);
+      }
     }
     return result;
   }
 
-  /// Import beim App-Start und beim Öffnen von „Heute“; Fehler bleiben still, die Sperre hält der Dienst.
+  /// Import beim App-Start und beim Öffnen von „Heute“; Fehler bleiben still (nur gezählt), die Sperre hält der Dienst.
   void runInBackground(HealthImportTrigger trigger) {
-    _run(trigger).then<void>((_) {}, onError: (Object _) {});
+    _run(trigger).then<void>((_) {}, onError: _count);
   }
 
   /// Import wie [runInBackground], danach Zustand neu lesen, damit offene Löschfragen beim Öffnen der App gezeigt werden
-  /// können (SEC-0007, nicht nur auf der Health-Connect-Seite). Fehler bleiben still.
+  /// können (SEC-0007, nicht nur auf der Health-Connect-Seite). Fehler bleiben still (nur gezählt).
   Future<void> importThenLoad(HealthImportTrigger trigger) async {
     try {
       await _run(trigger);
-    } catch (_) {}
+    } catch (e, s) {
+      _count(e, s);
+    }
     try {
       await load();
-    } catch (_) {}
+    } catch (e, s) {
+      _count(e, s);
+    }
   }
 
   /// Liest Zustand, Einwilligungen, Rechte und offene Löschfragen neu. Fehlt ein Recht für eine eingewilligte Art (oder ist Health Connect nicht mehr
   /// verfügbar), deren importierte Daten es gibt, wird die Löschfrage geöffnet (SEC-0007); ohne Daten wird sie still geschlossen.
   Future<void> load() async {
     try {
-      sdk = await port.sdkStatus();
-    } catch (_) {
+      sdk = await permissions.sdkStatus();
+    } catch (e, s) {
+      _count(e, s);
       sdk = HealthSdkStatus.unavailable;
     }
     final on = <HealthDataKind>{};
@@ -168,8 +208,9 @@ class HealthConnectController extends ChangeNotifier {
     permitted = {};
     if (sdk == HealthSdkStatus.available) {
       try {
-        permitted = await port.grantedKinds();
-      } catch (_) {
+        permitted = await permissions.grantedKinds();
+      } catch (e, s) {
+        _count(e, s);
         permitted = {};
       }
     }
@@ -188,7 +229,8 @@ class HealthConnectController extends ChangeNotifier {
           await consents.closeDeleteQuestion(key);
           ask = false;
         }
-      } catch (_) {
+      } catch (e, s) {
+        _count(e, s);
         // Lesefehler: die Frage bleibt, wie sie war; der nächste Start fragt wieder.
       }
       if (ask) open.add(k);
@@ -207,7 +249,8 @@ class HealthConnectController extends ChangeNotifier {
       return ms == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toLocal();
-    } catch (_) {
+    } catch (e, s) {
+      _count(e, s);
       return null;
     }
   }
@@ -218,7 +261,9 @@ class HealthConnectController extends ChangeNotifier {
     await consents.grant(key);
     try {
       await consents.closeDeleteQuestion(key);
-    } catch (_) {}
+    } catch (e, s) {
+      _count(e, s);
+    }
     enabled = {...enabled, kind};
     questions = [...questions]..remove(kind);
     _notify();
@@ -232,7 +277,9 @@ class HealthConnectController extends ChangeNotifier {
     enabled = {...enabled}..remove(kind);
     try {
       await consents.openDeleteQuestion(key);
-    } catch (_) {}
+    } catch (e, s) {
+      _count(e, s);
+    }
     if (!questions.contains(kind)) questions = [...questions, kind];
     _notify();
   }
@@ -258,8 +305,9 @@ class HealthConnectController extends ChangeNotifier {
   /// „Health Connect installieren“: öffnet den Play Store; `false`, wenn sich nichts öffnen ließ (kein Absturz).
   Future<bool> openInstall() async {
     try {
-      return await port.openInstall();
-    } catch (_) {
+      return await permissions.openInstall();
+    } catch (e, s) {
+      _count(e, s);
       return false;
     }
   }
@@ -268,8 +316,9 @@ class HealthConnectController extends ChangeNotifier {
   Future<void> requestRights() async {
     if (enabled.isEmpty) return;
     try {
-      permitted = await port.requestPermissions({...enabled});
-    } catch (_) {
+      permitted = await permissions.requestPermissions({...enabled});
+    } catch (e, s) {
+      _count(e, s);
       permitted = {};
     }
     _notify();

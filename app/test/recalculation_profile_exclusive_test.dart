@@ -150,4 +150,49 @@ void main() {
     expect(controller.offer?.runIds, [runId]);
     expect(controller.offer?.causes, {RecalculationCause.heartRateBasis});
   });
+  test('Profiländerung liest das Angebot neu: zurückgenommenes Angebot '
+      'verschwindet aus der Karte', () async {
+    await finishRun(Completer<void>()..complete());
+    await controller.profileChanged(_before, _after);
+    final shown = controller.offer;
+    expect(shown, isNotNull);
+
+    // Rücknahme am Controller vorbei: der Strom meldet nur neue Angebote.
+    var events = 0;
+    final sub = service.offers.listen((_) => events++);
+    addTearDown(sub.cancel);
+    await service.decline(shown!);
+    expect(await service.pendingOffer(), isNull);
+    expect(controller.offer, isNotNull, reason: 'Karte zeigt noch den alten');
+
+    // Gleiche Herzfrequenzbasis: kein neues Angebot über den Strom.
+    await controller.profileChanged(_after, _after);
+    expect(controller.offer, isNull);
+    expect(await service.pendingOffer(), isNull);
+    expect(controller.phase, RecalculationPhase.idle);
+    await settle();
+    expect(events, 0, reason: 'nur das Neulesen darf die Karte ändern');
+  });
+
+  test('Profiländerung ohne Änderung am offenen Angebot lässt die Karte '
+      'unverändert', () async {
+    final runId = await finishRun(Completer<void>()..complete());
+    await controller.profileChanged(_before, _after);
+    final shown = controller.offer;
+    expect(shown, isNotNull);
+
+    var events = 0;
+    final sub = service.offers.listen((_) => events++);
+    addTearDown(sub.cancel);
+    await controller.profileChanged(_after, _after);
+    expect(controller.offer, same(shown));
+    expect(controller.offer?.runIds, [runId]);
+    expect(controller.offer?.causes, {RecalculationCause.heartRateBasis});
+    final pending = await service.pendingOffer();
+    expect(pending?.runIds, [runId]);
+    expect(pending?.causes, {RecalculationCause.heartRateBasis});
+    expect(controller.phase, RecalculationPhase.idle);
+    await settle();
+    expect(events, 0);
+  });
 }

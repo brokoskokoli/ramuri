@@ -14,8 +14,9 @@ import 'recalculation_controller.dart';
 /// steht danach nicht mehr da, außer es gibt schon ein weiteres Angebot.
 /// Ohne Angebot zeigt sie, solange ein Lauf nicht berechenbar ist, eine
 /// eigene Karte mit „Neu berechnen“, die nur diese Läufe erneut versucht
-/// (FR-0219); nach einem gescheiterten Versuch steht dort die Fehlermeldung.
-/// Sonst zeigt sie nichts.
+/// (FR-0219); nach einem gescheiterten Versuch steht dort die Fehlermeldung,
+/// auch wenn während des Versuchs ein Angebot angekommen ist (dann in der
+/// Karte des Angebots). Sonst zeigt sie nichts.
 class RecalculationCard extends StatelessWidget {
   const RecalculationCard({super.key, required this.controller});
 
@@ -42,7 +43,10 @@ class RecalculationCard extends StatelessWidget {
         RecalculationPhase.running => l10n.recalcRunning,
         RecalculationPhase.failed => l10n.recalcFailed,
         RecalculationPhase.declineFailed => l10n.recalcDeclineFailed,
-        RecalculationPhase.idle || RecalculationPhase.retryFailed => null,
+        // Ist während des Versuchs ohne Angebot (FR-0219) ein Angebot
+        // angekommen, bleibt die Meldung des gescheiterten Versuchs stehen.
+        RecalculationPhase.retryFailed => l10n.recalcUncomputableFailed,
+        RecalculationPhase.idle => null,
       };
       return Padding(
         padding: const EdgeInsets.only(bottom: 24),

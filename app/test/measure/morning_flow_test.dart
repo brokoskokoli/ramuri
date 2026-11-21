@@ -75,6 +75,9 @@ class _FlakyStore implements MorningStore {
   }
 
   @override
+  Future<void> clearSleepBands(Iterable<int> ids) => inner.clearSleepBands(ids);
+
+  @override
   Future<List<StoredRrPacket>> beltPackets(int id) => inner.beltPackets(id);
 }
 
