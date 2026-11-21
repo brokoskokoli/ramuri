@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../reminders/reminder_controller.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../../error_counter.dart';
 import '../health/health_connect_controller.dart';
 import '../health/health_connect_scope.dart';
 import '../map/map_consent_controller.dart';
@@ -43,7 +44,11 @@ class ReadyRoot extends StatefulWidget {
     this.mapHolder,
     this.healthConnect,
     this.healthHolder,
+    this.errors,
   });
+
+  /// Zähler still abgefangener Fehler (nur Typ und Ort); `null`: nicht verdrahtet.
+  final ErrorCounter? errors;
 
   /// Kartenanbieter (WP13); `null`: nicht verdrahtet, dann gibt es keinen Kartencontroller.
   final MapServices? map;
@@ -147,6 +152,7 @@ class _ReadyRootState extends State<ReadyRoot> {
         settings: session.settings,
         consentStore: session.consents,
         clock: widget.clock,
+        countError: widget.errors?.record,
       );
       _health!.onNewData = () => unawaited(_planRecovery.recheck());
       widget.healthHolder?.bind(_health!);

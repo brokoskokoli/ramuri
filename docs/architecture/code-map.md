@@ -17,7 +17,8 @@ Abhängigkeiten zeigen nur in diese Richtung: `app` nutzt `adapters` und `core`,
 
 | Ordner / Datei | Zweck |
 |---|---|
-| `app/lib/main.dart` | Einstieg des Release-Builds: startet die App mit `AppDependencies.create()`. |
+| `app/lib/main.dart` | Einstieg des Release-Builds: startet die App mit `AppDependencies.create()` in `runCountingErrors` (globale Fehlerbehandlung, siehe `app/lib/error_counter.dart`). |
+| `app/lib/error_counter.dart` | Globale Fehlerbehandlung: Handler für Flutter-, Plattform- und Zonenfehler und `ErrorCounter`, der unbehandelte und still abgefangene Fehler nur nach Fehlertyp und Ortskennung (erste Datei der App im Stack, ohne Zeile) zählt, nie Nachricht, Werte oder Stack (SEC-0009). Höchstens 50 Einträge in den Einstellungen der verschlüsselten Datenbank (Schlüssel `diagnostics.error_counts`, nicht im Archiv); keine Ausgabe im Release-Build, keine Anzeige, kein Export. |
 | `app/lib/main_debug.dart` | Einstieg des Debug-Builds; bindet als einzige Datei die Debug-Quellen aus `app/lib/debug/` ein. |
 | `app/lib/app_dependencies.dart` | Manueller Zusammenbau (ohne DI-Bibliothek): bindet die Adapter aus `adapters` an die Ports aus `core`; Tests setzen stattdessen Fakes ein. |
 | `app/lib/app.dart` | Wurzel-Widget mit Theme, Lokalisierung und Navigation. |

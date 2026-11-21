@@ -7,6 +7,7 @@ import 'debug/debug_ppg_panel.dart';
 import 'debug/debug_test_health_connect.dart';
 import 'debug/debug_test_ppg_camera.dart';
 import 'debug/debug_test_sensor.dart';
+import 'error_counter.dart';
 import 'system_clock.dart';
 import 'ui/font_licenses.dart';
 
@@ -17,6 +18,12 @@ import 'ui/font_licenses.dart';
 /// damit den Rest (belegt am Artefakt, siehe WP07).
 void main() {
   if (kReleaseMode) throw StateError('main_debug nur im Debug-Build');
+  final errors = ErrorCounter();
+  // Zählt wie der Release-Build; im Debug-Build geben die Standard-Handler zusätzlich aus.
+  runCountingErrors(errors, () => _run(errors));
+}
+
+void _run(ErrorCounter errors) {
   registerFontLicenses();
   final camera = DebugTestPpgCamera();
   runApp(
@@ -25,6 +32,7 @@ void main() {
       camera: camera,
       child: RunningApp(
         dependencies: AppDependencies.create(
+          errors: errors,
           // E2E FR-0213: `--dart-define=TEST_SENSOR_RR=true` sendet synthetische RR.
           heartRateSensor: DebugTestSensor(
             const SystemClock(),
