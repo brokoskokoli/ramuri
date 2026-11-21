@@ -169,6 +169,15 @@ class RecalculationService {
     return issues;
   }
 
+  /// Läufe, die beim Nachholen als „nicht berechenbar“ gelten (FR-0219,
+  /// `CalculationFailures.uncomputable`).
+  Future<Set<int>> uncomputableRuns() => _calc.failures.uncomputable();
+
+  /// Versucht nur die nicht berechenbaren Läufe erneut, ohne Angebot
+  /// (FR-0219, [ValueCalculationService.retryUncomputable]). Der erste Fehler
+  /// geht an den Aufrufer; der Zähler des Laufs beginnt dann bei 1.
+  Future<void> retryUncomputable() => _calc.retryUncomputable();
+
   /// Ereignis „Neuberechnung angeboten“.
   Stream<RecalculationOffer> get offers => _controller.stream;
 
