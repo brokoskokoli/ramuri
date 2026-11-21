@@ -228,7 +228,10 @@ run "Takt: Wert 0.0 -> Fehler"                 1 0 E2E_STUFEN=sammlung E2E_TAKT_
 run "Takt: Wert -1 -> Fehler"                  1 0 E2E_STUFEN=sammlung E2E_TAKT_S=-1
 run "Takt: Wert 1. -> Fehler"                  1 0 E2E_STUFEN=sammlung E2E_TAKT_S=1.
 [ -s "$FAKE_ARGS" ] && { echo "FAIL Takt: flutter trotz ungueltigem Wert aufgerufen"; fails=$((fails + 1)); }
-run "Takt: leer wie nicht gesetzt (2 s)"       0 1 E2E_STUFEN=recover-a E2E_TAKT_S=
+# Vorgabe 2 s ohne Wanduhr: Lauf 1 s (FAKE_SLEEP), Fokus vorhanden -> bei 2 s Takt genau ein Foto, bei kuerzerem mehrere.
+: > "$tmp/shots"; run "Takt: leer wie nicht gesetzt (2 s)" 0 1 E2E_STUFEN=sammlung E2E_TAKT_S= FAKE_SLEEP=1
+n_takt=$(wc -l < "$tmp/shots" | tr -d ' ')
+[ "$n_takt" -eq 1 ] && echo "OK   Takt leer: genau ein Foto (2 s)" || { echo "FAIL Takt leer: $n_takt Fotos statt 1 (Vorgabe nicht 2 s)"; fails=$((fails + 1)); }
 # Waechter: eine Stufe im Shard ohne Zeitlimit in grenze_s ist ein Fehler vor dem ersten Lauf.
 sed 's|^shard_sammlung="sammlung |&neu |; s|^\[ "\$ran" -gt 0 \]|stufe neu 0 integration_test/e2e_a_test.dart\n&|' "$script" > "$tmp/ci_e2e_neu.sh"
 script="$tmp/ci_e2e_neu.sh"
