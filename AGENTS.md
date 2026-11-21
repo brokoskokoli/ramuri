@@ -33,6 +33,7 @@ Gate (Spec-Prüfung, private Daten, Netz nur im Kartenadapter (`tool/check_net.p
 sh tool/gate.sh            # alles (läuft auf GitHub bei jedem Push eines Arbeitsbranchs und für Pull Requests)
 sh tool/gate.sh --fast     # Zwischenstand: Format, Analyse, Tests der geänderten und der von ihnen abhängigen Pakete; ersetzt nie das volle Gate
 sh tool/gate.sh --changed  # Flutter nur auslassen, wenn app/, tool/gate.sh und von Tests gelesene Dokumente gegenüber main unverändert sind; drift/kotlin/release nur bei geänderten Eingaben
+sh tool/gate.sh --stage app  # nur eine Stufe (Liste: --list-stages); alle Stufen zusammen = voller Lauf
 ```
 
 Die E2E-Sammlung (`app/integration_test/`, Übersicht dort in `README.md`) läuft im Workflow `e2e` auf GitHub (Emulator, API 31 und 36). Lokal nur mit eigenem Emulator (`tool/emu.sh`, `tool/ci_e2e.sh`), nie auf einem echten Gerät.
