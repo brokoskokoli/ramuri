@@ -235,7 +235,7 @@ grep -q 'wartet auf Tageswechsel' "$tmp/stdout" && { echo "FAIL Tageswechsel: St
 [ "$dauer" -lt 5 ] || { echo "FAIL Tageswechsel: Start 23:40 lief $dauer s"; fails=$((fails + 1)); }
 run "Tageswechsel: Start 00:00, m2-flow wartet nicht" 0 1 E2E_STUFEN=m2-flow FAKE_UHR=00:00:00 FAKE_UHR_SCHRITT_S=60
 grep -q 'wartet auf Tageswechsel' "$tmp/stdout" && { echo "FAIL Tageswechsel: Start 00:00 hat gewartet"; fails=$((fails + 1)); }
-run "Tageswechsel: Start 23:44:59, m2-flow wartet nicht" 0 1 E2E_STUFEN=m2-flow FAKE_UHR=23:44:59 FAKE_UHR_SCHRITT_S=0
+run "Tageswechsel: Start 23:44:59, m2-flow wartet nicht" 0 1 E2E_STUFEN=m2-flow FAKE_UHR=23:44:59 FAKE_UHR_SCHRITT_S=60
 grep -q 'wartet auf Tageswechsel' "$tmp/stdout" && { echo "FAIL Tageswechsel: Start 23:44:59 hat gewartet"; fails=$((fails + 1)); }
 run "Tageswechsel: Start 23:50, ungekennzeichnete Stufe wartet nie" 0 1 E2E_STUFEN=readiness FAKE_UHR=23:50:00 FAKE_UHR_SCHRITT_S=60
 grep -q 'wartet auf Tageswechsel' "$tmp/stdout" && { echo "FAIL Tageswechsel: readiness hat gewartet"; fails=$((fails + 1)); }
