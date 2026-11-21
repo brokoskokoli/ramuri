@@ -27,7 +27,7 @@ python3 tool/spec_tool.py build
 python3 tool/spec_tool.py check
 ```
 
-Gate (Spec-Prüfung, private Daten, Netz nur im Kartenadapter (`tool/check_net.py`, Freigabeliste `tool/net_allowed_packages.txt`), Flutter-Version, Lockfile, `core` flutterfrei (Auflösung außerhalb des Workspace), je Paket in `app/` und `app/packages/*` Format, Analyse und Tests), volle Fassung auf GitHub (Workflow `gate`). Details: [docs/quality/testing.md](docs/quality/testing.md#ci-gates).
+Gate (Spec-Prüfung, private Daten, Netz nur im Kartenadapter (`tool/check_net.py`, Freigabeliste `tool/net_allowed_packages.txt`), keine neuen Zyklen zwischen `core`-Modulen bzw. App-Features (`tool/check_architecture.py`), Flutter-Version, Lockfile, `core` flutterfrei (Auflösung außerhalb des Workspace), je Paket in `app/` und `app/packages/*` Format, Analyse und Tests), volle Fassung auf GitHub (Workflow `gate`). Details: [docs/quality/testing.md](docs/quality/testing.md#ci-gates).
 
 ```sh
 sh tool/gate.sh            # alles (läuft auf GitHub bei jedem Push eines Arbeitsbranchs und für Pull Requests)
@@ -54,7 +54,7 @@ Kernregeln mit einer Mutation belegen: `sh tool/mutate.sh <datei> <zeile> '<erse
 - Sicherheitsanforderungen nicht abschwächen. Keine Geheimnisse ins Repository. Gesundheitsdaten nur gemäß `SEC-0001` bis `SEC-0010` behandeln, auch in Logs, Testdaten und CI-Artefakten; Testdaten sind synthetisch.
 - Öffentlich: keine Namen, Kontaktdaten, Orte oder Geräte von Personen („Maintainer“ schreiben), keine absoluten lokalen Pfade, keine echten Messwerte.
 - Der Status `Approved` und die Beantwortung einer offenen Frage sind dem Maintainer vorbehalten.
-- Architektur: Fachlogik (Modelle, Planung) in `app/packages/core` ohne Flutter und einzeln testbar; Geräte, GPS, Bluetooth, Health Connect, Kamera und Speicher über Ports mit Fakes (`app/packages/adapters`). Jede Berechnung trägt Methode und Version (NFR-0001, NFR-0005). Ordner, Ablageorte und geprüfte Regeln stehen in der [Code-Landkarte](docs/architecture/code-map.md).
+- Architektur: Fachlogik (Modelle, Planung) in `app/packages/core` ohne Flutter und einzeln testbar; Geräte, GPS, Bluetooth, Health Connect, Kamera und Speicher über Ports mit Fakes (`app/packages/adapters`). Jede Berechnung trägt Methode und Version (NFR-0001, NFR-0005). Keine neuen Abhängigkeitszyklen zwischen Modulen unter `app/packages/core/lib/src/` bzw. Features unter `app/lib/features/` (Prüfung `tool/check_architecture.py`). Ordner, Ablageorte und geprüfte Regeln stehen in der [Code-Landkarte](docs/architecture/code-map.md).
 
 ## Freigabe nötig für
 

@@ -226,6 +226,32 @@ Future<void> _pump(
 Finder _key(String k) => find.byKey(Key(k));
 String _text(String k) => (_key(k).evaluate().single.widget as Text).data!;
 
+/// Prüft, dass innerhalb von `<prefix>_<id>` genau der Gewichtstext steht.
+void _expectWeights(bool de, String prefix, Map<ReadinessFactorId, int> w) {
+  for (final MapEntry(key: id, value: p) in w.entries) {
+    expect(
+      find.descendant(
+        of: _key('${prefix}_${id.name}'),
+        matching: find.text('${de ? 'Gewicht' : 'Weight'} $p %'),
+      ),
+      findsOneWidget,
+      reason: '${id.name}: Gewicht $p %',
+    );
+  }
+}
+
+/// Kein Gewichtstext auf der Seite nennt mehr als 100 %.
+void _expectNoWeightAbove100() {
+  final re = RegExp(r'^(?:Gewicht|Weight) (\d+) %$');
+  final weights = [
+    for (final e in find.byType(Text).evaluate())
+      if (re.firstMatch((e.widget as Text).data ?? '') case final m?)
+        int.parse(m.group(1)!),
+  ];
+  expect(weights, isNotEmpty);
+  expect(weights.where((p) => p > 100), isEmpty);
+}
+
 void main() {
   for (final (name, dark, locale, width, scale) in [
     ('hell, de', false, 'de', 411.0, 1.0),
@@ -270,12 +296,16 @@ void main() {
         for (final id in ReadinessFactorId.values) {
           expect(_key('readiness_detail_factor_${id.name}'), findsOneWidget);
         }
-        expect(
-          find.text(
-            '${de ? 'Gewicht' : 'Weight'} ${(readinessWeightHrv * 100).round()} %',
-          ),
-          findsOneWidget,
-        );
+        // FR-0110: Gewichte als feste Zahlen aus der Spezifikation, je
+        // Faktor innerhalb seines Elements.
+        _expectWeights(de, 'readiness_detail_factor', const {
+          ReadinessFactorId.hrv: 25,
+          ReadinessFactorId.restingHeartRate: 20,
+          ReadinessFactorId.sleep: 30,
+          ReadinessFactorId.load: 15,
+          ReadinessFactorId.wellbeing: 10,
+        });
+        _expectNoWeightAbove100();
         expect(
           find.textContaining(de ? 'Teilwert ' : 'Part score '),
           findsWidgets,
@@ -313,6 +343,12 @@ void main() {
           expect(_key('readiness_detail_missing_load'), findsOneWidget);
           expect(_key('readiness_detail_missing_wellbeing'), findsOneWidget);
           expect(_key('readiness_detail_missing_hrv'), findsNothing);
+          // Fehlende Faktoren zeigen ihr Gewicht aus FR-0110.
+          _expectWeights(de, 'readiness_detail_missing', const {
+            ReadinessFactorId.load: 15,
+            ReadinessFactorId.wellbeing: 10,
+          });
+          _expectNoWeightAbove100();
           expect(
             find.text(
               de
