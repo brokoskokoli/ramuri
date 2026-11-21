@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Der Speicher der Widget-Tests ist der Fake im Arbeitsspeicher
 /// (`FakeStorage`): Seine Operationen enden über Mikrotasks und Timer der
 /// Test-Uhr, nicht über echte Zeit. Feste Echtzeit-Pausen
-/// (`runAsync(() => Future.delayed(…))`) machen die Tests nur langsamer und
+/// in `runAsync` machen die Tests nur langsamer und
 /// unter Last wackelig. Die Helfer hier pumpen stattdessen Frames der Test-Uhr
 /// und geben je Frame der echten Ereignisschleife einige Durchläufe (für
 /// Arbeit, die außerhalb der Test-Uhr begonnen hat, etwa eine in `runAsync`
