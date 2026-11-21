@@ -7,7 +7,7 @@ import 'package:flutter/widgets.dart';
 
 /// Ein gezählter Fehler: nur Fehlertyp (`runtimeType`) und Ortskennung (erste
 /// Datei der App im Stack, ohne Zeile). Nie Nachricht, `toString` des Fehlers
-/// oder Stack (SEC-0005, SEC-0009).
+/// oder Stack (SEC-0009).
 @immutable
 class ErrorCount {
   const ErrorCount({

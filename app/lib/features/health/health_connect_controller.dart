@@ -110,7 +110,8 @@ class HealthConnectController extends ChangeNotifier {
     if (!questions.contains(kind)) return false;
     try {
       return await consents.isDeleteQuestionOpen(healthSourceKey(kind));
-    } catch (_) {
+    } catch (e, s) {
+      _count(e, s);
       return true;
     }
   }
@@ -173,7 +174,8 @@ class HealthConnectController extends ChangeNotifier {
   Future<void> load() async {
     try {
       sdk = await port.sdkStatus();
-    } catch (_) {
+    } catch (e, s) {
+      _count(e, s);
       sdk = HealthSdkStatus.unavailable;
     }
     final on = <HealthDataKind>{};
@@ -185,7 +187,8 @@ class HealthConnectController extends ChangeNotifier {
     if (sdk == HealthSdkStatus.available) {
       try {
         permitted = await port.grantedKinds();
-      } catch (_) {
+      } catch (e, s) {
+        _count(e, s);
         permitted = {};
       }
     }
@@ -204,7 +207,8 @@ class HealthConnectController extends ChangeNotifier {
           await consents.closeDeleteQuestion(key);
           ask = false;
         }
-      } catch (_) {
+      } catch (e, s) {
+        _count(e, s);
         // Lesefehler: die Frage bleibt, wie sie war; der nächste Start fragt wieder.
       }
       if (ask) open.add(k);
@@ -223,7 +227,8 @@ class HealthConnectController extends ChangeNotifier {
       return ms == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toLocal();
-    } catch (_) {
+    } catch (e, s) {
+      _count(e, s);
       return null;
     }
   }
@@ -234,7 +239,9 @@ class HealthConnectController extends ChangeNotifier {
     await consents.grant(key);
     try {
       await consents.closeDeleteQuestion(key);
-    } catch (_) {}
+    } catch (e, s) {
+      _count(e, s);
+    }
     enabled = {...enabled, kind};
     questions = [...questions]..remove(kind);
     _notify();
@@ -248,7 +255,9 @@ class HealthConnectController extends ChangeNotifier {
     enabled = {...enabled}..remove(kind);
     try {
       await consents.openDeleteQuestion(key);
-    } catch (_) {}
+    } catch (e, s) {
+      _count(e, s);
+    }
     if (!questions.contains(kind)) questions = [...questions, kind];
     _notify();
   }
@@ -275,7 +284,8 @@ class HealthConnectController extends ChangeNotifier {
   Future<bool> openInstall() async {
     try {
       return await port.openInstall();
-    } catch (_) {
+    } catch (e, s) {
+      _count(e, s);
       return false;
     }
   }
@@ -285,7 +295,8 @@ class HealthConnectController extends ChangeNotifier {
     if (enabled.isEmpty) return;
     try {
       permitted = await port.requestPermissions({...enabled});
-    } catch (_) {
+    } catch (e, s) {
+      _count(e, s);
       permitted = {};
     }
     _notify();

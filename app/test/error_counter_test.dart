@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:core/core.dart';
@@ -70,20 +71,38 @@ class _Port implements HealthConnectPort {
   /// Sätze für den Ruhepuls; für alles andere nichts.
   List<HealthRecord> records = const [];
 
-  @override
-  Future<HealthSdkStatus> sdkStatus() async => HealthSdkStatus.available;
+  /// Diese Aufrufe werfen einen Fehler mit Wert in der Nachricht.
+  Set<String> failing = const {};
+
+  void _fail(String call) {
+    if (failing.contains(call)) throw StateError(_value);
+  }
 
   @override
-  Future<Set<HealthDataKind>> grantedKinds() async =>
-      HealthDataKind.values.toSet();
+  Future<HealthSdkStatus> sdkStatus() async {
+    _fail('sdkStatus');
+    return HealthSdkStatus.available;
+  }
+
+  @override
+  Future<Set<HealthDataKind>> grantedKinds() async {
+    _fail('grantedKinds');
+    return HealthDataKind.values.toSet();
+  }
 
   @override
   Future<Set<HealthDataKind>> requestPermissions(
     Set<HealthDataKind> kinds,
-  ) async => kinds;
+  ) async {
+    _fail('requestPermissions');
+    return kinds;
+  }
 
   @override
-  Future<bool> openInstall() async => true;
+  Future<bool> openInstall() async {
+    _fail('openInstall');
+    return true;
+  }
 
   @override
   Future<HealthPage> readPage({
@@ -240,6 +259,70 @@ void main() {
         }
       },
     );
+  });
+
+  test('Zonenfehler: ohne Debug-Ausgabe nichts ausgegeben, mit Debug-Ausgabe zusätzlich', () async {
+    _keepGlobalHandlers();
+    final present = FlutterError.presentError;
+    addTearDown(() => FlutterError.presentError = present);
+    for (final debug in [false, true]) {
+      final shown = <FlutterErrorDetails>[];
+      FlutterError.presentError = shown.add;
+      final (c, storage) = _attached();
+      final done = Completer<void>();
+      runCountingErrors(c, debugOutput: debug, () {
+        Future<void>.error(
+          FormatException(_value),
+          _appStack('package:running_app/zone.dart'),
+        );
+        Future<void>.delayed(Duration.zero, done.complete);
+      });
+      await done.future;
+      expect(shown, hasLength(debug ? 1 : 0), reason: 'debug: $debug');
+      expect((await _stored(storage, c)).single.count, 1);
+    }
+  });
+
+  group('Einstiege setzen die Handler', () {
+    /// Quelltext ohne Zeilenkommentare.
+    String code(String path) =>
+        File(path)
+            .readAsStringSync()
+            .split('\n')
+            .where((l) => !l.trimLeft().startsWith('//'))
+            .join('\n');
+
+    test(
+      'main.dart startet runApp in runCountingErrors mit demselben Zähler',
+      () {
+        final source = code('lib/main.dart');
+        expect(source, contains('final errors = ErrorCounter();'));
+        final guarded = source.indexOf('runCountingErrors(errors, () {');
+        expect(guarded, isNonNegative);
+        expect(source.indexOf('runApp('), greaterThan(guarded));
+        expect(source, contains('AppDependencies.create(errors: errors)'));
+        // Release: die Ausgabe folgt kDebugMode, nie fest eingeschaltet.
+        expect(source, isNot(contains('debugOutput')));
+      },
+    );
+
+    test('main_debug.dart startet runApp in runCountingErrors mit demselben Zähler', () {
+      final source = code('lib/main_debug.dart');
+      expect(source, contains('final errors = ErrorCounter();'));
+      final guarded = source.indexOf(
+        'runCountingErrors(errors, () => _run(errors));',
+      );
+      expect(guarded, isNonNegative);
+      final run = source.indexOf('void _run(ErrorCounter errors) {');
+      expect(run, greaterThan(guarded));
+      expect(source.indexOf('runApp('), greaterThan(run));
+      expect(
+        RegExp(r'AppDependencies\.create\(\s*errors: errors,').hasMatch(source),
+        isTrue,
+      );
+      expect('runApp('.allMatches(source), hasLength(1));
+      expect(source, isNot(contains('debugOutput')));
+    });
   });
 
   group('Obergrenze', () {
@@ -414,6 +497,114 @@ void main() {
     });
   });
 
+  group('Health Connect zählt Fehler mit Ersatzverhalten', () {
+    const kind = HealthDataKind.restingHeartRate;
+    final key = healthSourceKey(kind);
+
+    HealthConnectController hcOf(
+      ErrorCounter c, {
+      _Port? port,
+      FakeStorage? storage,
+      bool failingQuestions = false,
+      bool failingSettings = false,
+    }) {
+      final data = (storage ?? FakeStorage()).data;
+      return HealthConnectController(
+        port: port ?? _Port(),
+        store: data.health,
+        settings: failingSettings
+            ? _FailingSettings()
+            : FakeSettingsStore(data),
+        consentStore: failingQuestions
+            ? _QuestionFailingConsents(data)
+            : FakeConsentStore(data),
+        clock: FakeClock(DateTime.utc(2026, 11, 14, 12)),
+        countError: c.record,
+      );
+    }
+
+    Future<void> expectCounted(
+      FakeStorage storage,
+      ErrorCounter c,
+      int n,
+    ) async {
+      final entries = await _stored(storage, c);
+      expect(entries.single.type, 'StateError');
+      expect(entries.single.count, n);
+      expect(
+        storage.data.settings[SettingKeys.errorCounts],
+        isNot(contains('4711')),
+      );
+    }
+
+    test('Einschalten: Schließen der Löschfrage scheitert', () async {
+      final (c, storage) = _attached();
+      final hc = hcOf(c, failingQuestions: true);
+      await hc.enable(kind);
+      expect(hc.enabled, contains(kind), reason: 'Verhalten wie bisher');
+      await expectCounted(storage, c, 1);
+    });
+
+    test('Ausschalten: Merken der Löschfrage scheitert', () async {
+      final (c, storage) = _attached();
+      final hc = hcOf(c, failingQuestions: true);
+      await hc.consents.grant(key);
+      await hc.disable(kind);
+      expect(hc.questions, [kind], reason: 'trotzdem jetzt fragen');
+      await expectCounted(storage, c, 1);
+    });
+
+    test('Laden: Zustand von Health Connect nicht lesbar', () async {
+      final (c, storage) = _attached();
+      final hc = hcOf(c, port: _Port()..failing = {'sdkStatus'});
+      await hc.load();
+      expect(hc.sdk, HealthSdkStatus.unavailable);
+      await expectCounted(storage, c, 1);
+    });
+
+    test('Laden: Rechte nicht lesbar', () async {
+      final (c, storage) = _attached();
+      final hc = hcOf(c, port: _Port()..failing = {'grantedKinds'});
+      await hc.load();
+      expect(hc.permitted, isEmpty);
+      await expectCounted(storage, c, 1);
+    });
+
+    test('Laden: Schließen einer erledigten Löschfrage scheitert', () async {
+      final (c, storage) = _attached();
+      final data = FakeStorage();
+      data.data.consents[deleteQuestionKey(key)] = ConsentState.granted;
+      final hc = hcOf(c, storage: data, failingQuestions: true);
+      await hc.load();
+      expect(hc.questions, [kind], reason: 'die Frage bleibt, wie sie war');
+      await expectCounted(storage, c, 1);
+    });
+
+    test('Laden: letzter Import nicht lesbar', () async {
+      final (c, storage) = _attached();
+      final hc = hcOf(c, failingSettings: true);
+      await hc.load();
+      expect(hc.lastImport, isNull);
+      await expectCounted(storage, c, 1);
+    });
+
+    test('Installieren lässt sich nicht öffnen', () async {
+      final (c, storage) = _attached();
+      final hc = hcOf(c, port: _Port()..failing = {'openInstall'});
+      expect(await hc.openInstall(), isFalse);
+      await expectCounted(storage, c, 1);
+    });
+
+    test('Berechtigungsdialog scheitert', () async {
+      final (c, storage) = _attached();
+      final hc = hcOf(c, port: _Port()..failing = {'requestPermissions'});
+      hc.enabled = {kind};
+      await hc.requestRights();
+      expect(hc.permitted, isEmpty);
+      await expectCounted(storage, c, 1);
+    });
+  });
+
   testWidgets('App: Health-Connect-Controller zählt in die Sitzung', (
     tester,
   ) async {
@@ -433,6 +624,23 @@ void main() {
     expect(entries.single.type, 'StateError');
     await device.stop(tester);
   });
+}
+
+/// Einwilligungen, deren Löschfragen sich nicht speichern lassen.
+class _QuestionFailingConsents extends FakeConsentStore {
+  _QuestionFailingConsents(super.d);
+
+  @override
+  Future<void> set(
+    String sourceKey,
+    ConsentState state, {
+    required DateTime at,
+  }) async {
+    if (sourceKey.endsWith(deleteQuestionKey(''))) {
+      throw StateError(_value);
+    }
+    await super.set(sourceKey, state, at: at);
+  }
 }
 
 class _FailingSettings implements SettingsStore {
