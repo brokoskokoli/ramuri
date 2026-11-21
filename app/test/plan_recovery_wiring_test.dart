@@ -7,6 +7,7 @@ import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/readiness/readiness_today.dart';
 
 import 'app_harness.dart';
+import 'support/settle_storage.dart';
 
 // Verdrahtung der Auslöser „veränderter Erholungszustand“ in der App
 // (FR-0157, FR-0158, Teil „3 (Erholung)“): Import neuer Gesundheitsdaten,
@@ -167,12 +168,11 @@ const _allKinds = {
   HealthDataKind.sleep,
 };
 
-/// Lässt die echten Futures (Speicher, Import) laufen und baut neu.
+/// Lässt Speicher und Import zur Ruhe kommen und baut neu, ohne
+/// Echtzeit-Pausen ([settleStorage]).
 Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 10; i++) {
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pumpAndSettle();
-  }
+  await settleStorage(tester, what: 'Speicher und Import ruhig');
+  await tester.pumpAndSettle();
 }
 
 Future<PlanUnit> _unit(WidgetTester tester, StorageSession s, DateTime day) =>

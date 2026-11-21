@@ -68,10 +68,12 @@ Future<void> observeFrames(
   }
 }
 
-/// Durchläufe der echten Ereignisschleife je Frame. Fakes, die außerhalb der
-/// Test-Uhr begonnen haben (etwa ein HTTP-Fake mit Byte-Strom), brauchen
-/// mehr als einen Durchlauf; die Zahl hängt nur vom Code ab, nicht von der
-/// Last, und kostet keine Wartezeit.
+/// Durchläufe der echten Ereignisschleife je Frame, ohne Wartezeit. Sie
+/// reichen für Fakes im Arbeitsspeicher, deren Arbeit außerhalb der Test-Uhr
+/// begonnen hat. Arbeit, die echte Zeit braucht (Isolates, Bilddekodierung
+/// der Engine, echte Dateien – etwa beim Öffnen der Kartenquelle), holen sie
+/// unter Last nicht sicher ein: Solche Tests warten weiter fest oder mit
+/// [settleStorage] und einer Bedingung.
 const _realTurns = 3;
 
 /// [_realTurns] Durchläufe der echten Ereignisschleife, ohne Wartezeit.
