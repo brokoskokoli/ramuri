@@ -14,6 +14,7 @@ import 'package:running_app/l10n/app_localizations_en.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show seedRun;
+import 'support/settle_storage.dart';
 
 // WP34 Teil D1: Dienst (Eingaben aus den Ports, Einwilligung) und Karte
 // „Erholung“ auf „Heute“ in den vier Fällen, mit Warnsignal davor und mit
@@ -244,12 +245,11 @@ Future<void> _keepAll(WidgetTester tester) async {
     i++
   ) {
     await tester.tap(_key('health_delete_keep'));
-    for (var j = 0; j < 20; j++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 5)),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-    }
+    await settleStorage(
+      tester,
+      what: 'Antwort auf die Löschfrage gespeichert',
+      frame: const Duration(milliseconds: 100),
+    );
   }
 }
 
@@ -810,13 +810,13 @@ void main() {
       await tester.ensureVisible(lift);
       await tester.tap(lift);
       var gone = 0;
-      for (var i = 0; i < 120; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 5)),
-        );
-        await tester.pump(const Duration(milliseconds: 16));
-        if (_key('readiness_card').evaluate().isEmpty) gone++;
-      }
+      await observeFrames(
+        tester,
+        120,
+        onFrame: (_) {
+          if (_key('readiness_card').evaluate().isEmpty) gone++;
+        },
+      );
       expect(_key('home_warning_reminder'), findsNothing);
       expect(_key('readiness_card'), findsOneWidget);
       expect(gone, 0, reason: 'Karte fehlte in $gone Frames beim Neuladen');
@@ -854,20 +854,21 @@ void main() {
       await tester.tap(lift);
       var gone = 0;
       var split = 0;
-      for (var i = 0; i < 120; i++) {
-        if (i == 2) port.release();
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 5)),
-        );
-        await tester.pump(const Duration(milliseconds: 16));
-        if (_key('readiness_card').evaluate().isEmpty) gone++;
-        // Planstand und Hinweise wechseln zusammen: keine Warnsignal-Karte
-        // mehr, sobald die Erinnerung fehlt.
-        if (_key('home_warning_reminder').evaluate().isEmpty &&
-            _key('home_recovery_card').evaluate().isNotEmpty) {
-          split++;
-        }
-      }
+      await observeFrames(
+        tester,
+        120,
+        onFrame: (i) {
+          // Der Import endet nach zwei Frames.
+          if (i == 1) port.release();
+          if (_key('readiness_card').evaluate().isEmpty) gone++;
+          // Planstand und Hinweise wechseln zusammen: keine Warnsignal-Karte
+          // mehr, sobald die Erinnerung fehlt.
+          if (_key('home_warning_reminder').evaluate().isEmpty &&
+              _key('home_recovery_card').evaluate().isNotEmpty) {
+            split++;
+          }
+        },
+      );
       expect(port.released, isTrue);
       expect(split, 0, reason: 'Erinnerung weg, Warnsignal-Karte noch da');
       expect(_key('home_warning_reminder'), findsNothing);
@@ -890,24 +891,22 @@ void main() {
       HomeHints.debugLoadCount = 0;
       addTearDown(() => HomeHints.debugLoadCount = 0);
       await _start(tester, d);
-      for (var i = 0; i < 10; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 5)),
-        );
-        await tester.pump(const Duration(milliseconds: 50));
-      }
+      await settleStorage(
+        tester,
+        what: 'Hinweise geladen',
+        frame: const Duration(milliseconds: 50),
+      );
       expect(HomeHints.debugLoadCount, 1, reason: 'Öffnen');
       expect(_key('home_recovery_card'), findsOneWidget);
       // Neuer Tag beim Fortsetzen: „Heute“ lädt neu (_reload).
       d.clock.set(_now.add(const Duration(days: 1)));
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      for (var i = 0; i < 10; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 5)),
-        );
-        await tester.pump(const Duration(milliseconds: 50));
-      }
+      await settleStorage(
+        tester,
+        what: 'Hinweise geladen',
+        frame: const Duration(milliseconds: 50),
+      );
       expect(HomeHints.debugLoadCount, 2, reason: 'Neuladen');
       expect(_key('home_recovery_card'), findsOneWidget);
     });
@@ -932,12 +931,11 @@ void main() {
         i++
       ) {
         await tester.tap(_key('health_delete_keep'));
-        for (var j = 0; j < 20; j++) {
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 5)),
-          );
-          await tester.pump(const Duration(milliseconds: 100));
-        }
+        await settleStorage(
+          tester,
+          what: 'Antwort auf die Löschfrage gespeichert',
+          frame: const Duration(milliseconds: 100),
+        );
       }
       expect(_key('health_delete_dialog'), findsNothing);
       for (final k in _allKinds) {
@@ -987,14 +985,15 @@ void main() {
       hold.release();
       var card = 0;
       var value = 0;
-      for (var i = 0; i < 20; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 5)),
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        if (_key('readiness_card').evaluate().isNotEmpty) card++;
-        if (_key('readiness_value').evaluate().isNotEmpty) value++;
-      }
+      await observeFrames(
+        tester,
+        20,
+        frame: const Duration(milliseconds: 100),
+        onFrame: (_) {
+          if (_key('readiness_card').evaluate().isNotEmpty) card++;
+          if (_key('readiness_value').evaluate().isNotEmpty) value++;
+        },
+      );
       expect(hold.held, isFalse, reason: 'Lauf A freigegeben');
       expect(card, 0, reason: 'erweiterte Karte in $card Frames zurück');
       expect(value, 0, reason: 'Zahl in $value Frames zurück');
@@ -1014,12 +1013,11 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       expect(find.byKey(const Key('health_delete_dialog')), findsNothing);
       hold.release();
-      for (var i = 0; i < 20; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 5)),
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-      }
+      await settleStorage(
+        tester,
+        what: 'Lauf A beendet',
+        frame: const Duration(milliseconds: 100),
+      );
       expect(hold.held, isFalse, reason: 'Lauf A freigegeben');
       expect(tester.takeException(), isNull);
     });
