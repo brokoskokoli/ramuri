@@ -259,15 +259,21 @@ class RecalculationController extends ChangeNotifier {
   }
 
   /// Nach dem Speichern des Profils. Fehler hier verhindern nichts am
-  /// Speichern selbst. Das Angebot steht nach dem Rückkehr sofort in [offer]:
-  /// der Strom [RecalculationService.offers] liefert asynchron und käme für
-  /// die Rückmeldung der Seite zu spät.
+  /// Speichern selbst. Das Angebot steht nach der Rückkehr sofort in [offer]
+  /// ([_requestChange] liest es neu): der Strom
+  /// [RecalculationService.offers] liefert asynchron und käme für die
+  /// Rückmeldung der Seite zu spät.
+  ///
+  /// Läuft wie [loadBasisChanged] über [exclusive]: nie parallel
+  /// zur Berechnung nach einem Lauf, sonst sähe das Angebot den gerade
+  /// beendeten Lauf noch nicht.
   Future<void> profileChanged(ProfileRecord before, ProfileRecord after) async {
     try {
-      final offer = await _watchResolvedEdwardsSwitch(
-        () => service.profileChanged(before: before, after: after),
+      await _requestChange(
+        () => _watchResolvedEdwardsSwitch(
+          () => service.profileChanged(before: before, after: after),
+        ),
       );
-      if (offer != null) _onOffer(offer);
     } on Object {
       // Das Profil ist gespeichert; ein Angebot gibt es dann eben nicht.
     }
