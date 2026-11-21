@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
+import '../support/settle_storage.dart';
+
 /// Gemeinsame Hilfen für Widget-Tests. Ein Name je Bedeutung: Varianten mit
 /// anderem Verhalten haben eigene Namen, keine Schalter.
 
@@ -28,32 +30,25 @@ Future<void> tapFinderAfterSettle(WidgetTester tester, Finder f) async {
 }
 
 /// Lässt Quelle und Kacheln (echte Zeit) zur Ruhe kommen: wartet, bis
-/// [requests] sechs Runden lang unverändert bleibt.
+/// [requests] sechs Frames lang unverändert bleibt (über [settleReal], mit
+/// Obergrenze und Meldung).
 Future<void> settleUntilRequestsStable(
   WidgetTester tester,
   int Function() requests,
 ) async {
   var last = -1;
   var stable = 0;
-  while (stable < 6) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 40)),
-    );
-    await tester.pump(const Duration(milliseconds: 300));
-    stable = requests() == last ? stable + 1 : 0;
-    last = requests();
-  }
-}
-
-/// Lässt Lesen, Aufnahme und Speichern (echte Zeit) zur Ruhe kommen: feste
-/// zwölf Runden, ohne Bedingung.
-Future<void> settleRealTimeFixed(WidgetTester tester) async {
-  for (var i = 0; i < 12; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 30)),
-    );
-    await tester.pump(const Duration(milliseconds: 100));
-  }
+  await settleReal(
+    tester,
+    until: () => stable >= 6,
+    onFrame: () {
+      stable = requests() == last ? stable + 1 : 0;
+      last = requests();
+    },
+    what: 'Kachelanfragen stehen still',
+    frame: const Duration(milliseconds: 300),
+    realSlice: const Duration(milliseconds: 40),
+  );
 }
 
 /// MaterialApp mit App-Theme (hell oder dunkel), Sprache und den

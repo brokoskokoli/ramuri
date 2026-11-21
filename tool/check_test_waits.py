@@ -12,7 +12,7 @@ Fail-closed: fehlendes app/test/, unlesbare Dateien und symbolische Links sind r
 import os, re, sys
 
 # Grundlinie: gemessener Stand. Nur senken (der Hinweis nennt den neuen Wert), nie erhöhen.
-TEST_WAITS = 66
+TEST_WAITS = 57
 
 TEST_DIR = "app/test"
 PATTERN = re.compile(r"\bFuture\s*(?:<[^;{}]*?>)?\s*\.\s*delayed\b")
