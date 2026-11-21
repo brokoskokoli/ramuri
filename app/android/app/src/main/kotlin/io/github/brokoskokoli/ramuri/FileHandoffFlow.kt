@@ -52,6 +52,9 @@ sealed interface HandoffSource {
     class Path(val file: File) : HandoffSource
 }
 
+/** Ergebnis von [FileHandoffFlow.clearExports]. */
+enum class ClearOutcome { CLEARED, BUSY, FAILED }
+
 /** Wo der Ablauf arbeitet: Schreiben im Hintergrund, Entscheidungen auf dem Hauptthread. */
 interface HandoffThreads {
     fun background(work: () -> Unit)
@@ -112,6 +115,25 @@ class FileHandoffFlow<R>(
             }
         }
         return true
+    }
+
+    /**
+     * `clearExports` (SEC-0004): leert über [clear] auf [HandoffThreads.background], also nach
+     * jedem schon laufenden Schreiben, und meldet das Ergebnis auf dem Hauptthread an [answer].
+     * Mit [unlessBusy] `true` (Lauf löschen) bleibt alles liegen, solange eine Übergabe offen
+     * ist: [ClearOutcome.BUSY] ohne Leeren, die Datei bleibt bis zum nächsten Prozessstart.
+     * Fehlt das Argument (`null`) oder ist es `false` (Alles löschen), wird immer geleert.
+     * Eine offene Übergabe bleibt davon unberührt; ihre Antwort kommt weiter über [answers].
+     */
+    fun clearExports(unlessBusy: Boolean?, clear: () -> Boolean, answer: (ClearOutcome) -> Unit) {
+        if (unlessBusy == true && busy) {
+            answer(ClearOutcome.BUSY)
+            return
+        }
+        threads.background {
+            val ok = runCatching(clear).getOrDefault(false)
+            threads.main { answer(if (ok) ClearOutcome.CLEARED else ClearOutcome.FAILED) }
+        }
     }
 
     /** Hält [source] bis zur Antwort des Dokumentenziels. */

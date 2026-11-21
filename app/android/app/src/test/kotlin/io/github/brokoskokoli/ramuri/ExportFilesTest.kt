@@ -273,11 +273,4 @@ class ExportFilesTest {
             cache.deleteRecursively()
         }
     }
-
-    @Test fun mayClearKeepsFilesOnlyForRunDeletionWhileAHandoffIsOpen() {
-        assertTrue(ExportFiles.mayClear(unlessBusy = false, busy = false))
-        assertTrue(ExportFiles.mayClear(unlessBusy = false, busy = true))
-        assertTrue(ExportFiles.mayClear(unlessBusy = true, busy = false))
-        assertFalse(ExportFiles.mayClear(unlessBusy = true, busy = true))
-    }
 }

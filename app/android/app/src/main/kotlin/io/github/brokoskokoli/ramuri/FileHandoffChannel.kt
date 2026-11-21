@@ -66,7 +66,7 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
                     ExportFiles.clear(importDir)
                     mainHandler.post { result.success(null) }
                 }
-                "clearExports" -> clearExports(result, call.argument<Boolean>("unlessBusy") == true)
+                "clearExports" -> clearExports(result, call.argument<Boolean>("unlessBusy"))
                 "share", "save" -> {
                     val name = call.argument<String>("fileName")
                     val type = call.argument<String>("mimeType")
@@ -91,21 +91,14 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
 
     private val importDir: File get() = File(activity.cacheDir, ExportFiles.IMPORT_DIR)
 
-    /**
-     * Leert `exports/` und `imports/` (SEC-0004) auf [ExportFiles.io], also nach jedem schon
-     * laufenden Schreiben. Mit [unlessBusy] (Lauf löschen) bleibt alles liegen, solange eine
-     * Übergabe offen ist: Antwort "busy" ohne Fehler. Sonst "cleared" oder Fehler `clear_failed`.
-     */
-    private fun clearExports(result: MethodChannel.Result, unlessBusy: Boolean) {
-        if (!ExportFiles.mayClear(unlessBusy, flow.busy)) {
-            result.success("busy")
-            return
-        }
+    /** Leert `exports/` und `imports/` (SEC-0004); Regel und Threads in [FileHandoffFlow.clearExports]. */
+    private fun clearExports(result: MethodChannel.Result, unlessBusy: Boolean?) {
         val cache = activity.cacheDir
-        ExportFiles.io.execute {
-            val ok = ExportFiles.clearHandoff(cache)
-            mainHandler.post {
-                if (ok) result.success("cleared") else result.error("clear_failed", null, null)
+        flow.clearExports(unlessBusy, clear = { ExportFiles.clearHandoff(cache) }) { outcome ->
+            when (outcome) {
+                ClearOutcome.CLEARED -> result.success("cleared")
+                ClearOutcome.BUSY -> result.success("busy")
+                ClearOutcome.FAILED -> result.error("clear_failed", null, null)
             }
         }
     }

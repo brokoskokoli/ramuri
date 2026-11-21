@@ -93,12 +93,6 @@ object ExportFiles {
     }
 
     /**
-     * Ob `clearExports` jetzt leeren darf: Mit [unlessBusy] (Lauf löschen) nicht, solange eine
-     * Übergabe offen ist ([busy]); dann bleibt die Datei bis zum nächsten Prozessstart.
-     */
-    fun mayClear(unlessBusy: Boolean, busy: Boolean): Boolean = !(unlessBusy && busy)
-
-    /**
      * Räumt [dir] auf und legt darin genau eine Datei [name] mit [bytes] an. Wirft
      * [IllegalArgumentException] bei unsicherem Namen und [java.io.IOException] bei Schreibfehlern.
      */

@@ -39,6 +39,78 @@ class FileHandoffFlowTest {
     private fun beginShare(result: String): Boolean =
         flow.share(result, write = { "datei" }) { launches.add(it) }
 
+    private val clears = mutableListOf<String>()
+
+    /** `clearExports` mit protokolliertem Leeren; [ok] ist das Ergebnis des Leerens. */
+    private fun clear(unlessBusy: Boolean?, ok: Boolean = true) =
+        flow.clearExports(unlessBusy, clear = {
+            clears.add(if (onBackground) "bg" else "main")
+            ok
+        }) { log.add("clear:$it") }
+
+    @Test fun runDeletionDoesNotClearWhileAShareIsOpen() {
+        beginShare("a")
+        drain()
+        clear(unlessBusy = true)
+        drain()
+        assertEquals(emptyList<String>(), clears)
+        assertEquals(listOf("clear:BUSY"), log)
+        assertTrue(flow.busy)
+        flow.paused()
+        flow.chosen()
+        assertEquals("a:completed", log.last())
+    }
+
+    @Test fun deleteAllClearsEvenWhileAShareIsOpen() {
+        beginShare("a")
+        drain()
+        clear(unlessBusy = false)
+        assertEquals(emptyList<String>(), clears)
+        drain()
+        assertEquals(listOf("bg"), clears)
+        assertEquals(listOf("clear:CLEARED"), log)
+        // Die offene Übergabe läuft weiter und endet normal.
+        assertTrue(flow.busy)
+        flow.paused()
+        flow.resumed()
+        assertEquals("a:cancelled", log.last())
+    }
+
+    @Test fun missingArgumentClearsLikeDeleteAll() {
+        beginShare("a")
+        drain()
+        clear(unlessBusy = null)
+        drain()
+        assertEquals(listOf("bg"), clears)
+        assertEquals(listOf("clear:CLEARED"), log)
+    }
+
+    @Test fun runDeletionClearsWhenNoHandoffIsOpen() {
+        clear(unlessBusy = true)
+        drain()
+        assertEquals(listOf("bg"), clears)
+        assertEquals(listOf("clear:CLEARED"), log)
+    }
+
+    @Test fun runDeletionClearsAgainAfterTheShareEnded() {
+        beginShare("a")
+        drain()
+        flow.paused()
+        flow.chosen()
+        clear(unlessBusy = true)
+        drain()
+        assertEquals(listOf("bg"), clears)
+        assertEquals(listOf("a:completed", "clear:CLEARED"), log)
+    }
+
+    @Test fun failedOrThrowingClearIsReportedAsFailure() {
+        clear(unlessBusy = false, ok = false)
+        drain()
+        flow.clearExports(false, clear = { throw java.io.IOException("x") }) { log.add("clear:$it") }
+        drain()
+        assertEquals(listOf("clear:FAILED", "clear:FAILED"), log)
+    }
+
     @Test fun shareTargetChosenCompletes() {
         assertTrue(beginShare("a"))
         drain()
