@@ -1,3 +1,4 @@
+import 'package:adapters/map_testing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,23 +30,29 @@ Future<void> tapFinderAfterSettle(WidgetTester tester, Finder f) async {
   await tester.pumpAndSettle();
 }
 
-/// Lässt Quelle und Kacheln (echte Zeit) zur Ruhe kommen: wartet, bis
-/// [requests] sechs Frames lang unverändert bleibt (über [settleReal], mit
-/// Obergrenze und Meldung).
-Future<void> settleUntilRequestsStable(
-  WidgetTester tester,
-  int Function() requests,
-) async {
+/// Wartet, bis die Kachelarbeit fertig ist: keine Anfrage an [net] offen
+/// (`active == 0`) und seit dem vorigen Frame keine neue Anfrage dazu – in
+/// zwei aufeinanderfolgenden Frames (über [settleReal], mit Obergrenze und
+/// Meldung).
+///
+/// Warum zwei Frames: Nach einer Antwort ist kurz keine Anfrage offen, aber
+/// die Dekodierung (Stil, TileJSON, Kacheln, in Isolates und mit echter Zeit)
+/// kann noch Folgeanfragen auslösen. Erst wenn die Bedingung über zwei Frames
+/// hält – also über die volle Echtzeitscheibe des zweiten Frames, in der
+/// keine Folgeanfrage kam –, gilt die Arbeit als fertig. Danach endet die
+/// Scheibe sofort, statt wie früher sechs Frames Stillstand abzuwarten.
+Future<void> settleUntilMapIdle(WidgetTester tester, FakeInner net) async {
   var last = -1;
-  var stable = 0;
+  var idleFrames = 0;
   await settleReal(
     tester,
-    until: () => stable >= 6,
+    until: () => idleFrames >= 2,
     onFrame: () {
-      stable = requests() == last ? stable + 1 : 0;
-      last = requests();
+      final n = net.requests.length;
+      idleFrames = net.active == 0 && n == last ? idleFrames + 1 : 0;
+      last = n;
     },
-    what: 'Kachelanfragen stehen still',
+    what: 'keine Kachelanfrage offen',
     frame: const Duration(milliseconds: 300),
     realSlice: const Duration(milliseconds: 40),
   );
