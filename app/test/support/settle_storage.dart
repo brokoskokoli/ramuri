@@ -53,6 +53,40 @@ Future<int> settleStorage(
   );
 }
 
+/// Wie [settleStorage] mit [until], für Arbeit, die echte Zeit braucht
+/// (Isolates, Bilddekodierung der Engine, Fakes mit echten Zeitgebern):
+/// Je Frame bekommt die echte Ereignisschleife in `runAsync` Durchläufe, bis
+/// [until] gilt, höchstens [realSlice] lang; dann rückt die Test-Uhr um
+/// [frame] vor. Endet, sobald [until] gilt (vor dem ersten Frame: 0 Frames).
+/// Es wartet also auf das Ereignis, nicht auf eine feste Zeit. Nach
+/// [maxFrames] Frames schlägt der Test fehl; die Meldung nennt [what].
+Future<int> settleReal(
+  WidgetTester tester, {
+  required bool Function() until,
+  required String what,
+  void Function()? onFrame,
+  Duration frame = const Duration(milliseconds: 20),
+  Duration realSlice = const Duration(milliseconds: 20),
+  int maxFrames = 250,
+}) async {
+  if (until()) return 0;
+  for (var n = 1; n <= maxFrames; n++) {
+    await tester.runAsync(() async {
+      final sw = Stopwatch()..start();
+      while (!until() && sw.elapsed < realSlice) {
+        await Future<void>(() {});
+      }
+    });
+    await tester.pump(frame);
+    onFrame?.call();
+    if (until()) return n;
+  }
+  throw TestFailure(
+    'settleReal: „$what“ nach $maxFrames Frames zu je '
+    '${frame.inMilliseconds} ms Testzeit nicht erreicht',
+  );
+}
+
 /// Beobachtet genau [frames] Frames der Test-Uhr zu je [frame] (für Prüfungen
 /// „in keinem Frame“), ohne Echtzeit-Pausen. [onFrame] sieht jeden Frame.
 Future<void> observeFrames(
