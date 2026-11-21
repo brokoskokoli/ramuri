@@ -100,6 +100,7 @@ spec() {
   python3 tool/spec_tool.py check
 }
 step "spec" spec
+step "Architektur-Doku-Prüfung Selbsttest" python3 tool/check_docs_links_test.py
 step "privat" sh tool/check_private.sh
 # SEC-0002, SEC-0008, ADR-0009: Netz-APIs und Kartenbibliotheken nur im Kartenadapter (fail-closed mit Freigabeliste tool/net_allowed_packages.txt, siehe tool/check_net.py; der Selbsttest tool/check_net_test.py belegt jede Umgehung als rot).
 [ -f app/pubspec.yaml ] && step "Netz nur im Kartenadapter" python3 tool/check_net.py
