@@ -21,6 +21,7 @@ void main() {
         bpm: 160,
       );
       await w.calc().calculateAfterRun(id);
+      expect(await _high(w, id), isNotNull, reason: 'nach dem Lauf angelegt');
       final v = (await _high(w, id))!.original;
       expect(v.value, closeTo(12, 0.05));
       expect(v.unit, minutesUnit);
@@ -45,11 +46,13 @@ void main() {
 
       final s = w.recalc();
       final offer = await s.checkVersions();
+      expect(offer, isNotNull, reason: 'Angebot für den alten Lauf');
       expect(offer!.causes, {RecalculationCause.algorithmVersion});
       // Das Angebot umfasst alle neu zu rechnenden Läufe, auch [old].
       expect(offer.runIds, contains(old));
       await s.confirm(offer);
 
+      expect(await _high(w, old), isNotNull, reason: 'Wert angelegt');
       final pair = (await _high(w, old))!;
       expect(pair.original.value, closeTo(30, 0.05));
       expect(pair.current.value, pair.original.value);
