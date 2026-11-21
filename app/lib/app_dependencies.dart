@@ -1,6 +1,7 @@
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 
+import 'error_counter.dart';
 import 'features/reminders/reminder_controller.dart';
 import 'features/archive/archive_wiring.dart';
 import 'features/map/map_services.dart';
@@ -35,7 +36,9 @@ class AppDependencies {
     this.map,
     ReminderScheduler? reminders,
     this.reminderDebug,
-  }) : reminders = reminders ?? const _NoReminders(),
+    ErrorCounter? errors,
+  }) : errors = errors ?? ErrorCounter(),
+       reminders = reminders ?? const _NoReminders(),
        fileHandoff = fileHandoff ?? const _NoFileHandoff(),
        ppgCamera = ppgCamera ?? const _NoPpgCamera(),
        healthConnect = healthConnect ?? const _NoHealthConnect(),
@@ -46,7 +49,23 @@ class AppDependencies {
            SensorManager(
              sensor: heartRateSensor ?? const _NoHeartRateSensor(),
              clock: clock,
-           );
+           ) {
+    storageStart.addListener(_bindErrors);
+    _bindErrors();
+  }
+
+  /// Zähler unbehandelter und still abgefangener Fehler (nur Typ und Ort). Er
+  /// speichert in den Einstellungen der jeweils geöffneten Sitzung.
+  final ErrorCounter errors;
+
+  void _bindErrors() {
+    final state = storageStart.state;
+    if (state is StorageReady) {
+      errors.attach(state.session.settings, clock);
+    } else {
+      errors.detach();
+    }
+  }
 
   /// Uhr der App (Tests setzen eine Fake-Uhr).
   final Clock clock;
@@ -127,6 +146,7 @@ class AppDependencies {
     HealthConnectPort? healthConnect,
     Clock clock = const SystemClock(),
     bool debugReminders = false,
+    ErrorCounter? errors,
   }) {
     final sensor =
         heartRateSensor ??
@@ -160,6 +180,7 @@ class AppDependencies {
     );
     return AppDependencies(
       clock: clock,
+      errors: errors,
       heartRateSensor: sensor,
       ppgCamera: ppgCamera ?? MethodChannelPpgCamera(),
       healthConnect: healthConnect ?? MethodChannelHealthConnect(),
