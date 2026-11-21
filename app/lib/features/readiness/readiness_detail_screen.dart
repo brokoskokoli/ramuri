@@ -664,7 +664,7 @@ class _FactorHead extends StatelessWidget {
       spacing: 8,
       children: [
         Text(name, style: t.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-        Text(l.readinessWeight((weight * 100).round()), style: _muted(context)),
+        Text(l.readinessWeight(weight.round()), style: _muted(context)),
         if (score != null) Text(l.readinessPartScore(score!.round())),
       ],
     );
