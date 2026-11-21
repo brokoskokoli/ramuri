@@ -14,7 +14,9 @@ enum DeletionResult {
   /// Gelöscht, Speicherdatei bereinigt.
   deleted,
 
-  /// Gelöscht, aber der Checkpoint lief nicht durch ([StorageFailure.deletedNotErased]).
+  /// Gelöscht, aber der Checkpoint lief nicht durch oder Abgeleitetes außerhalb
+  /// der Datenbank (Kartenspeicher, Export- und Importdateien) ist nicht sicher
+  /// entfernt ([StorageFailure.deletedNotErased]).
   /// Das Löschen gilt; es ist kein vollständiger Erfolg.
   deletedNotErased,
 
@@ -54,19 +56,29 @@ Future<DeletionResult> runDeletion(Future<void> Function() action) async {
 /// [StorageFailure.deletedNotErased]), und räumt Abgeleitetes außerhalb der
 /// Speicherdatei weg, etwa die Miniatur des Laufs im Kartenspeicher (WP13 D).
 /// Ein Fehler darin ändert das Ergebnis nicht.
+///
+/// [exports] leert danach die Export- und Importdateien
+/// ([FileHandoff.clearExports], SEC-0004), ebenfalls nur, wenn der Lauf
+/// gelöscht ist, und nur ohne offene Übergabe (sonst räumt der nächste
+/// Prozessstart). Bleiben sie nicht sicher entfernt, endet das Löschen mit
+/// [StorageFailure.deletedNotErased]; der Lauf bleibt gelöscht.
 Future<void> deleteRunAndRefresh(
   StorageSession session,
   Clock clock,
   int runId, {
   required Future<void> Function(Future<void> Function() action) serialize,
   Future<void> Function(int runId)? onDeleted,
-}) => serialize(() => _deleteRunAndRefresh(session, clock, runId, onDeleted));
+  FileHandoff? exports,
+}) => serialize(
+  () => _deleteRunAndRefresh(session, clock, runId, onDeleted, exports),
+);
 
 Future<void> _deleteRunAndRefresh(
   StorageSession session,
   Clock clock,
   int runId,
   Future<void> Function(int runId)? onDeleted,
+  FileHandoff? exports,
 ) async {
   final calc = ValueCalculationService(session: session, clock: clock);
   // Ein Merker eines früheren, unvollendeten Neuanlegens darf nicht verloren
@@ -92,10 +104,17 @@ Future<void> _deleteRunAndRefresh(
     }
   }
 
+  /// `false`, wenn Exportdateien nicht sicher entfernt sind (wirft nie).
+  Future<bool> clearExports() async =>
+      exports == null ||
+      await exports.clearExports(unlessSharing: true) !=
+          ExportClearResult.failed;
+
   try {
     await session.deleteRun(runId);
   } on StorageException catch (e) {
     if (e.failure == StorageFailure.deletedNotErased) {
+      await clearExports();
       await cleanUp();
       // Gelöscht, nur der Checkpoint scheiterte: Tageswerte trotzdem anlegen.
       await refresh();
@@ -112,8 +131,10 @@ Future<void> _deleteRunAndRefresh(
     }
     rethrow;
   }
+  final cleared = await clearExports();
   await cleanUp();
   await refresh();
+  if (!cleared) throw const StorageException(StorageFailure.deletedNotErased);
 }
 
 /// Holt ein unterbrochenes Neuanlegen der Tageswerte nach einem Löschen nach
@@ -153,6 +174,7 @@ Future<DeletionResult> confirmAndDeleteRun(
   int runId, {
   required Future<void> Function(Future<void> Function() action) serialize,
   Future<void> Function(int runId)? onDeleted,
+  FileHandoff? exports,
 }) => _confirmAndDelete(
   context,
   all: false,
@@ -162,6 +184,7 @@ Future<DeletionResult> confirmAndDeleteRun(
     runId,
     serialize: serialize,
     onDeleted: onDeleted,
+    exports: exports,
   ),
 );
 

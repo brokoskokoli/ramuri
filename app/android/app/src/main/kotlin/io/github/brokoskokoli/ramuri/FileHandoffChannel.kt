@@ -24,6 +24,7 @@ import java.io.IOException
  * speichern (`ACTION_CREATE_DOCUMENT`, Inhalt direkt in die gelieferte URI, ohne Temp-Datei).
  * `pickFile` öffnet eine Datei (`ACTION_OPEN_DOCUMENT`) und kopiert sie als Strom nach
  * `cacheDir/imports/` ([ExportFiles.importInto]); `discardPicked` leert den Ordner.
+ * `clearExports` leert `exports/` und `imports/` beim Löschen von Daten (SEC-0004).
  * Der Inhalt kommt als `bytes` oder als `path` einer Datei, die Dart schon unter dem Ordner
  * aus `exportDirectory` angelegt hat (nur dort, [ExportFiles.resolve]). Hängt an der
  * Activity, weil beide Wege einen Systemdialog starten. Geschrieben wird auf dem
@@ -65,6 +66,7 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
                     ExportFiles.clear(importDir)
                     mainHandler.post { result.success(null) }
                 }
+                "clearExports" -> clearExports(result, call.argument<Boolean>("unlessBusy"))
                 "share", "save" -> {
                     val name = call.argument<String>("fileName")
                     val type = call.argument<String>("mimeType")
@@ -88,6 +90,18 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
     private val exportDir: File get() = File(activity.cacheDir, ExportFiles.DIR)
 
     private val importDir: File get() = File(activity.cacheDir, ExportFiles.IMPORT_DIR)
+
+    /** Leert `exports/` und `imports/` (SEC-0004); Regel und Threads in [FileHandoffFlow.clearExports]. */
+    private fun clearExports(result: MethodChannel.Result, unlessBusy: Boolean?) {
+        val cache = activity.cacheDir
+        flow.clearExports(unlessBusy, clear = { ExportFiles.clearHandoff(cache) }) { outcome ->
+            when (outcome) {
+                ClearOutcome.CLEARED -> result.success("cleared")
+                ClearOutcome.BUSY -> result.success("busy")
+                ClearOutcome.FAILED -> result.error("clear_failed", null, null)
+            }
+        }
+    }
 
     /** Ordner, in den Dart große Dateien vor der Übergabe schreibt (absolut, kanonisch). */
     private fun exportDirectory(result: MethodChannel.Result) {

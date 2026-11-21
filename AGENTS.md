@@ -14,7 +14,7 @@ Dieses Repository enthält das Produkt: den Code der App (`app/`), die Werkzeuge
 - Tests und Abnahme: [docs/quality/testing.md](docs/quality/testing.md)
 - Startwerte der Berechnungen: [docs/model-parameters.md](docs/model-parameters.md)
 - Regeln und Startwerte der Planung: [docs/planning-rules.md](docs/planning-rules.md), [docs/phase-2-3-rules.md](docs/phase-2-3-rules.md)
-- Architektur und ADRs: [docs/architecture/overview.md](docs/architecture/overview.md), `docs/architecture/adr/`
+- Architektur und ADRs: [docs/architecture/overview.md](docs/architecture/overview.md), `docs/architecture/adr/`; wo welcher Code liegt, wohin neuer Code gehört und welche Regeln dafür gelten: [docs/architecture/code-map.md](docs/architecture/code-map.md)
 
 Lade nur die für die Aufgabe nötigen Abschnitte.
 
@@ -54,7 +54,7 @@ Kernregeln mit einer Mutation belegen: `sh tool/mutate.sh <datei> <zeile> '<erse
 - Sicherheitsanforderungen nicht abschwächen. Keine Geheimnisse ins Repository. Gesundheitsdaten nur gemäß `SEC-0001` bis `SEC-0010` behandeln, auch in Logs, Testdaten und CI-Artefakten; Testdaten sind synthetisch.
 - Öffentlich: keine Namen, Kontaktdaten, Orte oder Geräte von Personen („Maintainer“ schreiben), keine absoluten lokalen Pfade, keine echten Messwerte.
 - Der Status `Approved` und die Beantwortung einer offenen Frage sind dem Maintainer vorbehalten.
-- Architektur: Fachlogik (Modelle, Planung) in `app/packages/core` ohne Flutter und einzeln testbar; Geräte, GPS, Bluetooth, Health Connect, Kamera und Speicher über Ports mit Fakes (`app/packages/adapters`). Jede Berechnung trägt Methode und Version (NFR-0001, NFR-0005).
+- Architektur: Fachlogik (Modelle, Planung) in `app/packages/core` ohne Flutter und einzeln testbar; Geräte, GPS, Bluetooth, Health Connect, Kamera und Speicher über Ports mit Fakes (`app/packages/adapters`). Jede Berechnung trägt Methode und Version (NFR-0001, NFR-0005). Ordner, Ablageorte und geprüfte Regeln stehen in der [Code-Landkarte](docs/architecture/code-map.md).
 
 ## Freigabe nötig für
 

@@ -1,6 +1,6 @@
 # Architekturüberblick
 
-**Status:** Draft, nicht bindend. Die Quelle schließt Softwarearchitektur und Technologien ausdrücklich aus (CON-0002). Dieses Dokument enthält deshalb nur eine aus den Anforderungen abgeleitete **logische Sicht**. Die Bausteine sind fachliche Zuständigkeiten, keine beschlossenen Komponenten.
+**Status:** Gilt für die logische Sicht. Die Quelle schließt Softwarearchitektur und Technologien aus (CON-0002); dieses Dokument leitet deshalb nur eine **logische Sicht** aus den Anforderungen ab, die Bausteine sind fachliche Zuständigkeiten. Die technischen Entscheidungen stehen in den ADRs (Tabelle [Architekturentscheidungen](#architekturentscheidungen)), die technische Sicht des Codes – Pakete, Ordner, Regeln und wohin neuer Code gehört – in der [Code-Landkarte](code-map.md).
 
 ## Systemkontext und logische Bausteine
 
@@ -48,22 +48,23 @@ Aus der Quelle ergeben sich diese Grenzen, an denen Daten die App erreichen oder
 
 Einen eigenen Server und ein Konto gibt es nicht (ADR-0001).
 
-## Benötigte Architekturentscheidungen
+## Architekturentscheidungen
 
-Bisher entschieden: [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md). Am 2026-11-04 hat der Maintainer ADR-0002 bis ADR-0007 freigegeben; der Schutz des Archivs (SEC-0011) liegt als ADR-0008 mit Status `Proposed` vor. Weiterer Bedarf besteht mindestens für:
+Status und Datum stehen wie im Kopf der jeweiligen ADR-Datei; `tool/spec_tool.py check` prüft das und dass jede ADR in [index.md](../index.md) verlinkt ist. Eine neue ADR kommt mit ihrem Status in diese Tabelle.
 
-| Entscheidung | Abhängig von | Entwurf (Status `Proposed`) |
-|---|---|---|
-| Android-Technologie, Mindestversion und Option für iOS | CON-0001, OQ-0035 | [ADR-0002](adr/ADR-0002-flutter-mindestversion-projektaufbau.md) |
-| Speicherung und Verschlüsselung auf dem Gerät | SEC-0009, SEC-0010 | [ADR-0003](adr/ADR-0003-speicherung-und-verschluesselung.md) |
-| Austauschbare Algorithmen, Aufbewahrung von Rohdaten und Versionierung der Modelle | NFR-0001, NFR-0005, OQ-0043 | [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md) |
-| Aufzeichnung im Hintergrund und Wiederanlauf | FR-0034, OQ-0021 | [ADR-0005](adr/ADR-0005-aufzeichnung-hintergrund-wiederanlauf.md) |
-| Anbindung von Bluetooth-Sensoren | FR-0008, OQ-0018 | [ADR-0006](adr/ADR-0006-bluetooth-sensoren.md) |
-| Anbindung von Health Connect | FR-0200, OQ-0047 | [ADR-0007](adr/ADR-0007-health-connect.md) |
-| Verschlüsselung des passwortgeschützten Archivs | SEC-0011, FR-0192, FR-0198 | [ADR-0008](adr/ADR-0008-verschluesselung-des-archivs.md) |
-| Kartenkacheln aus dem Netz nach Einwilligung | FR-0204, SEC-0008, OQ-0074 | [ADR-0009](adr/ADR-0009-kartenkacheln-nach-einwilligung.md) |
-| Speicherung und Neuberechnung des Trainingsplans | FR-0156, PAR-203, NFR-0001 | [ADR-0010](adr/ADR-0010-plan-speicherung-und-neuberechnung.md) |
-| Puls mit der Handykamera (Kamera-PPG) | FR-0214, FR-0215, OQ-0078 | [ADR-0011](adr/ADR-0011-kamera-ppg.md) |
+| ADR | Entscheidung | Abhängig von | Status | Datum |
+|---|---|---|---|---|
+| [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md) | Nur lokale Datenhaltung, kein Konto und kein Server | CON-0008, SEC-0006, FR-0192 | Accepted | 2026-11-03 |
+| [ADR-0002](adr/ADR-0002-flutter-mindestversion-projektaufbau.md) | Android-Technologie, Mindestversion, Projektaufbau und Option für iOS | CON-0001, OQ-0035 | Accepted | 2026-11-04 |
+| [ADR-0003](adr/ADR-0003-speicherung-und-verschluesselung.md) | Speicherung und Verschlüsselung auf dem Gerät | SEC-0009, SEC-0010 | Accepted | 2026-11-04 |
+| [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md) | Austauschbare Algorithmen, Aufbewahrung von Rohdaten und Versionierung der Modelle | NFR-0001, NFR-0005, OQ-0043 | Accepted | 2026-11-04 |
+| [ADR-0005](adr/ADR-0005-aufzeichnung-hintergrund-wiederanlauf.md) | Aufzeichnung im Hintergrund und Wiederanlauf | FR-0034, OQ-0021 | Accepted | 2026-11-04 |
+| [ADR-0006](adr/ADR-0006-bluetooth-sensoren.md) | Anbindung von Bluetooth-Sensoren | FR-0008, OQ-0018 | Accepted | 2026-11-04 |
+| [ADR-0007](adr/ADR-0007-health-connect.md) | Anbindung von Health Connect | FR-0200, OQ-0047 | Accepted | 2026-11-04 |
+| [ADR-0008](adr/ADR-0008-verschluesselung-des-archivs.md) | Verschlüsselung des passwortgeschützten Archivs | SEC-0011, FR-0192, FR-0198 | Accepted | 2026-11-04 |
+| [ADR-0009](adr/ADR-0009-kartenkacheln-nach-einwilligung.md) | Kartenkacheln aus dem Netz nach Einwilligung | FR-0204, SEC-0008, OQ-0074 | Accepted | 2026-11-07 |
+| [ADR-0010](adr/ADR-0010-plan-speicherung-und-neuberechnung.md) | Speicherung und Neuberechnung des Trainingsplans | FR-0156, PAR-203, NFR-0001 | Accepted | 2026-11-10 |
+| [ADR-0011](adr/ADR-0011-kamera-ppg.md) | Puls mit der Handykamera (Kamera-PPG) | FR-0214, FR-0215, OQ-0078 | Accepted | 2026-11-10 |
 
 Die Einordnung der Berechnungsverfahren in die Kategorien aus NFR-0002 steht in [algorithm-categories.md](algorithm-categories.md).
 
