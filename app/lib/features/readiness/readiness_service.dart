@@ -68,7 +68,8 @@ class ReadinessSleepEntry {
 
 /// Speichert die Schlafangabe aus „Schlaf angeben“ (PAR-164K): eine Stufe an
 /// der Messung von [entry]; `null` (abwählen) entfernt die Angabe an allen
-/// heute zählenden Morgenmessungen, damit keine andere Messung nachrückt.
+/// heute zählenden Morgenmessungen in einer Transaktion
+/// ([MorningStore.clearSleepBands]), damit keine andere Messung nachrückt.
 Future<void> saveReadinessSleep(
   MorningStore store,
   ReadinessSleepEntry entry,
@@ -78,9 +79,8 @@ Future<void> saveReadinessSleep(
     await store.setSleepBand(entry.measurementId, band);
     return;
   }
-  for (final id in {entry.measurementId, ...entry.countingIds}) {
-    await store.setSleepBand(id, null);
-  }
+  // Eine Transaktion: Scheitert sie, bleibt jede Stufe, wie sie war.
+  await store.clearSleepBands({entry.measurementId, ...entry.countingIds});
 }
 
 /// Baut [ReadinessInputs] aus den Ports und rechnet [computeReadiness]
