@@ -5,7 +5,9 @@ Baut einen kleinen Baum mit zwei ADRs, Index, Überblick und Code-Landkarte (gr�
 darauf aus (jeweils rot, mit erwarteter Meldung) und prüft zuletzt den echten Baum (grün). Wird eine Regel in
 architecture_errors entfernt oder aufgeweicht, wird der zugehörige Fall grün und dieser Test rot.
 Aufruf: python3 tool/check_docs_links_test.py"""
+import contextlib
 import importlib.util
+import io
 import shutil
 import sys
 import tempfile
@@ -139,6 +141,18 @@ def main():
                 failures.append(f"{name}: erwartet '{expected}', erhalten {errors}")
             else:
                 print(f"rot wie erwartet: {name}")
+    # Anschluss: check() muss die Meldungen von architecture_errors übernehmen (sonst liefe die Prüfung nie im Gate).
+    real = spec_tool.architecture_errors
+    spec_tool.architecture_errors = lambda root=spec_tool.ROOT: ["Probe-Abweichung"]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            rc = spec_tool.check()
+    finally:
+        spec_tool.architecture_errors = real
+    if rc != 1 or "FEHLER Probe-Abweichung" not in out.getvalue():
+        failures.append(f"check() übernimmt architecture_errors nicht (Exit {rc})")
+    else:
+        print("rot wie erwartet: check() mit Abweichung der Architektur-Doku")
     errors = spec_tool.architecture_errors(spec_tool.ROOT)
     if errors:
         failures.append(f"echter Baum nicht grün: {errors}")
