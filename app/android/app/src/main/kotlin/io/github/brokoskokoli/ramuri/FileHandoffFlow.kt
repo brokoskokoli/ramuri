@@ -1,6 +1,7 @@
 package io.github.brokoskokoli.ramuri
 
 import android.content.Intent
+import io.flutter.plugin.common.MethodCall
 import java.io.File
 
 /** Wirkungen auf den Kanal; die Entscheidungen liegen in [FileHandoffFlow]. */
@@ -143,6 +144,18 @@ class FileHandoffFlow<R>(
             threads.main { answer(if (ok) ClearOutcome.CLEARED else ClearOutcome.FAILED) }
         }
     }
+
+    /**
+     * Kanalaufruf `clearExports`: liest `unlessBusy` und `exportsOnly` aus [call] und leert über
+     * [ExportFiles.clearHandoff] unter [cacheDir]; Regel wie [clearExports].
+     */
+    fun clearExportsCall(call: MethodCall, cacheDir: File, answer: (ClearOutcome) -> Unit) =
+        clearExports(
+            call.argument<Boolean>("unlessBusy"),
+            call.argument<Boolean>("exportsOnly"),
+            clear = { only -> ExportFiles.clearHandoff(cacheDir, only) },
+            answer,
+        )
 
     /** Hält [source] bis zur Antwort des Dokumentenziels. */
     fun beginSave(result: R, source: HandoffSource): Boolean = begin(result, Kind.SAVE, source)

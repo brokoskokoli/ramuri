@@ -14,6 +14,7 @@ import android.provider.DocumentsContract
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.IOException
@@ -67,11 +68,7 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
                     ExportFiles.clear(importDir)
                     mainHandler.post { result.success(null) }
                 }
-                "clearExports" -> clearExports(
-                    result,
-                    call.argument<Boolean>("unlessBusy"),
-                    call.argument<Boolean>("exportsOnly"),
-                )
+                "clearExports" -> clearExports(result, call)
                 "share", "save" -> {
                     val name = call.argument<String>("fileName")
                     val type = call.argument<String>("mimeType")
@@ -97,12 +94,11 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
     private val importDir: File get() = File(activity.cacheDir, ExportFiles.IMPORT_DIR)
 
     /**
-     * Leert `exports/` und `imports/`, mit [exportsOnly] nur `exports/` (SEC-0004); Regel und
-     * Threads in [FileHandoffFlow.clearExports].
+     * Leert `exports/` und `imports/`, mit `exportsOnly` nur `exports/` (SEC-0004); Argumente,
+     * Regel und Threads in [FileHandoffFlow.clearExportsCall].
      */
-    private fun clearExports(result: MethodChannel.Result, unlessBusy: Boolean?, exportsOnly: Boolean?) {
-        val cache = activity.cacheDir
-        flow.clearExports(unlessBusy, exportsOnly, clear = { only -> ExportFiles.clearHandoff(cache, only) }) { outcome ->
+    private fun clearExports(result: MethodChannel.Result, call: MethodCall) {
+        flow.clearExportsCall(call, activity.cacheDir) { outcome ->
             when (outcome) {
                 ClearOutcome.CLEARED -> result.success("cleared")
                 ClearOutcome.BUSY -> result.success("busy")

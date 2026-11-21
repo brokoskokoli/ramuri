@@ -192,8 +192,6 @@ void main() {
       'pickFile',
       'discardPicked',
       'clearExports',
-      'unlessBusy',
-      'exportsOnly',
       'cleared',
       'busy',
       'fileName',
@@ -203,7 +201,8 @@ void main() {
     ]) {
       expect(kt, contains('"$m"'), reason: m);
     }
-    for (final r in ['completed', 'cancelled']) {
+    // Argumente von clearExports liest der Ablauf (FileHandoffFlow.clearExportsCall).
+    for (final r in ['completed', 'cancelled', 'unlessBusy', 'exportsOnly']) {
       expect(flow, contains('"$r"'), reason: r);
     }
     // An der Activity, weil ein Systemdialog gestartet wird.
