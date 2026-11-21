@@ -623,6 +623,74 @@ void main() {
     });
   });
 
+  group('Schlafangabe: zu welcher Messung (PAR-164K)', () {
+    MorningMeasurement sm(
+      int h, {
+      int min = 0,
+      int day = 14,
+      String model = 'M1',
+      SleepBand? band,
+    }) => buildMorningMeasurement(
+      result: meas(),
+      measuredAt: local(h, min, day),
+      utcOffset: off,
+      posture: RestingPosture.lying,
+      deviceManufacturer: 'H',
+      deviceModel: model,
+      sleepBand: band,
+    )!;
+    List<MorningMeasurement> today(List<MorningMeasurement> all) =>
+        morningCountingToday(all, nowUtc: local(10), utcOffset: off);
+
+    test('ohne zählende Messung keine', () {
+      expect(morningSleepSource(const []), isNull);
+    });
+
+    test('zwei Geräte, nur das spätere mit Stufe: das spätere', () {
+      final a = sm(6),
+          b = sm(6, min: 30, model: 'M2', band: SleepBand.from6to7);
+      final counting = today([a, b]);
+      expect(counting, [a, b]);
+      final source = morningSleepSource(counting);
+      expect(source, same(b));
+      expect(source!.sleepBand, SleepBand.from6to7);
+      // die Reihenfolge der Liste ändert nichts
+      expect(morningSleepSource(counting.reversed.toList()), same(b));
+    });
+
+    test('beide Geräte mit Stufe: die frühere', () {
+      final a = sm(6, band: SleepBand.under5);
+      final b = sm(6, min: 30, model: 'M2', band: SleepBand.over8);
+      expect(morningSleepSource(today([b, a])), same(a));
+      expect(morningSleepSource([b, a]), same(a));
+    });
+
+    test('ein Gerät ohne Stufe: die erste zählende', () {
+      final a = sm(7), later = sm(8);
+      expect(morningSleepSource(today([later, a])), same(a));
+      expect(morningSleepSource(today([later, a]))!.sleepBand, isNull);
+    });
+
+    test('zwei Geräte ohne Stufe: die früheste', () {
+      final a = sm(6, min: 30), b = sm(6, model: 'M2');
+      expect(morningSleepSource(today([a, b])), same(b));
+    });
+
+    test('Gegenfall: Vortag, außerhalb des Fensters und zweite derselben Reihe '
+        'mit Stufe zählen nicht', () {
+      final a = sm(7);
+      final yesterday = sm(6, day: 13, band: SleepBand.over8);
+      final outside = sm(12, model: 'M2', band: SleepBand.from5to6);
+      final second = sm(8, band: SleepBand.from7to8);
+      expect(outside.outsideWindow, isTrue);
+      final counting = today([yesterday, outside, second, a]);
+      expect(counting, [a]);
+      final source = morningSleepSource(counting);
+      expect(source, same(a));
+      expect(source!.sleepBand, isNull);
+    });
+  });
+
   group('Reihen', () {
     test('eine Reihe je Gerät, Haltung bleibt an der Messung', () {
       final l1 = m(7), l2 = m(7, day: 15);

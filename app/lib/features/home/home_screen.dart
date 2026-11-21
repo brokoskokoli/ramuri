@@ -294,8 +294,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // PAR-164K). Die Prüfung läuft ohne Warten auf die Anzeige; scheitert
       // das Speichern, läuft sie nicht.
       saveSleep: session is MorningStorage
-          ? (id, band) async {
-              await (session as MorningStorage).morning.setSleepBand(id, band);
+          ? (entry, band) async {
+              await saveReadinessSleep(
+                (session as MorningStorage).morning,
+                entry,
+                band,
+              );
               if (recovery != null) unawaited(recovery.recheck());
             }
           : null,

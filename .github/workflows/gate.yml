@@ -10,6 +10,13 @@ permissions:
   contents: read
 jobs:
   gate:
+    # Eigene Zweige issue-* und wp/* bekommen das Gate schon über push (gleicher Stand); der zweite Lauf zu
+    # pull_request wird übersprungen. PRs aus Forks und von anderen Zweigen (z. B. Dependabot) starten kein
+    # Gate über push und laufen hier weiter.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name != github.repository ||
+      !(startsWith(github.head_ref, 'issue-') || startsWith(github.head_ref, 'wp/'))
     runs-on: ubuntu-latest
     # Gemessen an 75 grünen Läufen dieses Jobs (bis 2026-11-19): 17,4 bis 28,4 min samt Einrichtung, Median
     # 23,8 min, längster 1706 s (davon tool/gate.sh 1656 s). Das alte Limit von 30 min ließ nur 1,6 min Luft;
@@ -23,6 +30,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          # Gradle-Abhängigkeiten und Plugins zwischenspeichern (Schlüssel aus den Gradle-Dateien), damit nicht
+          # jeder Job sie neu lädt. Caches eines Zweigs sind für main nicht lesbar; nightly/release ohne Cache.
+          cache: gradle
+          cache-dependency-path: |
+            app/android/**/*.gradle.kts
+            app/android/gradle.properties
+            app/android/gradle/wrapper/gradle-wrapper.properties
       - name: Flutter einrichten
         if: hashFiles('app/pubspec.yaml') != ''
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
