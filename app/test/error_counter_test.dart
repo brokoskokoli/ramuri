@@ -183,6 +183,11 @@ void main() {
         });
         expect(bodyRan, isTrue);
         await zoneDone.future;
+        expect(
+          PlatformDispatcher.instance.onError,
+          isNotNull,
+          reason: 'Handler für Plattformfehler gesetzt',
+        );
         for (var i = 0; i < 2; i++) {
           FlutterError.reportError(
             FlutterErrorDetails(
