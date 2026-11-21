@@ -185,7 +185,7 @@ class AppDependencies {
       archiveRestore: (session, serialize) async {
         final path = await databasePath();
         final files = databaseFilesFor(path, mapCache);
-        final storage = encryptedStorageFor(path, mapCache);
+        final storage = encryptedStorageFor(path, mapCache, fileHandoff);
         final key = await keyStore.read(storageKeyName);
         if (key == null) {
           throw const ArchiveRestoreException(
@@ -234,18 +234,43 @@ class AppDependencies {
         generateKey: generateStorageKey,
         wire: () async {
           final path = await databasePath();
-          return storageWiringFor(path, mapCache);
+          return storageWiringFor(path, mapCache, fileHandoff);
         },
       ),
     );
   }
 }
 
-/// Die verschlüsselte Datenbank; "Alles löschen" räumt den Kartenspeicher mit ab (WP13, SEC-0004).
+/// Die verschlüsselte Datenbank; "Alles löschen" räumt den Kartenspeicher (WP13) und die Ablagen der Übergabe
+/// ([FileHandoff.clearExports]) mit ab (SEC-0004).
 EncryptedStorage encryptedStorageFor(
   String path,
   EncryptedMapTileStore mapCache,
-) => EncryptedStorage(path, onDeleteAll: mapCache.delete);
+  FileHandoff exports,
+) => EncryptedStorage(
+  path,
+  onDeleteAll: deleteAllOutsideDatabase(mapCache.delete, exports),
+);
+
+/// Was "Alles löschen" außerhalb der Datenbank entfernt (SEC-0004): Kartenspeicher ([deleteMapCache]) und Export- und
+/// Importdateien ([FileHandoff.clearExports], auch während einer offenen Übergabe). Beides läuft, auch wenn das erste
+/// scheitert; danach wirft die Funktion, wenn eines nicht sicher entfernt ist (die Sitzung meldet dann
+/// [StorageFailure.deletedNotErased]). Der Fehler trägt keine Pfade oder Inhalte.
+Future<void> Function() deleteAllOutsideDatabase(
+  Future<void> Function() deleteMapCache,
+  FileHandoff exports,
+) => () async {
+  Object? failure;
+  try {
+    await deleteMapCache();
+  } on Object catch (e) {
+    failure = e;
+  }
+  if (await exports.clearExports() != ExportClearResult.cleared) {
+    failure ??= StateError('exports_not_cleared');
+  }
+  if (failure != null) throw failure;
+};
 
 /// Die Dateien der Datenbank; der Neubeginn nach Schlüsselverlust räumt den Kartenspeicher mit ab, ein Tausch durch
 /// eine Wiederherstellung verwirft die Miniaturen (ihre Lauf-Nummern gehören danach zu anderen Läufen).
@@ -260,11 +285,14 @@ FileDatabaseFiles databaseFilesFor(
 );
 
 /// Verdrahtung der Speicherung beim App-Start.
-StorageWiring storageWiringFor(String path, EncryptedMapTileStore mapCache) =>
-    StorageWiring(
-      storage: encryptedStorageFor(path, mapCache),
-      files: databaseFilesFor(path, mapCache),
-    );
+StorageWiring storageWiringFor(
+  String path,
+  EncryptedMapTileStore mapCache,
+  FileHandoff exports,
+) => StorageWiring(
+  storage: encryptedStorageFor(path, mapCache, exports),
+  files: databaseFilesFor(path, mapCache),
+);
 
 /// Vorgabe ohne Plattform (Tests): keine Kamera, Start endet mit Grund.
 class _NoHealthConnect implements HealthConnectPort {
@@ -348,6 +376,11 @@ class _NoFileHandoff implements FileHandoff {
 
   @override
   Future<void> discardPicked() async {}
+
+  /// Ohne Plattform gibt es keine Ablage, also nichts zu leeren.
+  @override
+  Future<ExportClearResult> clearExports({bool unlessSharing = false}) async =>
+      ExportClearResult.cleared;
 }
 
 /// Vorgabe ohne Plattform: Der Stand ist unbekannt (Tests, die ihn nicht

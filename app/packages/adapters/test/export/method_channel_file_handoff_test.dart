@@ -145,6 +145,37 @@ void main() {
     await h.discardPicked();
   });
 
+  test(
+    'clearExports: sendet unlessBusy, bildet Antworten ab, wirft nie',
+    () async {
+      final h = MethodChannelFileHandoff();
+      answer = (_) => 'cleared';
+      expect(await h.clearExports(), ExportClearResult.cleared);
+      expect(
+        await h.clearExports(unlessSharing: true),
+        ExportClearResult.cleared,
+      );
+      expect(calls.map((c) => c.method), ['clearExports', 'clearExports']);
+      expect(calls.map((c) => c.arguments), [
+        {'unlessBusy': false},
+        {'unlessBusy': true},
+      ]);
+      answer = (_) => 'busy';
+      expect(
+        await h.clearExports(unlessSharing: true),
+        ExportClearResult.keptWhileSharing,
+      );
+      // Ohne unlessBusy darf "busy" nie als Erfolg gelten.
+      expect(await h.clearExports(), ExportClearResult.failed);
+      answer = (_) => null;
+      expect(await h.clearExports(), ExportClearResult.failed);
+      answer = (_) => throw PlatformException(code: 'clear_failed');
+      expect(await h.clearExports(), ExportClearResult.failed);
+      messenger.setMockMethodCallHandler(channel, null);
+      expect(await h.clearExports(), ExportClearResult.failed);
+    },
+  );
+
   test('Kanalname, Methoden und Antworten stehen gleich in Kotlin', () {
     const dir =
         '../../android/app/src/main/kotlin/io/github/brokoskokoli/ramuri';
@@ -157,6 +188,10 @@ void main() {
       'exportDirectory',
       'pickFile',
       'discardPicked',
+      'clearExports',
+      'unlessBusy',
+      'cleared',
+      'busy',
       'fileName',
       'mimeType',
       'bytes', //

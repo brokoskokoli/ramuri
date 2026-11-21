@@ -2215,6 +2215,50 @@ void main() {
         expect(await assigned(e), isEmpty);
       });
 
+      test('Lauf am Samstag der Vorwoche, Zuordnung am Montag mit dem '
+          'Starttag des Laufs: die Einheit vom Samstag trägt den Lauf; ohne '
+          'Starttag bleibt sie offen', () async {
+        final saturday = _day(3);
+        expect(saturday.weekday, DateTime.saturday);
+
+        // Gegenprobe: ohne Starttag beginnt das Fenster am Sonntag.
+        final plain = await planned();
+        final unit = (await plain.controller.unitOn(saturday))!;
+        expect(unit.kind, isNot(PlanUnitKind.rest));
+        await runAt(plain.session, saturday, 9, 0);
+        plain.clock.set(localAt(monday, 9));
+        expect(await plain.controller.autoAssignRuns(), PlanActionResult.done);
+        expect((await plain.controller.unitOn(saturday))!.runId, isNull);
+        expect(await assigned(plain), isEmpty);
+
+        // Mit dem Starttag des Laufs (Samstag) reicht das Fenster zurück.
+        final e = await planned();
+        final run = await runAt(e.session, saturday, 9, 0);
+        e.clock.set(localAt(monday, 9));
+        expect(
+          await e.controller.autoAssignRuns(since: saturday),
+          PlanActionResult.done,
+        );
+        final after = (await e.controller.unitOn(saturday))!;
+        expect(after.kind, unit.kind);
+        expect(after.runId, run);
+        expect((await assigned(e)).values, [run]);
+      });
+
+      test('Starttag nach dem Sonntag der Vorwoche (Montag): das Fenster '
+          'beginnt weiter am Sonntag, der Lauf vom Sonntag wird '
+          'zugeordnet', () async {
+        final e = await planned();
+        final run = await runAt(e.session, sunday, 18, 0);
+        e.clock.set(localAt(monday, 9));
+        expect(
+          await e.controller.autoAssignRuns(since: monday),
+          PlanActionResult.done,
+        );
+        expect((await e.controller.unitOn(sunday))!.runId, run);
+        expect((await assigned(e)).values, [run]);
+      });
+
       test('Idempotenz: erneutes Öffnen ordnet nichts weiter zu und schreibt '
           'keine weitere Fassung', () async {
         final e = await planned();
