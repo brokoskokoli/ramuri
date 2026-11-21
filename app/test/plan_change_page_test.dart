@@ -13,6 +13,7 @@ import 'package:running_app/features/settings/app_settings.dart';
 import 'package:running_app/offload_scope.dart';
 
 import 'app_harness.dart';
+import 'support/settle_storage.dart';
 
 /// WP23 Teil C2: Karte „Plan angepasst“ (PAR-204, FR-0170), Verlauf der
 /// Änderungen und Vorschlag „Woche wiederholen“ (PAR-140).
@@ -85,13 +86,10 @@ Future<void> _pump(
   await _settle(tester);
 }
 
+/// Speicher zu Ende kommen lassen (fünf Frames ohne Echtzeit-Pausen), dann
+/// die Animationen.
 Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 5; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 50)),
-    );
-    await tester.pump();
-  }
+  await observeFrames(tester, 5, frame: Duration.zero);
   await tester.pumpAndSettle();
 }
 

@@ -20,6 +20,7 @@ import 'package:running_app/features/storage/storage_start.dart';
 import 'app_harness.dart';
 import 'history_summary_test.dart' show openHistory;
 import 'run_detail_test.dart' show seedDetailRun;
+import 'support/settle_storage.dart';
 
 Finder key(String k) => find.byKey(Key(k));
 
@@ -86,15 +87,6 @@ const _style = RouteMapStyle(
 const _route = [
   [RoutePoint(10, 20), RoutePoint(10.001, 20.001)],
 ];
-
-Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 8; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 20)),
-    );
-    await tester.pump(const Duration(milliseconds: 50));
-  }
-}
 
 MapConsentController _granted(
   _World w,
@@ -193,9 +185,11 @@ void main() {
         final svc = MiniatureService(consent: c);
         addTearDown(svc.dispose);
         svc.request(1, _route, _style, visibleTop: () => 0);
-        for (var i = 0; i < 20 && captures == 0; i++) {
-          await _settle(tester);
-        }
+        await settleReal(
+          tester,
+          until: () => captures > 0,
+          what: 'Aufnahme läuft',
+        );
         expect(captures, 1, reason: 'Aufnahme läuft und hängt');
 
         final seen = <String>[];
@@ -207,7 +201,7 @@ void main() {
             await Future<void>.delayed(Duration.zero);
           }),
         );
-        await _settle(tester);
+        await observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
         expect(seen, ['granted=false'], reason: 'Tor schon vor dem Löschen zu');
         expect(w.thumbs.data, isEmpty, reason: 'nichts geschrieben');
         expect(c.status, MapConsentStatus.neverAsked);
@@ -271,13 +265,19 @@ void main() {
         final svc = MiniatureService(consent: c);
         addTearDown(svc.dispose);
         final ticket = svc.request(3, _route, _style, visibleTop: () => 0)!;
-        for (var i = 0; i < 20 && captures == 0; i++) {
-          await _settle(tester);
-        }
+        await settleReal(
+          tester,
+          until: () => captures > 0,
+          what: 'Aufnahme läuft',
+        );
         expect(captures, 1);
         await tester.runAsync(() => c.deleteRunThumbnails(3));
         hold.complete();
-        await _settle(tester);
+        await settleReal(
+          tester,
+          until: () => ticket.cancelled,
+          what: 'Auftrag abgebrochen',
+        );
         expect(ticket.cancelled, isTrue);
         expect(w.thumbs.data, isEmpty);
       },

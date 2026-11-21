@@ -15,6 +15,8 @@ import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/map/map_source_holder.dart';
 import 'package:running_app/features/map/miniature_service.dart';
 
+import 'support/settle_storage.dart';
+
 class _Consents implements ConsentStore {
   final Map<String, ConsentState> data = {};
   @override
@@ -66,11 +68,21 @@ class _SlowController extends MapConsentController {
   Completer<void>? deliver;
   bool failOpen = false;
   int opens = 0;
+
+  /// Die Quelle ist offen (der Aufrufer wartet ggf. noch auf [deliver]).
+  bool sourceReady = false;
+
+  /// Ein Öffnen ist an [failOpen] gescheitert.
+  bool openFailed = false;
   @override
   Future<MapTileSource?> openSource({int? maxParallel}) async {
     opens++;
-    if (failOpen) throw StateError('Anbieter nicht erreichbar');
+    if (failOpen) {
+      openFailed = true;
+      throw StateError('Anbieter nicht erreichbar');
+    }
     final s = await super.openSource(maxParallel: maxParallel);
+    sourceReady = true;
     if (deliver != null) await deliver!.future;
     return s;
   }
@@ -107,15 +119,6 @@ final _route = [
   [_a, _b],
 ];
 
-Future<void> _wait(WidgetTester tester, [int rounds = 8]) async {
-  for (var i = 0; i < rounds; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 25)),
-    );
-    await tester.pump(const Duration(milliseconds: 50));
-  }
-}
-
 void main() {
   setUp(() => clearMapMemoryCache());
 
@@ -148,11 +151,15 @@ void main() {
     ) async {
       final w = _World(consent: ConsentState.granted);
       final h = await holder(tester, w, wanted: false);
-      await _wait(tester);
+      await settleStorage(tester, what: 'nicht gebraucht: ruhig');
       expect(h.source, isNull);
       expect(w.inner.requests, isEmpty);
       h.setWanted(true);
-      await _wait(tester);
+      await settleReal(
+        tester,
+        until: () => h.usable != null,
+        what: 'Quelle offen',
+      );
       expect(h.usable, isNotNull);
     });
 
@@ -162,17 +169,25 @@ void main() {
         final w = _World(consent: ConsentState.granted, slow: true);
         (w.controller as _SlowController).deliver = Completer<void>();
         final h = await holder(tester, w);
-        await _wait(tester); // Quelle ist fertig, wird aber noch zurückgehalten
+        await settleReal(
+          tester,
+          until: () => (w.controller as _SlowController).sourceReady,
+          what: 'Quelle fertig, zurückgehalten',
+        ); // Quelle ist fertig, wird aber noch zurückgehalten
         expect(h.source, isNull);
         expect(w.inner.requests, isNotEmpty);
         await tester.runAsync(w.controller.revoke);
         (w.controller as _SlowController).deliver!.complete();
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => w.inner.closed,
+          what: 'Tor nach dem Widerruf zu',
+        );
         expect(h.source, isNull, reason: 'nach dem Widerruf keine Quelle');
         expect(h.usable, isNull);
         expect(w.inner.closed, isTrue, reason: 'Tor der Quelle geschlossen');
         final n = w.inner.requests.length;
-        await _wait(tester);
+        await observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
         expect(w.inner.requests.length, n);
       },
     );
@@ -180,12 +195,20 @@ void main() {
     testWidgets('Widerruf bei offener Quelle schließt sie', (tester) async {
       final w = _World(consent: ConsentState.granted);
       final h = await holder(tester, w);
-      await _wait(tester);
+      await settleReal(
+        tester,
+        until: () => h.usable != null,
+        what: 'Quelle offen',
+      );
       expect(h.usable, isNotNull);
       var notified = 0;
       h.addListener(() => notified++);
       await tester.runAsync(w.controller.revoke);
-      await _wait(tester, 2);
+      await settleReal(
+        tester,
+        until: () => h.source == null && w.inner.closed,
+        what: 'Quelle nach dem Widerruf zu',
+      );
       expect(h.source, isNull);
       expect(w.inner.closed, isTrue);
       expect(notified, greaterThan(0));
@@ -198,13 +221,21 @@ void main() {
         final gate = Completer<void>();
         (w.controller as _SlowController).deliver = gate;
         final h = await holder(tester, w);
-        await _wait(tester); // Quelle fertig, Aufrufer wartet
+        await settleReal(
+          tester,
+          until: () => (w.controller as _SlowController).sourceReady,
+          what: 'Quelle fertig',
+        ); // Quelle fertig, Aufrufer wartet
         expect(w.inner.requests, isNotEmpty);
         var notified = 0;
         h.addListener(() => notified++);
         h.dispose();
         gate.complete();
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => w.inner.closed,
+          what: 'Quelle nach dispose frei',
+        );
         expect(w.inner.closed, isTrue, reason: 'Quelle nach dispose frei');
         expect(notified, 0);
         expect(tester.takeException(), isNull);
@@ -218,12 +249,20 @@ void main() {
         final gate = Completer<void>();
         (w.controller as _SlowController).deliver = gate;
         final h = await holder(tester, w);
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => (w.controller as _SlowController).sourceReady,
+          what: 'Quelle fertig',
+        );
         final w2 = _World(consent: ConsentState.granted);
         await tester.runAsync(() => w2.controller.ready);
         h.bind(w2.controller);
         gate.complete();
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => h.usable != null && w.inner.closed,
+          what: 'neue Quelle offen, alte frei',
+        );
         expect(w.inner.closed, isTrue, reason: 'alte Quelle frei');
         expect(w2.inner.closed, isFalse);
         expect(h.usable, isNotNull);
@@ -238,7 +277,11 @@ void main() {
     testWidgets('dispose bei offener Quelle: Quelle zu (N4)', (tester) async {
       final w = _World(consent: ConsentState.granted);
       final h = await holder(tester, w);
-      await _wait(tester);
+      await settleReal(
+        tester,
+        until: () => h.usable != null,
+        what: 'Quelle offen',
+      );
       expect(h.usable, isNotNull);
       h.dispose();
       expect(h.source, isNull);
@@ -252,15 +295,23 @@ void main() {
         final w = _World(consent: ConsentState.granted, slow: true);
         final c = w.controller as _SlowController..failOpen = true;
         final h = await holder(tester, w);
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => c.openFailed,
+          what: 'Öffnen gescheitert',
+        );
         expect(h.source, isNull);
         expect(c.opens, 1);
-        await _wait(tester);
+        await observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
         expect(c.opens, 1, reason: 'ohne neuen Anstoß kein Zeitgeber');
         c.failOpen = false;
         h.setWanted(false);
         h.setWanted(true);
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => c.opens == 2 && h.usable != null,
+          what: 'zweites Öffnen fertig',
+        );
         expect(c.opens, 2);
         expect(h.usable, isNotNull, reason: 'Karte erholt sich');
       },
@@ -272,12 +323,20 @@ void main() {
         final w = _World(consent: ConsentState.granted, slow: true);
         final c = w.controller as _SlowController..deliver = Completer<void>();
         final h = await holder(tester, w);
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => c.opens == 1,
+          what: 'Öffnen begonnen',
+        );
         expect(c.opens, 1);
         h.setWanted(false);
         h.setWanted(true);
         c.deliver!.complete();
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => h.usable != null,
+          what: 'Quelle offen',
+        );
         expect(h.usable, isNotNull);
         expect(c.opens, 1);
       },
@@ -289,17 +348,25 @@ void main() {
         final w = _World(consent: ConsentState.granted, slow: true);
         final c = w.controller as _SlowController..deliver = Completer<void>();
         final h = await holder(tester, w);
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => c.opens == 1,
+          what: 'Öffnen begonnen',
+        );
         expect(c.opens, 1);
         await tester.runAsync(c.revoke);
         await tester.runAsync(c.grant);
         c.deliver!.complete();
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => h.source != null,
+          what: 'Quelle offen',
+        );
         final first = h.source;
         expect(first, isNotNull);
         h.setWanted(false);
         h.setWanted(true);
-        await _wait(tester);
+        await observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
         expect(c.opens, 1, reason: 'keine zweite Quelle neben der offenen');
         expect(h.source, same(first));
       },
@@ -310,11 +377,15 @@ void main() {
       (tester) async {
         final w = _World(consent: ConsentState.revoked);
         final h = await holder(tester, w);
-        await _wait(tester);
+        await observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
         expect(h.source, isNull);
         expect(w.inner.requests, isEmpty);
         await tester.runAsync(w.controller.grant);
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => h.usable != null,
+          what: 'Quelle nach dem Erteilen offen',
+        );
         expect(h.usable, isNotNull, reason: 'erneut erteilt öffnet die Quelle');
       },
     );
@@ -324,12 +395,24 @@ void main() {
     ) async {
       final w = _World(consent: ConsentState.granted);
       final h = await holder(tester, w);
-      await _wait(tester);
+      await settleReal(
+        tester,
+        until: () => h.usable != null,
+        what: 'Quelle offen',
+      );
       await tester.runAsync(w.controller.revoke);
-      await _wait(tester, 2);
+      await settleReal(
+        tester,
+        until: () => h.source == null,
+        what: 'Quelle nach dem Widerruf zu',
+      );
       expect(h.source, isNull);
       await tester.runAsync(w.controller.grant);
-      await _wait(tester);
+      await settleReal(
+        tester,
+        until: () => h.usable != null,
+        what: 'Quelle neu offen',
+      );
       expect(h.usable, isNotNull);
     });
 
@@ -338,7 +421,11 @@ void main() {
       (tester) async {
         final w = _World(consent: ConsentState.granted);
         final h = await holder(tester, w);
-        await _wait(tester);
+        await settleReal(
+          tester,
+          until: () => h.source != null,
+          what: 'Quelle offen',
+        );
         final s = h.source!;
         final gate = s.gate;
         w.inner.failWhere = (u) => u.path.endsWith('.pbf');
@@ -363,7 +450,11 @@ void main() {
     ) async {
       final w = _World(consent: ConsentState.granted);
       final h = await holder(tester, w);
-      await _wait(tester);
+      await settleReal(
+        tester,
+        until: () => h.usable != null,
+        what: 'Quelle offen',
+      );
       final old = w.inner;
       expect(h.usable, isNotNull);
       final w2 = _World(consent: ConsentState.granted);
@@ -371,7 +462,11 @@ void main() {
       h.bind(w2.controller);
       expect(h.source, isNull);
       expect(old.closed, isTrue);
-      await _wait(tester);
+      await settleReal(
+        tester,
+        until: () => h.usable != null,
+        what: 'neue Quelle offen',
+      );
       expect(h.usable, isNotNull);
     });
   });
@@ -479,12 +574,7 @@ void main() {
     );
 
     Future<void> until(WidgetTester tester, bool Function() ok) async {
-      for (var i = 0; i < 200 && !ok(); i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 10)),
-        );
-        await tester.pump(const Duration(milliseconds: 20));
-      }
+      await settleReal(tester, until: ok, what: 'Zustand der Aufnahme');
       expect(ok(), isTrue);
     }
 
@@ -522,12 +612,11 @@ void main() {
           pause(tester);
           expect(service.paused, isTrue);
           final t = ask(1)!;
-          for (var i = 0; i < 10; i++) {
-            await tester.runAsync(
-              () => Future<void>.delayed(const Duration(milliseconds: 10)),
-            );
-            await tester.pump(const Duration(milliseconds: 50));
-          }
+          await observeFrames(
+            tester,
+            10,
+            frame: const Duration(milliseconds: 50),
+          );
           expect(captures, 0);
           expect(w.inner.requests, isEmpty);
           resume(tester);
@@ -671,12 +760,11 @@ void main() {
         });
         for (var i = 0; i < miniatureMaxAttempts; i++) {
           final t = ask(9)!;
-          for (var k = 0; k < 100 && captures <= i; k++) {
-            await tester.runAsync(
-              () => Future<void>.delayed(const Duration(milliseconds: 10)),
-            );
-            await tester.pump(const Duration(milliseconds: 20));
-          }
+          await settleReal(
+            tester,
+            until: () => captures > i,
+            what: 'Aufnahme ${i + 1} läuft',
+          );
           expect(captures, i + 1, reason: 'Aufnahme läuft');
           t.cancel();
           await _drive(tester, t);
@@ -724,11 +812,6 @@ Future<Uint8List?> _drive(WidgetTester tester, MiniatureTicket t) async {
       done = true;
     }),
   );
-  for (var i = 0; i < 200 && !done; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 10)),
-    );
-    await tester.pump(const Duration(milliseconds: 20));
-  }
+  await settleReal(tester, until: () => done, what: 'Auftrag fertig');
   return out;
 }

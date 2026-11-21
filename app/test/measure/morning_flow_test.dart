@@ -16,6 +16,7 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'measure_support.dart';
+import '../support/settle_storage.dart';
 
 // Ablauf der Morgenmessung (FR-0215) mit der Fake-Kamera aus WP27. Alle Werte
 // synthetisch, die Auswertung ist gescriptet.
@@ -296,12 +297,10 @@ class _Rig {
       (await tester.runAsync(() => store.list()))!.map((e) => e.value).toList();
 }
 
-Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 4; i++) {
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-  }
-}
+/// Vier Frames ohne Testzeit für Speicher und Ablauf, ohne Echtzeit-Pausen
+/// ([observeFrames]); die Messung animiert weiter, „ruhig“ wird sie nie.
+Future<void> _settle(WidgetTester tester) =>
+    observeFrames(tester, 4, frame: Duration.zero);
 
 Future<void> _tap(WidgetTester tester, String key) async {
   final f = find.byKey(Key(key));
