@@ -36,24 +36,51 @@ class ReadinessSnapshot {
   /// der jüngste Tag der Reihen.
   final DateTime? today;
 
-  /// Die erste zählende Morgenmessung des Ortstags mit ihrer Schlafangabe
-  /// (PAR-164K): dort setzt „Schlaf angeben“ die Stufe; `null` ohne heutige
-  /// Morgenmessung oder ohne zulässige Kamerawerte (K62 Punkt 1).
+  /// Die Morgenmessung des Ortstags, zu der die Schlafangabe gehört
+  /// ([morningSleepSource], PAR-164K), mit ihrer Stufe: dieselbe Stufe zählt
+  /// in der Einschätzung, „Schlaf angeben“ zeigt und ändert sie; `null` ohne
+  /// heutige Morgenmessung oder ohne zulässige Kamerawerte (K62 Punkt 1).
   final ReadinessSleepEntry? sleepEntry;
 
   CameraRelease get effectiveRelease =>
       release ?? CameraRelease(developerMode: developerMode, rmssdOptIn: false);
 }
 
-/// Morgenmessung, an der die Schlafangabe hängt, und ihre Stufe.
+/// Morgenmessung, an der die Schlafangabe hängt, ihre Stufe und alle heute
+/// zählenden Morgenmessungen (für das Abwählen, PAR-164K).
 class ReadinessSleepEntry {
-  const ReadinessSleepEntry({required this.measurementId, this.band});
+  const ReadinessSleepEntry({
+    required this.measurementId,
+    this.band,
+    this.countingIds = const [],
+  });
 
   final int measurementId;
   final SleepBand? band;
 
+  /// IDs aller heute zählenden Morgenmessungen (alle Geräte), mit
+  /// [measurementId].
+  final List<int> countingIds;
+
   @override
   String toString() => 'ReadinessSleepEntry($measurementId)';
+}
+
+/// Speichert die Schlafangabe aus „Schlaf angeben“ (PAR-164K): eine Stufe an
+/// der Messung von [entry]; `null` (abwählen) entfernt die Angabe an allen
+/// heute zählenden Morgenmessungen, damit keine andere Messung nachrückt.
+Future<void> saveReadinessSleep(
+  MorningStore store,
+  ReadinessSleepEntry entry,
+  SleepBand? band,
+) async {
+  if (band != null) {
+    await store.setSleepBand(entry.measurementId, band);
+    return;
+  }
+  for (final id in {entry.measurementId, ...entry.countingIds}) {
+    await store.setSleepBand(id, null);
+  }
 }
 
 /// Baut [ReadinessInputs] aus den Ports und rechnet [computeReadiness]
@@ -170,18 +197,24 @@ class ReadinessService {
         nowUtc: now.toUtc(),
         utcOffset: clock.utcOffsetAt(now),
       );
-      for (final m in counting) {
-        band ??= m.sleepBand;
-      }
-      if (counting.isNotEmpty && release.cameraValuesAllowed) {
-        final first = counting.first;
-        for (final e in stored) {
-          if (identical(e.value, first)) {
-            sleepEntry = ReadinessSleepEntry(
-              measurementId: e.id,
-              band: first.sleepBand,
-            );
+      // Eine Messung für Einschätzung und Blatt (PAR-164K).
+      final source = morningSleepSource(counting);
+      band = source?.sleepBand;
+      if (source != null && release.cameraValuesAllowed) {
+        int? idOf(MorningMeasurement m) {
+          for (final e in stored) {
+            if (identical(e.value, m)) return e.id;
           }
+          return null;
+        }
+
+        final id = idOf(source);
+        if (id != null) {
+          sleepEntry = ReadinessSleepEntry(
+            measurementId: id,
+            band: source.sleepBand,
+            countingIds: [for (final m in counting) ?idOf(m)],
+          );
         }
       }
     }

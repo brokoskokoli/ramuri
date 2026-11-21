@@ -209,6 +209,14 @@ void main() {
       await tapKey(t, 'plan_adapt_easy_run');
       await waitFor(t, () => has('home_easy_dialog'), 'Dialog locker laufen');
       await tapDialog(t, 'home_easy_cancel');
+      // Abbrechen aendert nichts; Wirkung: plan_adapt_easy_run wieder
+      // bedienbar (solange der Dialog offen ist, liegt er davor).
+      await waitFor(
+        t,
+        () => hittable(t, find.byKey(const Key('plan_adapt_easy_run'))),
+        'plan_adapt_easy_run bedienbar nach home_easy_cancel',
+      );
+      expect(find.byType(ErrorWidget), findsNothing);
       expect(
         (await _unit(t, s, d))!.kind,
         hard.kind,
