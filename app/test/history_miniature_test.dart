@@ -284,6 +284,13 @@ void main() {
       tester.state<NavigatorState>(find.byType(Navigator).first).pop();
       await tester.pumpAndSettle();
       w.hold!.complete();
+      // Zwischen dem Ende der ersten und dem Start der zweiten Aufnahme ist
+      // alles kurz ruhig: auf die zweite warten, dann zur Ruhe kommen lassen.
+      await settleReal(
+        tester,
+        until: () => w.captures >= 2,
+        what: 'zweite Aufnahme',
+      );
       await _settle(tester);
       expect(w.captures, 2, reason: 'nach der Rückkehr neu aufgenommen');
       expect(w.thumbs.writtenKeys.length, 1);
@@ -304,6 +311,13 @@ void main() {
       tester.state<NavigatorState>(find.byType(Navigator).first).pop();
       await tester.pumpAndSettle();
       w.hold!.complete();
+      // Zwischen dem Ende der ersten und dem Start der zweiten Aufnahme ist
+      // alles kurz ruhig: auf die zweite warten, dann zur Ruhe kommen lassen.
+      await settleReal(
+        tester,
+        until: () => w.captures >= 2,
+        what: 'zweite Aufnahme',
+      );
       await _settle(tester);
       expect(w.captures, 2, reason: 'die unterbrochene Aufnahme zählt nicht');
       expect(
