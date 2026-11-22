@@ -110,7 +110,7 @@ Im Profil und bei der Einrichtung kann der Nutzer seinen Ruhepuls messen lassen,
 
 **Akzeptanzkriterien:**
 - [ ] Erreichbar über das Profil (Ruheherzfrequenz) und als Knopf bei der Einrichtung.
-- [ ] Ablauf: Erklärung mit Bild, wie der Finger liegt; wählbar Ruhephase (Vorgabe 5 min, Länge einstellbar) oder sofort messen; danach 60 s Messung.
+- [ ] Ablauf: Erklärung mit Bild, wie der Finger liegt: leicht und gleichmäßig aufgelegt, nicht fest gedrückt; wählbar Ruhephase (Vorgabe 5 min, Länge einstellbar) oder sofort messen; danach 60 s Messung.
 - [ ] Haltung sitzend oder liegend wählbar; sie wird mit dem Wert gespeichert, ebenso der Zeitpunkt.
 - [ ] Die beruhigende Anleitung gibt kein Atemtempo vor; während der 60 s atmet der Nutzer spontan.
 - [ ] Es zählt die erste Messung mit ausreichender Qualität; wiederholt wird nur, wenn die Qualität nicht reicht.

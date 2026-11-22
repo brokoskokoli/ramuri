@@ -1010,7 +1010,7 @@
   "@measureFingerFlash": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
   "measureFingerTitle": "Hand as a dome.",
   "@measureFingerTitle": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
-  "measureFingerBody": "Lay the middle finger a little flatter than upright, with the pad on the camera and the flash, without pressing. Arch the other fingers open beside it so they shade the ambient light.",
+  "measureFingerBody": "Lay the middle finger a little flatter than upright, with the pad on the camera and the flash, resting lightly and evenly without pressing hard. Arch the other fingers open beside it so they shade the ambient light.",
   "@measureFingerBody": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
   "measurePostureLabel": "Posture, saved with the value",
   "@measurePostureLabel": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},

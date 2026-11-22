@@ -1749,7 +1749,7 @@
   "@measureFingerFlash": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
   "measureFingerTitle": "Hand als Kuppel.",
   "@measureFingerTitle": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
-  "measureFingerBody": "Mittelfinger etwas flacher als senkrecht mit der Kuppe auf Kamera und Blitz legen, nicht drücken. Die anderen Finger offen daneben wölben, damit sie das Umgebungslicht abschatten.",
+  "measureFingerBody": "Mittelfinger etwas flacher als senkrecht mit der Kuppe auf Kamera und Blitz legen, leicht und gleichmäßig auflegen, nicht fest drücken. Die anderen Finger offen daneben wölben, damit sie das Umgebungslicht abschatten.",
   "@measureFingerBody": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
   "measurePostureLabel": "Haltung, wird mit dem Wert gespeichert",
   "@measurePostureLabel": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
