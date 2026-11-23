@@ -503,8 +503,8 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   /// Laufdetail aus der Einheit; wird der Lauf dort gelöscht, schließt auch
-  /// die Einheit und der Plan lädt neu (die Einheit ist wieder offen,
-  /// ADR-0010).
+  /// die Einheit. Den Plan baut die App-Hülle danach neu auf (neue Revision
+  /// der Daten), die Einheit ist wieder offen (ADR-0010).
   Future<void> _openRun(
     BuildContext unitContext,
     int runId,
@@ -523,7 +523,6 @@ class _PlanScreenState extends State<PlanScreen> {
     );
     if (deleted != true) return;
     if (navigator.mounted) navigator.pop();
-    if (mounted) await _controller.reload();
   }
 
   @override
