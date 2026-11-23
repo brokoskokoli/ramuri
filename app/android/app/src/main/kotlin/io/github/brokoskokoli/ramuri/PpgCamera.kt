@@ -192,10 +192,8 @@ object PpgCamera {
         private var timestampSource: String? = null
         private var opened: PpgCameraEntry? = null
 
-        // Fokus und Stabilisierung (ADR-0011, Nachtrag 2026-11-21); focusPhysical: der Fokuswert geht als
-        // physischer Schlüssel an die physische Kamera. Nur Zahlen, nie ins Log.
+        // Fokus und Stabilisierung (ADR-0011, Nachtrag 2026-11-21). Nur Zahlen, nie ins Log.
         private var lens: PpgLensSettings? = null
-        private var focusPhysical = false
 
         // Letzte Angaben der Kamera (Kamerathread schreibt, onImage liest ebenfalls dort). Nur Zahlen, nie ins Log.
         private var capture = PpgCaptureInfo()
@@ -239,9 +237,6 @@ object PpgCamera {
                     lensProps(logical),
                     if (target.physicalCameraId != null) lensProps(chars) else null,
                 )
-                focusPhysical = target.physicalCameraId != null &&
-                    logical.availablePhysicalCameraRequestKeys.orEmpty()
-                        .contains(CaptureRequest.LENS_FOCUS_DISTANCE)
                 fps = PpgCameraLogic.chooseFps(
                     chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
                         ?.map { it.lower to it.upper }.orEmpty(),
@@ -328,13 +323,13 @@ object PpgCamera {
                     return
                 }
                 try {
-                    val (b, physical) = newRequest(d)
+                    val b = d.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
                     b.addTarget(reader!!.surface)
                     b.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(fps, fps))
                     b.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
                     // Schon in der ersten Anfrage; lockExposure und torchOff nutzen denselben Builder
                     // und behalten die Werte. Nie ein CONTROL_AF_TRIGGER.
-                    applyLens(b, physical)
+                    applyLens(b)
                     request = b
                     s.setRepeatingRequest(b.build(), captureCallback, handler)
                     val o = opened!!
@@ -348,31 +343,15 @@ object PpgCamera {
         }
 
         /**
-         * Anfrage mit TEMPLATE_PREVIEW. Soll der Fokuswert an die physische Kamera, wird sie mit deren ID
-         * angelegt (die Sitzung bleibt unverändert); lehnt die Kamera das ab, gilt die Anfrage der
-         * logischen Kamera wie bisher. Zweiter Wert: die physische ID, an die der Fokuswert geht.
+         * Fokus und Stabilisierung auf der Anfrage der geöffneten (logischen) Kamera, wie Bildrate, Torch
+         * und Sperren (ADR-0011, Nachtrag 2026-11-18). Keine Anfrage mit physischen Schlüsseln: bei ihr
+         * bekäme die physische Kamera für jeden ihrer physischen Anfrage-Schlüssel die Werte der Vorlage,
+         * nicht die hier gesetzten.
          */
-        private fun newRequest(d: CameraDevice): Pair<CaptureRequest.Builder, String?> {
-            val physical = opened?.physicalCameraId?.takeIf { focusPhysical && lens?.focusDistance != null }
-            if (physical != null) {
-                try {
-                    return d.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW, setOf(physical)) to physical
-                } catch (_: IllegalArgumentException) {
-                }
-            }
-            return d.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW) to null
-        }
-
-        private fun applyLens(b: CaptureRequest.Builder, physical: String?) {
+        private fun applyLens(b: CaptureRequest.Builder) {
             val l = lens ?: return
             l.afMode?.let { b.set(CaptureRequest.CONTROL_AF_MODE, it) }
-            l.focusDistance?.let {
-                if (physical != null) {
-                    b.setPhysicalCameraKey(CaptureRequest.LENS_FOCUS_DISTANCE, it, physical)
-                } else {
-                    b.set(CaptureRequest.LENS_FOCUS_DISTANCE, it)
-                }
-            }
+            l.focusDistance?.let { b.set(CaptureRequest.LENS_FOCUS_DISTANCE, it) }
             l.oisMode?.let { b.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, it) }
             l.videoStabMode?.let { b.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, it) }
         }
