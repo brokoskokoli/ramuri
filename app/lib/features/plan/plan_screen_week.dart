@@ -29,7 +29,10 @@ class _Week extends StatelessWidget {
   /// Laden der Woche ist fehlgeschlagen (statt ewig zu laden).
   final bool hasError;
   final void Function(int direction) onStep;
-  final void Function(PlanUnit unit) onOpen;
+
+  /// Tipp auf eine Karte; mit dem schon geladenen Lauf der erledigten
+  /// Einheit (`null`: offen oder Lauf nicht lesbar).
+  final void Function(PlanUnit unit, PlanDoneRun? run) onOpen;
 
   /// „Start“ an der heutigen offenen Einheit; `null`: kein Knopf.
   final void Function(PlanUnit unit)? onStart;
@@ -195,7 +198,10 @@ class _Day extends StatelessWidget {
   final Map<int, PlanDoneRun> runs;
   final bool dropped;
   final bool isToday;
-  final void Function(PlanUnit unit) onOpen;
+
+  /// Tipp auf eine Karte; mit dem schon geladenen Lauf der erledigten
+  /// Einheit (`null`: offen oder Lauf nicht lesbar).
+  final void Function(PlanUnit unit, PlanDoneRun? run) onOpen;
   final RamuriColors colors;
 
   /// „Start“ (nur heute, offen, kein Ruhetag; wie im Design Plan.dc.html).
@@ -271,7 +277,7 @@ class _Day extends StatelessWidget {
       radius: 16,
       tone: isToday ? RamuriCardTone.panel : RamuriCardTone.surface,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      onTap: () => onOpen(u),
+      onTap: () => onOpen(u, run),
       child: Builder(
         builder: (context) {
           final t = Theme.of(context).textTheme;
