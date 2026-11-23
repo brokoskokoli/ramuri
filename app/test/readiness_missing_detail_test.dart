@@ -80,6 +80,9 @@ class _ClearFailsStore implements MorningStore {
 
   @override
   Future<MorningRawSignal?> rawSignal(int id) => inner.rawSignal(id);
+
+  @override
+  Future<void> choose(int measurementId) => inner.choose(measurementId);
 }
 
 class _Env {

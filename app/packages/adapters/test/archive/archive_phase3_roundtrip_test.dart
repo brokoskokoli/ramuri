@@ -161,6 +161,11 @@ void main() {
       sourceDump['morning_measurements']!.any((r) => r['sleep_band'] != null),
       isTrue,
     );
+    expect(
+      [for (final r in sourceDump['morning_measurements']!) r['chosen']],
+      containsAll([0, 1]),
+      reason: 'eine gewählte und nicht gewählte Messungen',
+    );
     final reasons = {for (final r in sourceDump['plans']!) r['reason']};
     expect(reasons, contains(planReasonReadiness));
     expect(
@@ -207,6 +212,7 @@ void main() {
       expect(b.rmssdMs, a.rmssdMs);
       expect(b.sleepBand, a.sleepBand);
       expect(b.unusableReason, a.unusableReason);
+      expect(b.chosen, a.chosen);
       expect(b.cameraIntervalsMs, a.cameraIntervalsMs);
       final id = before[i].id;
       expect(
@@ -421,7 +427,7 @@ MorningMeasurement _morning(
 }
 
 /// Morgenmessungen über den Port: liegend und sitzend (auch am selben Tag),
-/// „eingeschränkt“, eine unbrauchbare, Gurt-RR und Rohsignal.
+/// „eingeschränkt“, eine unbrauchbare, eine gewählte, Gurt-RR und Rohsignal.
 Future<void> _mornings(MorningStore m) async {
   for (var n = 0; n < 6; n++) {
     final id = await m.add(
@@ -458,7 +464,11 @@ Future<void> _mornings(MorningStore m) async {
     expect(id, greaterThan(0));
   }
   // Am selben Tag sitzend; „eingeschränkt“ ohne RMSSD; unbrauchbar mit Grund.
-  await m.add(_morning(2, posture: RestingPosture.sitting, hour: 8));
+  final sitting = await m.add(
+    _morning(2, posture: RestingPosture.sitting, hour: 8),
+  );
+  // Die spätere sitzende Messung ist die gewählte des Tages (PAR-160K).
+  await m.choose(sitting);
   await m.add(_morning(3, quality: PpgQuality.limited, hour: 9));
   final unusable = await m.add(
     _morning(4, quality: PpgQuality.unusable, hour: 8),

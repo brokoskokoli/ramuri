@@ -18,11 +18,12 @@ class MorningMeasureHooks {
     this.onMeasurementEnded,
   });
 
-  /// Die Ruhephase beginnt (einmal je Ablauf, nicht bei „Noch einmal“).
+  /// Die Ruhephase beginnt (einmal je Aufnahme mit Ruhephase, also auch bei
+  /// „Noch einmal messen“, das wieder mit der Ruhephase beginnt).
   final void Function(DateTime at)? onRestStarted;
 
-  /// Eine neue Aufnahme beginnt: „Noch einmal messen“ nach verworfener
-  /// Messung (ohne neue Ruhephase) oder die Messung nach übersprungener Ruhe.
+  /// Eine neue Aufnahme beginnt ohne vorangehende Ruhephase: die Messung nach
+  /// übersprungener Ruhe.
   final void Function(DateTime at)? onMeasurementStarted;
 
   /// Die Aufnahme der Messung ist zu Ende (auch bei „Noch einmal“ erneut).
@@ -44,7 +45,8 @@ enum MorningOutcome {
   /// Gespeichert, aber außerhalb des Morgenfensters: zählt nicht.
   outsideWindow,
 
-  /// Gespeichert, aber heute zählt schon eine frühere Messung.
+  /// Gespeichert, aber heute zählt in der Reihe schon eine andere Messung
+  /// (wählbar über [MorningMeasureController.chooseInstead]).
   notCounted,
 
   /// Verworfen: zu ungenau, nichts gespeichert.
@@ -140,6 +142,8 @@ class MorningMeasureController extends ChangeNotifier {
   MorningTrendMarks? _marks;
   bool _sleepFailed = false;
   bool _savingSleep = false;
+  bool _choosing = false;
+  bool _chooseFailed = false;
   MorningWindow _window = MorningWindow.standard;
 
   MorningOutcome get outcome => _outcome;
@@ -154,24 +158,89 @@ class MorningMeasureController extends ChangeNotifier {
   MorningWindow get window => _window;
   bool get sleepFailed => _sleepFailed;
   bool get savingSleep => _savingSleep;
+
+  /// Die Wahl als gültige Messung wird gerade gespeichert.
+  bool get choosing => _choosing;
+
+  /// Die Wahl ließ sich nicht speichern; die Wahl bleibt, wie sie war.
+  bool get chooseFailed => _chooseFailed;
   SleepBand? get sleepBand => _stored?.sleepBand;
 
   /// Zeitpunkt der gespeicherten Messung (UTC) und ihr Versatz.
   DateTime? get measuredAt => _stored?.measuredAt;
 
-  /// „Noch einmal messen“ nur bei verworfener Messung (zu ungenau), ohne
-  /// neue Ruhephase; sonst nie (Wiederholung nur bei zu schlechter Qualität).
+  /// „Noch einmal messen“ (FR-0215, Entscheidung des Maintainers
+  /// 2026-11-21): im Morgenfenster nach jeder Messung (gut, eingeschränkt,
+  /// zählt nicht, unbrauchbar), außerhalb des Fensters nur nach einer
+  /// unbrauchbaren; nach fehlgeschlagenem Speichern nicht („Erneut
+  /// speichern“).
   bool get canRepeat =>
-      _outcome == MorningOutcome.unusable &&
-      engine.phase == RestingMeasurePhase.result;
+      engine.phase == RestingMeasurePhase.result &&
+      switch (_outcome) {
+        MorningOutcome.unusable ||
+        MorningOutcome.good ||
+        MorningOutcome.limited ||
+        MorningOutcome.notCounted => true,
+        _ => false,
+      };
 
   /// Beendet die Ruhephase sofort und startet die Messung; der Vermerk
   /// „übersprungen nach s“ kommt an die Messung.
   Future<void> skipRest() => engine.skipRest();
 
+  /// Neuer Ablauf wie beim ersten Start: Einstieg mit der zuletzt gewählten
+  /// Haltung, dann die normale Ruhephase ([morningRestSeconds], überspringbar
+  /// mit Vermerk, PAR-160K). Ob die neue Messung zählt, regelt
+  /// [countingMorningMeasurements].
   Future<void> repeat() async {
     if (!canRepeat) return;
-    await engine.retry(force: true);
+    engine.restart();
+  }
+
+  /// „Diese Messung stattdessen verwenden“ ([MorningOutcome.notCounted]):
+  /// wählt die gespeicherte Messung als gültige des Tages
+  /// ([MorningStore.choose]); danach ist das Ergebnis zählend (gut bzw.
+  /// eingeschränkt). Scheitert das Speichern, bleibt alles, wie es war.
+  Future<void> chooseInstead() async {
+    final id = _storedId;
+    if (_outcome != MorningOutcome.notCounted || id == null || _choosing) {
+      return;
+    }
+    final gen = _generation;
+    _choosing = true;
+    _chooseFailed = false;
+    _notify();
+    try {
+      await store.choose(id);
+      final all = await store.list();
+      final self = all.firstWhere((e) => e.id == id).value;
+      if (gen != _generation) return;
+      _stored = self;
+      _outcome = _outcomeOf(all.map((e) => e.value), self);
+    } catch (_) {
+      if (gen != _generation) return;
+      _chooseFailed = true;
+    } finally {
+      _choosing = false;
+      _notify();
+    }
+  }
+
+  /// Ergebnis der gespeicherten Messung [self] nach der Regel der zählenden
+  /// Messungen ([countingMorningMeasurements]) über alle gespeicherten
+  /// Messungen [all] (einschließlich [self]).
+  static MorningOutcome _outcomeOf(
+    Iterable<MorningMeasurement> all,
+    MorningMeasurement self,
+  ) {
+    if (self.outsideWindow) return MorningOutcome.outsideWindow;
+    final counting = countingMorningMeasurements(all);
+    if (!counting.any((c) => identical(c, self))) {
+      return MorningOutcome.notCounted;
+    }
+    return self.quality == PpgQuality.good && self.rmssdMs != null
+        ? MorningOutcome.good
+        : MorningOutcome.limited;
   }
 
   /// Speichern erneut versuchen (nach [MorningOutcome.saveFailed]).
@@ -210,14 +279,22 @@ class MorningMeasureController extends ChangeNotifier {
         case RestingMeasurePhase.starting:
           _restSkipping =
               prev == RestingMeasurePhase.resting && engine.restSkipped;
-          if (prev == RestingMeasurePhase.result) {
-            final at = clock.now().toUtc();
-            hooks.onMeasurementStarted?.call(at);
-            belt?.hooks.onMeasurementStarted?.call(at);
-          }
           _outcome = MorningOutcome.pending;
           _stored = null;
           _storedId = null;
+        case RestingMeasurePhase.entry:
+          // „Noch einmal messen“: neuer Ablauf; das Ergebnis der vorigen
+          // Messung gehört nicht mehr zur Seite.
+          _generation++;
+          _measureStartedAt = null;
+          _restSkipping = false;
+          _outcome = MorningOutcome.pending;
+          _stored = null;
+          _storedId = null;
+          _marks = null;
+          _sleepFailed = false;
+          _chooseFailed = false;
+          _choosing = false;
         default:
       }
     }
@@ -287,17 +364,10 @@ class MorningMeasureController extends ChangeNotifier {
         return;
       }
       // Gültige Messung: der Recorder sammelt nicht weiter (Puffer wächst
-      // sonst, solange die Ergebnisseite offen ist).
+      // sonst, solange die Ergebnisseite offen ist); „Noch einmal messen“
+      // startet ihn mit der Ruhephase neu.
       unawaited(belt?.stop());
       final before = [for (final e in await store.list()) e.value];
-      final counts =
-          !m.outsideWindow &&
-          morningRepeatAllowed(
-            before,
-            nowUtc: m.measuredAt,
-            utcOffset: m.utcOffset,
-            series: MorningSeriesKey.of(m),
-          );
       final id = await store.add(
         m,
         beltPackets: belt?.packets ?? const [],
@@ -313,13 +383,9 @@ class MorningMeasureController extends ChangeNotifier {
       if (gen != _generation) return;
       _stored = m;
       _storedId = id;
-      _outcome = m.outsideWindow
-          ? MorningOutcome.outsideWindow
-          : !counts
-          ? MorningOutcome.notCounted
-          : m.quality == PpgQuality.good && m.rmssdMs != null
-          ? MorningOutcome.good
-          : MorningOutcome.limited;
+      // Ob sie zählt, folgt aus der Regel über alle gespeicherten Messungen
+      // samt dieser (PAR-160K), nicht aus einer eigenen Prüfung.
+      _outcome = _outcomeOf([...before, m], m);
     } catch (_) {
       if (gen != _generation) return;
       // Auch ohne gültige Messung sammelt der Recorder nicht weiter; die Pakete
@@ -371,6 +437,7 @@ class MorningMeasureController extends ChangeNotifier {
         windowEndS: m.windowEndS,
         restSkippedAfterS: m.restSkippedAfterS,
         unusableReason: m.unusableReason,
+        chosen: m.chosen,
       );
     } catch (_) {
       _sleepFailed = true;

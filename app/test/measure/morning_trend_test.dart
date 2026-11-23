@@ -1,8 +1,10 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/measure/morning_trend_logic.dart';
 import 'package:running_app/features/measure/morning_trend_screen.dart';
+import 'package:running_app/features/plan/plan_recovery_trigger.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
@@ -127,6 +129,7 @@ Future<void> _pump(
   StorageSession s, {
   required Map<ValidationQuantity, ValidationState> state,
   bool dark = false,
+  PlanRecoveryTrigger? recovery,
 }) async {
   tester.view.physicalSize = const Size(390, 1400);
   tester.view.devicePixelRatio = 1;
@@ -142,11 +145,76 @@ Future<void> _pump(
         clock: _clock,
         validationState: state,
         device: _device,
+        recovery: recovery,
       ),
     ),
   );
   await _settle(tester);
 }
+
+/// Zählt die Prüfungen des Plans nach einer Wahl (FR-0157); den Plan selbst
+/// prüft `plan_recovery_wiring_test.dart`.
+class _CountingRecovery extends PlanRecoveryTrigger {
+  _CountingRecovery(StorageSession s)
+    : super(session: s, clock: _clock, readinessToday: (_) async => null);
+  int calls = 0;
+
+  @override
+  Future<bool> recheck() async {
+    calls++;
+    return false;
+  }
+}
+
+/// Sitzung, deren Wahl scheitert; alles andere geht an [inner].
+class _FailingChooseSession implements StorageSession, MorningStorage {
+  _FailingChooseSession(this.inner);
+  final StorageSession inner;
+
+  @override
+  SettingsStore get settings => inner.settings;
+
+  @override
+  late final MorningStore morning = _FailingChoose(
+    (inner as MorningStorage).morning,
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FailingChoose implements MorningStore {
+  _FailingChoose(this.inner);
+  final MorningStore inner;
+
+  @override
+  Future<void> choose(int measurementId) =>
+      throw const StorageException(StorageFailure.failed);
+
+  @override
+  Future<List<StoredMorningMeasurement>> list() => inner.list();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Key _row(DateTime at) => Key('morning_row_${at.millisecondsSinceEpoch}');
+Key _choose(DateTime at) => Key('morning_choose_${at.millisecondsSinceEpoch}');
+
+/// Status-Text einer Zeile der Liste.
+Finder _rowText(DateTime at, String text) =>
+    find.descendant(of: find.byKey(_row(at)), matching: find.text(text));
+
+Future<void> _chooseRow(WidgetTester tester, DateTime at) async {
+  await tester.ensureVisible(find.byKey(_choose(at)));
+  await tester.tap(find.byKey(_choose(at)));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('morning_choose_confirm')));
+  await _settle(tester);
+  await tester.pumpAndSettle();
+}
+
+const _later = 'zählt nicht, an diesem Morgen zählt eine andere';
 
 String _text(WidgetTester tester, String key) =>
     tester.widget<Text>(find.byKey(Key(key))).data!;
@@ -529,6 +597,108 @@ void main() {
       await _pump(tester, s, state: _state());
       expect(find.byKey(const Key('morning_trend_empty')), findsOneWidget);
       expect(find.byKey(const Key('morning_hr_card')), findsNothing);
+    });
+
+    testWidgets('Wahl: nur „zählt nicht“ bietet die Aktion an; danach zählt '
+        'die gewählte in Liste und Kurve, heute prüft den Plan (FR-0215)', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final s = await _session(dev: true);
+      final recovery = _CountingRecovery(s);
+      await _pump(tester, s, state: _state(), recovery: recovery);
+      final first = _day(0); // zählt (52,4)
+      final second = _day(0, hour: 7); // zählt nicht (70)
+      expect(_rowText(second, _later), findsOneWidget);
+      expect(_text(tester, 'morning_hr_card_last'), '52,4');
+      // Genau eine Zeile mit Aktion: nicht die zählende, nicht außerhalb des
+      // Fensters, nicht unbrauchbar.
+      expect(find.byKey(_choose(second)), findsOneWidget);
+      expect(find.byKey(_choose(first)), findsNothing);
+      expect(find.byKey(_choose(_day(1, hour: 14))), findsNothing);
+      expect(find.byKey(_choose(_day(0, hour: 5))), findsNothing);
+      expect(
+        find.byWidgetPredicate((w) => '${w.key}'.contains('morning_choose_1')),
+        findsOneWidget,
+      );
+      expect(find.text('Als gültige Messung des Tages verwenden'), findsOne);
+      // Tippfläche ≥ 48 dp, Screenreader: Knopf mit Ansage der Aktion.
+      expect(
+        tester.getSize(find.byKey(_choose(second))).height,
+        greaterThanOrEqualTo(48),
+      );
+      final data = tester
+          .getSemantics(find.byKey(_choose(second)))
+          .getSemanticsData();
+      expect(data.flagsCollection.isButton, isTrue);
+      expect([
+        for (final id in data.customSemanticsActionIds ?? const <int>[])
+          CustomSemanticsAction.getAction(id)?.hint,
+      ], contains('Als gültige Messung des Tages verwenden'));
+
+      // Abbrechen ändert nichts.
+      await tester.ensureVisible(find.byKey(_choose(second)));
+      await tester.tap(find.byKey(_choose(second)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('morning_choose_cancel')));
+      await tester.pumpAndSettle();
+      expect(recovery.calls, 0);
+      expect(
+        (await tester.runAsync(() => (s as MorningStorage).morning.list()))!
+            .every((e) => !e.value.chosen),
+        isTrue,
+      );
+
+      await _chooseRow(tester, second);
+      expect(_rowText(second, 'zählt'), findsOneWidget);
+      expect(_rowText(first, _later), findsOneWidget);
+      expect(_text(tester, 'morning_hr_card_last'), '70,0');
+      expect(find.byKey(_choose(first)), findsOneWidget);
+      expect(find.byKey(_choose(second)), findsNothing);
+      expect(recovery.calls, 1);
+
+      // Zurück zur ersten: wieder wie vorher.
+      await _chooseRow(tester, first);
+      expect(_rowText(first, 'zählt'), findsOneWidget);
+      expect(_rowText(second, _later), findsOneWidget);
+      expect(_text(tester, 'morning_hr_card_last'), '52,4');
+      expect(recovery.calls, 2);
+      semantics.dispose();
+    });
+
+    testWidgets('Wahl an einem früheren Tag: Liste neu, Plan nicht geprüft', (
+      tester,
+    ) async {
+      final s = await _session(dev: false);
+      final older = _day(2, hour: 8);
+      await (s as MorningStorage).morning.add(_m(older, bpm: 61));
+      final recovery = _CountingRecovery(s);
+      await _pump(tester, s, state: _state(), recovery: recovery);
+      expect(_rowText(older, _later), findsOneWidget);
+      await _chooseRow(tester, older);
+      expect(_rowText(older, 'zählt'), findsOneWidget);
+      expect(_rowText(_day(2), _later), findsOneWidget);
+      expect(recovery.calls, 0);
+    });
+
+    testWidgets('Wahl scheitert: Fehler der Seite, Liste unverändert', (
+      tester,
+    ) async {
+      final inner = await _session(dev: false);
+      final recovery = _CountingRecovery(inner);
+      await _pump(
+        tester,
+        _FailingChooseSession(inner),
+        state: _state(),
+        recovery: recovery,
+      );
+      final second = _day(0, hour: 7);
+      await _chooseRow(tester, second);
+      expect(find.byKey(const Key('morning_setting_failed')), findsOneWidget);
+      expect(_rowText(second, _later), findsOneWidget);
+      expect(_rowText(_day(0), 'zählt'), findsOneWidget);
+      expect(_text(tester, 'morning_hr_card_last'), '52,4');
+      expect(recovery.calls, 0);
     });
 
     testWidgets('Morgenfenster: Vorgabe, ändern, ungültig gesperrt', (

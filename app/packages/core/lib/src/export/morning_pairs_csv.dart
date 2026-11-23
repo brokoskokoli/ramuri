@@ -3,16 +3,17 @@ import 'dart:typed_data';
 
 import '../../ports/file_handoff.dart';
 import '../../ports/storage_morning.dart';
+import '../morning/morning_logic.dart' show countingMorningMeasurements;
 import '../ppg/ppg_evaluator.dart' show PpgFrame;
 import '../preprocessing/measurement.dart' show RrPacket;
 
 /// Formatversion der Messpaare-CSV (`docs/contracts/morning-pairs-csv.md`).
-const int morningPairsCsvFormatVersion = 3;
+const int morningPairsCsvFormatVersion = 4;
 
 /// MIME-Typ der Datei.
 const String morningPairsCsvMimeType = 'text/csv';
 
-/// Kopfzeile der Formatversion 3 (Vertrag Abschnitt 3, gleich seit Version 1).
+/// Kopfzeile der Formatversion 4 (Vertrag Abschnitt 3, gleich seit Version 1).
 const List<String> morningPairsCsvColumns = [
   'format_version',
   'morning_id',
@@ -49,8 +50,11 @@ class MorningPair {
 /// RFC 4180, UTF-8 (Bytes macht der Aufrufer), CRLF, Dezimalpunkt, je Morgen
 /// Zeilen der Arten `meta`, `camera`, `camera_ibi`, `belt_rr`; Morgen nach
 /// Zeitpunkt, dann Id. Ein ungültiges Kamera-Intervall (NaN) ist ein leeres
-/// Wertfeld. Rein; ohne Morgen bleibt nur die Kopfzeile.
+/// Wertfeld. `counts` gilt über alle übergebenen Morgen
+/// ([countingMorningMeasurements]). Rein; ohne Morgen bleibt nur die Kopfzeile.
 String encodeMorningPairsCsv(Iterable<MorningPair> pairs) {
+  final counting = countingMorningMeasurements(pairs.map((p) => p.measurement))
+      .toSet();
   final sorted = pairs.toList()
     ..sort((a, b) {
       final t = a.measurement.measuredAt.compareTo(b.measurement.measuredAt);
@@ -112,6 +116,9 @@ String encodeMorningPairsCsv(Iterable<MorningPair> pairs) {
     );
     row('meta', 'before_validation', value: m.beforeValidation ? '1' : '0');
     row('meta', 'outside_window', value: m.outsideWindow ? '1' : '0');
+    // Ab Formatversion 4: gültige Messung des Tages (PAR-160K) und Wahl.
+    row('meta', 'counts', value: counting.contains(m) ? '1' : '0');
+    row('meta', 'chosen', value: m.chosen ? '1' : '0');
     row('meta', 'sleep_band', value: m.sleepBand?.code ?? '');
     row('meta', 'belt_packets', value: '${p.beltPackets.length}');
     final raw = p.rawSignal;

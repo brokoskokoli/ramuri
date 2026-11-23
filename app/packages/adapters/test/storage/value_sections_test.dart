@@ -621,7 +621,7 @@ void main() {
   });
 
   for (final from in [1, 2]) {
-    group('Migration $from -> 15 auf befüllter v$from-Datenbank', () {
+    group('Migration $from -> 16 auf befüllter v$from-Datenbank', () {
       test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
         final v1 = await open((e) => _V1(e, from));
         Future<List<Object?>> master(String type) async => [
@@ -684,7 +684,7 @@ void main() {
               .data
               .values
               .single,
-          15,
+          16,
         );
         await s.database.validateDatabaseSchema();
         expect(await count(s, 'computed_values'), 6);

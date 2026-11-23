@@ -410,7 +410,7 @@ Future<StorageSession> session(WidgetTester t, World w) async {
 Future<void> setupIfShown(WidgetTester t) async {
   await waitFor(
     t,
-    () => has('welcome_start') || has('setup_skip') || has('home_start_run'),
+    () => has('welcome_start') || has('setup_skip') || has('home_screen'),
     'Willkommen, Einrichtung oder Heute',
   );
   if (has('welcome_start')) {
@@ -418,13 +418,15 @@ Future<void> setupIfShown(WidgetTester t) async {
   }
   await waitFor(
     t,
-    () => has('setup_skip') || has('home_start_run'),
+    () => has('setup_skip') || has('home_screen'),
     'Einrichtung oder Heute',
   );
   if (has('setup_skip')) {
     await tapKey(t, 'setup_skip');
   }
-  await waitFor(t, () => has('home_start_run'), 'Heute');
+  // Am Schluessel der Seite: „Lauf starten“ kann unter einer hohen Karte
+  // ausserhalb des gebauten Bereichs der Liste liegen.
+  await waitFor(t, () => has('home_screen'), 'Heute');
 }
 
 /// Tipp auf den obersten Zurueck-Knopf: wartet vorher, bis er im Baum steht

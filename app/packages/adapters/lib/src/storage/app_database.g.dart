@@ -16711,6 +16711,16 @@ class MorningMeasurements extends Table
     requiredDuringInsert: false,
     $customConstraints: 'CHECK (length(unusable_reason) > 0)',
   );
+  static const VerificationMeta _chosenMeta = const VerificationMeta('chosen');
+  late final GeneratedColumn<bool> chosen = GeneratedColumn<bool>(
+    'chosen',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0 CHECK (chosen IN (0, 1))',
+    defaultValue: const CustomExpression('0'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -16733,6 +16743,7 @@ class MorningMeasurements extends Table
     windowEndS,
     restSkippedAfterS,
     unusableReason,
+    chosen,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -16924,6 +16935,12 @@ class MorningMeasurements extends Table
         ),
       );
     }
+    if (data.containsKey('chosen')) {
+      context.handle(
+        _chosenMeta,
+        chosen.isAcceptableOrUnknown(data['chosen']!, _chosenMeta),
+      );
+    }
     return context;
   }
 
@@ -17013,6 +17030,10 @@ class MorningMeasurements extends Table
         DriftSqlType.string,
         data['${effectivePrefix}unusable_reason'],
       ),
+      chosen: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}chosen'],
+      )!,
     );
   }
 
@@ -17053,6 +17074,7 @@ class MorningMeasurementRow extends DataClass
   final double? windowEndS;
   final double? restSkippedAfterS;
   final String? unusableReason;
+  final bool chosen;
   const MorningMeasurementRow({
     required this.id,
     required this.measuredAtUs,
@@ -17074,6 +17096,7 @@ class MorningMeasurementRow extends DataClass
     this.windowEndS,
     this.restSkippedAfterS,
     this.unusableReason,
+    required this.chosen,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -17114,6 +17137,7 @@ class MorningMeasurementRow extends DataClass
     if (!nullToAbsent || unusableReason != null) {
       map['unusable_reason'] = Variable<String>(unusableReason);
     }
+    map['chosen'] = Variable<bool>(chosen);
     return map;
   }
 
@@ -17155,6 +17179,7 @@ class MorningMeasurementRow extends DataClass
       unusableReason: unusableReason == null && nullToAbsent
           ? const Value.absent()
           : Value(unusableReason),
+      chosen: Value(chosen),
     );
   }
 
@@ -17188,6 +17213,7 @@ class MorningMeasurementRow extends DataClass
         json['rest_skipped_after_s'],
       ),
       unusableReason: serializer.fromJson<String?>(json['unusable_reason']),
+      chosen: serializer.fromJson<bool>(json['chosen']),
     );
   }
   @override
@@ -17214,6 +17240,7 @@ class MorningMeasurementRow extends DataClass
       'window_end_s': serializer.toJson<double?>(windowEndS),
       'rest_skipped_after_s': serializer.toJson<double?>(restSkippedAfterS),
       'unusable_reason': serializer.toJson<String?>(unusableReason),
+      'chosen': serializer.toJson<bool>(chosen),
     };
   }
 
@@ -17238,6 +17265,7 @@ class MorningMeasurementRow extends DataClass
     Value<double?> windowEndS = const Value.absent(),
     Value<double?> restSkippedAfterS = const Value.absent(),
     Value<String?> unusableReason = const Value.absent(),
+    bool? chosen,
   }) => MorningMeasurementRow(
     id: id ?? this.id,
     measuredAtUs: measuredAtUs ?? this.measuredAtUs,
@@ -17265,6 +17293,7 @@ class MorningMeasurementRow extends DataClass
     unusableReason: unusableReason.present
         ? unusableReason.value
         : this.unusableReason,
+    chosen: chosen ?? this.chosen,
   );
   MorningMeasurementRow copyWithCompanion(MorningMeasurementsCompanion data) {
     return MorningMeasurementRow(
@@ -17314,6 +17343,7 @@ class MorningMeasurementRow extends DataClass
       unusableReason: data.unusableReason.present
           ? data.unusableReason.value
           : this.unusableReason,
+      chosen: data.chosen.present ? data.chosen.value : this.chosen,
     );
   }
 
@@ -17339,13 +17369,14 @@ class MorningMeasurementRow extends DataClass
           ..write('windowStartS: $windowStartS, ')
           ..write('windowEndS: $windowEndS, ')
           ..write('restSkippedAfterS: $restSkippedAfterS, ')
-          ..write('unusableReason: $unusableReason')
+          ..write('unusableReason: $unusableReason, ')
+          ..write('chosen: $chosen')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     measuredAtUs,
     utcOffsetS,
@@ -17366,7 +17397,8 @@ class MorningMeasurementRow extends DataClass
     windowEndS,
     restSkippedAfterS,
     unusableReason,
-  );
+    chosen,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -17390,7 +17422,8 @@ class MorningMeasurementRow extends DataClass
           other.windowStartS == this.windowStartS &&
           other.windowEndS == this.windowEndS &&
           other.restSkippedAfterS == this.restSkippedAfterS &&
-          other.unusableReason == this.unusableReason);
+          other.unusableReason == this.unusableReason &&
+          other.chosen == this.chosen);
 }
 
 class MorningMeasurementsCompanion
@@ -17415,6 +17448,7 @@ class MorningMeasurementsCompanion
   final Value<double?> windowEndS;
   final Value<double?> restSkippedAfterS;
   final Value<String?> unusableReason;
+  final Value<bool> chosen;
   const MorningMeasurementsCompanion({
     this.id = const Value.absent(),
     this.measuredAtUs = const Value.absent(),
@@ -17436,6 +17470,7 @@ class MorningMeasurementsCompanion
     this.windowEndS = const Value.absent(),
     this.restSkippedAfterS = const Value.absent(),
     this.unusableReason = const Value.absent(),
+    this.chosen = const Value.absent(),
   });
   MorningMeasurementsCompanion.insert({
     this.id = const Value.absent(),
@@ -17458,6 +17493,7 @@ class MorningMeasurementsCompanion
     this.windowEndS = const Value.absent(),
     this.restSkippedAfterS = const Value.absent(),
     this.unusableReason = const Value.absent(),
+    this.chosen = const Value.absent(),
   }) : measuredAtUs = Value(measuredAtUs),
        utcOffsetS = Value(utcOffsetS),
        posture = Value(posture),
@@ -17490,6 +17526,7 @@ class MorningMeasurementsCompanion
     Expression<double>? windowEndS,
     Expression<double>? restSkippedAfterS,
     Expression<String>? unusableReason,
+    Expression<bool>? chosen,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -17512,6 +17549,7 @@ class MorningMeasurementsCompanion
       if (windowEndS != null) 'window_end_s': windowEndS,
       if (restSkippedAfterS != null) 'rest_skipped_after_s': restSkippedAfterS,
       if (unusableReason != null) 'unusable_reason': unusableReason,
+      if (chosen != null) 'chosen': chosen,
     });
   }
 
@@ -17536,6 +17574,7 @@ class MorningMeasurementsCompanion
     Value<double?>? windowEndS,
     Value<double?>? restSkippedAfterS,
     Value<String?>? unusableReason,
+    Value<bool>? chosen,
   }) {
     return MorningMeasurementsCompanion(
       id: id ?? this.id,
@@ -17558,6 +17597,7 @@ class MorningMeasurementsCompanion
       windowEndS: windowEndS ?? this.windowEndS,
       restSkippedAfterS: restSkippedAfterS ?? this.restSkippedAfterS,
       unusableReason: unusableReason ?? this.unusableReason,
+      chosen: chosen ?? this.chosen,
     );
   }
 
@@ -17624,6 +17664,9 @@ class MorningMeasurementsCompanion
     if (unusableReason.present) {
       map['unusable_reason'] = Variable<String>(unusableReason.value);
     }
+    if (chosen.present) {
+      map['chosen'] = Variable<bool>(chosen.value);
+    }
     return map;
   }
 
@@ -17649,7 +17692,8 @@ class MorningMeasurementsCompanion
           ..write('windowStartS: $windowStartS, ')
           ..write('windowEndS: $windowEndS, ')
           ..write('restSkippedAfterS: $restSkippedAfterS, ')
-          ..write('unusableReason: $unusableReason')
+          ..write('unusableReason: $unusableReason, ')
+          ..write('chosen: $chosen')
           ..write(')'))
         .toString();
   }
@@ -32417,6 +32461,7 @@ typedef $MorningMeasurementsCreateCompanionBuilder =
       Value<double?> windowEndS,
       Value<double?> restSkippedAfterS,
       Value<String?> unusableReason,
+      Value<bool> chosen,
     });
 typedef $MorningMeasurementsUpdateCompanionBuilder =
     MorningMeasurementsCompanion Function({
@@ -32440,6 +32485,7 @@ typedef $MorningMeasurementsUpdateCompanionBuilder =
       Value<double?> windowEndS,
       Value<double?> restSkippedAfterS,
       Value<String?> unusableReason,
+      Value<bool> chosen,
     });
 
 final class $MorningMeasurementsReferences
@@ -32607,6 +32653,11 @@ class $MorningMeasurementsFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get chosen => $composableBuilder(
+    column: $table.chosen,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> morningRrPacketsRefs(
     Expression<bool> Function($MorningRrPacketsFilterComposer f) f,
   ) {
@@ -32766,6 +32817,11 @@ class $MorningMeasurementsOrderingComposer
     column: $table.unusableReason,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get chosen => $composableBuilder(
+    column: $table.chosen,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $MorningMeasurementsAnnotationComposer
@@ -32862,6 +32918,9 @@ class $MorningMeasurementsAnnotationComposer
     column: $table.unusableReason,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get chosen =>
+      $composableBuilder(column: $table.chosen, builder: (column) => column);
 
   Expression<T> morningRrPacketsRefs<T extends Object>(
     Expression<T> Function($MorningRrPacketsAnnotationComposer a) f,
@@ -32965,6 +33024,7 @@ class $MorningMeasurementsTableManager
                 Value<double?> windowEndS = const Value.absent(),
                 Value<double?> restSkippedAfterS = const Value.absent(),
                 Value<String?> unusableReason = const Value.absent(),
+                Value<bool> chosen = const Value.absent(),
               }) => MorningMeasurementsCompanion(
                 id: id,
                 measuredAtUs: measuredAtUs,
@@ -32986,6 +33046,7 @@ class $MorningMeasurementsTableManager
                 windowEndS: windowEndS,
                 restSkippedAfterS: restSkippedAfterS,
                 unusableReason: unusableReason,
+                chosen: chosen,
               ),
           createCompanionCallback:
               ({
@@ -33009,6 +33070,7 @@ class $MorningMeasurementsTableManager
                 Value<double?> windowEndS = const Value.absent(),
                 Value<double?> restSkippedAfterS = const Value.absent(),
                 Value<String?> unusableReason = const Value.absent(),
+                Value<bool> chosen = const Value.absent(),
               }) => MorningMeasurementsCompanion.insert(
                 id: id,
                 measuredAtUs: measuredAtUs,
@@ -33030,6 +33092,7 @@ class $MorningMeasurementsTableManager
                 windowEndS: windowEndS,
                 restSkippedAfterS: restSkippedAfterS,
                 unusableReason: unusableReason,
+                chosen: chosen,
               ),
           withReferenceMapper: (p0) => p0
               .map(

@@ -139,8 +139,10 @@ class ReadinessMissingReason {
   final int? windowStartHour;
   final int? windowEndHour;
 
-  /// Am selben Ortstag gab es in derselben Reihe spätere Messungen; sie zählen
-  /// nicht, es gilt die erste ([countingMorningMeasurements]).
+  /// Am selben Ortstag gibt es in derselben Reihe andere wählbare Messungen
+  /// ([MorningMeasurement.isChoosable]); sie zählen nicht, es gilt die erste
+  /// oder die gewählte ([countingMorningMeasurements]), der Nutzer kann eine
+  /// von ihnen wählen (PAR-160K).
   final bool laterIgnored;
 
   /// Wege zum Nachholen in der Reihenfolge der Anzeige.
@@ -312,14 +314,15 @@ Map<ReadinessFactorId, ReadinessMissingReason> readinessMissingReasons({
     final nextHour = morning ? nextStart : null;
     final nextIsToday = morning && nextToday;
     // c. Heute eine Kamera-Messung, die für diesen Faktor nichts liefert. Es
-    // gilt die erste zählende Messung des Ortstags; ohne zählende die erste.
+    // gilt die erste zählende Messung des Ortstags (die erste oder gewählte
+    // ihrer Reihe); ohne zählende die erste.
     if (countingToday.isNotEmpty) {
       final first = countingToday.first;
       final key = MorningSeriesKey.of(first);
       final later = todayAll.any(
         (m) =>
             !identical(m, first) &&
-            m.measuredAt.isAfter(first.measuredAt) &&
+            m.isChoosable &&
             MorningSeriesKey.of(m) == key,
       );
       final value = factor == ReadinessFactor.hrv
