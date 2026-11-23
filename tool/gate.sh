@@ -164,6 +164,7 @@ step tools "Pre-Push-Regeln Selbsttest" bash tool/hooks/pre-push_test.sh
 step tools "ci_e2e Selbsttest (Attrappen)" sh tool/ci_e2e_test.sh
 step tools "ci_ndk Selbsttest (Attrappen)" bash tool/ci_ndk_test.sh
 step tools "Gate-Stufen Selbsttest" sh tool/gate_stages_test.sh
+step zones "Probe: absichtlich rot" false
 
 # --- Flutter und Dart: je Paket (app und app/packages/*) ---
 is_flutter() { grep -Eq '^[[:space:]]+sdk:[[:space:]]*flutter[[:space:]]*$' "$1/pubspec.yaml"; }
