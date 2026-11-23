@@ -124,8 +124,9 @@ class _PlanCalendarState extends State<PlanCalendar> {
             if (h != _history) setState(() => _history = h);
           },
           onError: (Object _) {
-            if (mounted && read == _historyRead)
+            if (mounted && read == _historyRead) {
               setState(() => _history = null);
+            }
           },
         );
   }
