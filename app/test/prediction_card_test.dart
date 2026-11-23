@@ -646,7 +646,7 @@ void main() {
     });
   });
 
-  group('Ältere Referenzen (Befund 3)', () {
+  group('Ältere Referenzen', () {
     testWidgets(
       'Liste mit Löschen je Eintrag; Rückfrage nennt die danach geltende',
       (tester) async {
@@ -876,7 +876,7 @@ void main() {
       expect(await c.deleteActive(), isTrue);
     });
 
-    testWidgets('Soll 2: nach einer fehlschlagenden Aktion wird die nächste '
+    testWidgets('nach einer fehlschlagenden Aktion wird die nächste '
         'Änderung wieder angenommen', (tester) async {
       final (d, _) = await withFastRun(tester);
       final c = PredictionController(
@@ -891,9 +891,7 @@ void main() {
       expect(await c.deleteActive(), isTrue);
     });
 
-    testWidgets('Soll 3: die Sperre hält bis das Neuladen fertig ist', (
-      tester,
-    ) async {
+    testWidgets('die Sperre hält bis das Neuladen fertig ist', (tester) async {
       final (d, _) = await withFastRun(tester);
       final g = _GatedSession(d.session);
       final c = PredictionController(
@@ -1093,7 +1091,7 @@ void main() {
       expect(txt('prediction_reference'), contains('10,00 km in'));
     });
 
-    testWidgets('Soll 1: Knöpfe sind während einer Änderung gesperrt, kein '
+    testWidgets('Knöpfe sind während einer Änderung gesperrt, kein '
         'falscher Hinweis', (tester) async {
       final (d, _) = await withFastRun(tester);
       final g = _GatedSession(d.session);

@@ -253,7 +253,7 @@ void main() {
       },
     );
 
-    // Der Flake-Fall: Pause auf der Werte-Seite, dann der Kartenreiter, dann Beenden (Review 4, Muss 1).
+    // Der Flake-Fall: Pause auf der Werte-Seite, dann der Kartenreiter, dann Beenden.
     _testRun('pausiert: Kartenreiter öffnen, keine Frage', (tester) async {
       final w = _World();
       await w.startRun();
@@ -693,7 +693,7 @@ void main() {
     }
 
     _testRun(
-      'Kachelfehler, dann Hintergrund und Rückkehr bei wieder erreichbarem Netz: die Karte kommt zurück (N10)',
+      'Kachelfehler, dann Hintergrund und Rückkehr bei wieder erreichbarem Netz: die Karte kommt zurück',
       (tester) async {
         addTearDown(
           () => tester.binding.handleAppLifecycleStateChanged(

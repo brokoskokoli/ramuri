@@ -650,7 +650,7 @@ class _FailingStart extends RunRecorder {
 }
 
 /// Kotlin-Quelltext ohne Kommentare, damit ein auskommentierter Aufruf eine
-/// Verdrahtungsprüfung nicht erfüllt (Review 4b).
+/// Verdrahtungsprüfung nicht erfüllt.
 String _code(String kotlin) => kotlin
     .replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '')
     .replaceAll(RegExp(r'(^|[ \t])//[^\n]*', multiLine: true), '');

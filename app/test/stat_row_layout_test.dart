@@ -11,7 +11,7 @@ import 'package:running_app/features/statistics/statistics_view.dart';
 import 'history_summary_test.dart' show seedRun, started;
 import 'statistics_test.dart' show calc, choose, openStats;
 
-/// Zeilen der Kennzahlen mit der echten Schrift (WP15 Nachbesserung 5):
+/// Zeilen der Kennzahlen mit der echten Schrift:
 /// Weder Label noch Wert bricht mitten im Wort; passt beides nicht
 /// nebeneinander, stehen sie untereinander.
 
@@ -66,7 +66,7 @@ int _check(WidgetTester t, String tag, {required bool sideBySide}) {
     final label = t.getRect(
       find.descendant(of: row, matching: find.byType(Text)).first,
     );
-    // Die Regel selbst (WP18, M1 Fehler 1; Review 2, Soll 2): Der Wert steht
+    // Die Regel selbst: Der Wert steht
     // nur dann untereinander, wenn er neben dem Label mehr als 2 Zeilen
     // bräuchte; nebeneinander braucht er höchstens 2.
     final valueText = t.widget<Text>(find.byKey(Key('${id}_value')));
@@ -120,7 +120,7 @@ int _check(WidgetTester t, String tag, {required bool sideBySide}) {
 }
 
 void main() {
-  // Review 2, Soll 1: Die Grenze der Regel. Ein Wert, der neben dem Label
+  // Die Grenze der Regel. Ein Wert, der neben dem Label
   // genau 2 Zeilen braucht, bleibt daneben; erst bei 3 Zeilen steht er
   // darunter.
   testWidgets('Grenze: 2 Zeilen neben dem Label bleiben, 3 stehen darunter', (

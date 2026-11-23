@@ -1,4 +1,4 @@
-// WP22 Teil F, Nachbesserung (Review F, Befund 2): Verdrahtung der Erinnerungen (FR-0174) über die App-Wurzel mit
+// WP22 Teil F: Verdrahtung der Erinnerungen (FR-0174) über die App-Wurzel mit
 // FakeReminderScheduler. Stornieren bei „Alles löschen“, Neuplanen nach einer Änderung auf der Plan-Seite, nach einer
 // DataChanges-Meldung und nach der Rückkehr in die App.
 import 'package:core/core.dart';
