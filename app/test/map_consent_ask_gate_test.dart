@@ -12,6 +12,8 @@ import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/map/map_source_holder.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 
+import 'support/settle_storage.dart';
+
 class _Consents implements ConsentStore {
   final Map<String, ConsentState> data = {};
   @override
@@ -54,15 +56,6 @@ MapConsentController _controller([ConsentStore? store]) {
   );
 }
 
-Future<void> _wait(WidgetTester tester, [int rounds = 8]) async {
-  for (var i = 0; i < rounds; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 25)),
-    );
-    await tester.pump(const Duration(milliseconds: 50));
-  }
-}
-
 final _dialog = find.byKey(const Key('map_consent_dialog'));
 
 void main() {
@@ -102,7 +95,7 @@ void main() {
     );
     await tester.pump();
     h.setWanted(true);
-    await _wait(tester);
+    await observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
     expect(find.byKey(const Key('other_dialog')), findsOneWidget);
     expect(_dialog, findsNothing);
     expect(h.source, isNull);
@@ -111,7 +104,11 @@ void main() {
     await tester.pumpAndSettle();
     h.setWanted(false);
     h.setWanted(true);
-    await _wait(tester);
+    await settleReal(
+      tester,
+      until: () => _dialog.evaluate().isNotEmpty,
+      what: 'Frage zur Karte offen',
+    );
     expect(_dialog, findsOneWidget);
   });
 
@@ -121,14 +118,18 @@ void main() {
     final h = await holder(tester);
     mayAsk = false; // Lauf läuft
     h.setWanted(true);
-    await _wait(tester);
+    await observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
     expect(_dialog, findsNothing);
     expect(h.source, isNull);
     // Lauf vorbei, Karte wird wieder gebraucht (z. B. Zusammenfassung).
     mayAsk = true;
     h.setWanted(false);
     h.setWanted(true);
-    await _wait(tester);
+    await settleReal(
+      tester,
+      until: () => _dialog.evaluate().isNotEmpty,
+      what: 'Frage zur Karte offen',
+    );
     expect(_dialog, findsOneWidget);
   });
 
@@ -151,7 +152,11 @@ void main() {
     await tester.pump();
     store.release.complete();
     await tester.runAsync(() => c.ready);
-    await _wait(tester, 2);
+    await settleReal(
+      tester,
+      until: () => answer != null,
+      what: 'Antwort der Frage',
+    );
     expect(answer, isFalse);
     expect(find.byKey(const Key('other_dialog')), findsOneWidget);
     expect(_dialog, findsNothing);
@@ -171,7 +176,11 @@ void main() {
     mayAsk = false;
     store.release.complete();
     await tester.runAsync(() => c.ready);
-    await _wait(tester, 2);
+    await settleReal(
+      tester,
+      until: () => answer != null,
+      what: 'Antwort der Frage',
+    );
     expect(answer, isFalse);
     expect(_dialog, findsNothing);
   });

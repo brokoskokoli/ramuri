@@ -3,34 +3,56 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
-/// Stand und Aktionen der Seite „Health Connect“ (WP32 Teil C2). Eine Instanz je Sitzung; sie
-/// besitzt den [ConsentService] und den [HealthImportService], damit Widerrufe sofort für den Import gelten (SEC-0001).
-/// Keine Werte in Fehlern oder Logs.
-class HealthConnectController extends ChangeNotifier {
-  HealthConnectController({
-    required this.port,
-    required this.store,
-    required SettingsStore settings,
-    required ConsentStore consentStore,
-    required this.clock,
-    this.countError,
-  }) : _settings = settings,
-       consents = ConsentService(consentStore, clock) {
-    importer = HealthImportService(
-      port: port,
+/// Baut den Controller einer Sitzung aus dem ganzen Port: Die Seite bekommt nur [HealthConnectPermissions], das Lesen
+/// geht nur über [ConsentedHealthReader] in den [HealthImportService] (SEC-0001, SEC-0002). Seite, Import und Wächter
+/// teilen sich eine [ConsentService]-Instanz, damit Widerrufe sofort für den Import gelten.
+HealthConnectController healthConnectSession({
+  required HealthConnectPort port,
+  required HealthImportStore store,
+  required SettingsStore settings,
+  required ConsentStore consentStore,
+  required Clock clock,
+  void Function(Object error, StackTrace stack)? countError,
+}) {
+  final consents = ConsentService(consentStore, clock);
+  return HealthConnectController(
+    permissions: port,
+    importer: HealthImportService(
+      permissions: port,
+      reader: ConsentedHealthReader(port, consents),
       store: store,
-      consents: consents,
       clock: clock,
       settings: settings,
-    );
-  }
+    ),
+    store: store,
+    settings: settings,
+    clock: clock,
+    countError: countError,
+  );
+}
 
-  final HealthConnectPort port;
+/// Stand und Aktionen der Seite „Health Connect“ (WP32 Teil C2). Eine Instanz je Sitzung (siehe
+/// [healthConnectSession]); sie hat nur Rechte und Zustand von Health Connect ([permissions]), kein Lesen, und nutzt die
+/// Einwilligungen des [importer], damit Widerrufe sofort für den Import gelten (SEC-0001). Keine Werte in Fehlern oder
+/// Logs.
+class HealthConnectController extends ChangeNotifier {
+  HealthConnectController({
+    required this.permissions,
+    required this.importer,
+    required this.store,
+    required this._settings,
+    required this.clock,
+    this.countError,
+  });
+
+  final HealthConnectPermissions permissions;
   final HealthImportStore store;
-  final ConsentService consents;
   final Clock clock;
   final SettingsStore _settings;
-  late final HealthImportService importer;
+  final HealthImportService importer;
+
+  /// Dieselbe Instanz wie im Import und im Wächter.
+  ConsentService get consents => importer.consents;
 
   /// Zählt die hier still abgefangenen Fehler (nur Typ und Ort, `ErrorCounter.record`); `null`: nicht verdrahtet.
   final void Function(Object error, StackTrace stack)? countError;
@@ -173,7 +195,7 @@ class HealthConnectController extends ChangeNotifier {
   /// verfügbar), deren importierte Daten es gibt, wird die Löschfrage geöffnet (SEC-0007); ohne Daten wird sie still geschlossen.
   Future<void> load() async {
     try {
-      sdk = await port.sdkStatus();
+      sdk = await permissions.sdkStatus();
     } catch (e, s) {
       _count(e, s);
       sdk = HealthSdkStatus.unavailable;
@@ -186,7 +208,7 @@ class HealthConnectController extends ChangeNotifier {
     permitted = {};
     if (sdk == HealthSdkStatus.available) {
       try {
-        permitted = await port.grantedKinds();
+        permitted = await permissions.grantedKinds();
       } catch (e, s) {
         _count(e, s);
         permitted = {};
@@ -283,7 +305,7 @@ class HealthConnectController extends ChangeNotifier {
   /// „Health Connect installieren“: öffnet den Play Store; `false`, wenn sich nichts öffnen ließ (kein Absturz).
   Future<bool> openInstall() async {
     try {
-      return await port.openInstall();
+      return await permissions.openInstall();
     } catch (e, s) {
       _count(e, s);
       return false;
@@ -294,7 +316,7 @@ class HealthConnectController extends ChangeNotifier {
   Future<void> requestRights() async {
     if (enabled.isEmpty) return;
     try {
-      permitted = await port.requestPermissions({...enabled});
+      permitted = await permissions.requestPermissions({...enabled});
     } catch (e, s) {
       _count(e, s);
       permitted = {};

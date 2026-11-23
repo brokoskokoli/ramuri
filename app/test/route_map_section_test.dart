@@ -134,7 +134,7 @@ void main() {
   ) async {
     final w = _World(consent: ConsentState.granted);
     await tester.pumpWidget(_app(w, _route));
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('route_map'), findsOneWidget);
     expect(key('route_paint'), findsNothing);
     expect(find.text(MapProvider.openFreeMap.attribution), findsOneWidget);
@@ -151,7 +151,7 @@ void main() {
     expect(find.text(MapProvider.openFreeMap.attribution), findsNothing);
 
     await tester.tap(find.text('Karte'));
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('route_map'), findsOneWidget);
     expect(find.text(MapProvider.openFreeMap.attribution), findsOneWidget);
   });
@@ -166,7 +166,7 @@ void main() {
       expect(key('map_consent_dialog'), findsOneWidget);
       expect(w.requests, 0, reason: 'vor der Antwort keine Anfrage');
       await tester.tap(key('map_consent_not_now'));
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(key('route_paint'), findsOneWidget);
       expect(key('route_view_toggle'), findsNothing);
       expect(key('route_map'), findsNothing);
@@ -180,7 +180,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(key('map_consent_load'));
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('route_map'), findsOneWidget);
     expect(key('route_view_toggle'), findsOneWidget);
   });
@@ -188,7 +188,7 @@ void main() {
   testWidgets('widerrufen: keine Frage, Linie, 0 Anfragen', (tester) async {
     final w = _World(consent: ConsentState.revoked);
     await tester.pumpWidget(_app(w, _route));
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('map_consent_dialog'), findsNothing);
     expect(key('route_paint'), findsOneWidget);
     expect(key('route_view_toggle'), findsNothing);
@@ -199,7 +199,7 @@ void main() {
     final inner = FakeInner()..forceStatus = 500;
     final w = _World(net: inner, consent: ConsentState.granted);
     await tester.pumpWidget(_app(w, _route));
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('route_paint'), findsOneWidget);
     expect(key('route_map'), findsNothing);
     expect(key('route_view_toggle'), findsNothing);
@@ -208,7 +208,7 @@ void main() {
   testWidgets('Netz wirft: Linie, kein Umschalter', (tester) async {
     final w = _World(net: ThrowingInner(), consent: ConsentState.granted);
     await tester.pumpWidget(_app(w, _route));
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('route_paint'), findsOneWidget);
     expect(key('route_map'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -219,11 +219,11 @@ void main() {
   ) async {
     final w = _World(consent: ConsentState.granted);
     await tester.pumpWidget(_app(w, _route));
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('route_map'), findsOneWidget);
     final before = w.requests;
     await tester.runAsync(w.controller.revoke);
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('route_paint'), findsOneWidget);
     expect(key('route_map'), findsNothing);
     expect(key('route_view_toggle'), findsNothing);
@@ -235,7 +235,7 @@ void main() {
   ) async {
     final w = _World();
     await tester.pumpWidget(_app(w, const []));
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('map_consent_dialog'), findsNothing);
     expect(w.requests, 0);
   });
@@ -258,7 +258,7 @@ void main() {
         ),
       ),
     );
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('route_map'), findsOneWidget);
     expect(key('route_paint'), findsNothing);
   });
@@ -278,7 +278,7 @@ void main() {
         RunRouteSection(route: _route, marks: marks, markUnitLabel: 'km'),
       ),
     );
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     final map = tester.widget<RouteMap>(key('route_map'));
     expect([for (final m in map.marks) m.index], [1, 2]);
     expect(find.text('2'), findsWidgets);
@@ -323,7 +323,7 @@ void main() {
         }
         final w = _World(net: net, consent: ConsentState.granted);
         await tester.pumpWidget(_app(w, _route));
-        await settleUntilRequestsStable(tester, () => w.requests);
+        await settleUntilMapIdle(tester, w.inner);
         expect(
           w.tileRequests,
           greaterThan(0),
@@ -348,7 +348,7 @@ void main() {
       final net = FakeInner()..failWhere = (u) => u.path.endsWith('.pbf');
       final w = _World(net: net, consent: ConsentState.granted);
       await tester.pumpWidget(_app(w, _route));
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(key('route_map'), findsNothing, reason: 'Rückfall aktiv');
       for (final st in [
         AppLifecycleState.inactive,
@@ -361,11 +361,11 @@ void main() {
       net.failWhere =
           null; // Netz wieder da, während die App im Hintergrund ist
       final n = w.requests;
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(w.requests, n, reason: 'im Hintergrund kein Verkehr');
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(key('route_map'), findsOneWidget);
     },
   );
@@ -380,7 +380,7 @@ void main() {
       );
       final w = _World(consent: ConsentState.granted);
       await tester.pumpWidget(_app(w, _route));
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(key('route_map'), findsOneWidget);
       // App im Hintergrund
       for (final st in [
@@ -394,11 +394,11 @@ void main() {
       expect(key('route_map'), findsNothing);
       expect(key('route_paint'), findsOneWidget);
       final n = w.requests;
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(w.requests, n);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(key('route_map'), findsOneWidget);
       // Route verdeckt
       final nav = tester.state<NavigatorState>(find.byType(Navigator));
@@ -419,7 +419,7 @@ void main() {
       );
       nav.pop();
       await tester.pumpAndSettle();
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(key('route_map'), findsOneWidget);
     },
   );
@@ -435,7 +435,7 @@ void main() {
       final net = FakeInner()..failWhere = (u) => true;
       final w = _World(net: net, consent: ConsentState.granted);
       await tester.pumpWidget(_app(w, _route));
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(key('route_map'), findsNothing, reason: 'Öffnen gescheitert');
       final nav = tester.state<NavigatorState>(find.byType(Navigator));
       nav.push(
@@ -444,7 +444,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       final n = w.requests;
       for (final st in [
         AppLifecycleState.inactive,
@@ -454,15 +454,15 @@ void main() {
         tester.binding.handleAppLifecycleStateChanged(st);
       }
       await tester.pump();
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(w.requests, n, reason: 'im Hintergrund kein Verkehr');
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(w.requests, n, reason: 'Route verdeckt: kein neuer Versuch');
       nav.pop();
       await tester.pumpAndSettle();
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(w.requests, greaterThan(n), reason: 'Route wieder oben: Versuch');
     },
   );
@@ -472,7 +472,7 @@ void main() {
     (tester) async {
       final w = _World(consent: ConsentState.granted);
       await tester.pumpWidget(_app(w, _route));
-      await settleUntilRequestsStable(tester, () => w.requests);
+      await settleUntilMapIdle(tester, w.inner);
       expect(key('route_map'), findsOneWidget);
       final before = tester.element(key('route_map'));
       final n = w.requests;
@@ -500,7 +500,7 @@ void main() {
       ..statusWhere = (u) => u.path.endsWith('.pbf') && n++ == 0 ? 404 : null;
     final w = _World(net: net, consent: ConsentState.granted);
     await tester.pumpWidget(_app(w, _route));
-    await settleUntilRequestsStable(tester, () => w.requests);
+    await settleUntilMapIdle(tester, w.inner);
     expect(key('route_map'), findsOneWidget);
     expect(key('route_view_toggle'), findsOneWidget);
   });
@@ -524,7 +524,7 @@ void main() {
             ),
           ),
         );
-        await settleUntilRequestsStable(tester, () => w.requests);
+        await settleUntilMapIdle(tester, w.inner);
         expect(key('route_map'), findsOneWidget);
         expect(find.text(MapProvider.openFreeMap.attribution), findsOneWidget);
         // Die Quellenangabe liegt vollständig im Bild der Karte.

@@ -9,6 +9,7 @@ import 'package:running_app/ui/ui.dart';
 
 import '../history_summary_test.dart' show started;
 import 'measure_support.dart';
+import '../support/settle_storage.dart';
 
 // Sichtbarkeit der Morgenmessung (FR-0217, K62 Punkt 1) und ihre Einstiege auf
 // Heute und im Profil. Alle Werte synthetisch.
@@ -66,10 +67,11 @@ Future<void> _pump(
       home: home,
     ),
   );
-  for (var i = 0; i < 3; i++) {
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-  }
+  await settleStorage(
+    tester,
+    what: 'Morgenkarte geladen',
+    frame: Duration.zero,
+  );
 }
 
 void main() {
@@ -329,10 +331,11 @@ void main() {
     expect(find.byKey(const Key('morning_start')), findsOneWidget);
     await tester.tap(find.byKey(const Key('measure_back')));
     await tester.pumpAndSettle();
-    for (var i = 0; i < 3; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
+    await settleStorage(
+      tester,
+      what: 'Morgenkarte nach der Rückkehr geladen',
+      frame: Duration.zero,
+    );
     expect(tester.takeException(), isNull);
     expect(find.byKey(const Key('morning_card_start')), findsOneWidget);
   });

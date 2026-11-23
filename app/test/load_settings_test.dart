@@ -9,6 +9,7 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
+import 'support/settle_storage.dart';
 
 /// Einstellungen und Profil für das Belastungsprofil (WP19 C4c, FR-0197,
 /// FR-0103, FR-0002): Banister nur wählbar, wenn anwendbar (sonst mit Grund),
@@ -134,9 +135,7 @@ Future<void> _tapAndWait(WidgetTester tester, String key) async {
   final f = find.byKey(Key(key));
   await tester.ensureVisible(f);
   await tester.tap(f);
-  await tester.runAsync(
-    () => Future<void>.delayed(const Duration(milliseconds: 200)),
-  );
+  await settleStorage(tester, what: 'Einstellung gespeichert');
   await tester.pumpAndSettle();
 }
 

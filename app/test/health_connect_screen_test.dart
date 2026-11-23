@@ -95,7 +95,7 @@ Future<(HealthConnectController, FakeStorage, _Port)> _setup(
   storage ??= FakeStorage();
   final clock = FakeClock(DateTime.utc(2026, 11, 14, 12));
   final port = _Port(status, granted);
-  final c = HealthConnectController(
+  final c = healthConnectSession(
     port: port,
     store: storage.data.health,
     settings: FakeSettingsStore(storage.data),

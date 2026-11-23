@@ -8,6 +8,7 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'measure_support.dart';
+import '../support/settle_storage.dart';
 
 // Auslöser „veränderter Erholungszustand“ nach der Morgenmessung (FR-0157,
 // Teil „3 (Erholung)“): Nach dem Schließen der Messseite prüft die App den
@@ -65,17 +66,19 @@ void main() {
       ),
     );
     await tester.tap(find.byKey(const Key('open')));
-    for (var i = 0; i < 5; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump(const Duration(milliseconds: 100));
-    }
+    await settleStorage(
+      tester,
+      what: 'Seite geöffnet',
+      frame: const Duration(milliseconds: 100),
+    );
     expect(find.byKey(const Key('open')).hitTestable(), findsNothing);
     expect(trigger.calls, 0, reason: 'Seite offen: noch keine Prüfung');
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();
-    for (var i = 0; i < 5; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump(const Duration(milliseconds: 100));
-    }
+    await settleStorage(
+      tester,
+      what: 'Seite geschlossen',
+      frame: const Duration(milliseconds: 100),
+    );
     await tester.runAsync(() => opened!);
     expect(trigger.calls, 1, reason: 'nach dem Schließen genau einmal');
   });

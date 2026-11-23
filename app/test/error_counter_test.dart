@@ -440,7 +440,7 @@ void main() {
       _Port? port,
     }) {
       final storage = FakeStorage();
-      return HealthConnectController(
+      return healthConnectSession(
         port: port ?? _Port(),
         store: storage.data.health,
         settings: FakeSettingsStore(storage.data),
@@ -509,7 +509,7 @@ void main() {
       bool failingSettings = false,
     }) {
       final data = (storage ?? FakeStorage()).data;
-      return HealthConnectController(
+      return healthConnectSession(
         port: port ?? _Port(),
         store: data.health,
         settings: failingSettings

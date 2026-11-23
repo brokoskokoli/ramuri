@@ -14,6 +14,7 @@ import android.provider.DocumentsContract
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.IOException
@@ -24,7 +25,8 @@ import java.io.IOException
  * speichern (`ACTION_CREATE_DOCUMENT`, Inhalt direkt in die gelieferte URI, ohne Temp-Datei).
  * `pickFile` öffnet eine Datei (`ACTION_OPEN_DOCUMENT`) und kopiert sie als Strom nach
  * `cacheDir/imports/` ([ExportFiles.importInto]); `discardPicked` leert den Ordner.
- * `clearExports` leert `exports/` und `imports/` beim Löschen von Daten (SEC-0004).
+ * `clearExports` leert `exports/` und `imports/` beim Löschen von Daten (SEC-0004), mit
+ * `exportsOnly` nur `exports/` (Neubeginn nach Schlüsselverlust).
  * Der Inhalt kommt als `bytes` oder als `path` einer Datei, die Dart schon unter dem Ordner
  * aus `exportDirectory` angelegt hat (nur dort, [ExportFiles.resolve]). Hängt an der
  * Activity, weil beide Wege einen Systemdialog starten. Geschrieben wird auf dem
@@ -66,7 +68,7 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
                     ExportFiles.clear(importDir)
                     mainHandler.post { result.success(null) }
                 }
-                "clearExports" -> clearExports(result, call.argument<Boolean>("unlessBusy"))
+                "clearExports" -> clearExports(result, call)
                 "share", "save" -> {
                     val name = call.argument<String>("fileName")
                     val type = call.argument<String>("mimeType")
@@ -91,10 +93,12 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
 
     private val importDir: File get() = File(activity.cacheDir, ExportFiles.IMPORT_DIR)
 
-    /** Leert `exports/` und `imports/` (SEC-0004); Regel und Threads in [FileHandoffFlow.clearExports]. */
-    private fun clearExports(result: MethodChannel.Result, unlessBusy: Boolean?) {
-        val cache = activity.cacheDir
-        flow.clearExports(unlessBusy, clear = { ExportFiles.clearHandoff(cache) }) { outcome ->
+    /**
+     * Leert `exports/` und `imports/`, mit `exportsOnly` nur `exports/` (SEC-0004); Argumente,
+     * Regel und Threads in [FileHandoffFlow.clearExportsCall].
+     */
+    private fun clearExports(result: MethodChannel.Result, call: MethodCall) {
+        flow.clearExportsCall(call, activity.cacheDir) { outcome ->
             when (outcome) {
                 ClearOutcome.CLEARED -> result.success("cleared")
                 ClearOutcome.BUSY -> result.success("busy")
