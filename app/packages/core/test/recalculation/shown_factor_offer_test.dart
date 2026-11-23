@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 import 'recalc_support.dart';
 
 /// Bestätigen und Ablehnen wirken auf den Faktor, den das Angebot zeigt
-/// (WP19 NB2b, Review 2 Befund 5): wurde er inzwischen zurückgenommen oder
+/// (WP19): wurde er inzwischen zurückgenommen oder
 /// ersetzt, ändert sich nichts und die Oberfläche liest das Angebot neu.
 void main() {
   late RecalcWorld w;

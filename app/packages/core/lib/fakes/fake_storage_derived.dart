@@ -66,7 +66,12 @@ class FakePreprocessingStore implements PreprocessingStore {
   Future<StoredPreprocessing?> read(int runId) async => _d.preprocessing[runId];
 
   @override
-  Future<Map<int, StoredPreprocessing>> readOverviews() async => {
+  Future<Map<int, StoredPreprocessing>> readOverviews() async {
+    _d.overviewReads++;
+    return _readOverviews();
+  }
+
+  Map<int, StoredPreprocessing> _readOverviews() => {
     for (final e in _d.preprocessing.entries)
       e.key: StoredPreprocessing(
         summary: e.value.summary,

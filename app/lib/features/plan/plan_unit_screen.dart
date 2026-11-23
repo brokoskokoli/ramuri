@@ -6,15 +6,30 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
+import 'plan_controller.dart' show PlanDoneRun;
 import 'plan_texts.dart';
 
 /// Beschreibung einer geplanten Einheit (FR-0143): Bezeichnung, Tag,
 /// Trainingsziel, Dauer, Ablauf mit Zielintensität je Abschnitt und die
 /// Grundlage der Vorgabe (PAR-106). Vollbild über der Navigation.
+///
+/// Eine erledigte Einheit zeigt oben den zugeordneten Lauf („Gelaufen“,
+/// FR-0171) mit „Lauf öffnen“; darunter bleibt die Vorgabe.
 class PlanUnitScreen extends StatelessWidget {
-  const PlanUnitScreen({super.key, required this.unit});
+  const PlanUnitScreen({
+    super.key,
+    required this.unit,
+    this.run,
+    this.onOpenRun,
+  });
 
   final PlanUnit unit;
+
+  /// Der zugeordnete Lauf; `null` bei offener Einheit oder fehlendem Lauf.
+  final PlanDoneRun? run;
+
+  /// Öffnet das Laufdetail von [run]; `null`: kein Knopf.
+  final VoidCallback? onOpenRun;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +64,33 @@ class PlanUnitScreen extends StatelessWidget {
             ),
             style: text.bodySmall,
           ),
+          if (run case final run?) ...[
+            const SizedBox(height: 18),
+            SectionHeading(l.planUnitRan, eyebrow: true),
+            const SizedBox(height: 6),
+            Text(
+              planDoneRunLine(l, formatter, run),
+              key: const Key('plan_unit_run'),
+              style: RamuriType.of(context).value,
+            ),
+            if (planDoneIntensity(l, run) case final intensity?)
+              Text(
+                intensity,
+                key: const Key('plan_unit_run_intensity'),
+                style: text.labelMedium?.copyWith(color: c.accent),
+              ),
+            if (onOpenRun != null) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: OutlinedButton(
+                  key: const Key('plan_unit_open_run'),
+                  onPressed: onOpenRun,
+                  child: Text(l.planUnitOpenRun),
+                ),
+              ),
+            ],
+          ],
           const SizedBox(height: 18),
           SectionHeading(l.planUnitPurpose, eyebrow: true),
           const SizedBox(height: 6),

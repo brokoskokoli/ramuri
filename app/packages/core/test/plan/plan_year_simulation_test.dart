@@ -790,10 +790,9 @@ void main() {
     );
   }
 
-  // Befunde der Abschlussprüfung M2 (handoff/m2-abschluss/teil-e.md, teil-f.md).
-  group('Befunde', () {
+  group('Verschobener absolvierter Lauf und Pausenneustart', () {
     test(
-      'F1: Woche mit verschobenem, absolviertem Lauf behält die Wochenzeit',
+      'Woche mit verschobenem, absolviertem Lauf behält die Wochenzeit',
       () async {
         final session = await FakeStorage().open(
           Uint8List.fromList(List.generate(32, (i) => i)),
@@ -835,7 +834,7 @@ void main() {
       },
     );
 
-    test('F2: Pausenneustart trotz Rückmeldung in der Woche davor', () {
+    test('Pausenneustart trotz Rückmeldung in der Woche davor', () {
       final g = _goal(
         distance: GoalDistance.tenKilometers,
         date: _day(380),

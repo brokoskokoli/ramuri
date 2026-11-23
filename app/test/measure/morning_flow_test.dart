@@ -47,6 +47,8 @@ class _FlakyStore implements MorningStore {
   final MorningStore inner;
   bool failAdd = false;
   bool failSleep = false;
+  bool failChoose = false;
+  final chosen = <int>[];
 
   @override
   Future<int> add(
@@ -80,6 +82,13 @@ class _FlakyStore implements MorningStore {
 
   @override
   Future<List<StoredRrPacket>> beltPackets(int id) => inner.beltPackets(id);
+
+  @override
+  Future<void> choose(int measurementId) {
+    if (failChoose) throw const StorageException(StorageFailure.failed);
+    chosen.add(measurementId);
+    return inner.choose(measurementId);
+  }
 }
 
 /// Gescriptete Fenstersuche: Ein Bild mit `g == 41` ist schlecht, alle anderen
@@ -727,15 +736,23 @@ void main() {
         await _settle(tester);
         r.next = _good;
         await _tap(tester, 'morning_again');
+        r.clock.advance(const Duration(seconds: 5));
+        r.readings.add(_rr(r.clock.now(), 915)); // Einstieg, vor der Ruhe
+        await _settle(tester);
+        await _tap(tester, 'morning_start');
         r.clock.advance(const Duration(seconds: 10));
-        r.readings.add(_rr(r.clock.now(), 920)); // Wiederholung
+        r.readings.add(_rr(r.clock.now(), 920)); // Ruhephase der Wiederholung
+        await _settle(tester);
+        r.clock.advance(const Duration(seconds: 111));
+        r.c.engine.tick();
+        await tester.pump();
         await _settle(tester);
         r._t = 0;
         await r.feed(tester, 67);
         expect(r.c.outcome, MorningOutcome.good);
         // Die unbrauchbare erste Messung ist im Entwicklermodus mitgespeichert
-        // (K68); jede trägt nur die RR ihrer eigenen Aufnahme (erste: Ruhephase
-        // bis Ende, zweite: ab „Noch einmal“ bis Ende, ohne Lücke davor).
+        // (K68); jede trägt nur die RR ihrer eigenen Ruhephase und Aufnahme
+        // (K74), ohne die Lücke davor.
         final all = (await tester.runAsync(() => r.store.list()))!;
         expect(all.map((e) => e.value.quality), [
           PpgQuality.unusable,
@@ -751,6 +768,53 @@ void main() {
         expect([for (final p in packets) p.value.intervals.single], [920]);
       },
     );
+
+    testWidgets('Noch einmal nach gültiger Messung: Recorder startet mit der '
+        'Ruhephase neu, jede Messung trägt nur ihre eigenen RR', (
+      tester,
+    ) async {
+      final r = await _Rig.make(withBelt: true, developerMode: true);
+      await r.show(tester, dark: false);
+      await _tap(tester, 'morning_start');
+      r.readings.add(_rr(r.clock.now(), 900)); // Ruhephase der ersten
+      r.clock.advance(const Duration(seconds: 121));
+      r.c.engine.tick();
+      await tester.pump();
+      await _settle(tester);
+      r._t = 0;
+      await r.feed(tester, 67);
+      expect(r.c.outcome, MorningOutcome.good);
+      expect(r.readings.hasListener, isFalse);
+      r.clock.advance(const Duration(seconds: 10));
+      r.readings.add(_rr(r.clock.now(), 910)); // Ergebnisseite
+      await _tap(tester, 'morning_again');
+      await _tap(tester, 'morning_start');
+      expect(r.readings.hasListener, isTrue);
+      r.clock.advance(const Duration(seconds: 10));
+      r.readings.add(_rr(r.clock.now(), 920)); // Ruhephase der zweiten
+      await _settle(tester);
+      r.clock.advance(const Duration(seconds: 111));
+      r.c.engine.tick();
+      await tester.pump();
+      await _settle(tester);
+      r._t = 0;
+      await r.feed(tester, 67);
+      expect(r.c.outcome, MorningOutcome.notCounted);
+      final all = (await tester.runAsync(() => r.store.list()))!;
+      expect(all, hasLength(2));
+      final first = (await tester.runAsync(
+        () => r.store.beltPackets(all.first.id),
+      ))!;
+      expect([for (final p in first) p.value.intervals.single], [900]);
+      final second = (await tester.runAsync(
+        () => r.store.beltPackets(all.last.id),
+      ))!;
+      expect([for (final p in second) p.value.intervals.single], [920]);
+      expect(
+        second.every((p) => !p.value.time.isBefore(r.restStarts.last)),
+        isTrue,
+      );
+    });
 
     testWidgets('Ruhe übersprungen: Gurt-RR erst ab Beginn der Messung', (
       tester,
@@ -915,11 +979,11 @@ void main() {
         );
         expect(r.cam.permissionRequests, 1);
         expect(r.measureEnds, hasLength(1));
-        // Wiederholung nur bei zu schlechter Qualität.
-        expect(r.c.canRepeat, isFalse);
-        expect(find.byKey(const Key('morning_again')), findsNothing);
-        await r.c.repeat();
-        expect(r.cam.permissionRequests, 1);
+        // Im Morgenfenster gibt es „Noch einmal messen“ nach jeder Messung;
+        // die zählende bietet keine Wahl an.
+        expect(r.c.canRepeat, isTrue);
+        expect(find.byKey(const Key('morning_again')), findsOneWidget);
+        expect(find.byKey(const Key('morning_use_instead')), findsNothing);
         var list = await r.stored(tester);
         expect(list, hasLength(1));
         final m = list.single;
@@ -984,7 +1048,7 @@ void main() {
           expect(r.c.outcome, MorningOutcome.limited);
           expect(r.c.stored!.restingHrBpm, 52.4);
           expect(r.c.stored!.rmssdMs, isNull);
-          expect(r.c.stored!.methodVersion, 3);
+          expect(r.c.stored!.methodVersion, 5);
           expect(find.byKey(const Key('morning_no_rmssd')), findsOneWidget);
           expect(
             tester
@@ -1083,6 +1147,11 @@ void main() {
           findsOneWidget,
         );
         expect((await r.stored(tester)).single.outsideWindow, isTrue);
+        // Außerhalb des Fensters: kein „Noch einmal“ nach einer gültigen
+        // Messung, keine Wahl.
+        expect(r.c.canRepeat, isFalse);
+        expect(find.byKey(const Key('morning_again')), findsNothing);
+        expect(find.byKey(const Key('morning_use_instead')), findsNothing);
         // Kein Widerspruch zum Hinweis oben.
         expect(find.byKey(const Key('morning_footer')), findsNothing);
         expect(find.textContaining('Heute zählt diese Messung'), findsNothing);
@@ -1097,7 +1166,7 @@ void main() {
       });
 
       testWidgets(
-        'unbrauchbar: nichts gespeichert, Wiederholung ohne Ruhephase',
+        'unbrauchbar: nichts gespeichert, Wiederholung mit Ruhephase',
         (tester) async {
           final r = await _Rig.make();
           r.next = _bad;
@@ -1119,13 +1188,23 @@ void main() {
 
           r.next = _good;
           await _tap(tester, 'morning_again');
-          // Keine neue Ruhephase: direkt Kamera, zweite Rechteanfrage.
-          expect(r.c.engine.phase, isNot(RestingMeasurePhase.resting));
+          // Derselbe Ablauf wie beim ersten Start: Einstieg mit der Haltung
+          // von eben, dann die Ruhephase (FR-0215).
+          expect(r.c.engine.phase, RestingMeasurePhase.entry);
+          expect(r.c.engine.posture, RestingPosture.lying);
+          expect(r.cam.permissionRequests, 1);
+          await _tap(tester, 'morning_start');
+          expect(r.c.engine.phase, RestingMeasurePhase.resting);
+          expect(r.restStarts, hasLength(2));
+          r.clock.advance(const Duration(seconds: 121));
+          r.c.engine.tick();
+          await tester.pump();
+          await _settle(tester);
           expect(r.cam.permissionRequests, 2);
           r._t = 0;
           await r.feed(tester, 67);
           expect(r.c.outcome, MorningOutcome.good);
-          expect(r.restStarts, hasLength(1));
+          expect(r.restStarts, hasLength(2));
           expect(r.measureEnds, hasLength(2));
           final list = await r.stored(tester);
           expect(list, hasLength(1));
@@ -1164,7 +1243,7 @@ void main() {
         r.next = _good;
         await _tap(tester, 'morning_again');
         expect(r.c.engine.phase, isNot(RestingMeasurePhase.result));
-        r._t = 0;
+        await _startMeasurement(tester, r);
         await r.feed(tester, 67);
         expect(r.c.outcome, MorningOutcome.good);
         expect(await r.stored(tester), hasLength(1));
@@ -1190,6 +1269,89 @@ void main() {
         expect(await again.stored(tester), hasLength(2));
         expect(find.byKey(const Key('morning_footer')), findsNothing);
         expect(find.textContaining('Heute zählt diese Messung'), findsNothing);
+        expect(find.byKey(const Key('morning_use_instead')), findsOneWidget);
+      });
+
+      testWidgets(
+        'nach gültiger Messung: Noch einmal mit Ruhephase, die zweite '
+        'zählt nicht, „stattdessen verwenden“ macht sie zählend',
+        (tester) async {
+          final r = await _Rig.make();
+          await r.show(tester, dark: dark);
+          await r.runThrough(tester);
+          expect(r.c.outcome, MorningOutcome.good);
+          await _tap(tester, 'morning_sleep_from6to7');
+          expect(r.restStarts, hasLength(1));
+
+          r.next = _limited;
+          await _tap(tester, 'morning_again');
+          expect(r.c.engine.phase, RestingMeasurePhase.entry);
+          expect(r.c.outcome, MorningOutcome.pending);
+          // Haltung wie zuletzt gewählt, änderbar wie beim ersten Start.
+          await tester.tap(_text('Sitzend'));
+          await tester.pump();
+          await _tap(tester, 'morning_start');
+          expect(r.c.engine.phase, RestingMeasurePhase.resting);
+          expect(r.restStarts, hasLength(2));
+          // Überspringen wird wie beim ersten Ablauf vermerkt.
+          r.clock.advance(const Duration(seconds: 30));
+          r.c.engine.tick();
+          await tester.pump();
+          await _tap(tester, 'morning_skip_rest');
+          r._t = 0;
+          await r.feed(tester, 67);
+          expect(r.c.outcome, MorningOutcome.notCounted);
+          expect(r.c.stored!.posture, RestingPosture.sitting);
+          expect(r.c.stored!.restSkippedAfterS, 30);
+          expect(
+            _text(
+              'Heute zählt schon eine andere Messung. Diese ist gespeichert und '
+              'zählt nicht, du kannst sie aber stattdessen verwenden.',
+            ),
+            findsOneWidget,
+          );
+          // Auch nach „zählt nicht“ geht es noch einmal.
+          expect(r.c.canRepeat, isTrue);
+          expect(find.byKey(const Key('morning_again')), findsOneWidget);
+
+          await _tap(tester, 'morning_use_instead');
+          expect(r.c.outcome, MorningOutcome.limited);
+          expect(find.byKey(const Key('morning_use_instead')), findsNothing);
+          expect(
+            find.byKey(const Key('morning_note_not_counted')),
+            findsNothing,
+          );
+          final list = await r.stored(tester);
+          expect(list, hasLength(2));
+          final counting = countingMorningMeasurements(list);
+          expect(counting.single.posture, RestingPosture.sitting);
+          expect(counting.single.chosen, isTrue);
+          // Die Schlafangabe des Tages geht auf die gewählte über (PAR-164K).
+          expect(r.c.sleepBand, SleepBand.from6to7);
+          expect(list.first.sleepBand, SleepBand.from6to7);
+        },
+      );
+
+      testWidgets('Wahl scheitert: Hinweis, Ergebnis und Wahl unverändert', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        await _tap(tester, 'morning_again');
+        await _startMeasurement(tester, r);
+        await r.feed(tester, 67);
+        expect(r.c.outcome, MorningOutcome.notCounted);
+        r.store.failChoose = true;
+        await _tap(tester, 'morning_use_instead');
+        expect(find.byKey(const Key('morning_choose_failed')), findsOneWidget);
+        expect(r.c.outcome, MorningOutcome.notCounted);
+        final list = await r.stored(tester);
+        expect(list.every((m) => !m.chosen), isTrue);
+        expect(
+          countingMorningMeasurements(list).single.measuredAt,
+          list.first.measuredAt,
+        );
       });
 
       testWidgets('liegend, dann sitzend am selben Morgen: eine Reihe, nur die '

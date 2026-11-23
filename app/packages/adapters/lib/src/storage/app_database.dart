@@ -32,11 +32,13 @@ class AppDatabase extends _$AppDatabase {
   /// unbrauchbar und übersprungener Ruhephase, Kamera-Rohsignal
   /// (`morning_raw_signals`) und `known_devices.last_used_at_us` (WP37).
   /// Version 15: verwendete Kamera im Rohsignal (`morning_raw_signals.camera_id`,
-  /// `physical_camera_id`, `focal_length_mm`, FR-0220). Jede spätere Änderung erhöht die
+  /// `physical_camera_id`, `focal_length_mm`, FR-0220).
+  /// Version 16: gewählte Morgenmessung des Tages (`morning_measurements.chosen`,
+  /// PAR-160K). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -258,6 +260,19 @@ class AppDatabase extends _$AppDatabase {
       await m.addColumn(morningRawSignals, morningRawSignals.cameraId);
       await m.addColumn(morningRawSignals, morningRawSignals.physicalCameraId);
       await m.addColumn(morningRawSignals, morningRawSignals.focalLengthMm);
+    },
+    // 15 -> 16: gewählte Morgenmessung (PAR-160K); bestehende Zeilen bekommen
+    // 0 (nicht gewählt), es zählt dieselbe Messung wie vorher.
+    15: (Migrator m) async {
+      // Kommt die Datei von Version 12 oder älter, hat Schritt 12 die Tabelle
+      // schon mit der aktuellen Definition (samt `chosen`) angelegt.
+      final columns = await m.database
+          .customSelect(
+            "SELECT name FROM pragma_table_info('morning_measurements')",
+          )
+          .get();
+      if (columns.any((r) => r.data['name'] == 'chosen')) return;
+      await m.addColumn(morningMeasurements, morningMeasurements.chosen);
     },
   };
 

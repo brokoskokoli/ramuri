@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
-import 'package:drift/drift.dart' show OrderingTerm, Value;
+import 'package:drift/drift.dart'
+    show BooleanExpressionOperators, OrderingTerm, Value;
 
 import 'access_support.dart';
 import 'app_database.dart' as d;
@@ -131,6 +132,51 @@ class DriftMorningStore implements MorningStore {
       });
 
   @override
+  Future<void> choose(int measurementId) async {
+    // Nicht wählbar: Abbruch der Transaktion (Rollback), danach als
+    // ArgumentError gemeldet; `guarded` übersetzt sonst jeden Fehler in eine
+    // StorageException.
+    var notChoosable = false;
+    try {
+      await guarded(
+        () => _db.transaction(() async {
+          final c = morningChoice(await list(), measurementId);
+          // Zuerst die Wahl an den anderen löschen, dann die Zielzeile
+          // schreiben: Ist sie nicht wählbar, rollt der Abbruch das Löschen
+          // zurück (ganz oder gar nicht).
+          if (c.unchoose.isNotEmpty) {
+            await (_db.update(
+              _db.morningMeasurements,
+            )..where((t) => t.id.isIn(c.unchoose))).write(
+              const d.MorningMeasurementsCompanion(chosen: Value(false)),
+            );
+          }
+          final n =
+              await (_db.update(_db.morningMeasurements)..where(
+                    (t) =>
+                        t.id.equals(measurementId) &
+                        t.quality.isNotValue(PpgQuality.unusable.name) &
+                        t.outsideWindow.equals(false),
+                  ))
+                  .write(
+                    d.MorningMeasurementsCompanion(
+                      chosen: const Value(true),
+                      sleepBand: Value(c.sleepBand?.code),
+                    ),
+                  );
+          if (n == 0) {
+            notChoosable = true;
+            throw const StorageException(StorageFailure.rejected);
+          }
+        }),
+      );
+    } on StorageException {
+      if (notChoosable) throw morningNotChoosable(measurementId);
+      rethrow;
+    }
+  }
+
+  @override
   Future<MorningRawSignal?> rawSignal(int measurementId) => guarded(() async {
     await _requireMeasurement(measurementId);
     final r = await (_db.select(
@@ -228,6 +274,7 @@ class DriftMorningStore implements MorningStore {
       windowEndS: r.windowEndS,
       restSkippedAfterS: r.restSkippedAfterS,
       unusableReason: reason,
+      chosen: r.chosen,
     );
   }
 }

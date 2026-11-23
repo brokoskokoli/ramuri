@@ -1,12 +1,13 @@
-import 'dart:typed_data';
-
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/measure/morning_trend_screen.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/readiness/readiness_today.dart';
 
 import 'app_harness.dart';
+import 'history_summary_test.dart' show seedRun;
 import 'support/settle_storage.dart';
 
 // Verdrahtung der Auslöser „veränderter Erholungszustand“ in der App
@@ -274,6 +275,49 @@ Future<SleepBand?> _band(WidgetTester tester, StorageSession s, int id) =>
     tester
         .runAsync((s as MorningStorage).morning.list)
         .then((l) => l!.singleWhere((e) => e.id == id).value.sleepBand);
+
+/// Meldet der App das Gerät der Kamera-Messungen (Hersteller „H“, Modell
+/// „M1“), damit „Morgenwerte“ deren Reihe zeigt; andere Aufrufe des Kanals
+/// bleiben ohne Gegenstelle wie sonst im Test.
+void _deviceInfo(WidgetTester tester) {
+  const channel = MethodChannel('ramuri/permissions');
+  final m = tester.binding.defaultBinaryMessenger;
+  m.setMockMethodCallHandler(channel, (call) async {
+    if (call.method == 'deviceInfo') {
+      return {'manufacturer': 'H', 'model': 'M1'};
+    }
+    throw MissingPluginException();
+  });
+  addTearDown(() => m.setMockMethodCallHandler(channel, null));
+}
+
+/// Öffnet „Morgenwerte“ über die Karte auf „Heute“.
+Future<void> _openValues(WidgetTester tester) async {
+  await _tapKey(tester, 'morning_card_history');
+  expect(find.byType(MorningTrendScreen), findsOneWidget);
+}
+
+/// Wählt auf „Morgenwerte“ die Messung um [at] als gültige des Tages.
+Future<void> _chooseOnValues(WidgetTester tester, DateTime at) async {
+  await _tapKey(tester, 'morning_choose_${at.millisecondsSinceEpoch}');
+  await _tapKey(tester, 'morning_choose_confirm');
+}
+
+/// Absolvierte Einheit vor [today]: ordnet der ersten Einheit seit [_d0] einen
+/// Lauf zu und liefert sie.
+Future<PlanUnit> _doneBefore(StorageSession s, DateTime today) async {
+  final unit = (await _plans(
+    s,
+  ).unitsBetween(_d0, today)).firstWhere((u) => u.day.isBefore(today));
+  final run = await seedRun(s, unit.day.add(const Duration(hours: 7)));
+  await _plans(s).assignRun(unit.id!, run);
+  return (await _plans(s).unitOn(unit.day))!;
+}
+
+/// Zweite Messung desselben Geräts um 07:30 am Tag [day] mit hohem Ruhepuls
+/// und niedriger RMSSD: als gültige gewählt senkt sie den Wert.
+MorningMeasurement _low(Clock clock, DateTime day) =>
+    _cam(clock, day, bpm: 70, rmssd: 26, minute: 30);
 
 void main() {
   test('die Reihen ergeben heute einen niedrigen Wert', () async {
@@ -563,6 +607,121 @@ void main() {
       expect(await _band(tester, s, id), SleepBand.from5to6);
       expect((await _history(tester, s)).length, versions + 1);
       expect((await _unit(tester, s, today)).kind, PlanUnitKind.easy);
+      await d.stop(tester);
+    });
+  });
+
+  group('Wahl der gültigen Morgenmessung auf „Morgenwerte“ (PAR-160K)', () {
+    /// Speicher mit Plan, 28 Tagen Kamera-Messungen und heute zwei Messungen:
+    /// 07:00 „über 8 h“ (zählt, Wert „normal“) und 07:30 [_low]; dazu eine
+    /// absolvierte Einheit vor heute.
+    Future<(StorageSession, DateTime, PlanUnit)> seed(
+      WidgetTester tester,
+      Device d, {
+      PlanAdaptationMode mode = PlanAdaptationMode.adaptive,
+    }) async => (await tester.runAsync(() async {
+      final r = await _preopen(d, from: 3);
+      await SettingsPlanAdaptationStore(r.$1.settings)
+          .set(mode, at: d.clock.now());
+      await _seedCamera(r.$1, d.clock, r.$2, band: SleepBand.over8);
+      await (r.$1 as MorningStorage).morning.add(_low(d.clock, r.$2));
+      final done = await _doneBefore(r.$1, r.$2);
+      return (r.$1, r.$2, done);
+    }))!;
+
+    Future<void> start(WidgetTester tester, Device d) async {
+      _deviceInfo(tester);
+      d.ppgCamera = FakePpgCamera();
+      d.healthConnect = _Port(const []);
+      await d.start(tester, const Locale('de'));
+      await _settle(tester);
+    }
+
+    DateTime at(DateTime day, int minute) =>
+        day.add(Duration(hours: 7, minutes: minute));
+
+    testWidgets('„adaptiv“: Umwahl auf die niedrige Messung lockert die harte '
+        'Einheit von heute genau einmal; zurück bleibt die Lockerung', (
+      tester,
+    ) async {
+      final d = Device();
+      final (s, today, done) = await seed(tester, d);
+      final versions = (await _history(tester, s)).length;
+      final hard = await _unit(tester, s, today);
+      await start(tester, d);
+      expect((await _unit(tester, s, today)).isHard, isTrue);
+      expect((await _history(tester, s)).length, versions);
+      await _openValues(tester);
+      await _chooseOnValues(tester, at(today, 30));
+      var history = await _history(tester, s);
+      expect(history.length, versions + 1);
+      expect(history.last.trigger, PlanTrigger.feedback);
+      expect(history.last.reason, planReasonReadiness);
+      final eased = await _unit(tester, s, today);
+      expect(eased.kind, PlanUnitKind.easy);
+      expect(eased.minutes, hard.minutes);
+      // Zurück zur ersten: keine weitere Fassung, die Lockerung bleibt.
+      await _chooseOnValues(tester, at(today, 0));
+      history = await _history(tester, s);
+      expect(history.length, versions + 1);
+      expect((await _unit(tester, s, today)).kind, PlanUnitKind.easy);
+      // Die absolvierte Einheit bleibt, wie sie war.
+      final after = await _unit(tester, s, done.day);
+      expect(after.kind, done.kind);
+      expect(after.minutes, done.minutes);
+      expect(after.runId, done.runId);
+      await d.stop(tester);
+    });
+
+    testWidgets('„fix“: Umwahl schreibt keine Fassung', (tester) async {
+      final d = Device();
+      final (s, today, _) = await seed(
+        tester,
+        d,
+        mode: PlanAdaptationMode.fixed,
+      );
+      final versions = (await _history(tester, s)).length;
+      await start(tester, d);
+      await _openValues(tester);
+      await _chooseOnValues(tester, at(today, 30));
+      expect(
+        find.descendant(
+          of: find.byKey(
+            Key('morning_row_${at(today, 30).millisecondsSinceEpoch}'),
+          ),
+          matching: find.text('zählt'),
+        ),
+        findsOneWidget,
+      );
+      expect((await _history(tester, s)).length, versions);
+      expect((await _unit(tester, s, today)).isHard, isTrue);
+      await d.stop(tester);
+    });
+
+    testWidgets('„adaptiv“: Umwahl an einem vergangenen Tag schreibt keine '
+        'Fassung', (tester) async {
+      final d = Device();
+      final (s, today, done) = await seed(tester, d);
+      final yesterday = today.subtract(const Duration(days: 1));
+      await tester.runAsync(
+        () => (s as MorningStorage).morning.add(_low(d.clock, yesterday)),
+      );
+      final versions = (await _history(tester, s)).length;
+      await start(tester, d);
+      await _openValues(tester);
+      await _chooseOnValues(tester, at(yesterday, 30));
+      expect(
+        find.descendant(
+          of: find.byKey(
+            Key('morning_row_${at(yesterday, 30).millisecondsSinceEpoch}'),
+          ),
+          matching: find.text('zählt'),
+        ),
+        findsOneWidget,
+      );
+      expect((await _history(tester, s)).length, versions);
+      expect((await _unit(tester, s, today)).isHard, isTrue);
+      expect((await _unit(tester, s, done.day)).runId, done.runId);
       await d.stop(tester);
     });
   });

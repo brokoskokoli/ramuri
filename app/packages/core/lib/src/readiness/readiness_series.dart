@@ -103,8 +103,8 @@ double? cameraRestingHrValue(MorningMeasurement m) {
 
 /// Kamera-Abweichungen (PAR-160K bis PAR-162K) für [today] (Ortstag als
 /// UTC-Datum), je Faktor und Reihe (bei der Kamera das Gerät) ein Ergebnis; nie
-/// gemischt, nie mit Health Connect. Es zählt die erste Messung des Ortstags
-/// im Morgenfenster ([countingMorningMeasurements]). Ruhepuls bei „gut“ oder
+/// gemischt, nie mit Health Connect. Es zählt je Ortstag die erste Messung im
+/// Morgenfenster oder die vom Nutzer gewählte ([countingMorningMeasurements]). Ruhepuls bei „gut“ oder
 /// „eingeschränkt“, RMSSD nur bei „gut“ und unter der Qualitätsgrenze. Das
 /// Merkmal „vor der Validierung gemessen“ ändert nichts (K62 Punkt 6). Die
 /// Freigabe je Faktor (Sperre) ist nicht Teil davon.

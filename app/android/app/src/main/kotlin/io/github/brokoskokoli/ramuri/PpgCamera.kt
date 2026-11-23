@@ -27,7 +27,9 @@ import io.flutter.plugin.common.MethodChannel
  * Kamera für das Kamera-PPG (ADR-0011): Rückkamera mit Blitz über Camera2 direkt (keine neue
  * Abhängigkeit) – die Standardkamera oder die von Dart angegebene (FR-0220, auch eine physische
  * Kamera einer logischen Mehrfachkamera, Liste über die Methode "cameras") –, YUV 320×240, höchste feste Bildrate (60 vor 30), Torch, Belichtungs- und
- * Weißabgleichsperre nach 2,5 s, Sensor-Zeitstempel. Je Bild geht nur die Statistik an Dart
+ * Weißabgleichsperre nach 2,5 s, Fokus fest und Stabilisierung aus, soweit die Kamera es kann (ADR-0011,
+ * Nachtrag 2026-11-21), Antibanding aus und nach 2,5 s die längste Belichtung bei der Bildrate, soweit die
+ * Kamera manuelle Belichtung kann (ADR-0011, Nachtrag 2026-11-22), Sensor-Zeitstempel. Je Bild geht nur die Statistik an Dart
  * (PpgFrameStats), das Bild wird sofort geschlossen. Keine Bilder und keine Werte in Logs oder auf Platte.
  *
  * Ablauf, Fehlerzuordnung und Beenden stehen in PpgCameraLogic.kt (Unit-Tests); hier nur die Anbindung.
@@ -68,6 +70,14 @@ object PpgCamera {
     } catch (_: Exception) {
         null
     }
+
+    /** Fokus- und Stabilisierungs-Characteristics für PpgCameraLogic.lensSettings; was fehlt, ist null. */
+    private fun lensProps(c: CameraCharacteristics) = PpgLensProps(
+        afModes = c.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)?.toList(),
+        minFocusDistance = c.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE),
+        oisModes = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)?.toList(),
+        videoStabModes = c.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)?.toList(),
+    )
 
     /** Rückkameras samt physischen Kameras (FR-0220, PpgCameraLogic.listCameras). Braucht kein Kamera-Recht. */
     private fun cameraEntries(manager: CameraManager): List<PpgCameraEntry> {
@@ -183,6 +193,20 @@ object PpgCamera {
         private var timestampSource: String? = null
         private var opened: PpgCameraEntry? = null
 
+        // Fokus und Stabilisierung (ADR-0011, Nachtrag 2026-11-21). Nur Zahlen, nie ins Log.
+        private var lens: PpgLensSettings? = null
+
+        // Belichtung (ADR-0011, Nachtrag 2026-11-22), aus der Kamera, die die Bilder liefert. Nur Zahlen, nie ins Log.
+        private var antibanding: Int? = null
+        private var manualSensor = false
+        private var exposureRange: Pair<Long, Long>? = null
+        private var sensitivityRange: Pair<Int, Int>? = null
+
+        // Belichtung und Empfindlichkeit aus dem letzten Ergebnis der Kamera, die die Bilder liefert
+        // (bei einer physischen Kamera deren Teilergebnis, sonst das logische). Nur für die Sperre.
+        private var lastExposureNs: Long? = null
+        private var lastSensitivity: Int? = null
+
         // Letzte Angaben der Kamera (Kamerathread schreibt, onImage liest ebenfalls dort). Nur Zahlen, nie ins Log.
         private var capture = PpgCaptureInfo()
 
@@ -196,6 +220,10 @@ object PpgCamera {
                     // FLASH_STRENGTH_LEVEL gibt es erst ab Android 15 (API 35); minSdk ist 31.
                     torch = if (Build.VERSION.SDK_INT >= 35) result.get(CaptureResult.FLASH_STRENGTH_LEVEL) else null,
                 )
+                // getPhysicalCameraTotalResults gibt es ab API 31 (= minSdk).
+                val source = opened?.physicalCameraId?.let { result.physicalCameraTotalResults[it] } ?: result
+                lastExposureNs = source.get(CaptureResult.SENSOR_EXPOSURE_TIME)
+                lastSensitivity = source.get(CaptureResult.SENSOR_SENSITIVITY)
             }
         }
 
@@ -215,9 +243,26 @@ object PpgCamera {
                 val id = target.cameraId
                 // Bildrate und Größe aus der Kamera, die die Bilder liefert (physische Kamera, wenn angegeben).
                 val chars = manager.getCameraCharacteristics(target.physicalCameraId ?: id)
+                val logical = manager.getCameraCharacteristics(id)
                 timestampSource = PpgCaptureInfo.sourceName(
-                    manager.getCameraCharacteristics(id).get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE),
+                    logical.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE),
                 )
+                // AF-Modi und Stabilisierung von der Kamera, an die die Anfrage geht; die kürzeste
+                // Distanz von der Kamera, die die Bilder liefert (FR-0220).
+                lens = PpgCameraLogic.lensSettings(
+                    lensProps(logical),
+                    if (target.physicalCameraId != null) lensProps(chars) else null,
+                )
+                // Antibanding und manuelle Belichtung nach der Kamera, die die Bilder liefert (FR-0220).
+                antibanding = PpgCameraLogic.antibandingMode(
+                    chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_ANTIBANDING_MODES)?.toList(),
+                )
+                manualSensor = chars.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+                    ?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true
+                exposureRange = chars.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+                    ?.let { it.lower to it.upper }
+                sensitivityRange = chars.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+                    ?.let { it.lower to it.upper }
                 fps = PpgCameraLogic.chooseFps(
                     chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
                         ?.map { it.lower to it.upper }.orEmpty(),
@@ -308,6 +353,10 @@ object PpgCamera {
                     b.addTarget(reader!!.surface)
                     b.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(fps, fps))
                     b.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
+                    // Schon in der ersten Anfrage; lockExposure und torchOff nutzen denselben Builder
+                    // und behalten die Werte. Nie ein CONTROL_AF_TRIGGER.
+                    applyLens(b)
+                    antibanding?.let { b.set(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, it) }
                     request = b
                     s.setRepeatingRequest(b.build(), captureCallback, handler)
                     val o = opened!!
@@ -318,6 +367,20 @@ object PpgCamera {
             }
 
             override fun onConfigureFailed(s: CameraCaptureSession) = controller.abort("error")
+        }
+
+        /**
+         * Fokus und Stabilisierung auf der Anfrage der geöffneten (logischen) Kamera, wie Bildrate, Torch
+         * und Sperren (ADR-0011, Nachtrag 2026-11-18). Keine Anfrage mit physischen Schlüsseln: bei ihr
+         * bekäme die physische Kamera für jeden ihrer physischen Anfrage-Schlüssel die Werte der Vorlage,
+         * nicht die hier gesetzten.
+         */
+        private fun applyLens(b: CaptureRequest.Builder) {
+            val l = lens ?: return
+            l.afMode?.let { b.set(CaptureRequest.CONTROL_AF_MODE, it) }
+            l.focusDistance?.let { b.set(CaptureRequest.LENS_FOCUS_DISTANCE, it) }
+            l.oisMode?.let { b.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, it) }
+            l.videoStabMode?.let { b.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, it) }
         }
 
         private fun onImage(r: ImageReader) {
@@ -346,9 +409,27 @@ object PpgCamera {
             }
         }
 
+        /**
+         * Sperre nach der Einschwingzeit im selben Builder (Torch, Fokus, Stabilisierung und Antibanding
+         * bleiben): manuell mit längster Belichtung bei der Bildrate, wenn die Kamera es kann
+         * (PpgCameraLogic.exposureLock), sonst die AE-Sperre. Weißabgleich immer gesperrt. Ohne
+         * Automatik gilt CONTROL_AE_TARGET_FPS_RANGE nicht mehr; die Bilddauer hält die Rate.
+         */
         override fun lockExposure() = cameraThread.run {
             val b = request ?: return@run
-            b.set(CaptureRequest.CONTROL_AE_LOCK, true)
+            when (
+                val lock = PpgCameraLogic.exposureLock(
+                    fps, lastExposureNs, lastSensitivity, exposureRange, sensitivityRange, manualSensor,
+                )
+            ) {
+                is PpgExposureLock.Manual -> {
+                    b.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+                    b.set(CaptureRequest.SENSOR_EXPOSURE_TIME, lock.exposureNs)
+                    b.set(CaptureRequest.SENSOR_SENSITIVITY, lock.sensitivity)
+                    b.set(CaptureRequest.SENSOR_FRAME_DURATION, lock.frameDurationNs)
+                }
+                PpgExposureLock.AeLock -> b.set(CaptureRequest.CONTROL_AE_LOCK, true)
+            }
             b.set(CaptureRequest.CONTROL_AWB_LOCK, true)
             session?.setRepeatingRequest(b.build(), captureCallback, handler)
         }

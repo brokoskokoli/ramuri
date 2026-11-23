@@ -114,6 +114,7 @@ void main() {
         'vo2max-acsm-hrr',
         'vo2max-long-term-ema',
         'aerobic-efficiency-median',
+        'high-hr-time',
         'riegel-prediction',
         'weekly-time-course',
         'target-intensity',

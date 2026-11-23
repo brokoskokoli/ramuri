@@ -75,6 +75,7 @@ class PlanParameters {
     this.coolDownMinutes = 5,
     this.minGapDays = 2,
     this.completedIntensiveMinRpe = 7,
+    this.completedIntensiveMinHighHrMinutes = 10,
     this.continuousRunMinutes = 30,
     this.peakFallbackShort = 35,
     this.peakFallbackTen = 65,
@@ -197,6 +198,30 @@ class PlanParameters {
   /// PAR-058: Ein absolvierter Lauf gilt ab dieser RPE-Angabe als intensiv
   /// (für den Abstand, PAR-059).
   final int completedIntensiveMinRpe;
+
+  /// PAR-058: Ein absolvierter Lauf gilt auch als intensiv, wenn er
+  /// mindestens so viele Minuten bei mindestens 80 % HFmax lag (Laufwert
+  /// `high_hr_time`, Verfahren `high-hr-time`).
+  final int completedIntensiveMinHighHrMinutes;
+
+  /// PAR-058 für einen absolvierten Lauf: intensiv bei mindestens
+  /// [completedIntensiveMinHighHrMinutes] Minuten bei mindestens 80 % HFmax
+  /// ODER einer RPE-Angabe ab [completedIntensiveMinRpe]. [highHrMinutes] ist
+  /// `null`, wenn der Wert fehlt oder nicht verfügbar ist (ohne Puls oder
+  /// HFmax); dann zählt nur die RPE-Angabe.
+  bool completedIntensive({int? rpe, double? highHrMinutes}) =>
+      (highHrMinutes != null &&
+          highHrMinutes >= completedIntensiveMinHighHrMinutes) ||
+      (rpe != null && rpe >= completedIntensiveMinRpe);
+
+  /// Kennzeichen eines absolvierten Laufs für die Anzeige (FR-0171): `true`
+  /// intensiv, `false` locker nach [completedIntensive]; `null` ohne beide
+  /// Angaben (weder Zeit bei mindestens 80 % HFmax noch RPE), dann zeigt die
+  /// App kein Kennzeichen.
+  bool? completedIntensity({int? rpe, double? highHrMinutes}) =>
+      rpe == null && highHrMinutes == null
+      ? null
+      : completedIntensive(rpe: rpe, highHrMinutes: highHrMinutes);
 
   /// PAR-192: „30 min am Stück“; Grenze für die Ableitung aus dem Stand.
   final int continuousRunMinutes;

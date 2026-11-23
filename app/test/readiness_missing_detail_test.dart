@@ -80,6 +80,9 @@ class _ClearFailsStore implements MorningStore {
 
   @override
   Future<MorningRawSignal?> rawSignal(int id) => inner.rawSignal(id);
+
+  @override
+  Future<void> choose(int measurementId) => inner.choose(measurementId);
 }
 
 class _Env {
@@ -301,6 +304,46 @@ void main() {
           findsOneWidget,
         );
       });
+
+      // Ohne erreichbare Morgenmessung entfällt außerhalb des Fensters auch
+      // der Hinweis auf das nächste Fenster; der Grund bleibt (FR-0111).
+      for (final hour in [14, 3]) {
+        testWidgets('Morgenmessung nicht erreichbar, $hour Uhr: weder Knopf '
+            'noch Fensterhinweis', (tester) async {
+          final env = (await tester.runAsync(() => _env(hour: hour)))!;
+          final s = (await tester.runAsync(env.service.load))!;
+          await open(tester, s, actions: env.actions(startMorning: false));
+          expect(
+            _text('readiness_detail_missing_reason_hrv'),
+            de ? 'Heute noch keine Messung.' : 'No measurement today yet.',
+          );
+          expect(
+            _key('readiness_detail_missing_reason_restingHeartRate'),
+            findsOneWidget,
+          );
+          for (final id in ['hrv', 'restingHeartRate', 'sleep']) {
+            expect(
+              _key('readiness_detail_start_morning_$id'),
+              findsNothing,
+              reason: '$id um $hour',
+            );
+            expect(
+              _key('readiness_detail_hint_${id}_nextMorningWindow'),
+              findsNothing,
+              reason: '$id um $hour',
+            );
+          }
+          expect(
+            find.textContaining(de ? 'ab 4 Uhr' : 'from 4 am'),
+            findsNothing,
+          );
+          // Schlaf: der Hinweis auf die Morgenmessung bleibt.
+          expect(
+            _key('readiness_detail_hint_sleep_sleepAtMorning'),
+            findsOneWidget,
+          );
+        });
+      }
 
       testWidgets('heutige Messung: Vergleichstage und „Schlaf angeben“', (
         tester,

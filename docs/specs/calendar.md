@@ -16,18 +16,23 @@ Die App stellt alle geplanten und absolvierten Einheiten in einem Kalender dar.
 
 ### FR-0171 — Kalender mit geplanten und absolvierten Einheiten
 - **Status:** Approved | **Phase:** 2
-- **Quelle:** SRC-001 §18, Z. 1130
+- **Quelle:** SRC-001 §18, Z. 1130; SRC-003 (Maintainer 2026-11-20, erledigte Einheit)
 
 Die App stellt alle geplanten und absolvierten Trainingseinheiten in einem Kalender dar.
 
+**Festlegung (SRC-003, Maintainer 2026-11-20):** Eine erledigte Einheit (kein Ruhetag) zeigt in der Plan-Woche zuerst den zugeordneten Lauf (PAR-231): Bewegungszeit und Strecke wie in der Laufliste, die Strecke mit einer Nachkommastelle im gewählten Maß (km oder mi), beim Laufband die Strecke des Bands und „Laufband“ (FR-0196); dazu „intensiv“, wenn der Lauf nach PAR-058 intensiv war, sonst „locker“; ohne Puls-Wert und ohne RPE kein Kennzeichen. Darunter klein die Vorgabe als „geplant: <Art> <Dauer>“; der Haken bleibt. Das Semantik-Label der Karte nennt Lauf und Vorgabe. Ein Tipp öffnet die Einheit (FR-0143) mit dem Abschnitt „Gelaufen“ oben und „Lauf öffnen“ zum Laufdetail; die Vorgabe steht darunter. Auf „Heute“ steht unter „Heute erledigt.“ eine Zeile mit Bewegungszeit und Strecke des Laufs. Ruhetag mit Lauf und Lauf ohne Plan bleiben unverändert; ein gelöschter Lauf wird nicht angezeigt, die Einheit ist wieder offen (ADR-0010). Die gespeicherte Einheit bleibt unverändert (FR-0156).
+
 **Akzeptanzkriterien:**
 - [ ] Geplante und absolvierte Einheiten erscheinen im Kalender.
+- [ ] Eine erledigte Einheit zeigt den zugeordneten Lauf (Bewegungszeit, Strecke, locker oder intensiv nach PAR-058) und darunter die Vorgabe als „geplant: …“; ein Tipp öffnet den Lauf.
 
 ### FR-0172 — Ansichten und Kennzeichnungen
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-001 §18.1, Z. 1134–1137
 
 Der Kalender bietet eine Wochen- und Monatsübersicht und zeigt geplante Trainings, abgeschlossene Trainings und gekennzeichnete ausgefallene Einheiten.
+
+**Festlegung:** Beide Übersichten blättern zurück bis zur Woche der frühesten gespeicherten Planeinheit, auch über den Beginn der neuesten Planfassung hinaus. Quelle: Entscheidung des Maintainers, 2026-11-23.
 
 **Akzeptanzkriterien:**
 - [ ] Beide Übersichten sind verfügbar.

@@ -3,9 +3,13 @@
 // weil die Schritte aufeinander aufbauen (Entwicklermodus, Messungen des Tages):
 // 1 ohne Entwicklermodus kein Einstieg, 2 neun Tipps nein / zehn ja, 3 liegend und
 // sitzend: beide gespeichert, aber nur die erste gueltige des Morgens zaehlt
-// (eine Reihe je Geraet, K67), 4 schlecht -> im Entwicklermodus trotzdem
-// gespeichert (K68, unbrauchbar, zaehlt nirgends) -> Noch einmal -> gueltig (zaehlt
-// nicht, die Reihe hat heute schon eine), 5 ausserhalb des Fensters markiert
+// (eine Reihe je Geraet, K67), 3b nach gueltiger Messung im Fenster Noch einmal
+// (Einstieg, andere Haltung, Ruhephase) -> zweite zaehlt nicht -> stattdessen
+// verwenden -> Morgenwerte und Karte zeigen sie -> auf Morgenwerte die erste
+// wieder waehlen (PAR-160K), 4 schlecht -> im Entwicklermodus trotzdem
+// gespeichert (K68, unbrauchbar, zaehlt nirgends) -> Noch einmal (Einstieg,
+// Ruhephase) -> gueltig (zaehlt nicht, die Reihe hat heute schon eine), 5
+// ausserhalb des Fensters markiert, ohne Noch einmal
 // (Fenster ueber den Einstellungsspeicher gesetzt, die Uhr der App ist die
 // Systemuhr), Morgenwerte: Haltungsmarke gefuellt/hohl und Bildschirmfotos
 // hell/dunkel, 5b Gurtzeile ohne bekannten Gurt (Test-Speicher ohne Geraete),
@@ -33,6 +37,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:running_app/debug/debug_test_ppg_camera.dart';
 import 'package:running_app/debug/debug_test_sensor.dart';
 import 'package:running_app/features/measure/morning_entry.dart';
+import 'package:running_app/features/measure/morning_result_view.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/system_clock.dart';
 import 'package:running_app/ui/ui.dart';
@@ -165,11 +170,16 @@ Future<void> measureFromTile(WidgetTester t, {bool sitting = false}) async {
   await toResult(t);
 }
 
+/// Seite „Heute“ steht: am Schluessel der Seite, nicht an „Lauf starten“ –
+/// die Morgenkarte mit „Noch einmal messen“ kann den Knopf unter den
+/// sichtbaren Bereich schieben, dann baut die Liste ihn nicht.
+bool onToday() => has('home_screen');
+
 Future<void> closeResultToHome(WidgetTester t) async {
   await tapKey(t, 'morning_done');
   await waitFor(t, () => has('overview_about'), 'Uebersicht');
   await back(t);
-  await waitFor(t, () => has('home_start_run'), 'Heute');
+  await waitFor(t, () => onToday(), 'Heute');
 }
 
 /// Zeichnet die Aufrufe der App am Kanal der Erinnerungen auf und reicht jeden
@@ -334,7 +344,7 @@ Future<void> reminderTimeViaUi(WidgetTester t, StorageSession s) async {
   stopReminderCalls(t);
   await tapKey(t, 'measure_back');
   await back(t);
-  await waitFor(t, () => has('home_start_run'), 'S7b Heute');
+  await waitFor(t, () => onToday(), 'S7b Heute');
   log('S7b ok');
 }
 
@@ -374,7 +384,7 @@ Future<void> midnight(
     await waitFor(t, () => has('overview_about'), 'S7c Uebersicht');
     _clk.wall = atLate;
     await measureFromOverview(t, 'S7c 23:58');
-    expect(has('morning_again'), isFalse, reason: 'S7c 23:58 gueltig');
+    expect(has('morning_done'), isTrue, reason: 'S7c 23:58 gueltig');
     expect(
       has('morning_note_outside'),
       isFalse,
@@ -391,7 +401,7 @@ Future<void> midnight(
 
     _clk.wall = atEarly;
     await measureFromOverview(t, 'S7c 00:02');
-    expect(has('morning_again'), isFalse, reason: 'S7c 00:02 gueltig');
+    expect(has('morning_done'), isTrue, reason: 'S7c 00:02 gueltig');
     expect(
       has('morning_note_outside'),
       isFalse,
@@ -453,7 +463,7 @@ Future<void> midnight(
     );
   }
   await back(t);
-  await waitFor(t, () => has('home_start_run'), 'S7c Heute (Systemuhr)');
+  await waitFor(t, () => onToday(), 'S7c Heute (Systemuhr)');
 }
 
 /// Von der Uebersicht ueber den Eintrag Morgenmessung bis zum Ergebnis.
@@ -470,6 +480,162 @@ Future<void> closeResultToOverview(WidgetTester t, String what) async {
   await tapKey(t, 'morning_done');
   await waitFor(t, () => has('overview_about'), '$what Uebersicht');
   log('$what zurueck');
+}
+
+/// Ms-Schluessel einer Zeile der Morgenwerte.
+String _ms(MorningMeasurement m) => '${m.measuredAt.millisecondsSinceEpoch}';
+
+/// Die Zeile von [m] auf „Morgenwerte“ nennt den Text [text].
+bool rowSays(MorningMeasurement m, String text) => find
+    .descendant(
+      of: find.byKey(Key('morning_row_${_ms(m)}')),
+      matching: find.text(text),
+    )
+    .evaluate()
+    .isNotEmpty;
+
+/// „zaehlt“ in der Fassung der Haltung von [m].
+String countsText(AppLocalizations l10n, MorningMeasurement m) =>
+    m.posture == RestingPosture.lying
+    ? l10n.morningRowCounts
+    : l10n.morningRowCountsSitting;
+
+/// 3b) Gueltige Messung im Fenster liegt als Ergebnis vor: „Noch einmal
+/// messen“ fuehrt ueber den Einstieg (Haltung gewechselt) mit Ruhephase zu
+/// einer zweiten Messung, die nicht zaehlt; „Diese Messung stattdessen
+/// verwenden“ macht sie zur gueltigen des Tages (PAR-160K). Morgenwerte und
+/// Karte zeigen sie; auf „Morgenwerte“ wird die vorherige wieder gewaehlt.
+/// [n] ist die Zahl der gespeicherten Messungen vor dem Schritt.
+Future<void> repeatAndChoose(
+  WidgetTester t,
+  StorageSession s,
+  World w,
+  int n,
+) async {
+  final clock = w.deps.clock;
+  List<MorningMeasurement> countingNow(List<MorningMeasurement> l) {
+    final now = clock.now();
+    return morningCountingToday(
+      l,
+      nowUtc: now,
+      utcOffset: clock.utcOffsetAt(now),
+    );
+  }
+
+  expect(
+    has('morning_again'),
+    isTrue,
+    reason: 'S3b gueltig im Fenster: Noch einmal angeboten',
+  );
+  await tapKey(t, 'morning_again');
+  await waitFor(t, () => has('morning_start'), 'S3b Einstieg nach Noch einmal');
+  // Die gezaehlte Messung des Geraets: die zweite bekommt die andere Haltung,
+  // damit die Karte sie eindeutig nennt (Zeit und Haltung).
+  final before = await stored(t, s);
+  final last =
+      (before.toList()..sort((a, b) => a.measuredAt.compareTo(b.measuredAt)))
+          .last;
+  final first = countingNow(before).singleWhere(
+    (m) =>
+        m.deviceManufacturer == last.deviceManufacturer &&
+        m.deviceModel == last.deviceModel,
+  );
+  await tapKey(
+    t,
+    first.posture == RestingPosture.lying
+        ? 'morning_posture_sitting'
+        : 'morning_posture_lying',
+  );
+  await pumpFor(t, const Duration(milliseconds: 300));
+  await toResult(t); // Start, Ruhephase (Testuhr), Ergebnis
+  expect(has('morning_done'), isTrue, reason: 'S3b zweite gueltig');
+  expect(
+    has('morning_note_not_counted'),
+    isTrue,
+    reason: 'S3b zweite zaehlt nicht',
+  );
+  final l = await storedCount(t, s, n + 1);
+  expect(l.length, n + 1, reason: 'S3b zweite gespeichert');
+  final second =
+      (l.toList()..sort((a, b) => a.measuredAt.compareTo(b.measuredAt))).last;
+  expect(second.posture == first.posture, isFalse, reason: 'S3b Haltung');
+  await shot(t, 's3b_ergebnis_zaehlt_nicht');
+  await tapKey(t, 'morning_use_instead');
+  await waitFor(
+    t,
+    () => !has('morning_note_not_counted') && !has('morning_use_instead'),
+    'S3b zweite gewaehlt (Hinweis weg)',
+  );
+  var now = countingNow(await stored(t, s));
+  expect(
+    now.any((m) => _ms(m) == _ms(second)) &&
+        !now.any((m) => _ms(m) == _ms(first)),
+    isTrue,
+    reason: 'S3b gespeichert: zweite zaehlt, erste nicht',
+  );
+  await shot(t, 's3b_ergebnis_gewaehlt');
+  await closeResultToHome(t);
+
+  // Karte auf Heute nennt die zweite (Zeit und Haltung).
+  await entryLoaded(t, MorningCard, 'S3b Heute');
+  final ctx = t.element(find.byKey(const Key('morning_card')));
+  final l10n = AppLocalizations.of(ctx);
+  final locale = Localizations.localeOf(ctx).toString();
+  await waitFor(
+    t,
+    () => txt('morning_card_when') == morningWhenLabel(l10n, locale, second),
+    'S3b Karte zeigt die zweite',
+  );
+  await shot(t, 's3b_heute_karte');
+
+  // Morgenwerte: zweite zaehlt, erste „zaehlt nicht …“; erste wieder waehlen.
+  await tapKey(t, 'home_overview');
+  await tapKey(t, 'overview_morning_values');
+  await waitFor(t, () => has('morning_legend'), 'S3b Morgenwerte');
+  await waitFor(
+    t,
+    () =>
+        rowSays(second, countsText(l10n, second)) &&
+        rowSays(first, l10n.morningRowLater),
+    'S3b Morgenwerte: zweite zaehlt, erste zaehlt nicht',
+  );
+  expect(
+    has('morning_choose_${_ms(first)}'),
+    isTrue,
+    reason: 'S3b erste waehlbar',
+  );
+  expect(
+    has('morning_choose_${_ms(second)}'),
+    isFalse,
+    reason: 'S3b zaehlende nicht waehlbar',
+  );
+  await shot(t, 's3b_morgenwerte_gewaehlt');
+  await tapKey(t, 'morning_choose_${_ms(first)}');
+  await tapDialog(t, 'morning_choose_confirm');
+  await waitFor(
+    t,
+    () =>
+        rowSays(first, countsText(l10n, first)) &&
+        rowSays(second, l10n.morningRowLater),
+    'S3b Morgenwerte: erste wieder gewaehlt',
+  );
+  now = countingNow(await stored(t, s));
+  expect(
+    now.any((m) => _ms(m) == _ms(first)) &&
+        !now.any((m) => _ms(m) == _ms(second)),
+    isTrue,
+    reason: 'S3b gespeichert: erste zaehlt wieder',
+  );
+  await tapKey(t, 'measure_back');
+  await back(t);
+  await waitFor(t, () => onToday(), 'S3b Heute');
+  await entryLoaded(t, MorningCard, 'S3b Heute zurueck');
+  await waitFor(
+    t,
+    () => txt('morning_card_when') == morningWhenLabel(l10n, locale, first),
+    'S3b Karte zeigt wieder die erste',
+  );
+  log('S3b ok');
 }
 
 void main() {
@@ -576,7 +742,7 @@ void main() {
       timeout: const Duration(seconds: 10),
     );
     await back(t);
-    await waitFor(t, () => has('home_start_run'), 'Heute');
+    await waitFor(t, () => onToday(), 'Heute');
     log('S2 karte_sofort=${has('morning_card')}');
     await waitFor(
       t,
@@ -629,7 +795,9 @@ void main() {
     // gespeichert und als „zaehlt nicht“ vermerkt. Hatte das Geraet heute schon
     // eine zaehlende Messung (Tabelle nicht leer), zaehlt auch die liegende nicht.
     await measureFromTile(t);
-    expect(has('morning_again'), isFalse, reason: 'S3 liegend gut');
+    expect(has('morning_done'), isTrue, reason: 'S3 liegend gut');
+    // Gueltig im Fenster: Noch einmal messen wird angeboten (FR-0215).
+    expect(has('morning_again'), isTrue, reason: 'S3 liegend Noch einmal');
     log(
       'S3 liegend note_not_counted=${has('morning_note_not_counted')} outside=${has('morning_note_outside')}',
     );
@@ -673,7 +841,11 @@ void main() {
       baseToday + gain,
       reason: 'S3 nur die erste gueltige des Morgens zaehlt (K67)',
     );
-    await closeResultToHome(t);
+
+    step('MORNING S3b noch_einmal_stattdessen');
+    // 3b) Vom Ergebnis der sitzenden: Noch einmal (Ruhephase), stattdessen
+    // verwenden, auf Morgenwerte zurueckwaehlen; endet auf Heute.
+    await repeatAndChoose(t, s, w, base + 2);
     await shotHellDunkel(t, 's3_heute_karte', 'home_screen');
 
     step('MORNING S4 schlecht_dann_gueltig');
@@ -693,8 +865,8 @@ void main() {
     await shotHellDunkel(t, 's4_ergebnis_schlecht', 'morning_again');
     // Entwicklermodus (S2): die unbrauchbare Messung wird gespeichert (K68),
     // zaehlt aber nirgends.
-    final afterBad = await storedCount(t, s, base + 3);
-    expect(afterBad.length, base + 3, reason: 'S4 schlechte gespeichert (K68)');
+    final afterBad = await storedCount(t, s, base + 4);
+    expect(afterBad.length, base + 4, reason: 'S4 schlechte gespeichert (K68)');
     expect(
       afterBad.where((e) => !e.isUsable).length,
       1,
@@ -712,25 +884,21 @@ void main() {
     );
     cam.scenario = DebugPpgScenario.goodPulse;
     await tapKey(t, 'morning_again');
-    // Noch einmal startet gleich die Messung, ohne neue Ruhephase.
-    await waitFor(t, () => !has('morning_again'), 'Ergebnis 1 verlassen');
-    log(
-      'S4 nach_again rest=${has('measure_rest_clock')} start=${has('morning_start')}',
-    );
+    // Noch einmal fuehrt ueber den Einstieg; Start beginnt die Ruhephase.
     await waitFor(
       t,
-      resultSettled,
-      'Ergebnis 2',
-      timeout: const Duration(seconds: 60),
+      () => has('morning_start'),
+      'S4 Einstieg nach Noch einmal',
     );
+    await toResult(t);
     expect(has('morning_done'), isTrue, reason: 'S4 gueltig');
     expect(
       has('morning_note_not_counted'),
       isTrue,
       reason: 'S4 gueltige zaehlt nicht, die Reihe hat heute schon eine',
     );
-    l = await storedCount(t, s, base + 4);
-    expect(l.length, base + 4, reason: 'S4 gueltige gespeichert');
+    l = await storedCount(t, s, base + 5);
+    expect(l.length, base + 5, reason: 'S4 gueltige gespeichert');
     await shot(t, 's4_ergebnis_gueltig');
     await closeResultToHome(t);
     log('S4 ok');
@@ -749,8 +917,13 @@ void main() {
       isTrue,
       reason: 'S5 Markierung ausserhalb',
     );
+    expect(
+      has('morning_again'),
+      isFalse,
+      reason: 'S5 ausserhalb des Fensters kein Noch einmal',
+    );
     await shot(t, 's5_ergebnis_ausserhalb');
-    l = await storedCount(t, s, base + 5);
+    l = await storedCount(t, s, base + 6);
     expect(
       l.where((e) => e.outsideWindow).length,
       baseOutside + 1,
@@ -933,15 +1106,15 @@ void main() {
     await shot(t, 's6_einstieg_gurt');
     await toResult(t);
     await shot(t, 's6_ergebnis_gurt');
-    l = await storedCount(t, s, base + 6);
-    expect(l.length, base + 6, reason: 'S6 gespeichert');
+    l = await storedCount(t, s, base + 7);
+    expect(l.length, base + 7, reason: 'S6 gespeichert');
     final pairs = await t.runAsync(
       () => countMorningPairs((s as MorningStorage).morning),
     );
     log('S6 paare mit=${pairs!.withBelt} ohne=${pairs.without}');
     expect(pairs.withBelt, base0!.withBelt + 1, reason: 'S6 ein Gurt-Paar');
-    // Zwei in S3, unbrauchbar und gueltige in S4, eine in S5.
-    expect(pairs.without, base0.without + 5);
+    // Zwei in S3, eine in S3b, unbrauchbar und gueltige in S4, eine in S5.
+    expect(pairs.without, base0.without + 6);
     await closeResultToHome(t);
     await tapKey(t, 'home_overview');
     await waitFor(t, () => has('overview_developer'), 'S6 Uebersicht');
@@ -1128,7 +1301,7 @@ void main() {
       isFalse,
     );
     await back(t);
-    await waitFor(t, () => has('home_start_run'), 'Heute');
+    await waitFor(t, () => onToday(), 'Heute');
     await waitFor(t, () => !has('morning_card'), 'Karte weg');
     await shot(t, 's8_heute_aus');
     await tapKey(t, 'home_overview');

@@ -239,9 +239,7 @@ void main() {
     },
   );
 
-  testWidgets('Kilometermarken liegen über Start und Ende (Runde 4)', (
-    tester,
-  ) async {
+  testWidgets('Kilometermarken liegen über Start und Ende', (tester) async {
     final source = await open(tester);
     addTearDown(source.dispose);
     await tester.pumpWidget(

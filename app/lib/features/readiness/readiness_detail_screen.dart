@@ -390,10 +390,12 @@ class _ReadinessDetailScreenState extends State<ReadinessDetailScreen> {
                     l.readinessCatchUpStartMorning,
                     _startMorning,
                   ),
-          ReadinessCatchUp.nextMorningWindow => hint(
-            c,
-            readinessNextWindowText(l, reason!),
-          ),
+          // Ohne erreichbare Morgenmessung (etwa ohne Kamera) entfällt der
+          // Hinweis auf das nächste Fenster wie der Knopf (FR-0111).
+          ReadinessCatchUp.nextMorningWindow =>
+            widget.actions.startMorning == null
+                ? null
+                : hint(c, readinessNextWindowText(l, reason!)),
           ReadinessCatchUp.enterSleep =>
             canEnterSleep
                 ? button(

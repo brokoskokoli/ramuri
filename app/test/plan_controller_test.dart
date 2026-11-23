@@ -829,6 +829,73 @@ void main() {
     });
 
     test(
+      'runsBetween: intensiv durch Zeit bei ≥ 80 % HFmax ohne RPE, durch '
+      'RPE ohne Puls, keins von beiden (PAR-058, FR-0152, FR-0177)',
+      () async {
+        final e = await _Env.open();
+        ComputedValue high(double? minutes) => ComputedValue(
+          key: highHeartRateTimeValueKey,
+          value: minutes,
+          unavailableReason: minutes == null
+              ? UnavailableReason.missingMaxHeartRate
+              : null,
+          unit: minutesUnit,
+          computedAt: _now,
+          measurementCount: minutes == null ? 0 : 600,
+          sources: const ['strap'],
+          method: HighHeartRateTime.methodId,
+          methodVersion: 1,
+          parameterVersion: 1,
+          quality: minutes == null
+              ? ValueQuality.undeterminable
+              : ValueQuality.good,
+        );
+        Future<int> run(
+          int day, {
+          int? rpe,
+          double? minutes,
+          bool value = true,
+        }) async {
+          final r = await e.session.runs.create(
+            startedAt: _day(day).add(const Duration(hours: 8)),
+          );
+          await e.session.runs.setState(
+            r.id,
+            RunState.finished,
+            endedAt: _day(day).add(const Duration(hours: 9)),
+            endedUtcOffset: Duration.zero,
+          );
+          if (rpe != null) {
+            await e.session.subjective.save(r.id, RunSubjective(rpe: rpe));
+          }
+          if (value) {
+            await e.session.values.createOriginals(ValueOwner.run(r.id), [
+              high(minutes),
+            ]);
+          }
+          return r.id;
+        }
+
+        final byHr = await run(0, minutes: 10);
+        final byRpe = await run(1, rpe: 7, value: false);
+        final neither = await run(2, rpe: 6, minutes: 9);
+        final unavailable = await run(3);
+        final unavailableRpe = await run(4, rpe: 7);
+        final runs = await e.controller.runsBetween(_day(0), _day(4));
+        expect(
+          {for (final r in runs) r.id: r.intensive},
+          {
+            byHr: true,
+            byRpe: true,
+            neither: false,
+            unavailable: false,
+            unavailableRpe: true,
+          },
+        );
+      },
+    );
+
+    test(
       'runsBetween an der Versatzgrenze ±18 h (maxRunEndUtcOffset): '
       'genau 18 h zählt zum Plantag der Ortszeit, mehr wird abgewiesen',
       () async {

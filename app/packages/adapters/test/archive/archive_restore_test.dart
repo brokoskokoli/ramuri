@@ -301,7 +301,7 @@ void main() {
     // Kryptografie (Zufallssalz, Argon2id mit den Parametern des Kopfes). Die
     // Tests lesen dieses Archiv nur; jeder bekommt eine eigene Kopie.
     // Nicht unter systemTemp: Der Marken-Test des Exports durchsucht ihn, und
-    // die Testdateien laufen gleichzeitig (Review 2, Befund 2). Die Klartext-
+    // die Testdateien laufen gleichzeitig. Die Klartext-
     // Quelle liegt im (nicht versionierten) .dart_tool des Pakets.
     Directory('.dart_tool').createSync();
     final src = Directory('.dart_tool').createTempSync('wp12c2src_');
@@ -837,6 +837,7 @@ void main() {
     ('archive_v2_s13', 13),
     ('archive_v2_s14', 14),
     ('archive_v2_s15', 15),
+    ('archive_v2_s16', 16),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -1030,6 +1031,11 @@ void main() {
         expect(b.outsideWindow, isTrue);
         expect(b.utcOffset, const Duration(hours: -3, minutes: -30));
         expect(b.cameraIntervalsMs, isEmpty);
+        // Schema 16: gewählte Messung des Tages; ältere Archive lesen 0.
+        expect(
+          [for (final m in morning) m.value.chosen],
+          [schema >= 16, for (var i = 1; i < morning.length; i++) false],
+        );
         // Schema 14 (WP37): neue Spalten; ältere Archive lesen sie als null.
         expect(b.windowStartS, isNull);
         expect(b.restSkippedAfterS, isNull);
@@ -1711,7 +1717,7 @@ void main() {
       'aktives -wal mit Inhalt (nicht eingecheckt): kein Tausch, Daten bleiben',
       () async {
         // Zustand nach einem Prozessende ohne Checkpoint: Hauptdatei alt, die
-        // Läufe stehen nur im -wal (Review 2, Befund 1).
+        // Läufe stehen nur im -wal.
         await addOldData();
         final snap = Directory('${work.path}/snap')..createSync();
         File(activePath).copySync('${snap.path}/db');

@@ -1,5 +1,5 @@
-// WP13 N1c: gemeinsamer Halter der Kachelquelle (M5, Rennen "Widerruf während des Öffnens", S4, M1), Parallelgrenze
-// und Fehlerliste des Miniaturen-Dienstes mit echter Quelle (M4), Pause im Hintergrund (S6). Ohne Netz: ein Fake hinter
+// Gemeinsamer Halter der Kachelquelle (Rennen "Widerruf während des Öffnens", erneute Einwilligung), Parallelgrenze
+// und Fehlerliste des Miniaturen-Dienstes mit echter Quelle, Pause im Hintergrund. Ohne Netz: ein Fake hinter
 // dem Tor.
 import 'dart:async';
 import 'dart:typed_data';
@@ -215,7 +215,7 @@ void main() {
     });
 
     testWidgets(
-      'dispose während des Öffnens: die fertige Quelle wird freigegeben, keine Benachrichtigung (N4)',
+      'dispose während des Öffnens: die fertige Quelle wird freigegeben, keine Benachrichtigung',
       (tester) async {
         final w = _World(consent: ConsentState.granted, slow: true);
         final gate = Completer<void>();
@@ -243,7 +243,7 @@ void main() {
     );
 
     testWidgets(
-      'bind während des Öffnens: die alte Quelle wird freigegeben, die des neuen Controllers gilt (N4)',
+      'bind während des Öffnens: die alte Quelle wird freigegeben, die des neuen Controllers gilt',
       (tester) async {
         final w = _World(consent: ConsentState.granted, slow: true);
         final gate = Completer<void>();
@@ -274,7 +274,7 @@ void main() {
       },
     );
 
-    testWidgets('dispose bei offener Quelle: Quelle zu (N4)', (tester) async {
+    testWidgets('dispose bei offener Quelle: Quelle zu', (tester) async {
       final w = _World(consent: ConsentState.granted);
       final h = await holder(tester, w);
       await settleReal(
@@ -290,7 +290,7 @@ void main() {
     });
 
     testWidgets(
-      'gescheitertes Öffnen: bei erneutem Bedarf (Seitenwechsel) neuer Versuch, ohne neue Frage (N5)',
+      'gescheitertes Öffnen: bei erneutem Bedarf (Seitenwechsel) neuer Versuch, ohne neue Frage',
       (tester) async {
         final w = _World(consent: ConsentState.granted, slow: true);
         final c = w.controller as _SlowController..failOpen = true;
@@ -317,33 +317,32 @@ void main() {
       },
     );
 
-    testWidgets(
-      'Umschalten während des Öffnens: kein zweites Öffnen (Review 3, S3)',
-      (tester) async {
-        final w = _World(consent: ConsentState.granted, slow: true);
-        final c = w.controller as _SlowController..deliver = Completer<void>();
-        final h = await holder(tester, w);
-        await settleReal(
-          tester,
-          until: () => c.opens == 1,
-          what: 'Öffnen begonnen',
-        );
-        expect(c.opens, 1);
-        h.setWanted(false);
-        h.setWanted(true);
-        c.deliver!.complete();
-        await settleReal(
-          tester,
-          until: () => h.usable != null,
-          what: 'Quelle offen',
-        );
-        expect(h.usable, isNotNull);
-        expect(c.opens, 1);
-      },
-    );
+    testWidgets('Umschalten während des Öffnens: kein zweites Öffnen', (
+      tester,
+    ) async {
+      final w = _World(consent: ConsentState.granted, slow: true);
+      final c = w.controller as _SlowController..deliver = Completer<void>();
+      final h = await holder(tester, w);
+      await settleReal(
+        tester,
+        until: () => c.opens == 1,
+        what: 'Öffnen begonnen',
+      );
+      expect(c.opens, 1);
+      h.setWanted(false);
+      h.setWanted(true);
+      c.deliver!.complete();
+      await settleReal(
+        tester,
+        until: () => h.usable != null,
+        what: 'Quelle offen',
+      );
+      expect(h.usable, isNotNull);
+      expect(c.opens, 1);
+    });
 
     testWidgets(
-      'Widerruf und erneutes Erteilen während des Öffnens, dann Umschalten: die offene Quelle wird nicht ersetzt (Review 3, S3)',
+      'Widerruf und erneutes Erteilen während des Öffnens, dann Umschalten: die offene Quelle wird nicht ersetzt',
       (tester) async {
         final w = _World(consent: ConsentState.granted, slow: true);
         final c = w.controller as _SlowController..deliver = Completer<void>();
@@ -372,25 +371,24 @@ void main() {
       },
     );
 
-    testWidgets(
-      'verweigert gestartet, später erteilt: die Quelle öffnet (S4)',
-      (tester) async {
-        final w = _World(consent: ConsentState.revoked);
-        final h = await holder(tester, w);
-        await observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
-        expect(h.source, isNull);
-        expect(w.inner.requests, isEmpty);
-        await tester.runAsync(w.controller.grant);
-        await settleReal(
-          tester,
-          until: () => h.usable != null,
-          what: 'Quelle nach dem Erteilen offen',
-        );
-        expect(h.usable, isNotNull, reason: 'erneut erteilt öffnet die Quelle');
-      },
-    );
+    testWidgets('verweigert gestartet, später erteilt: die Quelle öffnet', (
+      tester,
+    ) async {
+      final w = _World(consent: ConsentState.revoked);
+      final h = await holder(tester, w);
+      await observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
+      expect(h.source, isNull);
+      expect(w.inner.requests, isEmpty);
+      await tester.runAsync(w.controller.grant);
+      await settleReal(
+        tester,
+        until: () => h.usable != null,
+        what: 'Quelle nach dem Erteilen offen',
+      );
+      expect(h.usable, isNotNull, reason: 'erneut erteilt öffnet die Quelle');
+    });
 
-    testWidgets('Widerruf, dann erneut erteilt: die Quelle öffnet neu (S4)', (
+    testWidgets('Widerruf, dann erneut erteilt: die Quelle öffnet neu', (
       tester,
     ) async {
       final w = _World(consent: ConsentState.granted);
@@ -543,7 +541,7 @@ void main() {
     );
 
     testWidgets(
-      'gescheiterter Lauf wird beim Wiederkehren erneut versucht, höchstens miniatureMaxAttempts Mal je Aufbau (X4, WP13 N5)',
+      'gescheiterter Lauf wird beim Wiederkehren erneut versucht, höchstens miniatureMaxAttempts Mal je Aufbau',
       (tester) async {
         await setup(tester, (
           boundary,
@@ -593,7 +591,7 @@ void main() {
           : service.routeCurrent = true;
 
       testWidgets(
-        'Pause ($cause) vor der Anfrage: keine Aufnahme, kein Netz, danach geht es weiter (S6)',
+        'Pause ($cause) vor der Anfrage: keine Aufnahme, kein Netz, danach geht es weiter',
         (tester) async {
           addTearDown(
             () => tester.binding.handleAppLifecycleStateChanged(
@@ -628,7 +626,7 @@ void main() {
       );
 
       testWidgets(
-        'Pause ($cause) während der Aufnahme: Abbruch, nichts gespeichert, Tor zu, danach neu (S6)',
+        'Pause ($cause) während der Aufnahme: Abbruch, nichts gespeichert, Tor zu, danach neu',
         (tester) async {
           addTearDown(
             () => tester.binding.handleAppLifecycleStateChanged(
@@ -680,7 +678,7 @@ void main() {
       );
 
       testWidgets(
-        'Pause ($cause) und Rückkehr, bevor die Aufnahme es bemerkt: kein Fehlversuch, der Lauf kommt neu dran (N8)',
+        'Pause ($cause) und Rückkehr, bevor die Aufnahme es bemerkt: kein Fehlversuch, der Lauf kommt neu dran',
         (tester) async {
           addTearDown(
             () => tester.binding.handleAppLifecycleStateChanged(
@@ -716,7 +714,7 @@ void main() {
     }
 
     testWidgets(
-      'nicht darstellbare Bilder zählen als Fehlversuch: nach der Obergrenze keine neue Aufnahme (S2)',
+      'nicht darstellbare Bilder zählen als Fehlversuch: nach der Obergrenze keine neue Aufnahme',
       (tester) async {
         await setup(tester, (
           boundary,
@@ -743,7 +741,7 @@ void main() {
     );
 
     testWidgets(
-      'Abbruch mitten in der Aufnahme zählt nicht als Fehlversuch, auch nicht dreimal (S3)',
+      'Abbruch mitten in der Aufnahme zählt nicht als Fehlversuch, auch nicht dreimal',
       (tester) async {
         await setup(tester, (
           boundary,

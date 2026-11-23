@@ -2,6 +2,7 @@ package io.github.brokoskokoli.ramuri
 
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraMetadata
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -397,5 +398,142 @@ class PpgCameraLogicTest {
         assertEquals(0, quits)
         g.quitWhenIdle()
         assertEquals(1, quits)
+    }
+
+    // --- Fokus und Stabilisierung (ADR-0011, Nachtrag 2026-11-21) ---
+
+    private val afOff = CameraMetadata.CONTROL_AF_MODE_OFF
+    private val afAuto = CameraMetadata.CONTROL_AF_MODE_AUTO
+    private val afPicture = CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+    private val oisOff = CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_OFF
+    private val oisOn = CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON
+    private val vsOff = CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF
+    private val vsOn = CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON
+
+    @Test fun manualFocusIsOffAtTheShortestDistance() {
+        val s = PpgCameraLogic.lensSettings(PpgLensProps(afModes = listOf(afOff, afAuto, afPicture), minFocusDistance = 10.0f))
+        assertEquals(afOff, s.afMode)
+        assertEquals(10.0f, s.focusDistance!!, 0f)
+    }
+
+    @Test fun fixedFocusSetsNoFocusKeys() {
+        for (min in listOf(0f, null)) {
+            for (modes in listOf(listOf(afOff), listOf(afOff, afAuto))) {
+                val s = PpgCameraLogic.lensSettings(PpgLensProps(afModes = modes, minFocusDistance = min))
+                assertNull("$min $modes", s.afMode)
+                assertNull("$min $modes", s.focusDistance)
+            }
+        }
+    }
+
+    @Test fun withoutOffFocusIsAutoWithoutDistance() {
+        val s = PpgCameraLogic.lensSettings(PpgLensProps(afModes = listOf(afAuto, afPicture), minFocusDistance = 10.0f))
+        assertEquals(afAuto, s.afMode)
+        assertNull(s.focusDistance)
+    }
+
+    @Test fun withoutOffAndAutoNothingIsSet() {
+        for (modes in listOf(listOf(afPicture), emptyList(), null)) {
+            val s = PpgCameraLogic.lensSettings(PpgLensProps(afModes = modes, minFocusDistance = 10.0f))
+            assertNull("$modes", s.afMode)
+            assertNull("$modes", s.focusDistance)
+        }
+    }
+
+    @Test fun stabilizationIsOffOnlyWhenAvailable() {
+        val on = PpgCameraLogic.lensSettings(PpgLensProps(oisModes = listOf(oisOff, oisOn), videoStabModes = listOf(vsOff, vsOn)))
+        assertEquals(oisOff, on.oisMode)
+        assertEquals(vsOff, on.videoStabMode)
+        for (ois in listOf(listOf(oisOn), emptyList(), null)) {
+            assertNull("$ois", PpgCameraLogic.lensSettings(PpgLensProps(oisModes = ois)).oisMode)
+        }
+        for (vs in listOf(listOf(vsOn), listOf(vsOn, CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION), emptyList(), null)) {
+            assertNull("$vs", PpgCameraLogic.lensSettings(PpgLensProps(videoStabModes = vs)).videoStabMode)
+        }
+    }
+
+    @Test fun nothingKnownSetsNothing() {
+        assertEquals(PpgLensSettings(null, null, null, null), PpgCameraLogic.lensSettings(PpgLensProps()))
+    }
+
+    @Test fun physicalCameraDeterminesTheFocusDistance() {
+        // AF-Modi und Stabilisierung von der logischen Kamera (Anfrage), kürzeste Distanz von der physischen.
+        val logical = PpgLensProps(listOf(afOff, afAuto), 10.0f, listOf(oisOff, oisOn), listOf(vsOff))
+        val s = PpgCameraLogic.lensSettings(logical, PpgLensProps(afModes = null, minFocusDistance = 5.0f))
+        assertEquals(afOff, s.afMode)
+        assertEquals(5.0f, s.focusDistance!!, 0f)
+        assertEquals(oisOff, s.oisMode)
+        assertEquals(vsOff, s.videoStabMode)
+        // Physische Kamera mit Fixfokus: keine Fokus-Schlüssel, auch wenn die logische fokussieren kann.
+        val fixed = PpgCameraLogic.lensSettings(logical, PpgLensProps(minFocusDistance = 0f))
+        assertNull(fixed.afMode)
+        assertNull(fixed.focusDistance)
+    }
+
+    // --- Antibanding und Belichtung (ADR-0011, Nachtrag 2026-11-22) ---
+
+    @Test fun antibandingIsOffOnlyWhenAvailable() {
+        assertEquals(CameraMetadata.CONTROL_AE_ANTIBANDING_MODE_OFF, PpgCameraLogic.antibandingMode(listOf(0, 1, 2, 3)))
+        for (modes in listOf(listOf(3), emptyList(), null)) {
+            assertNull("$modes", PpgCameraLogic.antibandingMode(modes))
+        }
+    }
+
+    private val ms = 1_000_000L
+    private val exposure30s = 0L to 30_000 * ms
+    private val iso = 50 to 6400
+
+    private fun lock(
+        fps: Int = 60,
+        e0: Long? = 10_005_000L,
+        s0: Int? = 2400,
+        exposure: Pair<Long, Long>? = exposure30s,
+        sensitivity: Pair<Int, Int>? = iso,
+        manual: Boolean = true,
+    ) = PpgCameraLogic.exposureLock(fps, e0, s0, exposure, sensitivity, manual)
+
+    @Test fun manualAt60FpsUsesTheWholeFrameAndScalesTheSensitivity() {
+        assertEquals(PpgExposureLock.Manual(16_666_667L, 1441, 16_666_667L), lock())
+    }
+
+    @Test fun manualAt30FpsUsesTheWholeFrame() {
+        assertEquals(PpgExposureLock.Manual(33_333_333L, 1441, 33_333_333L), lock(fps = 30, e0 = 20_010_000L))
+    }
+
+    @Test fun sensitivityReportedAboveTheRangeIsCappedAtTheTop() {
+        assertEquals(PpgExposureLock.Manual(16_666_667L, 6400, 16_666_667L), lock(e0 = 10 * ms, s0 = 12800))
+    }
+
+    @Test fun exposureIsLimitedByTheExposureRange() {
+        // 2400 · 10 / 12 = 2000.
+        assertEquals(PpgExposureLock.Manual(12 * ms, 2000, 16_666_667L), lock(e0 = 10 * ms, exposure = 0L to 12 * ms))
+    }
+
+    @Test fun neverShorterThanTheAutomatic() {
+        // Automatik schon bei der vollen Bilddauer (30 Bilder/s).
+        assertEquals(PpgExposureLock.Manual(33_333_333L, 2400, 33_333_333L), lock(fps = 30, e0 = 33_333_333L))
+        // Bereich kürzer als die Belichtung der Automatik: deren Belichtung bleibt.
+        assertEquals(
+            PpgExposureLock.Manual(10_005_000L, 2400, 16_666_667L),
+            lock(exposure = 0L to 8 * ms),
+        )
+    }
+
+    @Test fun sensitivityBelowTheRangeIsRaisedToTheBottom() {
+        // 60 · 10 / 16,67 = 36 < 50.
+        assertEquals(PpgExposureLock.Manual(16_666_667L, 50, 16_666_667L), lock(e0 = 10 * ms, s0 = 60))
+    }
+
+    @Test fun withoutManualSensorValuesOrRangesTheAeLockStays() {
+        val cases = mapOf(
+            "ohne MANUAL_SENSOR" to lock(manual = false),
+            "ohne e0" to lock(e0 = null),
+            "ohne s0" to lock(s0 = null),
+            "ohne Belichtungsbereich" to lock(exposure = null),
+            "ohne Empfindlichkeitsbereich" to lock(sensitivity = null),
+            "e0 = 0" to lock(e0 = 0L),
+            "s0 = 0" to lock(s0 = 0),
+        )
+        for ((name, result) in cases) assertEquals(name, PpgExposureLock.AeLock, result)
     }
 }
