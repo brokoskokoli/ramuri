@@ -13,6 +13,7 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
 
 import 'app_harness.dart';
+import 'support/settle_storage.dart';
 
 /// WP23 Teil C1: Warnsignal melden und aufheben (FR-0203), Nachfrage
 /// (PAR-200) auf der Plan-Seite.
@@ -105,26 +106,17 @@ Future<void> _pump(
   settle ? await _settle(tester) : await _pumpFew(tester);
 }
 
+/// Speicher und Neuberechnung zu Ende kommen lassen (fünf Frames ohne
+/// Echtzeit-Pausen), dann die Animationen.
 Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 5; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 50)),
-    );
-    await tester.pump();
-  }
+  await _pumpFew(tester);
   await tester.pumpAndSettle();
 }
 
 /// Wie [_settle], aber ohne `pumpAndSettle`: Die Fortschrittsanzeige
 /// läuft, solange die Neuberechnung hängt.
-Future<void> _pumpFew(WidgetTester tester) async {
-  for (var i = 0; i < 5; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 50)),
-    );
-    await tester.pump();
-  }
-}
+Future<void> _pumpFew(WidgetTester tester) =>
+    observeFrames(tester, 5, frame: Duration.zero);
 
 Future<void> _openMenu(WidgetTester tester) async {
   await tester.tap(key('plan_menu'));

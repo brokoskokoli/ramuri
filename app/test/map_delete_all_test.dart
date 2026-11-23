@@ -15,10 +15,12 @@ import 'package:running_app/features/map/map_consent_controller.dart';
 import 'package:running_app/features/map/map_consent_scope.dart';
 import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/map/miniature_service.dart';
+import 'package:running_app/features/storage/storage_start.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show openHistory;
 import 'run_detail_test.dart' show seedDetailRun;
+import 'support/settle_storage.dart';
 
 Finder key(String k) => find.byKey(Key(k));
 
@@ -85,15 +87,6 @@ const _style = RouteMapStyle(
 const _route = [
   [RoutePoint(10, 20), RoutePoint(10.001, 20.001)],
 ];
-
-Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 8; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 20)),
-    );
-    await tester.pump(const Duration(milliseconds: 50));
-  }
-}
 
 MapConsentController _granted(
   _World w,
@@ -192,9 +185,11 @@ void main() {
         final svc = MiniatureService(consent: c);
         addTearDown(svc.dispose);
         svc.request(1, _route, _style, visibleTop: () => 0);
-        for (var i = 0; i < 20 && captures == 0; i++) {
-          await _settle(tester);
-        }
+        await settleReal(
+          tester,
+          until: () => captures > 0,
+          what: 'Aufnahme läuft',
+        );
         expect(captures, 1, reason: 'Aufnahme läuft und hängt');
 
         final seen = <String>[];
@@ -206,7 +201,7 @@ void main() {
             await Future<void>.delayed(Duration.zero);
           }),
         );
-        await _settle(tester);
+        await observeFrames(tester, 8, frame: const Duration(milliseconds: 50));
         expect(seen, ['granted=false'], reason: 'Tor schon vor dem Löschen zu');
         expect(w.thumbs.data, isEmpty, reason: 'nichts geschrieben');
         expect(c.status, MapConsentStatus.neverAsked);
@@ -270,13 +265,19 @@ void main() {
         final svc = MiniatureService(consent: c);
         addTearDown(svc.dispose);
         final ticket = svc.request(3, _route, _style, visibleTop: () => 0)!;
-        for (var i = 0; i < 20 && captures == 0; i++) {
-          await _settle(tester);
-        }
+        await settleReal(
+          tester,
+          until: () => captures > 0,
+          what: 'Aufnahme läuft',
+        );
         expect(captures, 1);
         await tester.runAsync(() => c.deleteRunThumbnails(3));
         hold.complete();
-        await _settle(tester);
+        await settleReal(
+          tester,
+          until: () => ticket.cancelled,
+          what: 'Auftrag abgebrochen',
+        );
         expect(ticket.cancelled, isTrue);
         expect(w.thumbs.data, isEmpty);
       },
@@ -372,8 +373,79 @@ void main() {
       },
     );
 
+    test('Neubeginn nach Schlüsselverlust leert über die Verdrahtung genau einmal nur die Exportablage (SEC-0004)', () async {
+      final handoff = FakeFileHandoff();
+      final wiring = storageWiringFor(dbPath, map, handoff);
+      await map.write('map:/a', bytes(500));
+      File(dbPath).writeAsBytesSync([1]);
+      await wiring.files.deleteAll();
+      expect(File(dbPath).existsSync(), isFalse);
+      expect(File(mapFile()).existsSync(), isFalse);
+      expect(handoff.clearCalls, [false], reason: 'ohne unlessSharing');
+      expect(handoff.clearExportsOnly, [true], reason: 'imports/ bleibt');
+    });
+
+    test('Neubeginn: Exportablage nicht leer → deleteAll wirft ohne Pfad, der Kartenspeicher ist trotzdem geräumt', () async {
+      final handoff = FakeFileHandoff()..nextClear = ExportClearResult.failed;
+      final wiring = storageWiringFor(dbPath, map, handoff);
+      await map.write('map:/a', bytes(500));
+      File(dbPath).writeAsBytesSync([1]);
+      Object? thrown;
+      try {
+        await wiring.files.deleteAll();
+      } on Object catch (e) {
+        thrown = e;
+      }
+      expect(thrown, isA<StateError>());
+      expect('$thrown', contains('exports_not_cleared'));
+      expect('$thrown', isNot(contains(dir.path)));
+      expect(File(mapFile()).existsSync(), isFalse);
+      expect(handoff.clearExportsOnly, [true]);
+    });
+
+    test('Neubeginn: Kartenspeicher wirft → die Exportablage wird trotzdem geleert, deleteAll wirft', () async {
+      final handoff = FakeFileHandoff();
+      final broken = EncryptedMapTileStore(
+        directory: () async => throw const FileSystemException('x'),
+        key: () async => key,
+      );
+      final wiring = storageWiringFor(dbPath, broken, handoff);
+      File(dbPath).writeAsBytesSync([1]);
+      await expectLater(wiring.files.deleteAll(), throwsA(anything));
+      expect(handoff.clearCalls, [false]);
+      expect(handoff.clearExportsOnly, [true]);
+      await broken.close();
+    });
+
+    test('Neubeginn im StorageStartController: Exportablage nicht leer → filesNotDeleted, kein neuer Schlüssel', () async {
+      final handoff = FakeFileHandoff()..nextClear = ExportClearResult.failed;
+      final keys = FakeKeyStore();
+      var generated = 0;
+      File(dbPath).writeAsBytesSync([1, 2, 3]);
+      final c = StorageStartController(
+        keyStore: keys,
+        generateKey: () {
+          generated++;
+          return key;
+        },
+        wire: () async => storageWiringFor(dbPath, map, handoff),
+      );
+      await c.start();
+      expect(
+        (c.state as StorageNotOpenableState).cause,
+        StorageNotOpenableCause.keyMissing,
+      );
+      await c.resetStorage();
+      final s = c.state as StorageNotOpenableState;
+      expect(s.resetProblem, StorageResetProblem.filesNotDeleted);
+      expect(handoff.clearExportsOnly, [true]);
+      expect(await keys.read(storageKeyName), isNull);
+      expect(generated, 0);
+      c.dispose();
+    });
+
     test('M3: der Tausch durch eine Wiederherstellung verwirft die Miniaturen, die Kacheln bleiben', () async {
-      final files = databaseFilesFor(dbPath, map);
+      final files = databaseFilesFor(dbPath, map, FakeFileHandoff());
       await map.write('map:/a', bytes(500));
       await map.write('thumb:v1:7', bytes(300));
       File(dbPath).writeAsBytesSync([1]);
@@ -384,7 +456,7 @@ void main() {
     });
 
     test('Review 3, S2: Speicher geschlossen, der Tausch löscht über die Verdrahtung die Kartendatei (Rückfall)', () async {
-      final files = databaseFilesFor(dbPath, map);
+      final files = databaseFilesFor(dbPath, map, FakeFileHandoff());
       await map.write('map:/a', bytes(500));
       await map.write('thumb:v1:7', bytes(300));
       await map.close();

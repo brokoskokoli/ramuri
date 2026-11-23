@@ -81,6 +81,18 @@ class FakeMorningStore implements MorningStore {
     _d.morning[measurementId] = _copy(m, sleepBand: band);
   }
 
+  @override
+  Future<void> clearSleepBands(Iterable<int> measurementIds) async {
+    final ids = measurementIds.toSet();
+    // Erst alle prüfen, dann schreiben: ganz oder gar nicht.
+    if (!ids.every(_d.morning.containsKey)) {
+      throw const StorageException(StorageFailure.notFound);
+    }
+    for (final id in ids) {
+      _d.morning[id] = _copy(_d.morning[id]!);
+    }
+  }
+
   /// Kopie mit den gespeicherten Abwandlungen; `sleepBand` und der Rest
   /// kommen sonst von [m] (null bei `sleepBand` heißt: gelöscht).
   static MorningMeasurement _copy(

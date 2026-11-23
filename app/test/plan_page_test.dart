@@ -17,6 +17,7 @@ import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show started;
+import 'support/settle_storage.dart';
 
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
@@ -1378,13 +1379,10 @@ void main() {
       return (session, clock);
     }
 
+    /// Speicher zu Ende kommen lassen (fünf Frames ohne Echtzeit-Pausen), dann
+    /// die Animationen.
     Future<void> settle(WidgetTester tester) async {
-      for (var i = 0; i < 5; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 100)),
-        );
-        await tester.pump();
-      }
+      await observeFrames(tester, 5, frame: Duration.zero);
       await tester.pumpAndSettle();
     }
 

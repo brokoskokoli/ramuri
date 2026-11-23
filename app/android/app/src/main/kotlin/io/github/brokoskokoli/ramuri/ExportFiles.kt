@@ -84,10 +84,13 @@ object ExportFiles {
     /**
      * „Alles löschen“ und „Lauf löschen“ (SEC-0004): leert [DIR] und [IMPORT_DIR] unter
      * [cacheDir] samt Unterordnern; beide Ordner werden versucht, auch wenn einer scheitert.
-     * Liefert, ob danach beide leer sind (ein fehlender Ordner gilt als leer).
+     * Mit [exportsOnly] (Neubeginn nach Schlüsselverlust) nur [DIR]: In [IMPORT_DIR] liegt dann
+     * womöglich das gewählte Archiv, das die Wiederherstellung danach noch liest.
+     * Liefert, ob danach die geleerten Ordner leer sind (ein fehlender Ordner gilt als leer).
      */
-    fun clearHandoff(cacheDir: File): Boolean {
+    fun clearHandoff(cacheDir: File, exportsOnly: Boolean = false): Boolean {
         val exports = runCatching { clear(File(cacheDir, DIR)) }.getOrDefault(false)
+        if (exportsOnly) return exports
         val imports = runCatching { clear(File(cacheDir, IMPORT_DIR)) }.getOrDefault(false)
         return exports && imports
     }
