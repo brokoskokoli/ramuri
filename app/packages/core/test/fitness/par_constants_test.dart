@@ -764,7 +764,7 @@ final Map<String, List<Object>> parCodeValues = {
     ..._doc(
       [3],
       'Version, ab der PAR-230 gilt; die aktuelle Version (ppgMethodVersion) '
-      'ist seit der festen Kameraeinstellung (ADR-0011) 4.',
+      'ist seit der Belichtungsänderung (ADR-0011, Nachtrag 2026-11-22) 5.',
     ),
   ],
 };

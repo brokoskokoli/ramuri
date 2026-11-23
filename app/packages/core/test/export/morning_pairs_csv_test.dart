@@ -27,6 +27,7 @@ MorningMeasurement _m({
   double? restSkipped,
   bool outside = false,
   bool chosen = false,
+  int methodVersion = 3,
 }) => MorningMeasurement(
   measuredAt: at ?? _t0,
   utcOffset: const Duration(hours: 1),
@@ -35,7 +36,7 @@ MorningMeasurement _m({
   deviceModel: 'Test, "Modell"',
   method: ppgMethod,
   // Gespeicherte Messung einer früheren Verfahrensversion: sie exportiert unverändert.
-  methodVersion: 3,
+  methodVersion: methodVersion,
   quality: quality,
   unusableReason: reason,
   windowStartS: windowStart,
@@ -130,6 +131,28 @@ void main() {
     expect(csv, contains(block(2, '0', '1', '1')));
     expect(csv, contains(block(3, '1', '0', '1')));
     expect(csv, contains(block(4, '0', '1', '0')));
+  });
+
+  test('frühere Verfahrensversionen 1 bis 4 exportieren und zählen wie die '
+      'aktuelle (DEC-0074 E7c)', () {
+    final versions = [1, 2, 3, 4, ppgMethodVersion];
+    expect(ppgMethodVersion, 5);
+    final csv = encodeMorningPairsCsv([
+      for (var i = 0; i < versions.length; i++)
+        MorningPair(
+          id: i + 1,
+          measurement: _m(
+            at: _t0.add(Duration(days: i)),
+            methodVersion: versions[i],
+          ),
+        ),
+    ]);
+    for (var i = 0; i < versions.length; i++) {
+      final id = i + 1;
+      expect(csv, contains('4,$id,meta,method_version,,,,${versions[i]},\r\n'));
+      // Jede ist die erste ihres Tages und zählt, gleich welche Version.
+      expect(csv, contains('4,$id,meta,counts,,,,1,\r\n'));
+    }
   });
 
   test('ungültiges Kamera-Intervall ist ein leeres Feld, nie NaN', () {
