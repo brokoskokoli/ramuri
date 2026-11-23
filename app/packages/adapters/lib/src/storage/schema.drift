@@ -695,7 +695,9 @@ CREATE INDEX health_exercise_heart_rates_exercise ON health_exercise_heart_rates
 -- angegeben. before_validation = intern "vor der Validierung gemessen" (K62
 -- Punkt 6), outside_window = "außerhalb des Morgenfensters" (zählt nicht für die
 -- Reihe). camera_ibi = Kamera-Schlagabstände in ms als float32 little endian,
--- 4 Byte je Wert (abgeleitete Zahlen, keine Bilder).
+-- 4 Byte je Wert (abgeleitete Zahlen, keine Bilder). chosen (Version 16) =
+-- vom Nutzer als gültige Messung des Tages seiner Reihe gewählt (PAR-160K);
+-- 0 = nicht gewählt, dann zählt die früheste wählbare.
 CREATE TABLE morning_measurements (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   measured_at_us INTEGER NOT NULL,
@@ -717,6 +719,7 @@ CREATE TABLE morning_measurements (
   window_end_s REAL CHECK (window_end_s > window_start_s),
   rest_skipped_after_s REAL CHECK (rest_skipped_after_s >= 0),
   unusable_reason TEXT CHECK (length(unusable_reason) > 0),
+  chosen BOOLEAN NOT NULL DEFAULT 0 CHECK (chosen IN (0, 1)),
   CHECK ((window_start_s IS NULL) = (window_end_s IS NULL)),
   CHECK ((quality = 'unusable') = (resting_hr_bpm IS NULL)),
   CHECK (unusable_reason IS NULL OR quality = 'unusable')

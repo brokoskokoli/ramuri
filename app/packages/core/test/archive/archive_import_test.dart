@@ -2317,6 +2317,93 @@ void main() {
       }
     });
 
+    test(
+      'Schema 16: chosen am Ende von Abschnitt 32; Schema 15 liest sich mit 0',
+      () async {
+        Map<String, Object?> mm(int id, {bool? chosen}) => {
+          'id': id,
+          'measured_at_us': 5000 + id,
+          'utc_offset_s': 0,
+          'posture': 'lying',
+          'device_manufacturer': 'Testhersteller',
+          'device_model': 'Testmodell',
+          'method': 'camera-ppg',
+          'method_version': 2,
+          'quality': 'good',
+          'resting_hr_bpm': 52.3,
+          'rmssd_ms': null,
+          'timing_noise_ms': null,
+          'sleep_band': null,
+          'before_validation': 0,
+          'outside_window': 0,
+          'camera_ibi': '',
+          'window_start_s': 5.0,
+          'window_end_s': 65.0,
+          'rest_skipped_after_s': null,
+          'unusable_reason': null,
+          if (chosen != null) 'chosen': chosen ? 1 : 0,
+        };
+        expect(
+          archiveSectionsFor(16)
+              .firstWhere((s) => s.name == 'morning_measurements')
+              .columns
+              .last
+              .name,
+          'chosen',
+        );
+        await c.run(
+          await file(
+            v2(
+              schema: 16,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'morning_measurements': [
+                  mm(1, chosen: false),
+                  mm(2, chosen: true),
+                ],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        var m = c.sink.rows['morning_measurements']!;
+        expect(m.map((e) => e['chosen']), [0, 1]);
+        // Schema 15 kennt die Spalte nicht: nicht gewählt.
+        c = _Case(dir);
+        await c.run(
+          await file(
+            v2(
+              schema: 15,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'morning_measurements': [mm(1), mm(2)],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        m = c.sink.rows['morning_measurements']!;
+        expect(m.map((e) => e['chosen']), [0, 0]);
+        // Spalte in Schema 15, fehlend in Schema 16 oder falscher Typ: beschädigt.
+        c = _Case(dir);
+        for (final (schema, bad) in <(int, Map<String, Object?>)>[
+          (15, mm(1, chosen: true)),
+          (16, mm(1)),
+          (16, mm(1)..['chosen'] = 'ja'),
+        ]) {
+          await rejectsV2(
+            v2(
+              schema: schema,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'morning_measurements': [bad],
+              },
+            ),
+          );
+        }
+      },
+    );
+
     test('mode: Schema 9 mit mode oder Schema 10 ohne mode sowie falscher Typ in treadmill_settings: beschädigt', () async {
       await rejectsV2(
         v2(

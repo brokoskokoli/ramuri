@@ -89,6 +89,9 @@ void main() {
               ]) {
                 row.putIfAbsent(c, () => null);
               }
+              // Archive bis Schema 15 haben `chosen` (Schema 16) nicht, der
+              // Leser setzt 0 (nicht gewählt).
+              row.putIfAbsent('chosen', () => 0);
             }
             // Vertrag archive.md 4.3: Archive bis Schema 14 haben die
             // Kamera-Angaben des Rohsignals (Schema 15) nicht, der Leser setzt null.

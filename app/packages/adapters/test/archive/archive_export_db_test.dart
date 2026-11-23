@@ -400,6 +400,7 @@ void main() {
         'window_end_s': 65.0,
         'rest_skipped_after_s': 37.5,
         'unusable_reason': null,
+        'chosen': 1,
       },
       {
         'id': 2,
@@ -422,6 +423,7 @@ void main() {
         'window_end_s': null,
         'rest_skipped_after_s': null,
         'unusable_reason': null,
+        'chosen': 0,
       },
       {
         'id': 3,
@@ -444,6 +446,7 @@ void main() {
         'window_end_s': null,
         'rest_skipped_after_s': null,
         'unusable_reason': 'noFinger',
+        'chosen': 0,
       },
     ]);
     // Rohsignal (WP37, Abschnitt 34): Schlüssel measurement_id, BLOB als Hex

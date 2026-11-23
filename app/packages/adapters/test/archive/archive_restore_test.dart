@@ -837,6 +837,7 @@ void main() {
     ('archive_v2_s13', 13),
     ('archive_v2_s14', 14),
     ('archive_v2_s15', 15),
+    ('archive_v2_s16', 16),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -1030,6 +1031,11 @@ void main() {
         expect(b.outsideWindow, isTrue);
         expect(b.utcOffset, const Duration(hours: -3, minutes: -30));
         expect(b.cameraIntervalsMs, isEmpty);
+        // Schema 16: gewählte Messung des Tages; ältere Archive lesen 0.
+        expect(
+          [for (final m in morning) m.value.chosen],
+          [schema >= 16, for (var i = 1; i < morning.length; i++) false],
+        );
         // Schema 14 (WP37): neue Spalten; ältere Archive lesen sie als null.
         expect(b.windowStartS, isNull);
         expect(b.restSkippedAfterS, isNull);
