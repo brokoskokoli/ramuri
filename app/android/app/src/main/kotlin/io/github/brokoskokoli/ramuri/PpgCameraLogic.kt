@@ -149,6 +149,43 @@ object PpgCameraLogic {
         )
     }
 
+    /**
+     * Antibanding der Aufnahme (ADR-0011, Nachtrag 2026-11-22): OFF, wenn die Kamera, die die Bilder
+     * liefert, es in CONTROL_AE_AVAILABLE_ANTIBANDING_MODES führt; sonst `null` (Standard bleibt).
+     * Unter dem Finger leuchtet nur der Blitz, es gibt kein Netzflimmern.
+     */
+    fun antibandingMode(modes: List<Int>?): Int? =
+        CameraMetadata.CONTROL_AE_ANTIBANDING_MODE_OFF.takeIf { it in modes.orEmpty() }
+
+    /**
+     * Sperre nach der Einschwingzeit (ADR-0011, Nachtrag 2026-11-22). Mit [manualSensor] (Fähigkeit
+     * MANUAL_SENSOR der Kamera, die die Bilder liefert), Belichtung [e0] und Empfindlichkeit [s0] aus
+     * dem letzten Ergebnis und beiden Bereichen: manuell mit Bilddauer T = 1 s / [fps], Belichtung
+     * e = min(T, obere Grenze von [exposureRange]), nie kürzer als [e0], und Empfindlichkeit
+     * s = round(s0 · e0 / e), begrenzt auf [sensitivityRange] – die Helligkeit bleibt wie bei der
+     * Automatik. Sonst die AE-Sperre wie bisher. Bereiche als (untere, obere) Grenze; Zeiten in ns.
+     */
+    fun exposureLock(
+        fps: Int,
+        e0: Long?,
+        s0: Int?,
+        exposureRange: Pair<Long, Long>?,
+        sensitivityRange: Pair<Int, Int>?,
+        manualSensor: Boolean,
+    ): PpgExposureLock {
+        if (!manualSensor || e0 == null || s0 == null || exposureRange == null || sensitivityRange == null) {
+            return PpgExposureLock.AeLock
+        }
+        // Ohne brauchbare Werte lässt sich nichts umrechnen.
+        if (fps <= 0 || e0 <= 0 || s0 <= 0) return PpgExposureLock.AeLock
+        val frame = Math.round(1e9 / fps)
+        var e = minOf(frame, exposureRange.second)
+        if (e <= e0) e = e0
+        val s = Math.round(s0.toDouble() * e0 / e).toInt()
+            .coerceIn(sensitivityRange.first, sensitivityRange.second)
+        return PpgExposureLock.Manual(exposureNs = e, sensitivity = s, frameDurationNs = frame)
+    }
+
     /** CameraDevice.StateCallback.onError. */
     fun fromDeviceError(code: Int): String = when (code) {
         CameraDevice.StateCallback.ERROR_CAMERA_IN_USE, CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE -> "busy"
@@ -237,6 +274,18 @@ data class PpgLensSettings(
     val oisMode: Int?,
     val videoStabMode: Int?,
 )
+
+/** Ergebnis von [PpgCameraLogic.exposureLock]. */
+sealed class PpgExposureLock {
+    /** CONTROL_AE_LOCK wie bisher (Automatik bleibt, gesperrt). */
+    object AeLock : PpgExposureLock()
+
+    /**
+     * CONTROL_AE_MODE_OFF mit SENSOR_EXPOSURE_TIME = [exposureNs], SENSOR_SENSITIVITY = [sensitivity]
+     * und SENSOR_FRAME_DURATION = [frameDurationNs].
+     */
+    data class Manual(val exposureNs: Long, val sensitivity: Int, val frameDurationNs: Long) : PpgExposureLock()
+}
 
 /** Ergebnis von [PpgCameraLogic.pick]: die zu öffnende Kamera oder der Grund des Abbruchs. */
 data class PpgCameraPick(val entry: PpgCameraEntry?, val reason: String?)
