@@ -430,7 +430,7 @@ void main() {
         'Ergebnis der Morgenmessung',
         timeout: const Duration(seconds: 60),
       );
-      expect(has('morning_again'), isFalse, reason: 'S4 Messung gueltig');
+      expect(has('morning_done'), isTrue, reason: 'S4 Messung gueltig');
       expect(
         has('morning_note_not_counted'),
         isFalse,

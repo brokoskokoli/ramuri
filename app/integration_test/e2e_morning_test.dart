@@ -1108,8 +1108,8 @@ void main() {
     );
     log('S6 paare mit=${pairs!.withBelt} ohne=${pairs.without}');
     expect(pairs.withBelt, base0!.withBelt + 1, reason: 'S6 ein Gurt-Paar');
-    // Zwei in S3, unbrauchbar und gueltige in S4, eine in S5.
-    expect(pairs.without, base0.without + 5);
+    // Zwei in S3, eine in S3b, unbrauchbar und gueltige in S4, eine in S5.
+    expect(pairs.without, base0.without + 6);
     await closeResultToHome(t);
     await tapKey(t, 'home_overview');
     await waitFor(t, () => has('overview_developer'), 'S6 Uebersicht');
