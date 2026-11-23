@@ -1,4 +1,4 @@
-// WP13 N1c: Kachel-Gesundheit des Tors (M1), Alter von Stil und TileJSON (M2), Zeitgrenze und Höchstgröße (S7).
+// Kachel-Gesundheit des Tors, Alter von Stil und TileJSON, Zeitgrenze und Höchstgröße.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -46,7 +46,7 @@ void main() {
     } catch (_) {}
   }
 
-  group('M1 Kachel-Gesundheit', () {
+  group('Kachel-Gesundheit', () {
     test('Fehler ohne Treffer: nach dem Limit gescheitert, ein Treffer holt zurück', () async {
       final g = gate();
       final seen = <bool>[];
@@ -136,7 +136,7 @@ void main() {
     });
   });
 
-  group('M2 Alter von Stil und TileJSON', () {
+  group('Alter von Stil und TileJSON', () {
     test(
       'jung: aus dem Speicher, kein Netz; Alter nur im gespeicherten Wert',
       () async {
@@ -263,7 +263,7 @@ void main() {
     });
   });
 
-  group('S7 Zeitgrenze und Größe', () {
+  group('Zeitgrenze und Größe', () {
     test('Vorgaben: Grenze über den 431 kB aus R008', () {
       expect(mapMaxBodyBytes, greaterThan(431 * 1000));
       expect(mapRequestTimeout, greaterThan(const Duration(seconds: 10)));

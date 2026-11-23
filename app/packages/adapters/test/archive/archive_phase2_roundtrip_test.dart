@@ -1,4 +1,4 @@
-// Abschlussprüfung M2, Teil D: Archiv mit allen neuen Daten der Phase 2 hin und
+// Archiv mit allen neuen Daten der Phase 2 hin und
 // zurück. Anders als der Rundgang mit der SQL-Füllung (archive_restore_test)
 // entstehen die Daten hier über die Ports und die Kernlogik: ein wirklich
 // gerechneter Plan mit mehreren Fassungen (Auslöser weekly, run, feedback,
@@ -56,7 +56,7 @@ Future<_Dump> _dump(AppDatabase db) async {
 final _d0 = DateTime.utc(2026, 11, 11); // Mittwoch
 DateTime _day(int n) => _d0.add(Duration(days: n));
 
-/// Die M2-Tabellen: jede muss im Quellstand Zeilen haben, sonst prüft der
+/// Die Tabellen der Phase 2: jede muss im Quellstand Zeilen haben, sonst prüft der
 /// Test nichts.
 const _m2Tables = [
   'goals',
@@ -153,7 +153,7 @@ void main() {
     ).restore(path: archivePath, password: _password);
   }
 
-  test('Quellstand: jede M2-Tabelle hat Zeilen, mehrere Plan-Fassungen mit '
+  test('Quellstand: jede Tabelle der Phase 2 hat Zeilen, mehrere Plan-Fassungen mit '
       'Auslösern, Warnsignal aktiv', () async {
     for (final t in _m2Tables) {
       expect(sourceDump[t], isNotEmpty, reason: t);
