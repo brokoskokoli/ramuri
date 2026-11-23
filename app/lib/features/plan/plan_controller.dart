@@ -614,6 +614,22 @@ class PlanController extends ChangeNotifier {
   Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) =>
       _plans.unitsBetween(from, to);
 
+  /// Ortstag der frühesten gespeicherten Planeinheit vor [before] über alle
+  /// Fassungen, `null` ohne solche Einheit: untere Blättergrenze des
+  /// Kalenders (FR-0172). Liest nur die Einheiten vor [before].
+  Future<DateTime?> firstUnitDayBefore(DateTime before) async {
+    final units = await _plans.unitsBetween(
+      DateTime.utc(2000),
+      planDay(before).subtract(const Duration(days: 1)),
+    );
+    DateTime? first;
+    for (final u in units) {
+      final d = planDay(u.day);
+      if (first == null || d.isBefore(first)) first = d;
+    }
+    return first;
+  }
+
   /// Beendete Läufe mit Ortstag (Tag des Laufendes, [dayOfRun]) in
   /// `from <= Tag <= to`, für den Kalender (FR-0171) und die Prüfung beim
   /// Verschieben: [PlanCalendarRun.intensive] nach PAR-058
