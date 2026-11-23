@@ -8,6 +8,7 @@ import 'package:running_app/features/history/run_detail_screen.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_unit_screen.dart';
+import 'package:running_app/ui/ramuri_card.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show seedRun, text;
@@ -339,17 +340,38 @@ void main() {
   });
 
   group('doppelter Tipp öffnet die Einheit genau einmal (FR-0143)', () {
-    /// Zwei Tipps ohne Frame dazwischen, dann ein Zurück.
-    Future<void> doubleTapAndBack(WidgetTester tester) async {
-      await tester.tap(_todayCard);
-      await tester.tap(_todayCard);
-      await tester.pumpAndSettle();
-      expect(find.byType(PlanUnitScreen), findsOneWidget);
-      final nav = tester.state<NavigatorState>(find.byType(Navigator).first);
-      nav.pop();
+    /// Ein Zurück: die Woche ist wieder da, keine Einheit mehr im Baum.
+    Future<void> back(WidgetTester tester) async {
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
       await tester.pumpAndSettle();
       expect(find.byType(PlanUnitScreen), findsNothing);
       expect(_todayCard, findsOneWidget);
+    }
+
+    /// Zwei Tipps ohne Frame dazwischen.
+    Future<void> tapTwice(WidgetTester tester) async {
+      await tester.tap(_todayCard);
+      await tester.tap(_todayCard, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.byType(PlanUnitScreen), findsOneWidget);
+      await back(tester);
+    }
+
+    /// Beide Tipps erreichen die Karte, bevor die Seite liegt (auf dem Gerät
+    /// etwa zwei Finger kurz nacheinander); nur die Sperre verhindert das
+    /// zweite Öffnen.
+    Future<void> handlerTwice(WidgetTester tester) async {
+      final onTap = tester.widget<RamuriCard>(_todayCard).onTap!;
+      onTap();
+      onTap();
+      await tester.pumpAndSettle();
+      expect(find.byType(PlanUnitScreen), findsOneWidget);
+      await back(tester);
+      // Nach dem Zurück öffnet ein Tipp wieder.
+      await tester.tap(_todayCard);
+      await tester.pumpAndSettle();
+      expect(find.byType(PlanUnitScreen), findsOneWidget);
+      await back(tester);
     }
 
     testWidgets('erledigte Einheit', (tester) async {
@@ -357,14 +379,16 @@ void main() {
       final s = await _preopen(d);
       await _seedAssigned(s, rpe: 8);
       await _openPlan(d, tester);
-      await doubleTapAndBack(tester);
+      await tapTwice(tester);
+      await handlerTwice(tester);
     });
 
     testWidgets('offene Einheit', (tester) async {
       final d = Device();
       await _preopen(d);
       await _openPlan(d, tester);
-      await doubleTapAndBack(tester);
+      await tapTwice(tester);
+      await handlerTwice(tester);
     });
   });
 
