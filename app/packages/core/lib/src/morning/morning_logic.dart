@@ -396,20 +396,6 @@ MorningMeasurement? morningSleepSource(List<MorningMeasurement> counting) {
   return withBand ?? earliest;
 }
 
-/// Darf heute in der Reihe [series] (Gerät) wiederholt werden? Nur, solange
-/// heute in dieser Reihe noch keine gültige Messung vorliegt, gleich in
-/// welcher Haltung; andere Geräte zählen nicht.
-bool morningRepeatAllowed(
-  Iterable<MorningMeasurement> all, {
-  required DateTime nowUtc,
-  required Duration utcOffset,
-  required MorningSeriesKey series,
-}) => !morningCountingToday(
-  all,
-  nowUtc: nowUtc,
-  utcOffset: utcOffset,
-).any((m) => MorningSeriesKey.of(m) == series);
-
 /// Zählende Messungen nach Reihe (Gerät), je Reihe nach Zeitpunkt; die Haltung
 /// steht an jeder Messung ([MorningMeasurement.posture]).
 Map<MorningSeriesKey, List<MorningMeasurement>> morningSeries(

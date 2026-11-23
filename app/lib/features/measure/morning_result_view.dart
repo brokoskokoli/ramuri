@@ -31,8 +31,9 @@ String morningHrText(String locale, double? bpm) => bpm == null
       ).format(roundRestingHr(bpm));
 
 /// Ergebnis der Morgenmessung (Design `morgen/Ergebnis`): gespeichert (gut,
-/// eingeschränkt, außerhalb des Fensters, zählt nicht) mit freiwilliger
-/// Schlafstufe, oder zu ungenau mit „Noch einmal messen“. Die Werte sind
+/// eingeschränkt, außerhalb des Fensters, zählt nicht – dann mit „Diese
+/// Messung stattdessen verwenden“) mit freiwilliger Schlafstufe, oder zu
+/// ungenau; „Noch einmal messen“ im Morgenfenster nach jeder Messung. Die Werte sind
 /// geschätzt und tragen keine Einordnung.
 class MorningResultView extends StatelessWidget {
   const MorningResultView({
@@ -176,6 +177,12 @@ class MorningResultView extends StatelessWidget {
             key: const Key('morning_note_not_counted'),
             text: l10n.morningNotCounted,
           ),
+        if (controller.chooseFailed)
+          _Note(
+            key: const Key('morning_choose_failed'),
+            text: l10n.morningSaveFailed,
+            warn: true,
+          ),
         if (bad)
           RestingCard(
             key: const Key('morning_no_value'),
@@ -234,7 +241,20 @@ class MorningResultView extends StatelessWidget {
               ),
             ),
             TextButton(onPressed: onClose, child: Text(l10n.morningNotAgain)),
-          ] else
+          ] else ...[
+            if (o == MorningOutcome.notCounted) ...[
+              SizedBox(
+                height: 56,
+                child: RamuriSecondaryButton(
+                  key: const Key('morning_use_instead'),
+                  label: l10n.morningUseInstead,
+                  onPressed: controller.choosing
+                      ? null
+                      : controller.chooseInstead,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             SizedBox(
               height: 56,
               child: RamuriPrimaryButton(
@@ -243,6 +263,17 @@ class MorningResultView extends StatelessWidget {
                 onPressed: pending ? null : onClose,
               ),
             ),
+            // Im Morgenfenster nach jeder Messung (FR-0215), mit Ruhephase.
+            if (controller.canRepeat)
+              TextButton(
+                key: const Key('morning_again'),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size.fromHeight(RamuriTheme.minTarget),
+                ),
+                onPressed: controller.repeat,
+                child: Text(l10n.morningAgain),
+              ),
+          ],
           const SizedBox(height: 10),
           // Außerhalb des Fensters und bei zweiter Messung sagt der Hinweis oben
           // schon, dass die Messung nicht zählt.

@@ -18,6 +18,7 @@ class MorningEntryState {
     required this.developerMode,
     required this.measurements,
     this.optIn = false,
+    this.window = MorningWindow.standard,
   });
 
   /// Entwicklermodus an (nur für den unauffälligen Hinweis).
@@ -26,6 +27,10 @@ class MorningEntryState {
 
   /// Opt-in für Kamera-RMSSD (nur für die Markierung, K-1).
   final bool optIn;
+
+  /// Das Morgenfenster (PAR-160K): darin bietet die Karte nach der Messung
+  /// „Noch einmal messen“ an.
+  final MorningWindow window;
 }
 
 /// Lädt Entwicklermodus und Messungen; `null`, wenn die Morgenmessung nicht
@@ -54,6 +59,7 @@ Future<MorningEntryState?> loadMorningEntry({
       optIn:
           await session.settings.get(SettingKeys.morningCameraRmssdOptIn) ==
           '1',
+      window: await SettingsMorningWindowStore(session.settings, clock).read(),
       measurements: [
         for (final e in await (session as MorningStorage).morning.list())
           e.value,
@@ -102,23 +108,31 @@ Future<void> openMorningMeasurement(
   await trigger?.recheck();
 }
 
-/// Öffnet die Seite Morgenwerte über der aktuellen Seite.
+/// Öffnet die Seite Morgenwerte über der aktuellen Seite; eine Wahl für heute
+/// prüft dort [recovery] (sonst der [PlanRecoveryScope]) den Plan (FR-0157).
 Future<void> openMorningValues(
   BuildContext context, {
   required StorageSession session,
   required Clock clock,
   Map<ValidationQuantity, ValidationState> validationState = ppgValidationState,
   DeviceInfoReader device = readDeviceInfo,
-}) => Navigator.of(context).push<void>(
-  MaterialPageRoute(
-    builder: (_) => MorningTrendScreen(
-      session: session,
-      clock: clock,
-      validationState: validationState,
-      device: device,
+  PlanRecoveryTrigger? recovery,
+}) {
+  // Nach einer Wahl für heute den Plan prüfen (FR-0157), wie nach einer
+  // Morgenmessung; ohne Scope und ohne [recovery] nicht.
+  final trigger = recovery ?? PlanRecoveryScope.maybeOf(context);
+  return Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => MorningTrendScreen(
+        session: session,
+        clock: clock,
+        validationState: validationState,
+        device: device,
+        recovery: trigger,
+      ),
     ),
-  ),
-);
+  );
+}
 
 /// Karte „Morgenmessung“ auf Heute (Design `morgen/Heute`): offen mit „Jetzt
 /// messen“, oder die heutige Messung mit Ruhepuls und RMSSD. Erscheint nur,
@@ -154,6 +168,22 @@ class _MorningCardState extends State<MorningCard> {
     clock: widget.clock,
     validationState: widget.validationState,
   );
+
+  /// Morgenwerte; danach neu laden, denn dort kann eine andere Messung als
+  /// gültige gewählt worden sein.
+  Future<void> _openValues() async {
+    await openMorningValues(
+      context,
+      session: widget.session,
+      clock: widget.clock,
+      validationState: widget.validationState,
+      device: widget.device,
+    );
+    if (!mounted) return;
+    setState(() {
+      _future = _load();
+    });
+  }
 
   Future<void> _open() async {
     await openMorningMeasurement(
@@ -200,6 +230,8 @@ class _MorningCardState extends State<MorningCard> {
       utcOffset: offset,
     );
     final done = today.isEmpty ? null : today.first;
+    // Mit gültiger Messung im Morgenfenster: „Noch einmal messen“ (FR-0215).
+    final again = done != null && st.window.contains(now, offset);
     final marks = done == null
         ? null
         : morningTrendMarks(
@@ -272,18 +304,20 @@ class _MorningCardState extends State<MorningCard> {
                     style: theme.labelSmall!.copyWith(color: c.textMuted),
                   ),
                 ],
+                if (again) ...[
+                  const SizedBox(height: 12),
+                  RamuriSecondaryButton(
+                    key: const Key('morning_card_again'),
+                    label: l10n.morningAgain,
+                    onPressed: _open,
+                  ),
+                ],
               ],
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton(
                   key: const Key('morning_card_history'),
-                  onPressed: () => openMorningValues(
-                    context,
-                    session: widget.session,
-                    clock: widget.clock,
-                    validationState: widget.validationState,
-                    device: widget.device,
-                  ),
+                  onPressed: _openValues,
                   child: Text(l10n.morningHistory),
                 ),
               ),
