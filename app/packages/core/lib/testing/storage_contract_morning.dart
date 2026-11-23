@@ -33,6 +33,18 @@ final List<StorageContractCase> morningContractCases = [
     _clearSleepBandsEdges,
   ),
   const StorageContractCase(
+    'Morgenmessung: Wahl setzt sie und löscht die der Reihe am Ortstag, Neuöffnen',
+    _choose,
+  ),
+  const StorageContractCase(
+    'Morgenmessung: Wahl unbekannt oder nicht wählbar ändert nichts, Neuöffnen',
+    _chooseRejected,
+  ),
+  const StorageContractCase(
+    'Morgenmessung: Wahl übernimmt die Schlafstufe des Tages',
+    _chooseSleepBand,
+  ),
+  const StorageContractCase(
     'Morgenmessung: Fenster, Ruhe-Übersprung, unbrauchbare Stufe, Kamera-Rohsignal bitgenau',
     _extended,
   ),
@@ -64,12 +76,14 @@ MorningMeasurement _measurement(
   double? windowEnd,
   double? skippedAfter,
   MorningUnusableReason? reason,
+  String model = 'Testmodell 1',
+  bool chosen = false,
 }) => MorningMeasurement(
   measuredAt: at(seconds),
   utcOffset: offset,
   posture: posture,
   deviceManufacturer: 'Testhersteller',
-  deviceModel: 'Testmodell 1',
+  deviceModel: model,
   method: ppgMethod,
   methodVersion: ppgMethodVersion,
   quality: quality,
@@ -84,6 +98,7 @@ MorningMeasurement _measurement(
   cameraIntervalsMs: ibi,
   beforeValidation: before,
   outsideWindow: outside,
+  chosen: chosen,
 );
 
 PpgFrame _frame(double t) => PpgFrame(
@@ -160,6 +175,7 @@ String _fields(MorningMeasurement m) => [
   m.windowEndS,
   m.restSkippedAfterS,
   m.unusableReason?.name,
+  m.chosen,
 ].join('|');
 
 String _packets(List<StoredRrPacket> p) => [
@@ -613,5 +629,138 @@ Future<void> _clearSleepBandsEdges(StorageContractHarness h) async {
   byId = {for (final e in await _m(s).list()) e.id: e.value};
   expectTrue(byId[a]!.sleepBand == null, 'doppelte Id: a gelöscht');
   expectEq(byId[b]!.sleepBand, SleepBand.under5, 'doppelte Id: b unberührt');
+  await s.close();
+}
+
+/// Erwartet einen [ArgumentError] (nicht wählbare Messung).
+Future<void> _expectArgumentError(
+  Future<Object?> Function() f,
+  String what,
+) async {
+  try {
+    await f();
+  } on ArgumentError {
+    return;
+  }
+  throw ContractViolation('$what: kein ArgumentError');
+}
+
+Future<Map<int, MorningMeasurement>> _byId(StorageSession s) async => {
+  for (final e in await _m(s).list()) e.id: e.value,
+};
+
+Future<void> _choose(StorageContractHarness h) async {
+  var s = await h.open();
+  // `add` schreibt die Wahl nie, auch wenn der Wert sie trägt.
+  final a = await _m(s).add(_measurement(0, chosen: true));
+  final b = await _m(s).add(_measurement(600));
+  // Gleiche Reihe am nächsten Ortstag, andere Reihe am selben Ortstag.
+  final c = await _m(s).add(_measurement(86400));
+  final d = await _m(s).add(_measurement(300, model: 'Testmodell 2'));
+  var byId = await _byId(s);
+  expectTrue(!byId[a]!.chosen, 'add schreibt keine Wahl');
+  await _m(s).choose(c);
+  await _m(s).choose(d);
+  await _m(s).choose(a);
+  await _m(s).choose(b);
+  for (var round = 0; round < 2; round++) {
+    byId = await _byId(s);
+    expectEq(
+      [
+        for (final id in [a, b, c, d]) byId[id]!.chosen,
+      ],
+      [false, true, true, true],
+      'Wahl a, b, c, d (Runde $round)',
+    );
+    final counting = countingMorningMeasurements(byId.values);
+    expectEq(
+      [for (final m in counting) us(m.measuredAt)],
+      [us(at(300)), us(at(600)), us(at(86400))],
+      'zählende Messungen (Runde $round)',
+    );
+    await s.close();
+    s = await h.open();
+  }
+  // Zurück zur ersten: nur wählen, kein Zurücksetzen.
+  await _m(s).choose(a);
+  byId = await _byId(s);
+  expectEq(
+    [
+      for (final id in [a, b, c, d]) byId[id]!.chosen,
+    ],
+    [true, false, true, true],
+    'Wahl zurück auf a',
+  );
+  await s.close();
+}
+
+Future<void> _chooseRejected(StorageContractHarness h) async {
+  var s = await h.open();
+  final a = await _m(s).add(_measurement(0));
+  final b = await _m(s).add(_measurement(600));
+  final unusable = await _m(s).add(
+    _measurement(
+      300,
+      quality: PpgQuality.unusable,
+      rmssd: null,
+      noise: null,
+      reason: MorningUnusableReason.weakSignal,
+    ),
+  );
+  final outside = await _m(s).add(_measurement(900, outside: true));
+  await _m(s).choose(b);
+  final before = [for (final e in await _m(s).list()) _fields(e.value)];
+  await expectFails(
+    () => _m(s).choose(b + 99),
+    StorageFailure.notFound,
+    'unbekannte Messung',
+  );
+  // Die Wahl an b steht in derselben Reihe am selben Ortstag: ein Abbruch
+  // muss das Löschen dort zurückrollen.
+  await _expectArgumentError(() => _m(s).choose(unusable), 'unbrauchbar');
+  await _expectArgumentError(() => _m(s).choose(outside), 'außerhalb');
+  for (var round = 0; round < 2; round++) {
+    expectEq(
+      [for (final e in await _m(s).list()) _fields(e.value)],
+      before,
+      'nichts geändert (Runde $round)',
+    );
+    final byId = await _byId(s);
+    expectTrue(!byId[a]!.chosen && byId[b]!.chosen, 'b bleibt gewählt');
+    await s.close();
+    s = await h.open();
+  }
+  await s.close();
+}
+
+Future<void> _chooseSleepBand(StorageContractHarness h) async {
+  var s = await h.open();
+  final a = await _m(s).add(_measurement(0, band: SleepBand.from6to7));
+  final b = await _m(s).add(_measurement(600, band: null));
+  await _m(s).choose(b);
+  await s.close();
+  s = await h.open();
+  var byId = await _byId(s);
+  expectEq(byId[b]!.sleepBand, SleepBand.from6to7, 'b trägt die Stufe');
+  expectEq(byId[a]!.sleepBand, SleepBand.from6to7, 'a behält die Stufe');
+  final source = morningSleepSource(countingMorningMeasurements(byId.values));
+  expectEq(us(source?.measuredAt), us(at(600)), 'Schlafquelle ist b');
+  expectEq(source?.sleepBand, SleepBand.from6to7, 'Stufe des Tages gleich');
+  await s.close();
+
+  // Ohne Stufe am Tag bleibt die gewählte, wie sie ist (auch mit eigener).
+  s = await h.open();
+  final day2 = 2 * 86400;
+  final c = await _m(s).add(_measurement(day2, band: null));
+  final d = await _m(s).add(_measurement(day2 + 600, band: null));
+  final e = await _m(s).add(_measurement(day2 + 900, band: SleepBand.over8));
+  await _m(s).choose(d);
+  byId = await _byId(s);
+  expectTrue(byId[d]!.sleepBand == null, 'd ohne Stufe bleibt ohne');
+  expectTrue(byId[c]!.sleepBand == null, 'c ohne Stufe');
+  await _m(s).choose(c);
+  await _m(s).choose(e);
+  byId = await _byId(s);
+  expectEq(byId[e]!.sleepBand, SleepBand.over8, 'e behält die eigene Stufe');
   await s.close();
 }

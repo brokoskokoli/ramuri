@@ -326,7 +326,7 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
         'resting_hr_bpm R?, rmssd_ms R?, timing_noise_ms R?, sleep_band T?, '
         'before_validation B, outside_window B, camera_ibi X, '
         'window_start_s R?, window_end_s R?, rest_skipped_after_s R?, '
-        'unusable_reason T?',
+        'unusable_reason T?, chosen B',
     sinceSchema: 13,
     // WP37, Schema 14: `resting_hr_bpm` ist bei Stufe `unusable` (K68) leer;
     // Fenster, Ruhe-Übersprung und Grund fehlen in älteren Archiven (null).
@@ -335,6 +335,9 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
       'window_end_s': (14, null),
       'rest_skipped_after_s': (14, null),
       'unusable_reason': (14, null),
+      // Schema 16: vom Nutzer gewählte gültige Messung des Tages (PAR-160K);
+      // ältere Archive: nicht gewählt.
+      'chosen': (16, 0),
     },
   ),
   ArchiveSectionSpec(
@@ -370,18 +373,18 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 15;
+const int archiveSchemaVersion = 16;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 15).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 16).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
 /// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7 und 8:
-/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`, ab 14: 34 mit `morning_raw_signals` (ab 15 mit der verwendeten Kamera); ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
+/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`, ab 14: 34 mit `morning_raw_signals` (ab 15 mit der verwendeten Kamera, ab 16 mit `morning_measurements.chosen`); ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
 /// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche

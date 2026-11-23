@@ -93,6 +93,7 @@ class MorningMeasurement {
     this.rmssdMs,
     this.timingNoiseMs,
     this.sleepBand,
+    this.chosen = false,
   });
 
   /// Beginn der Messung (UTC im Speicher).
@@ -138,6 +139,16 @@ class MorningMeasurement {
 
   /// Grund der Stufe „unbrauchbar“; nur dort gesetzt (kann auch dann fehlen).
   final MorningUnusableReason? unusableReason;
+
+  /// Vom Nutzer als gültige Messung des Tages gewählt (PAR-160K, Spalte
+  /// `morning_measurements.chosen`). Geschrieben nur von [MorningStore.choose]
+  /// und vom Archiv-Import; eine neue Messung ist nie gewählt. Ob sie zählt,
+  /// entscheidet allein `countingMorningMeasurements`.
+  final bool chosen;
+
+  /// Darf der Nutzer sie als gültige Messung des Tages wählen (PAR-160K):
+  /// brauchbar und im Morgenfenster.
+  bool get isChoosable => isUsable && !outsideWindow;
 
   /// Zählt die Messung überhaupt (nicht unbrauchbar, K68).
   bool get isUsable => quality != PpgQuality.unusable;
@@ -316,7 +327,7 @@ List<PpgFrame> decodeRawFrames(List<int> bytes) {
 /// Morgenmessungen (FR-0215) mit der Gurt-RR derselben Zeit (nur
 /// Entwicklermodus, K61). Gehören keinem Lauf: [StorageSession.deleteRun]
 /// berührt sie nicht, [StorageSession.deleteAll] leert sie. Jede Methode wirft
-/// nur [StorageException].
+/// nur [StorageException], [choose] dazu [ArgumentError].
 abstract interface class MorningStore {
   /// Speichert die Messung samt Gurt-RR-Paketen in einer Transaktion (alles
   /// oder nichts) und gibt die Id zurück. Ungültiger Wert (siehe
@@ -343,6 +354,18 @@ abstract interface class MorningStore {
   /// Ids sind erlaubt, eine leere Liste ändert nichts. Eine unbekannte Messung:
   /// `notFound`, und keine Messung ändert sich.
   Future<void> clearSleepBands(Iterable<int> measurementIds);
+
+  /// Wählt die Messung als gültige Messung des Tages (PAR-160K): in einer
+  /// Transaktion `chosen` an ihr setzen und an allen anderen Messungen derselben
+  /// Reihe (Hersteller und Modell) am selben Ortstag (Zeitpunkt plus Versatz
+  /// jeder Messung, wie `morningLocalDay`) löschen. Bestimmt die Schlafquelle
+  /// des Tages vor der Wahl (`morningSleepSource` über alle zählenden
+  /// Messungen des Ortstags) eine Stufe, steht diese Stufe danach in derselben
+  /// Transaktion an der gewählten Messung (PAR-164K); sonst bleibt deren Stufe,
+  /// wie sie ist. Unbekannte Messung: `notFound`; nicht wählbar
+  /// ([MorningMeasurement.isChoosable] falsch): [ArgumentError]; in beiden
+  /// Fällen ändert sich nichts.
+  Future<void> choose(int measurementId);
 
   /// Gurt-RR-Pakete der Messung nach Empfangszeit, dann Id sortiert; ohne
   /// Pakete leer. Unbekannte Messung: `notFound`.

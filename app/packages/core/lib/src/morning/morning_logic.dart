@@ -1,6 +1,7 @@
 import '../../ports/clock.dart';
 import '../../ports/ppg_camera.dart'
     show PpgCameraDetails, PpgCameraInfo, PpgCameraRef;
+import '../../ports/storage.dart' show StorageException, StorageFailure;
 import '../../ports/storage_morning.dart';
 import '../../ports/storage_settings.dart';
 import '../ppg/ppg_evaluator.dart';
@@ -284,23 +285,76 @@ class MorningSeriesKey {
   String toString() => 'MorningSeriesKey';
 }
 
-/// Die Messungen, die zählen, an genau dieser Stelle gebildet (K67, K68):
-/// je Ortstag und Reihe (Gerät, ohne Haltung) die erste gültige Messung im
-/// Morgenfenster; liegend oder sitzend ist gleich, die frühere gewinnt.
-/// Unbrauchbare Messungen (nur im Entwicklermodus gespeichert, K68) und
-/// Messungen außerhalb des Fensters zählen nirgends. Nach Zeitpunkt sortiert.
-/// Alle Leser der Reihe (Trend, Readiness, Plan) gehen durch diese Funktion
-/// oder [morningSeries].
+/// Die Messungen, die zählen, an genau dieser Stelle gebildet (K67, K68,
+/// PAR-160K): je Ortstag und Reihe (Gerät, ohne Haltung) eine der wählbaren
+/// Messungen ([MorningMeasurement.isChoosable]: brauchbar und im
+/// Morgenfenster), nämlich die vom Nutzer gewählte ([MorningMeasurement.chosen])
+/// und ohne Wahl die früheste; liegend oder sitzend ist gleich. Tragen mehrere
+/// wählbare derselben Reihe am selben Tag die Wahl (etwa aus einem fremden
+/// Archiv), gilt die früheste davon; eine Wahl an einer nicht wählbaren
+/// Messung wird übergangen. Unbrauchbare Messungen (nur im Entwicklermodus
+/// gespeichert, K68) und Messungen außerhalb des Fensters zählen nirgends.
+/// Nach Zeitpunkt sortiert. Alle Leser der Reihe (Trend, Readiness, Plan)
+/// gehen durch diese Funktion oder [morningSeries].
 List<MorningMeasurement> countingMorningMeasurements(
   Iterable<MorningMeasurement> all,
 ) {
-  final sorted = all.where((m) => m.isUsable && !m.outsideWindow).toList()
+  final sorted = all.where((m) => m.isChoosable).toList()
     ..sort((a, b) => a.measuredAt.compareTo(b.measuredAt));
-  final seen = <(DateTime, MorningSeriesKey)>{};
-  return [
-    for (final m in sorted)
-      if (seen.add((morningLocalDay(m), MorningSeriesKey.of(m)))) m,
-  ];
+  final pick = <(DateTime, MorningSeriesKey), MorningMeasurement>{};
+  for (final m in sorted) {
+    final key = (morningLocalDay(m), MorningSeriesKey.of(m));
+    final current = pick[key];
+    if (current == null || (m.chosen && !current.chosen)) pick[key] = m;
+  }
+  return pick.values.toList()
+    ..sort((a, b) => a.measuredAt.compareTo(b.measuredAt));
+}
+
+/// Fehler bei einer nicht wählbaren Messung ([MorningStore.choose]).
+ArgumentError morningNotChoosable(int measurementId) => ArgumentError.value(
+  measurementId,
+  'measurementId',
+  'nicht wählbar (unbrauchbar oder außerhalb des Morgenfensters)',
+);
+
+/// Änderungen einer Wahl ([MorningStore.choose]), gleich für Fake und
+/// Datenbank: [unchoose] sind die anderen Messungen derselben Reihe am selben
+/// Ortstag (ihre Wahl wird gelöscht), [sleepBand] die Stufe, die danach an der
+/// gewählten Messung steht (PAR-164K: die Stufe der Schlafquelle des Tages vor
+/// der Wahl; ohne Stufe am Tag die eigene der Messung).
+typedef MorningChoice = ({List<int> unchoose, SleepBand? sleepBand});
+
+/// Berechnet die Wahl von [measurementId] aus allen gespeicherten Messungen
+/// [all]; unbekannte Id: `notFound`. Die Wählbarkeit
+/// ([MorningMeasurement.isChoosable], sonst [ArgumentError]) prüft der
+/// Speicher selbst, beim Schreiben der Wahl (ganz oder gar nicht).
+MorningChoice morningChoice(
+  List<StoredMorningMeasurement> all,
+  int measurementId,
+) {
+  StoredMorningMeasurement? target;
+  for (final s in all) {
+    if (s.id == measurementId) target = s;
+  }
+  if (target == null) throw const StorageException(StorageFailure.notFound);
+  final t = target.value;
+  final day = morningLocalDay(t);
+  final series = MorningSeriesKey.of(t);
+  final source = morningSleepSource([
+    for (final m in countingMorningMeasurements(all.map((s) => s.value)))
+      if (morningLocalDay(m) == day) m,
+  ]);
+  return (
+    unchoose: [
+      for (final s in all)
+        if (s.id != measurementId &&
+            MorningSeriesKey.of(s.value) == series &&
+            morningLocalDay(s.value) == day)
+          s.id,
+    ],
+    sleepBand: source?.sleepBand ?? t.sleepBand,
+  );
 }
 
 DateTime _localDayOf(DateTime nowUtc, Duration utcOffset) {

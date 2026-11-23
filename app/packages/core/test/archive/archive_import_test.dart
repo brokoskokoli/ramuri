@@ -516,12 +516,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 15: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 16: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 16);
+        final lines = valid()..[0] = _manifest(schema: 17);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":16,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":17,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -1388,8 +1388,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 15 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 16, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 16 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 17, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -2527,9 +2527,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 16: neueres Archiv', () async {
+    test('Schema 17: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":16,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":17,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

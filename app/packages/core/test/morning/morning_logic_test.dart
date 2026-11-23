@@ -286,15 +286,6 @@ void main() {
           final all = [out, ok];
           expect(countingMorningMeasurements(all), [ok]);
           expect(morningSeries(all)[lyingKey], [ok]);
-          expect(
-            morningRepeatAllowed(
-              [out],
-              nowUtc: local(8),
-              utcOffset: off,
-              series: lyingKey,
-            ),
-            isTrue,
-          );
           final today = DateTime.utc(2026, 11, 14);
           for (final d in cameraDeviations(all, today: today)) {
             expect(d.byDay.values, isNot(contains(121)), reason: d.factor.name);
@@ -482,15 +473,6 @@ void main() {
         final early = m(3);
         expect(early.outsideWindow, isTrue);
         expect(countingMorningMeasurements([early]), isEmpty);
-        expect(
-          morningRepeatAllowed(
-            [early],
-            nowUtc: local(8),
-            utcOffset: off,
-            series: lyingKey,
-          ),
-          isTrue,
-        );
         final inWin = m(8);
         expect(countingMorningMeasurements([early, inWin]), [inWin]);
       },
@@ -575,15 +557,6 @@ void main() {
         expect(countingMorningMeasurements([bad]), isEmpty);
         expect(countingMorningMeasurements([bad, good]), [good]);
         expect(morningSeries([bad]), isEmpty);
-        expect(
-          morningRepeatAllowed(
-            [bad],
-            nowUtc: local(8),
-            utcOffset: off,
-            series: lyingKey,
-          ),
-          isTrue,
-        );
       },
     );
 
@@ -607,20 +580,168 @@ void main() {
       },
     );
 
-    test('Wiederholung nur, solange heute keine gültige', () {
-      bool allowed(List<MorningMeasurement> l, MorningSeriesKey k) =>
-          morningRepeatAllowed(l, nowUtc: local(8), utcOffset: off, series: k);
-      expect(allowed(const [], lyingKey), isTrue);
-      expect(allowed([m(7)], lyingKey), isFalse);
-      // die Haltung ändert nichts: eine liegende Messung sperrt auch sitzend
+    test('heute zählend je Reihe: Haltung gleich, anderes Gerät eigene Reihe, '
+        'gestern nicht', () {
+      List<MorningMeasurement> today(List<MorningMeasurement> l) =>
+          morningCountingToday(l, nowUtc: local(8), utcOffset: off);
+      expect(today(const []), isEmpty);
+      final sitting = m(7, posture: RestingPosture.sitting);
+      expect(today([m(8), sitting]), [sitting]);
+      final other = m(8, model: 'M2');
+      expect(today([sitting, other]), [sitting, other]);
+      expect(today([m(7, day: 13)]), isEmpty);
+    });
+  });
+
+  group('Wahl der gültigen Messung des Tages (PAR-160K, FR-0215)', () {
+    MorningMeasurement raw(
+      DateTime utc, {
+      Duration offset = off,
+      double bpm = 58,
+      bool chosen = false,
+      String model = 'M1',
+      RestingPosture posture = RestingPosture.lying,
+      PpgQuality quality = PpgQuality.good,
+      bool outside = false,
+    }) => MorningMeasurement(
+      measuredAt: utc,
+      utcOffset: offset,
+      posture: posture,
+      deviceManufacturer: 'H',
+      deviceModel: model,
+      method: ppgMethod,
+      methodVersion: ppgMethodVersion,
+      quality: quality,
+      restingHrBpm: quality == PpgQuality.unusable ? null : bpm,
+      cameraIntervalsMs: const [],
+      beforeValidation: true,
+      outsideWindow: outside,
+      chosen: chosen,
+    );
+    final today = DateTime.utc(2026, 11, 14);
+    double? hrOn(List<MorningMeasurement> all, DateTime day) =>
+        cameraDeviations(all, today: day)
+            .firstWhere((d) => d.factor == ReadinessFactor.restingHeartRate)
+            .byDay[day];
+
+    test('drei brauchbare, keine gewählt: die früheste zählt', () {
+      final a = raw(local(6), bpm: 50);
+      final b = raw(local(6, 30), bpm: 60);
+      final c = raw(local(7), bpm: 70);
+      expect(countingMorningMeasurements([c, b, a]), [a]);
+      expect(morningSeries([c, b, a])[lyingKey], [a]);
       expect(
-        allowed([m(7, posture: RestingPosture.sitting)], lyingKey),
-        isFalse,
+        morningCountingToday([c, b, a], nowUtc: local(10), utcOffset: off),
+        [a],
       );
-      // anderes Gerät: eigene Reihe, noch offen
-      expect(allowed([m(7)], const MorningSeriesKey('H', 'M2')), isTrue);
-      // gestrige gültige blockiert heute nicht
-      expect(allowed([m(7, day: 13)], lyingKey), isTrue);
+      expect(hrOn([c, b, a], today), 50);
+    });
+
+    test(
+      'die mittlere gewählt: nur sie zählt, überall statt der frühesten',
+      () {
+        final a = raw(local(6), bpm: 50);
+        final b = raw(local(6, 30), bpm: 60, chosen: true);
+        final c = raw(local(7), bpm: 70);
+        final all = [a, b, c];
+        expect(countingMorningMeasurements(all), [b]);
+        expect(morningSeries(all)[lyingKey], [b]);
+        expect(morningCountingToday(all, nowUtc: local(10), utcOffset: off), [
+          b,
+        ]);
+        expect(hrOn(all, today), 60);
+        // Schlafquelle folgt der zählenden Messung.
+        expect(morningSleepSource(countingMorningMeasurements(all)), same(b));
+      },
+    );
+
+    test('Haltung: liegend 06:00, sitzend 06:30 gewählt, eine Reihe (K67)', () {
+      final lying = raw(local(6), bpm: 50);
+      final sitting = raw(
+        local(6, 30),
+        bpm: 55,
+        posture: RestingPosture.sitting,
+        chosen: true,
+      );
+      final series = morningSeries([lying, sitting]);
+      expect(series.keys, [lyingKey]);
+      expect(series[lyingKey], [sitting]);
+      expect(series[lyingKey]!.single.posture, RestingPosture.sitting);
+    });
+
+    test('Wahl an nicht wählbarer Messung wird übergangen', () {
+      final a = raw(local(6), bpm: 50);
+      final bad = raw(local(5), quality: PpgQuality.unusable, chosen: true);
+      final outside = raw(local(12), bpm: 70, outside: true, chosen: true);
+      expect(bad.isChoosable, isFalse);
+      expect(outside.isChoosable, isFalse);
+      expect(a.isChoosable, isTrue);
+      expect(countingMorningMeasurements([bad, a, outside]), [a]);
+      // Ohne wählbare Messung zählt keine.
+      expect(countingMorningMeasurements([bad, outside]), isEmpty);
+    });
+
+    test('zwei gewählte in einer Reihe am selben Tag: die frühere', () {
+      final a = raw(local(6), bpm: 50);
+      final b = raw(local(6, 30), bpm: 60, chosen: true);
+      final c = raw(local(7), bpm: 70, chosen: true);
+      expect(countingMorningMeasurements([c, a, b]), [b]);
+      expect(countingMorningMeasurements([c, b, a]), [b]);
+    });
+
+    test('anderer Tag und andere Reihe bleiben unberührt (K67)', () {
+      final yesterday1 = raw(local(6, 0, 13), bpm: 40);
+      final yesterday2 = raw(local(7, 0, 13), bpm: 45, chosen: true);
+      final a = raw(local(6), bpm: 50);
+      final b = raw(local(7), bpm: 60);
+      final other = raw(local(6, 30), bpm: 65, model: 'M2');
+      final all = [yesterday1, yesterday2, a, b, other];
+      expect(countingMorningMeasurements(all), [yesterday2, a, other]);
+      final series = morningSeries(all);
+      expect(series[lyingKey], [yesterday2, a]);
+      expect(series[const MorningSeriesKey('H', 'M2')], [other]);
+    });
+
+    test('Mitternacht (Fenster 0-24): 23:58 und 00:02 sind zwei Ortstage', () {
+      final x = raw(local(23, 50), bpm: 50);
+      final a = raw(local(23, 58), bpm: 55);
+      final b = raw(local(0, 2, 15), bpm: 60, chosen: true);
+      final c = raw(local(0, 1, 15), bpm: 65);
+      expect(countingMorningMeasurements([x, a, b, c]), [x, b]);
+      // ohne Wahl am 15. die früheste dort, der 14. bleibt gleich
+      final b0 = raw(local(0, 2, 15), bpm: 60);
+      expect(countingMorningMeasurements([x, a, b0, c]), [x, c]);
+    });
+
+    test('Versatz -5 h: Ortstag nach eigenem Versatz (K65)', () {
+      final x = raw(local(6), bpm: 50);
+      // 03:00 UTC am 15. ist mit -5 h 22:00 am 14.
+      final y = raw(
+        DateTime.utc(2026, 11, 15, 3),
+        offset: const Duration(hours: -5),
+        bpm: 60,
+        chosen: true,
+      );
+      expect(morningLocalDay(y), DateTime.utc(2026, 11, 14));
+      expect(countingMorningMeasurements([x, y]), [y]);
+    });
+
+    test('Zeitumstellung Europa/Berlin (25.10.2026): Ortstag je Versatz', () {
+      const cest = Duration(hours: 2), cet = Duration(hours: 1);
+      // 23:30 CEST am 24. (21:30 UTC), 01:30 CEST am 25. (23:30 UTC am 24.),
+      // 07:00 CET am 25. (06:00 UTC), gewählt.
+      final eve = raw(DateTime.utc(2026, 10, 24, 21, 30), offset: cest);
+      final night = raw(DateTime.utc(2026, 10, 24, 23, 30), offset: cest);
+      final morning = raw(
+        DateTime.utc(2026, 10, 25, 6),
+        offset: cet,
+        chosen: true,
+      );
+      expect(morningLocalDay(night), DateTime.utc(2026, 10, 25));
+      expect(countingMorningMeasurements([eve, night, morning]), [
+        eve,
+        morning,
+      ]);
     });
   });
 
