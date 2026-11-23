@@ -263,10 +263,9 @@ object PpgCamera {
                     ?.let { it.lower to it.upper }
                 sensitivityRange = chars.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
                     ?.let { it.lower to it.upper }
-                fps = PpgCameraLogic.chooseFps(
-                    chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
-                        ?.map { it.lower to it.upper }.orEmpty(),
-                ) ?: return controller.abort("frame_rate")
+                // Dieselbe Rate wie in der Kameraliste (PpgCameraLogic.chooseFps über die Eigenschaften
+                // der Kamera, die die Bilder liefert).
+                fps = target.frameRate ?: return controller.abort("frame_rate")
                 val sizes = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
                     ?.getOutputSizes(ImageFormat.YUV_420_888)?.map { it.width to it.height }.orEmpty()
                 val (w, h) = PpgCameraLogic.chooseSize(sizes) ?: return controller.abort("error")
