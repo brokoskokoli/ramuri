@@ -97,7 +97,7 @@ void main() {
       expect(r.distanceMeters, closeTo(9, 1e-3));
     });
   });
-  group('Folge der Sprungverwürfe (Nachbesserung E1)', () {
+  group('Folge der Sprungverwürfe', () {
     test('softJump-Folge verankert neu (Geschwindigkeit 8..12,5 m/s)', () {
       final r = run([pos(0, 0), pos(4, 40), pos(5, 43), pos(5.5, 44.5)]);
       expect(r.positions[1].reason, DiscardReason.softJump);

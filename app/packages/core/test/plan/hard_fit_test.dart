@@ -158,7 +158,7 @@ void main() {
       );
     });
 
-    test('NB4: Passform am tatsächlichen Niveau, nicht nur an der kleinsten '
+    test('Passform am tatsächlichen Niveau, nicht nur an der kleinsten '
         'Wochenzeit (Halbmarathon, max. 40 min)', () {
       // Ab 180 min gilt die lange Form (48 min), sie scheitert an 40 min; die
       // kleinste Passform (112) liegt unter der Spitze (250), das Niveau
@@ -171,7 +171,7 @@ void main() {
         );
         final s = planCourseSetup(g, _inputs());
         expect(s.targetPeakMinutes, 250);
-        // Nicht "nie": in einem Teil der Spitzenwochen erscheint sie (Soll 1).
+        // Nicht "nie": in einem Teil der Spitzenwochen erscheint sie.
         expect(s.hardFit, HardFitStatus.partialAtPeak);
         expect(s.hardFitMinutes, isNotNull);
         final p = generatePlan(g, _inputs(), const [], _d0);

@@ -158,7 +158,7 @@ void main() {
     },
   );
 
-  group('Nachbesserung E', () {
+  group('Wochengrenzen, Abstand und Tagwahl beim Verschieben', () {
     test('Wochengrenzen beim Regler: Sonntag der Vorwoche und Montag der '
         'Folgewoche zählen nicht zur Woche', () {
       final prevSunday = _u(10, -1, minutes: 120);

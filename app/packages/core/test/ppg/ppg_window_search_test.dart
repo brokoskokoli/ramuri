@@ -190,154 +190,134 @@ void main() {
     });
   });
 
-  group(
-    'Einzelauswertung des Fensters als Austauschpunkt (Review 1, B1 und B2)',
-    () {
-      const limitedResult = PpgMeasurement(
-        quality: PpgQuality.limited,
-        reasons: [PpgQualityReason.lowSignalQuality],
-        bpm: 60,
-        validIntervals: 50,
-        intervals: 60,
-      );
+  group('Einzelauswertung des Fensters als Austauschpunkt', () {
+    const limitedResult = PpgMeasurement(
+      quality: PpgQuality.limited,
+      reasons: [PpgQualityReason.lowSignalQuality],
+      bpm: 60,
+      validIntervals: 50,
+      intervals: 60,
+    );
 
-      /// Auswerter, der die ersten [limitedFirst] Aufrufe auf „eingeschränkt“ setzt und danach
-      /// `evaluatePpg` nutzt; merkt sich die Fensterbeginne.
-      ({PpgWindowEvaluator fn, List<double> starts}) evaluator(
-        int limitedFirst,
-      ) {
-        final starts = <double>[];
-        PpgMeasurement fn(List<PpgFrame> f, {required PpgWindow window}) {
-          starts.add(window.start);
-          return starts.length <= limitedFirst
-              ? limitedResult
-              : evaluatePpg(f, window: window);
-        }
-
-        return (fn: fn, starts: starts);
+    /// Auswerter, der die ersten [limitedFirst] Aufrufe auf „eingeschränkt“ setzt und danach
+    /// `evaluatePpg` nutzt; merkt sich die Fensterbeginne.
+    ({PpgWindowEvaluator fn, List<double> starts}) evaluator(int limitedFirst) {
+      final starts = <double>[];
+      PpgMeasurement fn(List<PpgFrame> f, {required PpgWindow window}) {
+        starts.add(window.start);
+        return starts.length <= limitedFirst
+            ? limitedResult
+            : evaluatePpg(f, window: window);
       }
 
-      final fr = frames(good(), to: 100);
+      return (fn: fn, starts: starts);
+    }
 
-      test('Näherung gut, Einzelauswertung nicht: kein Abbruch', () {
-        expect(checkPpgRecording(fr).goodWindowReached, isTrue);
-        final e = evaluator(99);
-        final c = checkPpgRecording(fr, evaluate: e.fn);
-        expect(c.goodWindowReached, isFalse);
-        expect(e.starts, hasLength(3), reason: 'höchstens drei Versuche');
-      });
+    final fr = frames(good(), to: 100);
 
-      test('Kandidat 1 fällt ab, Kandidat 2 trägt: Abbruch und Fenster von Kandidat 2', () {
-        final e = evaluator(1);
-        final chk = checkPpgRecording(fr, evaluate: e.fn);
-        expect(chk.goodWindowReached, isTrue);
-        expect(e.starts, hasLength(2));
-        // Das bestätigte Fenster ist Kandidat 2 und wird als Endergebnis mitgegeben.
-        expect(chk.confirmed!.windowStartSeconds, e.starts[1]);
-        expect(chk.confirmed!.windowEndSeconds, e.starts[1] + 60);
-        expect(chk.confirmed!.measurement.quality, PpgQuality.good);
-        expect(
-          checkPpgRecording(fr, evaluate: evaluator(99).fn).confirmed,
-          isNull,
-        );
+    test('Näherung gut, Einzelauswertung nicht: kein Abbruch', () {
+      expect(checkPpgRecording(fr).goodWindowReached, isTrue);
+      final e = evaluator(99);
+      final c = checkPpgRecording(fr, evaluate: e.fn);
+      expect(c.goodWindowReached, isFalse);
+      expect(e.starts, hasLength(3), reason: 'höchstens drei Versuche');
+    });
 
-        final e2 = evaluator(1);
-        final r = evaluatePpgBestWindow(fr, evaluate: e2.fn);
-        expect(e2.starts, hasLength(2));
-        expect(e2.starts[1], isNot(e2.starts[0]));
-        expect(r.measurement.quality, PpgQuality.good);
-        expect(r.windowStartSeconds, e2.starts[1]);
-        expect(r.windowEndSeconds, e2.starts[1] + 60);
-      });
-
-      test(
-        'Kandidat 3 trägt nach zwei Rückfällen, ein vierter wird nie versucht',
-        () {
-          final e = evaluator(2);
-          expect(
-            checkPpgRecording(fr, evaluate: e.fn).goodWindowReached,
-            isTrue,
-          );
-          expect(e.starts, hasLength(3));
-          final e2 = evaluator(2);
-          final r = evaluatePpgBestWindow(fr, evaluate: e2.fn);
-          expect(r.windowStartSeconds, e2.starts[2]);
-          final e3 = evaluator(99);
-          evaluatePpgBestWindow(fr, evaluate: e3.fn);
-          expect(e3.starts, hasLength(3));
-        },
+    test('Kandidat 1 fällt ab, Kandidat 2 trägt: Abbruch und Fenster von Kandidat 2', () {
+      final e = evaluator(1);
+      final chk = checkPpgRecording(fr, evaluate: e.fn);
+      expect(chk.goodWindowReached, isTrue);
+      expect(e.starts, hasLength(2));
+      // Das bestätigte Fenster ist Kandidat 2 und wird als Endergebnis mitgegeben.
+      expect(chk.confirmed!.windowStartSeconds, e.starts[1]);
+      expect(chk.confirmed!.windowEndSeconds, e.starts[1] + 60);
+      expect(chk.confirmed!.measurement.quality, PpgQuality.good);
+      expect(
+        checkPpgRecording(fr, evaluate: evaluator(99).fn).confirmed,
+        isNull,
       );
-    },
-  );
 
-  group(
-    'Mehrfachvergleich der Fenstersuche über mehrere Seeds (Review 1, B8)',
-    () {
-      test('Rauschen: die Suche macht aus keinem Seed ein „gut“, das das feste Fenster nicht hat', () {
-        // Stationäres Rauschen: Das Fenster darf keine Rolle spielen. (Bei Rauschen 4 und Seed 5 ist
-        // schon das feste Fenster „gut“, mit RMSSD 112 statt 44 ms: Grenze der Bewertung, nicht der
-        // Suche; siehe Bericht N1.)
-        for (final noise in [4.0, 30.0]) {
-          for (var seed = 1; seed <= 5; seed++) {
-            final fr = frames(
-              synth(0.85, 0.05, 0.03, noise, 30.0, seed, duration: _long),
-              to: 100,
+      final e2 = evaluator(1);
+      final r = evaluatePpgBestWindow(fr, evaluate: e2.fn);
+      expect(e2.starts, hasLength(2));
+      expect(e2.starts[1], isNot(e2.starts[0]));
+      expect(r.measurement.quality, PpgQuality.good);
+      expect(r.windowStartSeconds, e2.starts[1]);
+      expect(r.windowEndSeconds, e2.starts[1] + 60);
+    });
+
+    test(
+      'Kandidat 3 trägt nach zwei Rückfällen, ein vierter wird nie versucht',
+      () {
+        final e = evaluator(2);
+        expect(checkPpgRecording(fr, evaluate: e.fn).goodWindowReached, isTrue);
+        expect(e.starts, hasLength(3));
+        final e2 = evaluator(2);
+        final r = evaluatePpgBestWindow(fr, evaluate: e2.fn);
+        expect(r.windowStartSeconds, e2.starts[2]);
+        final e3 = evaluator(99);
+        evaluatePpgBestWindow(fr, evaluate: e3.fn);
+        expect(e3.starts, hasLength(3));
+      },
+    );
+  });
+
+  group('Mehrfachvergleich der Fenstersuche über mehrere Seeds', () {
+    test('Rauschen: die Suche macht aus keinem Seed ein „gut“, das das feste Fenster nicht hat', () {
+      // Stationäres Rauschen: Das Fenster darf keine Rolle spielen. (Bei Rauschen 4 und Seed 5 ist
+      // schon das feste Fenster „gut“, mit RMSSD 112 statt 44 ms: Grenze der Bewertung, nicht der
+      // Suche.)
+      for (final noise in [4.0, 30.0]) {
+        for (var seed = 1; seed <= 5; seed++) {
+          final fr = frames(
+            synth(0.85, 0.05, 0.03, noise, 30.0, seed, duration: _long),
+            to: 100,
+          );
+          final r = evaluatePpgBestWindow(fr);
+          // Die Fensterwahl bleibt wie vor PAR-230: „eingeschränkt“ nur wegen zu weniger einiger
+          // Schläge zählt für Wahl und Abbruch wie „gut“.
+          final fixed = evaluatePpg(fr);
+          final fixedGood =
+              fixed.quality == PpgQuality.good ||
+              (fixed.reasons.length == 1 &&
+                  fixed.reasons.single == PpgQualityReason.fewConsistentBeats);
+          final why = 'Rauschen $noise, Seed $seed';
+          if (!fixedGood) {
+            expect(r.measurement.quality, isNot(PpgQuality.good), reason: why);
+            expect(
+              checkPpgRecording(fr).goodWindowReached,
+              isFalse,
+              reason: why,
             );
-            final r = evaluatePpgBestWindow(fr);
-            // Die Fensterwahl bleibt wie vor PAR-230: „eingeschränkt“ nur wegen zu weniger einiger
-            // Schläge zählt für Wahl und Abbruch wie „gut“.
-            final fixed = evaluatePpg(fr);
-            final fixedGood =
-                fixed.quality == PpgQuality.good ||
-                (fixed.reasons.length == 1 &&
-                    fixed.reasons.single ==
-                        PpgQualityReason.fewConsistentBeats);
-            final why = 'Rauschen $noise, Seed $seed';
-            if (!fixedGood) {
-              expect(
-                r.measurement.quality,
-                isNot(PpgQuality.good),
-                reason: why,
-              );
-              expect(
-                checkPpgRecording(fr).goodWindowReached,
-                isFalse,
-                reason: why,
-              );
-            }
-            if (noise == 30.0) {
-              expect(r.measurement.quality, PpgQuality.unusable, reason: why);
-              expect(r.measurement.rmssdMs, isNull, reason: why);
-            }
+          }
+          if (noise == 30.0) {
+            expect(r.measurement.quality, PpgQuality.unusable, reason: why);
+            expect(r.measurement.rmssdMs, isNull, reason: why);
           }
         }
-      });
+      }
+    });
 
-      test('30 s Rauschen, dann gut: das gute Fenster wird für jeden Seed gefunden, RMSSD nahe der Wahrheit', () {
-        for (var seed = 1; seed <= 5; seed++) {
-          final fr = [
-            ...frames(bad(seed), to: 30),
-            ...frames(good(seed), from: 30, to: 95),
-          ];
-          final r = evaluatePpgBestWindow(fr);
-          final why = 'Seed $seed';
-          expect(r.measurement.quality, PpgQuality.good, reason: why);
-          expect(
-            r.windowStartSeconds,
-            inInclusiveRange(29.0, 36.0),
-            reason: why,
-          );
-          final t = truth(
-            [for (final b in good(seed).beats) b + 0.12],
-            r.windowStartSeconds!,
-            r.windowEndSeconds!,
-          );
-          expect(r.measurement.rmssdMs, closeTo(t.rmssd, 8.0), reason: why);
-          expect(r.measurement.bpm, closeTo(t.bpm, 0.7), reason: why);
-        }
-      });
-    },
-  );
+    test('30 s Rauschen, dann gut: das gute Fenster wird für jeden Seed gefunden, RMSSD nahe der Wahrheit', () {
+      for (var seed = 1; seed <= 5; seed++) {
+        final fr = [
+          ...frames(bad(seed), to: 30),
+          ...frames(good(seed), from: 30, to: 95),
+        ];
+        final r = evaluatePpgBestWindow(fr);
+        final why = 'Seed $seed';
+        expect(r.measurement.quality, PpgQuality.good, reason: why);
+        expect(r.windowStartSeconds, inInclusiveRange(29.0, 36.0), reason: why);
+        final t = truth(
+          [for (final b in good(seed).beats) b + 0.12],
+          r.windowStartSeconds!,
+          r.windowEndSeconds!,
+        );
+        expect(r.measurement.rmssdMs, closeTo(t.rmssd, 8.0), reason: why);
+        expect(r.measurement.bpm, closeTo(t.bpm, 0.7), reason: why);
+      }
+    });
+  });
 
   group('NaN in der Feinbestimmung (WP37 A4)', () {
     test('50 s Rauschen, dann 61,5 s gut: das gute Fenster wird gefunden', () {

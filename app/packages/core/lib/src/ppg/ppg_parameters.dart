@@ -8,8 +8,10 @@ import '../algorithm_category.dart';
 /// pNN50 (ALGORITHMUS.md Abschn. 8); Puls, Anteil gültiger Intervalle und Fensterwahl unverändert.
 /// Version 4 = Aufnahme mit festem Fokus, ohne optische und Videostabilisierung (ADR-0011,
 /// Nachtrag 2026-11-21); Auswertung unverändert.
+/// Version 5 = wie 4, dazu Antibanding aus und nach der Einschwingzeit die längste Belichtung bei
+/// der Bildrate (ADR-0011, Nachtrag 2026-11-22); Auswertung unverändert.
 const String ppgMethod = 'camera-ppg';
-const int ppgMethodVersion = 4;
+const int ppgMethodVersion = 5;
 
 /// Stand der Referenz, aus der das Verfahren portiert ist.
 const String ppgReference = 'algo-v0.4-frozen';
