@@ -1,10 +1,10 @@
-// Abschlussprüfung M3, Archiv: alle Daten der Phase 3 hin und zurück, danach
+// Archiv: alle Daten der Phase 3 hin und zurück, danach
 // „Alles löschen“. Die Daten entstehen über die Ports und die Kernlogik
 // (Import aus Health Connect, Morgenmessung mit Gurt-RR und Rohsignal, Plan
 // „adaptiv“ mit einer Lockerung nach PAR-173). Export mit echter
 // Kryptografie, Reimport in eine leere App, danach ist jede Tabelle
 // zeilengleich (docs/contracts/archive.md, Abschnitte 27 bis 34). „Alles
-// löschen“ leert danach jede M3-Tabelle (SEC-0004). Alle Daten sind
+// löschen“ leert danach jede Tabelle der Phase 3 (SEC-0004). Alle Daten sind
 // synthetisch.
 import 'dart:io';
 import 'dart:typed_data';
@@ -56,7 +56,7 @@ Future<_Dump> _dump(AppDatabase db) async {
 final _d0 = DateTime.utc(2026, 11, 11); // Mittwoch
 DateTime _day(int n) => _d0.add(Duration(days: n));
 
-/// Die M3-Tabellen (Schema 12 bis 15): jede muss im Quellstand Zeilen haben,
+/// Die Tabellen der Phase 3 (Schema 12 bis 15): jede muss im Quellstand Zeilen haben,
 /// sonst prüft der Test nichts.
 const _m3Tables = [
   'health_sleep_sessions',
@@ -142,7 +142,7 @@ void main() {
     ).restore(path: archivePath, password: _password);
   }
 
-  test('Quellstand: jede M3-Tabelle hat Zeilen, alle Datenarten, eine '
+  test('Quellstand: jede Tabelle der Phase 3 hat Zeilen, alle Datenarten, eine '
       'unbrauchbare Messung, Fassung mit Grund readiness', () async {
     for (final t in _m3Tables) {
       expect(sourceDump[t], isNotEmpty, reason: t);
@@ -178,7 +178,7 @@ void main() {
     }
   });
 
-  test('Export, Reimport in leere App: jede Tabelle zeilengleich, M3-Daten '
+  test('Export, Reimport in leere App: jede Tabelle zeilengleich, Daten der Phase 3 '
       'über die Ports gleich, technische Merker fehlen', () async {
     expect(await ArchiveRestoreService.isEmpty(target), isTrue);
     target = await restore();
@@ -265,7 +265,7 @@ void main() {
     }
   });
 
-  test('„Alles löschen“ nach dem Reimport: jede M3-Tabelle leer, auch die '
+  test('„Alles löschen“ nach dem Reimport: jede Tabelle der Phase 3 leer, auch die '
       'Kinder; die App gilt wieder als leer', () async {
     target = await restore();
     for (final t in _m3Tables) {

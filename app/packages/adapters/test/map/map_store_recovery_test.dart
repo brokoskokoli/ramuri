@@ -1,5 +1,5 @@
-// WP13 Nachbesserung N1a: Kartenspeicher nach Löschen und Tausch der Datenbank, Beschädigung im Betrieb, Platz nach
-// dem Verdrängen, Tor der Quelle (Review S1, S2, S5, S6, M3).
+// Kartenspeicher nach Löschen und Tausch der Datenbank, Beschädigung im Betrieb, Platz nach dem Verdrängen, Tor der
+// Quelle.
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -50,7 +50,7 @@ void main() {
   });
   tearDown(() => dir.deleteSync(recursive: true));
 
-  test('S2: deleteRun und deleteAllThumbnails legen den Speicher nach dem Löschen nicht neu an', () async {
+  test('deleteRun und deleteAllThumbnails legen den Speicher nach dem Löschen nicht neu an', () async {
     final s = store();
     await s.write(_tile(1), _bytes(1000, 1));
     await s.delete();
@@ -65,7 +65,7 @@ void main() {
     await s.close();
   });
 
-  test('M3: Tausch der Datenbank verwirft die Miniaturen (gleiche Lauf-Nummer, anderes Archiv), Kacheln bleiben', () async {
+  test('Tausch der Datenbank verwirft die Miniaturen (gleiche Lauf-Nummer, anderes Archiv), Kacheln bleiben', () async {
     final s = store();
     await s.write(_tile(1), _bytes(1000, 1));
     await s.write(_thumb(7), _bytes(500, 7));
@@ -87,7 +87,7 @@ void main() {
     await s.close();
   });
 
-  test('N7: scheitert das Verwerfen, löscht der Tausch den ganzen Kartenspeicher und tauscht dann', () async {
+  test('scheitert das Verwerfen, löscht der Tausch den ganzen Kartenspeicher und tauscht dann', () async {
     final dbPath = '${dir.path}/running_app.db';
     File(dbPath).writeAsBytesSync([1]);
     File('$dbPath.import').writeAsBytesSync([2]);
@@ -106,7 +106,7 @@ void main() {
     expect(File(dbPath).readAsBytesSync(), [2]);
   });
 
-  test('N7: Miniaturen werden vor dem Umbenennen verworfen (alte Datenbank steht noch)', () async {
+  test('Miniaturen werden vor dem Umbenennen verworfen (alte Datenbank steht noch)', () async {
     final dbPath = '${dir.path}/running_app.db';
     File(dbPath).writeAsBytesSync([1]);
     File('$dbPath.import').writeAsBytesSync([2]);
@@ -119,7 +119,7 @@ void main() {
     expect(File(dbPath).readAsBytesSync(), [2]);
   });
 
-  test('N7: scheitert auch das Löschen, bricht der Tausch vor dem Umbenennen ab; die alte Datenbank bleibt, nichts verloren', () async {
+  test('scheitert auch das Löschen, bricht der Tausch vor dem Umbenennen ab; die alte Datenbank bleibt, nichts verloren', () async {
     final dbPath = '${dir.path}/running_app.db';
     File(dbPath).writeAsBytesSync([1]);
     File('$dbPath.import').writeAsBytesSync([2]);
@@ -135,7 +135,7 @@ void main() {
     expect(File('$dbPath.import').readAsBytesSync(), [2]);
   });
 
-  test('N7: deleteAllThumbnails wirft, wenn die Datei da ist, aber der Speicher nicht erreichbar (geschlossen)', () async {
+  test('deleteAllThumbnails wirft, wenn die Datei da ist, aber der Speicher nicht erreichbar (geschlossen)', () async {
     final s = store();
     await s.write(_thumb(7), _bytes(100, 7));
     await s.close();
@@ -147,7 +147,7 @@ void main() {
     await s.deleteAllThumbnails(); // keine Datei: nichts zu tun
   });
 
-  test('N3-S1: deleteAllThumbnails wirft, wenn das Löschen im Arbeiter scheitert (Ordner nur lesbar)', () async {
+  test('deleteAllThumbnails wirft, wenn das Löschen im Arbeiter scheitert (Ordner nur lesbar)', () async {
     final s = store();
     await s.write(_thumb(7), _bytes(100, 7));
     await Process.run('chmod', ['555', dir.path]);
@@ -162,7 +162,7 @@ void main() {
     await s.close();
   });
 
-  test('S6: im Betrieb zerstörte Datei (offene Verbindung): Lesen liefert nichts, die Datei ist danach klein und neu, Schreiben geht', () async {
+  test('im Betrieb zerstörte Datei (offene Verbindung): Lesen liefert nichts, die Datei ist danach klein und neu, Schreiben geht', () async {
     final s = store();
     for (var i = 0; i < 40; i++) {
       await s.write(_tile(i), _bytes(10000, i));
@@ -193,7 +193,7 @@ void main() {
     await s.close();
   });
 
-  test('S5: unterschreitet die Grenze den Bestand weit, schrumpft die Datei (Vakuum), sie wird nicht nur wiederverwendbar', () {
+  test('unterschreitet die Grenze den Bestand weit, schrumpft die Datei (Vakuum), sie wird nicht nur wiederverwendbar', () {
     var c = MapCacheCore.open(
       path: path,
       hexKey: hexOfKey(key),
@@ -219,7 +219,7 @@ void main() {
   group('Quelle', () {
     setUp(() => vt.VectorTileLayer.clearMemoryCache());
 
-    testWidgets('S1: dispose schließt das Tor (Verbindungen der Quelle)', (
+    testWidgets('dispose schließt das Tor (Verbindungen der Quelle)', (
       tester,
     ) async {
       await tester.runAsync(() async {
@@ -236,7 +236,7 @@ void main() {
       });
     });
 
-    testWidgets('S1: scheitert open, ist das Tor geschlossen', (tester) async {
+    testWidgets('scheitert open, ist das Tor geschlossen', (tester) async {
       await tester.runAsync(() async {
         final inner = _ClosingInner();
         var granted = true;

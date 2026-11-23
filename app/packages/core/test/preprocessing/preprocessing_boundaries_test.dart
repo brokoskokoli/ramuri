@@ -18,7 +18,7 @@ RawPosition posAt(num sec, double lat, double lon, double? acc) => RawPosition(
 );
 
 void main() {
-  group('Befund 1: Höhe und Schritte in der manuellen Pause', () {
+  group('Höhe und Schritte in der manuellen Pause', () {
     test(
       'Werte in der Pause sind unavailable, kein Aufstieg über die Pause',
       () {
@@ -71,7 +71,7 @@ void main() {
     });
   });
 
-  group('Befund 2: PAR-010 mit verworfenen Werten', () {
+  group('PAR-010 mit verworfenen Werten', () {
     SectionQuality q(List<RawHeartRate> v, num to) => SectionQuality.assess(
       from: at(0),
       to: at(to),
@@ -108,7 +108,7 @@ void main() {
     });
   });
 
-  group('Befund 3: nicht endliche Eingaben fail-closed', () {
+  group('nicht endliche Eingaben fail-closed', () {
     final nan = double.nan;
     final inf = double.infinity;
 
@@ -157,7 +157,7 @@ void main() {
     );
   });
 
-  group('Befund 4: verworfener Wert sperrt den Kanal nicht', () {
+  group('verworfener Wert sperrt den Kanal nicht', () {
     test('Position: Punkt +1 h mit Genauigkeit 99 m', () {
       final p = PositionProcessor(const PreprocessingParameters.v4());
       p.add(pos(0, 0));
@@ -203,7 +203,7 @@ void main() {
     });
   });
 
-  group('Befund 5: genaue Schwellen PAR-014', () {
+  group('genaue Schwellen PAR-014', () {
     MovementTimeProcessor mtp() =>
         MovementTimeProcessor(const PreprocessingParameters.v4(), start: t0);
     void feedSeg(MovementTimeProcessor m, int from, int to, double meters) {
@@ -244,7 +244,7 @@ void main() {
     });
   });
 
-  group('Befund 6: Lücken im 2-min-Mittel (PAR-011)', () {
+  group('Lücken im 2-min-Mittel (PAR-011)', () {
     test('Lücke im Fenster bei gleichem Tempo löst nicht aus', () {
       final p = SettlingProcessor(
         const PreprocessingParameters.v4(),
@@ -268,7 +268,7 @@ void main() {
     });
   });
 
-  group('Befund 7: kein Segment über eine kurze Pause', () {
+  group('kein Segment über eine kurze Pause', () {
     test('5-s-Pause ergibt kein Segment über die Pause', () {
       final r = RunPreprocessor(start: t0);
       for (final x in track([(10, 3)])) {

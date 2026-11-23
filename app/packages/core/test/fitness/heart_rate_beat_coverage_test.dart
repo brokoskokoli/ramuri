@@ -58,8 +58,8 @@ class _Fixed extends HeartRateReserveModel {
 MovementResult moving(int a, int b) => fitMovement([fitSpan(a, b)]);
 
 void main() {
-  group('Befund 2 (Review 2): überlebende Mutanten', () {
-    test('M1: nicht monotone Werte senken den Takt nicht', () {
+  group('Median-Takt und Rückgriff', () {
+    test('nicht monotone Werte senken den Takt nicht', () {
       final hr = HeartRateResult(
         parameterVersion: currentParameterVersion,
         processed: [
@@ -89,7 +89,7 @@ void main() {
       );
     });
 
-    test('M3: gerade Anzahl Abstände nimmt den unteren Median', () {
+    test('gerade Anzahl Abstände nimmt den unteren Median', () {
       final times = [
         for (final s in [0, 1, 3, 6, 10]) fitAt(s),
       ];
@@ -97,7 +97,7 @@ void main() {
       expect(medianBeatMicros(times), 2000000);
     });
 
-    test('M4: Rückgriff endet am Spannenende, nicht am nächsten Wert', () {
+    test('Rückgriff endet am Spannenende, nicht am nächsten Wert', () {
       // Bewegung 10 bis 11 s, Werte ab 11,4 s (Takt 1 s): Rückgriff höchstens
       // bis zum Spannenende, Abdeckung <= Spanne.
       final x = fitHeartRate([
@@ -119,7 +119,7 @@ void main() {
     });
   });
 
-  group('Befund 2 (Review 3): Takt ist ein vorkommender Abstand', () {
+  group('Takt ist ein vorkommender Abstand', () {
     // Jeder 3. Wert fehlt im 1-Hz-Raster: Abstände 1 s und 2 s im Wechsel.
     HeartRateResult gapped(int lastSecond) => fitHeartRate([
       for (var s = 0; s <= lastSecond; s++)
@@ -175,7 +175,7 @@ void main() {
     });
   });
 
-  group('Befund 1: gemeinsame Regel round(Δt / Takt) <= 1', () {
+  group('gemeinsame Regel round(Δt / Takt) <= 1', () {
     test('beatCoversGap: 1,49 Takte gelten, 1,5 nicht', () {
       expect(beatCoversGap(1490000, 1000000), isTrue);
       expect(beatCoversGap(1500000, 1000000), isFalse);
@@ -259,7 +259,7 @@ void main() {
     });
   });
 
-  group('Befund 3: Grund bei langsamem Takt', () {
+  group('Grund bei langsamem Takt', () {
     test('stabiler 15-s-Takt, alles Lücken: insufficientCoverage', () {
       // Stabiler Takt ohne Lücken wäre abgedeckt; bei 15 s Takt meldet der
       // Prozessor jeden Abstand als Lücke (> PAR-010), nichts ist abgedeckt.
@@ -297,7 +297,7 @@ void main() {
     });
   });
 
-  group('Befund 4: Puls <= 0', () {
+  group('Puls <= 0', () {
     for (final bpm in [0, -5]) {
       test('bpm $bpm: nicht verfügbar statt Wert', () {
         final z = zones.zoneFor(basis, bpm, p);
@@ -308,7 +308,7 @@ void main() {
     }
   });
 
-  test('Befund 4: zoneFor prüft den Puls selbst, auch bei fremder Reserve', () {
+  test('zoneFor prüft den Puls selbst, auch bei fremder Reserve', () {
     const z = ReserveZones(reserve: _Fixed());
     for (final bpm in [0, -1]) {
       expect(
@@ -319,7 +319,7 @@ void main() {
     expect(z.zoneFor(basis, 1, p), isA<FitnessAvailable>());
   });
 
-  group('Befund 5: Reserve im Ergebnis', () {
+  group('Reserve im Ergebnis', () {
     test('Zonenzeit und Platzierung nennen die Reserve', () {
       const z = ReserveZones(reserve: _Fixed());
       final placed = (z.zoneFor(

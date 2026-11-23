@@ -6,7 +6,7 @@ import 'motion_support.dart';
 import 'support.dart';
 
 void main() {
-  group('Befund 9: Lookup behält den Zustand', () {
+  group('Lookup behält den Zustand', () {
     test('überbrückte Position und geschätzter Puls sind estimated', () {
       final pos3 = processor()
         ..add(pos(0, 0))
@@ -22,7 +22,7 @@ void main() {
     });
   });
 
-  group('Befund 10: resume ohne Pause', () {
+  group('resume ohne Pause im Vorverarbeiter', () {
     test('Fortsetzen ohne Pause ändert nichts (Segment, Lücke ab Start)', () {
       final r = RunPreprocessor(start: t0);
       for (final x in track([(10, 3)])) {
@@ -55,7 +55,7 @@ void main() {
     });
   });
 
-  group('Befund 10: Prozessoren allein', () {
+  group('resume ohne Pause in den Prozessoren allein', () {
     test('resume ohne Pause lässt die Lücke ab Start stehen', () {
       final p = processor(const PreprocessingParameters.v4(), t0)
         ..resume(at(25))
@@ -70,7 +70,7 @@ void main() {
     });
   });
 
-  group('Befund 11: Aussetzer des Sensors überbrückt', () {
+  group('Aussetzer des Sensors überbrückt', () {
     test('unavailable im Lauf: Folgepunkt estimated, Strecke überbrückt', () {
       final p = processor()
         ..add(pos(0, 0))
@@ -93,7 +93,7 @@ void main() {
     });
   });
 
-  test('Befund 12: Bewegungszeit nie größer als die Gesamtzeit', () {
+  test('Bewegungszeit nie größer als die Gesamtzeit', () {
     final r = feed(track([(600, 3), (12, 0)]));
     for (final s in [0, 1, 300, 609, 610, 611, 612]) {
       final m = r.result(at: at(s)).movement;
@@ -106,7 +106,7 @@ void main() {
     expect(m.movingIntervals.single.end, at(300));
   });
 
-  test('Befund 12: Abfrage vor einem späteren geschlossenen Intervall', () {
+  test('Abfrage vor einem späteren geschlossenen Intervall', () {
     // Stand 100..112 (Pause bei 110), Wiederbeginn 115, Stand 212..222
     // (Pause bei 222): Intervalle [0,110], [115,222]. Abfrage bei 50.
     final r = feed(track([(100, 3), (12, 0), (100, 3), (12, 0), (100, 3)]))
@@ -116,7 +116,7 @@ void main() {
     expect(r.movingTime, const Duration(seconds: 50));
   });
 
-  group('Befund 13/14: Versionen, öffentlicher Konstruktor', () {
+  group('Versionen, öffentlicher Konstruktor', () {
     const v4 = PreprocessingParameters(
       parameterVersion: 9,
       hardJumpMaxSpeed: 99,
@@ -187,13 +187,13 @@ void main() {
     });
   });
 
-  test('Befund 15: ohne akzeptierten Punkt ist die Strecke null', () {
+  test('ohne akzeptierten Punkt ist die Strecke null', () {
     expect(run([], until: 0).distanceMeters, isNull);
     expect(run([pos(0, 0, acc: 90)], until: 0).distanceMeters, isNull);
     expect(run([pos(0, 0)], until: 0).distanceMeters, 0);
   });
 
-  group('PAR-010 Takt ohne nichtmonotone Werte (Runde 1b D2)', () {
+  group('PAR-010 Takt ohne nichtmonotone Werte', () {
     test('verworfene Zeit-Rückläufer senken den Takt nicht', () {
       // 10-s-Sensor 0..100, nach 50 kommen 41..49 (nichtmonoton).
       final values = [
@@ -214,7 +214,7 @@ void main() {
     });
   });
 
-  group('PAR-009 Fenster [t-30 s, t] (Runde 1b D1)', () {
+  group('PAR-009 Fenster [t-30 s, t]', () {
     test('verworfener Wert aus der Zukunft stützt den Median nicht', () {
       // 35 bei 0, dann 240 bei 10 (Rate 20,5 > 5, Median 137,5: Ausreißer).
       // 150 bei 1: Fenster [-29, 1] = {35, 150}, Median 92,5, Abweichung
