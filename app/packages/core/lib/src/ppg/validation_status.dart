@@ -9,8 +9,8 @@ enum ValidationState { notChecked, passed, limited, failed }
 enum ValidationQuantity { restingHr, lnRmssdSupine }
 
 /// Validierungsstand von `camera-ppg` in [ppgMethodVersion] (E7c: am Verfahren,
-/// nicht am Gerät). Versioniert wie das Verfahren: Ändert sich der Algorithmus,
-/// beginnt die Validierung neu. Nur WP36 ändert die Werte, nach dem Ergebnis
+/// nicht am Gerät). Versioniert wie das Verfahren: Ändert sich das Verfahren
+/// (Algorithmus oder Aufnahme), beginnt die Validierung neu. Nur WP36 ändert die Werte, nach dem Ergebnis
 /// der Validierungsmessung und mit Freigabe des Maintainers.
 const Map<ValidationQuantity, ValidationState> ppgValidationState = {
   ValidationQuantity.restingHr: ValidationState.notChecked,
