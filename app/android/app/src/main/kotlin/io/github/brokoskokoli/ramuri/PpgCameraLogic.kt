@@ -76,20 +76,24 @@ object PpgCameraLogic {
         )
     }
 
-    private fun entry(id: String, physical: String?, p: PpgCameraProps?, torch: Boolean, isDefault: Boolean) =
-        PpgCameraEntry(
+    private fun entry(id: String, physical: String?, p: PpgCameraProps?, torch: Boolean, isDefault: Boolean): PpgCameraEntry {
+        // Genau die Rate, mit der die Aufnahme auf dieser Kamera liefe (PpgCamera.kt startet mit ihr).
+        val fps = p?.let { chooseFps(it.fpsRanges) }
+        return PpgCameraEntry(
             cameraId = id,
             physicalCameraId = physical,
             focalLength = p?.focalLengths?.filter { it > 0f }?.minOrNull(),
             isDefault = isDefault,
+            frameRate = fps,
             reason = when {
                 p == null -> "error"
                 !torch -> "no_flash"
-                chooseFps(p.fpsRanges) == null -> "frame_rate"
+                fps == null -> "frame_rate"
                 chooseSize(p.yuvSizes) == null -> "error"
                 else -> null
             },
         )
+    }
 
     /** IDs aus Ziffern nach Zahlenwert („2“ vor „10“), sonst als Text; Ziffern vor Text. */
     fun compareIds(a: String, b: String): Int {
@@ -229,7 +233,9 @@ data class PpgCameraProps(
 
 /**
  * Eintrag der Kameraliste (Dart: PpgCameraInfo). [reason] ist `null`, wenn die Kamera nutzbar ist,
- * sonst "no_flash", "frame_rate" oder "error" (wie die Abbruchgründe beim Start).
+ * sonst "no_flash", "frame_rate" oder "error" (wie die Abbruchgründe beim Start). [frameRate] ist die
+ * Bildrate, mit der die Aufnahme auf ihr liefe ([PpgCameraLogic.chooseFps]), `null` ohne feste Rate
+ * 30–60 oder ohne lesbare Eigenschaften (FR-0220). Nie ins Log.
  */
 data class PpgCameraEntry(
     val cameraId: String,
@@ -237,17 +243,20 @@ data class PpgCameraEntry(
     val focalLength: Float?,
     val isDefault: Boolean,
     val reason: String?,
+    val frameRate: Int? = null,
 ) {
     val usable: Boolean get() = reason == null
 
-    fun toMap(): Map<String, Any?> = mapOf(
-        "cameraId" to cameraId,
-        "physicalCameraId" to physicalCameraId,
-        "focalLength" to focalLength?.toDouble(),
-        "isDefault" to isDefault,
-        "usable" to usable,
-        "reason" to reason,
-    )
+    /** Für den MethodChannel; ohne Bildrate fehlt der Schlüssel "frameRate". */
+    fun toMap(): Map<String, Any?> = buildMap {
+        put("cameraId", cameraId)
+        put("physicalCameraId", physicalCameraId)
+        put("focalLength", focalLength?.toDouble())
+        put("isDefault", isDefault)
+        put("usable", usable)
+        put("reason", reason)
+        frameRate?.let { put("frameRate", it) }
+    }
 }
 
 /**
