@@ -44,6 +44,14 @@ class UnitFormatter {
     return '${value.replaceAll('.', _decimalSeparator)} $distanceLabel';
   }
 
+  /// Strecke aus Metern, eine Nachkommastelle, etwa `9,1 km` (erledigte
+  /// Einheit im Plan, FR-0171).
+  String distanceShort(double? meters) {
+    if (meters == null || !meters.isFinite || meters < 0) return noValue;
+    final value = unit.distanceFromMeters(meters).toStringAsFixed(1);
+    return '${value.replaceAll('.', _decimalSeparator)} $distanceLabel';
+  }
+
   /// Pace aus Sekunden je Kilometer als `m:ss min/km` beziehungsweise
   /// `min/mi`, auf ganze Sekunden gerundet.
   String pace(double? secondsPerKm) {
