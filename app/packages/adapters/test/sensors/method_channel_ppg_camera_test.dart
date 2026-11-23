@@ -196,6 +196,47 @@ void main() {
   });
 
   test(
+    'Bildrate: ganze Zahl 1 bis 240, sonst null, Eintrag bleibt gültig',
+    () async {
+      Map<String, Object?> cam(String id, [Object? fps = _absent]) => {
+        'cameraId': id,
+        'isDefault': false,
+        'usable': true,
+        if (!identical(fps, _absent)) 'frameRate': fps,
+      };
+      cameraList = [
+        cam('0', 60),
+        cam('1'),
+        cam('2', 0),
+        cam('3', -30),
+        cam('4', 30.5),
+        cam('5', '60'),
+        cam('6', 1),
+        cam('7', 240),
+        cam('8', 241),
+        cam('9', null),
+      ];
+      final list = await MethodChannelPpgCamera().cameras();
+      expect(list.map((c) => c.ref.cameraId).toList(), [
+        for (var i = 0; i < 10; i++) '$i',
+      ]);
+      expect(list.map((c) => c.frameRate).toList(), [
+        60,
+        null,
+        null,
+        null,
+        null,
+        null,
+        1,
+        240,
+        null,
+        null,
+      ]);
+      expect(list.every((c) => c.usable), isTrue);
+    },
+  );
+
+  test(
     'Kameraliste ohne Plattform oder bei Fehler: leer, kein Fehler',
     () async {
       messenger.setMockMethodCallHandler(method, null);
@@ -385,3 +426,5 @@ void main() {
     expect(done, isTrue);
   });
 }
+
+const Object _absent = Object();

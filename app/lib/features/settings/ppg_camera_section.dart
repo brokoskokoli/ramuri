@@ -69,7 +69,7 @@ class _PpgCameraSectionState extends State<PpgCameraSection> {
   String? _reason(AppLocalizations l10n, PpgCameraUnusable? u) => switch (u) {
     null => null,
     PpgCameraUnusable.noFlash => l10n.devCameraNoFlash,
-    PpgCameraUnusable.frameRate => l10n.devCameraFrameRate,
+    PpgCameraUnusable.frameRate => l10n.devCameraNoFrameRate,
     PpgCameraUnusable.other => l10n.devCameraUnusable,
   };
 
@@ -141,6 +141,9 @@ class _PpgCameraSectionState extends State<PpgCameraSection> {
                   subtitle: _subtitle([
                     if (cam.focalLengthMm != null)
                       l10n.devCameraFocal(nf.format(cam.focalLengthMm)),
+                    // Bildrate nur bei nutzbaren Kameras; nicht nutzbare zeigen ihren Grund.
+                    if (cam.usable && cam.frameRate != null)
+                      l10n.devCameraFrameRate(cam.frameRate!),
                     if (cam.isDefault) l10n.devCameraDefaultChoice,
                     ?_reason(l10n, cam.unusable),
                   ], muted),
