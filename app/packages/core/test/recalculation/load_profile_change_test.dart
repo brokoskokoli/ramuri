@@ -729,7 +729,7 @@ void main() {
     });
   });
 
-  group('Profilwechsel und VO2max (E2E-Befund NB7)', () {
+  group('Profilwechsel und VO2max', () {
     /// VO2max-Werte aller Läufe und Tage ohne Zeitstempel: Wert, Güte, Grund,
     /// Anzahl der verwertbaren Messungen.
     Future<List<String>> vo2() async {

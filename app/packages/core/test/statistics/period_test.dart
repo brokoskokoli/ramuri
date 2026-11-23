@@ -34,7 +34,7 @@ void main() {
         ).firstDay,
         '2029-12-30',
       );
-      // Die Vorwoche behält den Wochenbeginn (Befund 4).
+      // Die Vorwoche behält den Wochenbeginn.
       final before = p.previous()!;
       expect([before.firstDay, before.lastDay], ['2029-12-23', '2029-12-29']);
       expect(before.firstDayOfWeek, DateTime.sunday);

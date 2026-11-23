@@ -382,32 +382,29 @@ void main() {
       expect(loss.end, t0.add(const Duration(seconds: 4)));
     });
 
-    test(
-      'Scheitert das Öffnen der Lückenmarke, wird sie nachgeholt (Soll 2)',
-      () async {
-        final r = await Rig.make(flakyMarkers: true);
-        r._flaky!.failOpens = true;
-        await r.recorder.start();
-        await r.move(5, 3);
-        r.clock.advance(const Duration(seconds: 20));
-        r.recorder.tick(); // Lücke beginnt, Speichern scheitert
-        await r.recorder.flush().catchError((Object _) {});
-        expect(r.recorder.lastWriteFailure, StorageFailure.failed);
-        expect(await r.gaps(), isEmpty);
-        r._flaky!.failOpens = false; // Speicher wieder da
+    test('Scheitert das Öffnen der Lückenmarke, wird sie nachgeholt', () async {
+      final r = await Rig.make(flakyMarkers: true);
+      r._flaky!.failOpens = true;
+      await r.recorder.start();
+      await r.move(5, 3);
+      r.clock.advance(const Duration(seconds: 20));
+      r.recorder.tick(); // Lücke beginnt, Speichern scheitert
+      await r.recorder.flush().catchError((Object _) {});
+      expect(r.recorder.lastWriteFailure, StorageFailure.failed);
+      expect(await r.gaps(), isEmpty);
+      r._flaky!.failOpens = false; // Speicher wieder da
 
-        r.clock.advance(const Duration(seconds: 1));
-        r.recorder.addPosition(fix(26, 100));
-        await r.recorder.flush();
-        final loss = (await r.gaps()).single;
-        expect(loss.kind, RunGapKind.positionLoss);
-        expect(loss.start, t0.add(const Duration(seconds: 5)));
-        expect(loss.end, t0.add(const Duration(seconds: 26)));
-      },
-    );
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addPosition(fix(26, 100));
+      await r.recorder.flush();
+      final loss = (await r.gaps()).single;
+      expect(loss.kind, RunGapKind.positionLoss);
+      expect(loss.start, t0.add(const Duration(seconds: 5)));
+      expect(loss.end, t0.add(const Duration(seconds: 26)));
+    });
 
     test('Abgelehntes Öffnen der Lückenmarke wird beim Schließen nicht erneut '
-        'versucht (Soll 4)', () async {
+        'versucht', () async {
       final r = await Rig.make(flakyMarkers: true);
       r._flaky!.rejectOpens = true;
       await r.recorder.start();
@@ -488,7 +485,7 @@ void main() {
       expect((await r.raw()).positions, hasLength(3));
     });
 
-    test('Pausenpunkte werden gespeichert (Nachbesserung 2), liegen in der '
+    test('Pausenpunkte werden gespeichert, liegen in der '
         'Pausenlücke und zählen nicht zu Strecke, Zeit, Runden', () async {
       final r = await Rig.make();
       await r.recorder.start();

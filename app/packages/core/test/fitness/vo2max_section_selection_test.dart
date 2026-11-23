@@ -551,7 +551,7 @@ void main() {
     });
   });
 
-  group('Gleichheit an den Grenzen (Review A, Muss 1)', () {
+  group('Gleichheit an den Grenzen', () {
     // Die Grenze wird genau auf den gemessenen Wert gesetzt; die Spezifikation
     // legt für jede Regel fest, ob die Grenze selbst noch gilt.
     SectionSelection run(SelScenario sc, SectionSelectionParameters p) =>
@@ -733,7 +733,7 @@ void main() {
     });
   });
 
-  group('Messausreißer und Randfälle (Review A)', () {
+  group('Messausreißer und Randfälle', () {
     // Zwei Serien zu je 8 s (unter der Einzellücke von 10 s): Ungefiltert läge
     // der 30-s-Median in der Zeit mit 16 von 30 Werten bei 250 bpm.
     test(

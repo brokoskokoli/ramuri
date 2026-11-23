@@ -61,7 +61,7 @@ void main() {
       'mit Schalter, Form passt nicht in den Anteil: alles locker (PAR-197)',
       () {
         // Intervalle kurz = 36 min, gleichmäßiger Anteil nach dem langen Lauf
-        // = 27 min: keine harte Einheit, Grund gemeldet (M3).
+        // = 27 min: keine harte Einheit, Grund gemeldet.
         final w = plan(90, {2, 4, 6}, hard: true);
         expect(w.units.any((u) => u.isHard), isFalse);
         expect(mins(w), [27, 27, 36]);
@@ -332,7 +332,7 @@ void main() {
         if (hard.isNotEmpty) {
           expect(count, greaterThanOrEqualTo(3), reason: ctx);
           // Keine lockere Einheit kürzer als der gleichmäßige Anteil wegen
-          // der harten Einheit (PAR-197, M3).
+          // der harten Einheit (PAR-197).
           final long = w.units.firstWhere((u) => u.kind == PlanUnitKind.long);
           final slot = (total - long.minutes) ~/ (count - 1);
           for (final u in w.units.where((u) => u.kind == PlanUnitKind.easy)) {
