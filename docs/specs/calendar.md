@@ -32,6 +32,8 @@ Die App stellt alle geplanten und absolvierten Trainingseinheiten in einem Kalen
 
 Der Kalender bietet eine Wochen- und Monatsübersicht und zeigt geplante Trainings, abgeschlossene Trainings und gekennzeichnete ausgefallene Einheiten.
 
+**Festlegung:** Beide Übersichten blättern zurück bis zur Woche der frühesten gespeicherten Planeinheit, auch über den Beginn der neuesten Planfassung hinaus. Quelle: Entscheidung des Maintainers, 2026-11-23.
+
 **Akzeptanzkriterien:**
 - [ ] Beide Übersichten sind verfügbar.
 - [ ] Die drei Zustände einer Einheit sind unterscheidbar.
