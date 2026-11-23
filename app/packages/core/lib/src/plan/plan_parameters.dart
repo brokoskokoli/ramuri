@@ -214,6 +214,15 @@ class PlanParameters {
           highHrMinutes >= completedIntensiveMinHighHrMinutes) ||
       (rpe != null && rpe >= completedIntensiveMinRpe);
 
+  /// Kennzeichen eines absolvierten Laufs für die Anzeige (FR-0171): `true`
+  /// intensiv, `false` locker nach [completedIntensive]; `null` ohne beide
+  /// Angaben (weder Zeit bei mindestens 80 % HFmax noch RPE), dann zeigt die
+  /// App kein Kennzeichen.
+  bool? completedIntensity({int? rpe, double? highHrMinutes}) =>
+      rpe == null && highHrMinutes == null
+      ? null
+      : completedIntensive(rpe: rpe, highHrMinutes: highHrMinutes);
+
   /// PAR-192: „30 min am Stück“; Grenze für die Ableitung aus dem Stand.
   final int continuousRunMinutes;
 

@@ -655,6 +655,39 @@ class PlanController extends ChangeNotifier {
     return result;
   }
 
+  /// Die zugeordneten Läufe der erledigten Einheiten in [units] (ohne
+  /// Ruhetage) für die Anzeige (FR-0171): Bewegungszeit und Strecke wie in der
+  /// Laufliste, das Kennzeichen nach PAR-058
+  /// ([PlanParameters.completedIntensity]). Gelesen in je einer Abfrage für
+  /// alle Läufe, nicht je Einheit. Ein Lauf, den es nicht (mehr) gibt oder
+  /// dessen Daten nicht lesbar sind, fehlt in der Antwort.
+  Future<Map<int, PlanDoneRun>> doneRuns(Iterable<PlanUnit> units) async {
+    final ids = {
+      for (final u in units)
+        if (u.kind != PlanUnitKind.rest) ?u.runId,
+    };
+    if (ids.isEmpty) return const {};
+    final overviews = [
+      for (final o in await reader.runOverviews())
+        if (ids.contains(o.run.id) && !o.readFailed) o,
+    ];
+    if (overviews.isEmpty) return const {};
+    final subjective = await session.subjective.readAll();
+    final values = await session.values.readRunValues({
+      highHeartRateTimeValueKey,
+    });
+    return {
+      for (final o in overviews)
+        o.run.id: PlanDoneRun.of(
+          o,
+          intensive: parameters.completedIntensity(
+            rpe: subjective[o.run.id]?.subjective.rpe,
+            highHrMinutes: values[o.run.id]?[highHeartRateTimeValueKey]?.value,
+          ),
+        ),
+    };
+  }
+
   /// Die Einheit an [day] oder `null`.
   Future<PlanUnit?> unitOn(DateTime day) => _plans.unitOn(day);
 
@@ -1545,4 +1578,39 @@ class PlanCalendarRun {
 
   /// Gilt nach PAR-058 als intensiv (RPE-Angabe).
   final bool intensive;
+}
+
+/// Der zugeordnete Lauf einer erledigten Einheit für die Anzeige
+/// ([PlanController.doneRuns], FR-0171). Die Einheit selbst (Vorgabe) bleibt
+/// unverändert (FR-0156).
+class PlanDoneRun {
+  const PlanDoneRun({
+    required this.id,
+    this.movingTime,
+    this.distanceMeters,
+    this.treadmill = false,
+    this.intensive,
+  });
+
+  /// Aus der Übersicht des Laufs wie in der Laufliste.
+  PlanDoneRun.of(RunOverview o, {this.intensive})
+    : id = o.run.id,
+      movingTime = o.movingTime,
+      distanceMeters = o.distanceMeters,
+      treadmill = o.run.mode == RunMode.treadmill;
+
+  final int id;
+
+  /// `null`: nicht verfügbar.
+  final Duration? movingTime;
+
+  /// `null`: nicht verfügbar; beim Laufband die Strecke des Bands.
+  final double? distanceMeters;
+
+  /// Laufbandlauf (FR-0196).
+  final bool treadmill;
+
+  /// PAR-058: `true` intensiv, `false` locker, `null` ohne Puls und RPE
+  /// (kein Kennzeichen).
+  final bool? intensive;
 }

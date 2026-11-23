@@ -115,6 +115,7 @@ class _AppShellState extends State<AppShell> {
           session: widget.session,
           clock: widget.clock,
           viewState: _planState,
+          recalculation: widget.recalculation,
           readinessToday: planReadinessSource(
             () => loadReadinessToday(
               session: widget.session,

@@ -212,6 +212,16 @@ void main() {
       await tapKey(t, 'run_done_close');
       await waitFor(t, () => has('home_plan'), 'Heute');
       await waitFor(t, () => has('home_today_done'), 'Einheit als erledigt');
+      // Erledigt mit Bewegungszeit und Strecke des Laufs (FR-0171).
+      await waitFor(
+        t,
+        () => has('home_today_done_run'),
+        'Lauf an der erledigten Einheit',
+      );
+      log(
+        'E2E home_today_done_run='
+        '${t.widget<Text>(find.byKey(const Key('home_today_done_run'))).data}',
+      );
 
       step('M2 rueckmeldung');
       // Rueckmeldung "zu schwer" und Neuberechnen: Plan angepasst, Verlauf.

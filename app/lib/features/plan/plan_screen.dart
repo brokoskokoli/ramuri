@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
 
+import '../history/run_detail_screen.dart';
+import '../recalculation/recalculation_controller.dart';
 import '../reminders/reminder_controller.dart';
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
@@ -22,6 +24,9 @@ part 'plan_screen_goal.dart';
 part 'plan_screen_week.dart';
 part 'plan_screen_warning.dart';
 
+/// Einheiten einer Woche und die Läufe ihrer erledigten Einheiten.
+typedef _WeekData = ({List<PlanUnit> units, Map<int, PlanDoneRun> runs});
+
 /// Plan-Seite (FR-0208, WP22 Teil B) nach `design/screens/Plan.dc.html`:
 /// Zielkarte mit Phasenbalken (Kurzformen, OQ-0077) und Einschätzung
 /// (PAR-206), Hinweise zum Plan als ruhige Zeilen, die Woche mit ihren
@@ -39,6 +44,7 @@ class PlanScreen extends StatefulWidget {
     this.controller,
     this.onStartUnit,
     this.readinessToday,
+    this.recalculation,
   });
 
   final StorageSession session;
@@ -64,6 +70,10 @@ class PlanScreen extends StatefulWidget {
   /// Readiness von heute für die Plananpassung an Erholung (FR-0216); ohne
   /// Angabe keine Lockerung.
   final Future<PlanReadinessDay?> Function(DateTime day)? readinessToday;
+
+  /// Für das Laufdetail einer erledigten Einheit („Lauf öffnen“, FR-0171);
+  /// ohne Angabe kein Knopf.
+  final RecalculationController? recalculation;
 
   @override
   State<PlanScreen> createState() => _PlanScreenState();
@@ -97,7 +107,7 @@ class _PlanScreenState extends State<PlanScreen> {
   late final double _restoreTarget;
   bool _userScrolled = false;
 
-  Future<List<PlanUnit>>? _weekFuture;
+  Future<_WeekData>? _weekFuture;
   int? _weekFutureOffset;
 
   @override
@@ -157,22 +167,35 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   /// Einheiten der gezeigten Woche: diese Woche aus dem Stand, andere über
-  /// den Kalender des Controllers.
-  Future<List<PlanUnit>> _weekUnits(PlanViewState s) {
+  /// den Kalender des Controllers; dazu die Läufe der erledigten Einheiten
+  /// (FR-0171), gebündelt für die ganze Woche.
+  Future<_WeekData> _weekData(PlanViewState s) {
     final offset = _view.weekOffset;
-    if (offset == 0) return Future.value(s.weekUnits);
     if (_weekFuture != null && _weekFutureOffset == offset) {
       return _weekFuture!;
     }
     final monday = _monday(offset);
     _weekFutureOffset = offset;
-    return _weekFuture = _controller
-        .unitsBetween(monday, monday.add(const Duration(days: 6)))
+    final units = offset == 0
+        ? Future.value(s.weekUnits)
+        : _controller.unitsBetween(monday, monday.add(const Duration(days: 6)));
+    return _weekFuture = units
+        .then((u) async => (units: u, runs: await _doneRuns(u)))
         .whenComplete(
           () => WidgetsBinding.instance.addPostFrameCallback(
             (_) => _restoreScroll(),
           ),
         );
+  }
+
+  /// Läufe der erledigten Einheiten; scheitert das Lesen, zeigt die Woche
+  /// die Vorgabe wie ohne Lauf.
+  Future<Map<int, PlanDoneRun>> _doneRuns(Iterable<PlanUnit> units) async {
+    try {
+      return await _controller.doneRuns(units);
+    } on Object {
+      return const {};
+    }
   }
 
   /// Zielformular zum Anlegen (ohne [initial]) oder Ändern (vorbelegt,
@@ -457,11 +480,49 @@ class _PlanScreenState extends State<PlanScreen> {
     );
   }
 
-  void _openUnit(PlanUnit unit) {
-    Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push(MaterialPageRoute<void>(builder: (_) => PlanUnitScreen(unit: unit)));
+  /// Einheit öffnen (FR-0143); eine erledigte mit dem gelaufenen Lauf oben
+  /// und „Lauf öffnen“ zum Laufdetail (FR-0171).
+  Future<void> _openUnit(PlanUnit unit) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final run = unit.runId == null
+        ? null
+        : (await _doneRuns([unit]))[unit.runId];
+    if (!mounted) return;
+    final recalculation = widget.recalculation;
+    await navigator.push(
+      MaterialPageRoute<void>(
+        builder: (context) => PlanUnitScreen(
+          unit: unit,
+          run: run,
+          onOpenRun: run == null || recalculation == null
+              ? null
+              : () => _openRun(context, run.id, recalculation),
+        ),
+      ),
+    );
+  }
+
+  /// Laufdetail aus der Einheit; wird der Lauf dort gelöscht, schließt auch
+  /// die Einheit. Den Plan baut die App-Hülle danach neu auf (neue Revision
+  /// der Daten), die Einheit ist wieder offen (ADR-0010).
+  Future<void> _openRun(
+    BuildContext unitContext,
+    int runId,
+    RecalculationController recalculation,
+  ) async {
+    final navigator = Navigator.of(unitContext);
+    final deleted = await navigator.push<bool>(
+      MaterialPageRoute(
+        builder: (_) => RunDetailScreen(
+          session: widget.session,
+          clock: widget.clock,
+          recalculation: recalculation,
+          runId: runId,
+        ),
+      ),
+    );
+    if (deleted != true) return;
+    if (navigator.mounted) navigator.pop();
   }
 
   @override
@@ -665,14 +726,15 @@ class _PlanScreenState extends State<PlanScreen> {
             _FeedbackCard(onAnswer: _busy ? null : _answerFeedback),
           ],
           const SizedBox(height: 16),
-          FutureBuilder<List<PlanUnit>>(
+          FutureBuilder<_WeekData>(
             key: ValueKey('plan_week_${_view.weekOffset}'),
-            future: _weekUnits(s),
+            future: _weekData(s),
             builder: (context, snap) => _Week(
               state: s,
               monday: _monday(_view.weekOffset),
               today: _today,
-              units: snap.data,
+              units: snap.data?.units,
+              runs: snap.data?.runs ?? const {},
               hasError: snap.hasError,
               onStep: _step,
               onOpen: _openUnit,
