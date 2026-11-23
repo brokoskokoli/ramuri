@@ -8,6 +8,7 @@ import 'package:running_app/features/history/run_detail_screen.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_unit_screen.dart';
+import 'package:running_app/ui/ramuri_card.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show seedRun, text;
@@ -336,6 +337,103 @@ void main() {
     expect(find.byType(PlanUnitScreen), findsOneWidget);
     expect(key('plan_unit_run'), findsNothing);
     expect(key('plan_unit_open_run'), findsNothing);
+  });
+
+  group('doppelter Tipp öffnet die Einheit genau einmal (FR-0143)', () {
+    /// Ein Zurück: die Woche ist wieder da, keine Einheit mehr im Baum.
+    Future<void> back(WidgetTester tester) async {
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(PlanUnitScreen), findsNothing);
+      expect(_todayCard, findsOneWidget);
+    }
+
+    /// Zwei Tipps ohne Frame dazwischen.
+    Future<void> tapTwice(WidgetTester tester) async {
+      await tester.tap(_todayCard);
+      await tester.tap(_todayCard, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.byType(PlanUnitScreen), findsOneWidget);
+      await back(tester);
+    }
+
+    /// Beide Tipps erreichen die Karte, bevor die Seite liegt (auf dem Gerät
+    /// etwa zwei Finger kurz nacheinander); nur die Sperre verhindert das
+    /// zweite Öffnen.
+    Future<void> handlerTwice(WidgetTester tester) async {
+      final onTap = tester.widget<RamuriCard>(_todayCard).onTap!;
+      onTap();
+      onTap();
+      await tester.pumpAndSettle();
+      expect(find.byType(PlanUnitScreen), findsOneWidget);
+      await back(tester);
+      // Nach dem Zurück öffnet ein Tipp wieder.
+      await tester.tap(_todayCard);
+      await tester.pumpAndSettle();
+      expect(find.byType(PlanUnitScreen), findsOneWidget);
+      await back(tester);
+    }
+
+    testWidgets('erledigte Einheit', (tester) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await _seedAssigned(s, rpe: 8);
+      await _openPlan(d, tester);
+      await tapTwice(tester);
+      await handlerTwice(tester);
+    });
+
+    testWidgets('offene Einheit', (tester) async {
+      final d = Device();
+      await _preopen(d);
+      await _openPlan(d, tester);
+      await tapTwice(tester);
+      await handlerTwice(tester);
+    });
+  });
+
+  testWidgets('Tipp auf erledigte Einheit nimmt den Lauf der Woche, ohne die '
+      'Übersichten erneut zu lesen (FR-0171)', (tester) async {
+    final d = Device();
+    final s = await _preopen(d);
+    await _seedAssigned(s, rpe: 8);
+    await _openPlan(d, tester);
+    expect(text('plan_day_run'), '52 min · 9,1 km');
+    final reads = d.storage.data.overviewReads;
+    expect(reads, greaterThan(0));
+    await tester.tap(_todayCard);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlanUnitScreen), findsOneWidget);
+    expect(key('plan_unit_run'), findsOneWidget);
+    expect(text('plan_unit_run'), '52 min · 9,1 km');
+    expect(text('plan_unit_run_intensity'), 'intensiv');
+    expect(key('plan_unit_open_run'), findsOneWidget);
+    expect(d.storage.data.overviewReads, reads);
+  });
+
+  testWidgets('Lauf in der Woche nicht lesbar: Einheit öffnet ohne '
+      '„Gelaufen“, ohne erneutes Lesen (FR-0171)', (tester) async {
+    final d = Device();
+    final s = await _preopen(d);
+    final id = await _seedAssigned(s, rpe: 8);
+    // Die Wiedergabe scheitert; die beim Start gespeicherte Kurzfassung
+    // fehlt danach, also muss die Woche neu rechnen und kann es nicht.
+    d.offload = <A, R>(R Function(A) job, A arg) async =>
+        throw StateError('nicht lesbar');
+    await d.start(tester, const Locale('de'));
+    d.storage.data.preprocessing.remove(id);
+    await tester.tap(key('home_plan'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(_todayCard);
+    await tester.pumpAndSettle();
+    expect(_inToday('plan_day_run'), findsNothing);
+    final reads = d.storage.data.overviewReads;
+    await tester.tap(_todayCard);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlanUnitScreen), findsOneWidget);
+    expect(key('plan_unit_run'), findsNothing);
+    expect(key('plan_unit_open_run'), findsNothing);
+    expect(d.storage.data.overviewReads, reads);
   });
 
   testWidgets('gelöschter Lauf: Einheit wieder offen, keine Laufzeile '
