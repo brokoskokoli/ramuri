@@ -738,6 +738,31 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('einzige frühere Einheit am Sonntag direkt vor dem Anker: '
+        'Zurück zeigt ihn als erledigt, dort ist die untere Grenze', (
+      tester,
+    ) async {
+      // Erste Fassung ab Mo 2.11. nur mit der gelaufenen Einheit am So 8.11.;
+      // Neuberechnung am Mo 9.11. mit neuem Anker.
+      final (session, clock) = await _seedFirst(
+        DateTime(2026, 11, 9, 12),
+        nov(2),
+        [nov(8)],
+        done: nov(8),
+      );
+      await _writeVersion(session, nov(9), [nov(10), nov(12), nov(14)]);
+      await _pump(tester, session, clock);
+      expect(key('calendar_day_2026-11-09'), findsOneWidget);
+      expect(_backEnabled(tester), isTrue);
+
+      await tester.tap(key('calendar_previous'));
+      await tester.pumpAndSettle();
+      expect(inDay(nov(8), 'erledigt'), findsOneWidget);
+      expect(inDay(nov(2), 'Ruhetag'), findsOneWidget);
+      expect(_backEnabled(tester), isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('untere Grenze ist die Woche der frühesten Einheit über alle '
         'Fassungen, auch mit Wochen ohne Einheit dazwischen', (tester) async {
       // Früheste Einheit Mi 28.10.; die Woche ab 2.11. hat keine Einheit.
