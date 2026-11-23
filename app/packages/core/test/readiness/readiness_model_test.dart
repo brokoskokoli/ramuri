@@ -913,7 +913,7 @@ void main() {
     });
   });
 
-  group('Werte, andere Messung, Quelldauer (Nachbesserung Runde 2)', () {
+  group('Werte, andere Messung, Quelldauer', () {
     const devRelease = CameraRelease(developerMode: true, rmssdOptIn: false);
     final lying = const MorningSeriesKey('H', 'M1');
 

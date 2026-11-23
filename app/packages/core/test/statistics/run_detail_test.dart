@@ -193,7 +193,7 @@ void main() {
   test(
     'Sägezahn-Puls 170..176: Median-Reihe, Anlauf am Anfang, kein Ausdünnen',
     () {
-      // E2E-Befund WP10: senkrechte Linien am linken Rand, Achse bis 173 statt
+      // Im E2E-Lauf: senkrechte Linien am linken Rand, Achse bis 173 statt
       // 176. Ursache ist nicht das Ausdünnen (1201 Punkte < 2000) und keine
       // falsche x-Zuordnung, sondern der Median des nachlaufenden Fensters
       // (heartRate.medianSeries): erste Werte aus wachsendem Fenster, danach

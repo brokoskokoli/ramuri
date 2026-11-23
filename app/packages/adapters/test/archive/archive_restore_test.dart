@@ -301,7 +301,7 @@ void main() {
     // Kryptografie (Zufallssalz, Argon2id mit den Parametern des Kopfes). Die
     // Tests lesen dieses Archiv nur; jeder bekommt eine eigene Kopie.
     // Nicht unter systemTemp: Der Marken-Test des Exports durchsucht ihn, und
-    // die Testdateien laufen gleichzeitig (Review 2, Befund 2). Die Klartext-
+    // die Testdateien laufen gleichzeitig. Die Klartext-
     // Quelle liegt im (nicht versionierten) .dart_tool des Pakets.
     Directory('.dart_tool').createSync();
     final src = Directory('.dart_tool').createTempSync('wp12c2src_');
@@ -1717,7 +1717,7 @@ void main() {
       'aktives -wal mit Inhalt (nicht eingecheckt): kein Tausch, Daten bleiben',
       () async {
         // Zustand nach einem Prozessende ohne Checkpoint: Hauptdatei alt, die
-        // Läufe stehen nur im -wal (Review 2, Befund 1).
+        // Läufe stehen nur im -wal.
         await addOldData();
         final snap = Directory('${work.path}/snap')..createSync();
         File(activePath).copySync('${snap.path}/db');

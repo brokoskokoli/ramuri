@@ -271,7 +271,7 @@ void main() {
     });
   });
 
-  group('Läufe nach now (Review B2, Muss 1)', () {
+  group('Läufe nach now', () {
     test('ein Lauf in der Zukunft geht weder in Wert noch Zeitraum ein', () {
       final past = run(40, g, 10);
       final future = run(80, g, -5);

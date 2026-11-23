@@ -336,7 +336,7 @@ void main() {
     });
 
     test('Geh-Lauf-Woche mit eingefrorenen Einheiten nach geänderten Tagen '
-        'hat nie mehr Einheiten als die Abfolge (NB3 Muss 1)', () {
+        'hat nie mehr Einheiten als die Abfolge', () {
       final t0 = DateTime.utc(2026, 11, 9); // Montag
       final date = t0.add(const Duration(days: 120));
       final g0 = goal(
@@ -363,7 +363,7 @@ void main() {
       );
       final p1 = generatePlan(g1, i0.copyWith(today: t1), frozen, t1);
       final week0 = p1.allUnits.where((u) => monday(u.day) == t0).toList();
-      // Es bleibt die noch fehlende (letzte) Einheit der Woche (NB4).
+      // Es bleibt die noch fehlende (letzte) Einheit der Woche.
       expect([for (final u in week0) u.day.weekday], [1, 3, 7]);
       expect(p1.droppedDaysByWeek[0], [
         DateTime.utc(2026, 11, 12),
@@ -376,7 +376,7 @@ void main() {
     });
 
     test('gekürzte Geh-Lauf-Woche behält die noch fehlenden Einheiten: in '
-        'Woche 5 bleibt der Lauf am Stück (NB4 Soll 1)', () {
+        'Woche 5 bleibt der Lauf am Stück', () {
       final t0 = DateTime.utc(2026, 11, 9);
       final date = t0.add(const Duration(days: 200));
       final g0 = goal(
@@ -642,7 +642,7 @@ void main() {
     });
 
     test('Ruhetag des Nutzers auf einem entfallenen Tag: nicht als '
-        'entfallen gemeldet (Befund E2b 1)', () {
+        'entfallen gemeldet', () {
       final g = goal(days: {2, 4, 6}, hard: false);
       final today = DateTime.utc(2026, 11, 12);
       final frozen = [
@@ -1148,7 +1148,7 @@ void main() {
       }
     });
 
-    // Befund NB3-1: Das Merkmal hängt an der Einheit, nicht am Tag.
+    // Das Merkmal hängt an der Einheit, nicht am Tag.
     test('hart -> locker, danach verschoben: Woche bleibt ohne harte '
         'Einheit, manuell und mit allen Einheiten als Termine', () {
       final hard = b1.first; // Di 17.
@@ -1219,7 +1219,7 @@ void main() {
       expect(p.hardOmissions[1], HardOmission.replacedByUser);
     });
 
-    // Befund NB4-1 (Review E2a Runde 3): Auch eingefroren (Tag vorbei oder
+    // Auch eingefroren (Tag vorbei oder
     // Lauf zugeordnet) zählt hart -> locker als harte Einheit der Woche.
     test('hart -> locker eingefroren (Lauf zugeordnet oder Tag vorbei), '
         'heute Mi: die Woche bleibt ohne harte Einheit, auch nach anderen '
@@ -1256,7 +1256,7 @@ void main() {
       }
     });
 
-    // Festlegung WP22 (Review E2a Runde 3, Befund 4): In eine andere Woche
+    // Festlegung WP22: In eine andere Woche
     // verschoben wird easyForHard zu kind (planMovedFixed, confirmMove).
     test('hart -> locker in die nächste Woche verschoben: die Zielwoche '
         'behält ihre harte Einheit, kein Hinweis', () {
@@ -1349,7 +1349,7 @@ void main() {
         (u) => u.weekIndex >= 1 && u.kind == PlanUnitKind.walkRun,
       );
       // Auch hart -> locker (easyForHard) hat in der Geh-Lauf-Woche keinen
-      // Vorrang (Review E2a Runde 3, Befund 3).
+      // Vorrang.
       for (final (what, pin) in [
         ('tempo, fixed = kind', replaced(walk, PlanUnitKind.tempo)),
         (
@@ -1375,7 +1375,7 @@ void main() {
     });
   });
 
-  group('Neues Geh-Lauf-Ziel mitten in der Woche (NB5 4)', () {
+  group('Neues Geh-Lauf-Ziel mitten in der Woche', () {
     // Lauftage Mo, Di, Do, Sa. Das Ziel entsteht am Donnerstag; Montag und
     // Dienstag sind schon eingefroren (Geh-Lauf-Einheiten eines früheren
     // Plans). Die Abfolge des neuen Ziels beginnt heute: die Einheiten davor

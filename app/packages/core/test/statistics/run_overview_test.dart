@@ -250,7 +250,7 @@ void main() {
     });
 
     test('Lauf mit Stillstand: Kurzfassung führt die Gesamtzeit, nicht die '
-        'Bewegungszeit (WP17 NB1)', () async {
+        'Bewegungszeit', () async {
       final w = await RecalcWorld.create();
       final start = DateTime.utc(2030, 2, 2, 8);
       final run = await w.session.runs.create(startedAt: start);

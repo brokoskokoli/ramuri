@@ -444,6 +444,78 @@ void main() {
     expect(find.byKey(const Key('morning_card_start')), findsOneWidget);
   });
 
+  // FR-0215 (Umsetzung): Nach dem eigenen Messablauf lädt die Karte neu. Der
+  // Speicher ändert sich, solange die Messseite offen ist; nach der Rückkehr
+  // zeigt die Karte den neuen Stand.
+  testWidgets('Start, Messung gespeichert, zurück: Karte zeigt die Messung', (
+    tester,
+  ) async {
+    final s = await _session(dev: true);
+    await _pump(tester, MorningCard(session: s, clock: _clock), dark: false);
+    expect(find.byKey(const Key('morning_card_start')), findsOneWidget);
+    expect(find.text('52,4'), findsNothing);
+    await tester.tap(find.byKey(const Key('morning_card_start')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('morning_start')), findsOneWidget);
+
+    // Gültige Messung von heute im Fenster (Uhr 08:00 UTC, Fenster 4 bis 11 Uhr).
+    await (s as MorningStorage).morning.add(_today());
+    await tester.tap(find.byKey(const Key('measure_back')));
+    await tester.pumpAndSettle();
+    await settleStorage(
+      tester,
+      until: () => find.text('52,4').evaluate().isNotEmpty,
+      what: 'Morgenkarte nach der Messung geladen',
+    );
+    expect(find.text('52,4'), findsOneWidget);
+    expect(find.byKey(const Key('morning_card_again')), findsOneWidget);
+    expect(find.byKey(const Key('morning_card_start')), findsNothing);
+  });
+
+  testWidgets('Noch einmal messen, stattdessen gewählt, zurück: Karte zeigt '
+      'die gewählte Messung', (tester) async {
+    final s = await _session(dev: true);
+    final store = (s as MorningStorage).morning;
+    await store.add(_today());
+    await _pump(tester, MorningCard(session: s, clock: _clock), dark: false);
+    expect(find.text('52,4'), findsOneWidget);
+    final again = find.byKey(const Key('morning_card_again'));
+    await tester.ensureVisible(again);
+    await tester.tap(again);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('morning_start')), findsOneWidget);
+
+    // Zweite gültige Messung 20 Minuten später, als gültige gewählt.
+    final t = _today();
+    final id = await store.add(
+      MorningMeasurement(
+        measuredAt: t.measuredAt.add(const Duration(minutes: 20)),
+        utcOffset: t.utcOffset,
+        posture: t.posture,
+        deviceManufacturer: t.deviceManufacturer,
+        deviceModel: t.deviceModel,
+        method: t.method,
+        methodVersion: t.methodVersion,
+        quality: PpgQuality.good,
+        restingHrBpm: 57.1,
+        rmssdMs: 41,
+        cameraIntervalsMs: const [],
+        beforeValidation: true,
+        outsideWindow: false,
+      ),
+    );
+    await store.choose(id);
+    await tester.tap(find.byKey(const Key('measure_back')));
+    await tester.pumpAndSettle();
+    await settleStorage(
+      tester,
+      until: () => find.text('57,1').evaluate().isNotEmpty,
+      what: 'Morgenkarte nach der Wahl geladen',
+    );
+    expect(find.text('57,1'), findsOneWidget);
+    expect(find.text('52,4'), findsNothing);
+  });
+
   testWidgets('Messung von gestern: Karte ist wieder offen', (tester) async {
     final s = await _session(dev: true);
     final y = _today();
