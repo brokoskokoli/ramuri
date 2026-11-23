@@ -1048,7 +1048,7 @@ void main() {
           expect(r.c.outcome, MorningOutcome.limited);
           expect(r.c.stored!.restingHrBpm, 52.4);
           expect(r.c.stored!.rmssdMs, isNull);
-          expect(r.c.stored!.methodVersion, 4);
+          expect(r.c.stored!.methodVersion, 5);
           expect(find.byKey(const Key('morning_no_rmssd')), findsOneWidget);
           expect(
             tester

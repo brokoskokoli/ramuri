@@ -105,7 +105,7 @@ Fehlende Faktoren werden nicht automatisch als „normal“ bewertet. Die App ze
 - [ ] Fehlt ein Faktor, ist die Einschätzung als eingeschränkt erkennbar (ACC-11).
 - [ ] Fehlende optionale Faktoren werden herausgerechnet und ausgewiesen (OQ-0029). Fehlt der Belastungsfaktor, gilt die Obergrenze aus PAR-170.
 - [ ] Für jeden fehlenden Faktor nennt die Detailseite den Grund (mit der fehlenden Menge, etwa Vergleichstage) und, wo möglich, den Weg zum Nachholen (Morgenmessung starten, Schlaf angeben, Befinden nach dem Lauf). Entscheidung Maintainer 2026-11-18.
-- [ ] „Morgenmessung starten“ steht nur, solange das Morgenfenster (PAR-160K) offen ist und heute keine zählende Messung vorliegt; sonst nennt die Detailseite, ab wann die nächste Messung zählt (vor dem Fensterbeginn „heute ab“, nach dem Ende „morgen ab“ dem Fensterbeginn). Entscheidung Maintainer 2026-11-19.
+- [ ] „Morgenmessung starten“ steht nur, solange das Morgenfenster (PAR-160K) offen ist und heute keine zählende Messung vorliegt; sonst nennt die Detailseite, ab wann die nächste Messung zählt (vor dem Fensterbeginn „heute ab“, nach dem Ende „morgen ab“ dem Fensterbeginn). Entscheidung Maintainer 2026-11-19. Ist die Morgenmessung in der App nicht erreichbar (etwa ohne Kamera), entfallen Knopf und Hinweis.
 
 ### FR-0112 — Persönlicher Referenzzeitraum
 - **Status:** Approved | **Phase:** 3

@@ -87,42 +87,48 @@ void main() {
       expect(x.utcOffset, off);
     });
 
-    test('Version 4 (feste Kameraeinstellung) wird gespeichert, ein älterer Datensatz mit '
-        'Version 3 bleibt '
-        'lesbar und unverändert (Fake-Speicher)', () async {
-      final store = FakeMorningStore(FakeStorageData());
-      final v4 = build(meas(ibis: const [1000, double.nan, 1020, 1010]))!;
-      expect(v4.methodVersion, 4);
-      final old = MorningMeasurement(
-        measuredAt: local(7, 0, 13).toUtc(),
-        utcOffset: off,
-        posture: RestingPosture.lying,
-        deviceManufacturer: 'H',
-        deviceModel: 'M1',
-        method: 'camera-ppg',
-        methodVersion: 3,
-        quality: PpgQuality.good,
-        restingHrBpm: 57.5,
-        rmssdMs: 61,
-        timingNoiseMs: 12,
-        cameraIntervalsMs: const [1000, 1100, double.nan, 1050],
-        beforeValidation: true,
-        outsideWindow: false,
-      );
-      final oldId = await store.add(old);
-      final newId = await store.add(v4);
-      final byId = {for (final e in await store.list()) e.id: e.value};
-      expect(byId[newId]!.methodVersion, 4);
-      expect(byId[newId]!.method, 'camera-ppg');
-      final o = byId[oldId]!;
-      expect(o.methodVersion, 3);
-      expect(o.rmssdMs, 61);
-      expect(o.restingHrBpm, 57.5);
-      expect(o.timingNoiseMs, 12);
-      expect(o.cameraIntervalsMs.take(2), [1000, 1100]);
-      expect(o.cameraIntervalsMs[2].isNaN, isTrue);
-      expect(o.cameraIntervalsMs[3], 1050);
-    });
+    test(
+      'Version 5 (Belichtung) wird gespeichert, ältere Datensätze mit '
+      'Version 1 bis 4 bleiben lesbar und unverändert (Fake-Speicher)',
+      () async {
+        final store = FakeMorningStore(FakeStorageData());
+        final v5 = build(meas(ibis: const [1000, double.nan, 1020, 1010]))!;
+        expect(v5.methodVersion, 5);
+        MorningMeasurement old(int version) => MorningMeasurement(
+          measuredAt: local(7, version, 13).toUtc(),
+          utcOffset: off,
+          posture: RestingPosture.lying,
+          deviceManufacturer: 'H',
+          deviceModel: 'M1',
+          method: 'camera-ppg',
+          methodVersion: version,
+          quality: PpgQuality.good,
+          restingHrBpm: 57.5,
+          rmssdMs: 61,
+          timingNoiseMs: 12,
+          cameraIntervalsMs: const [1000, 1100, double.nan, 1050],
+          beforeValidation: true,
+          outsideWindow: false,
+        );
+        final oldIds = {
+          for (final v in [1, 2, 3, 4]) v: await store.add(old(v)),
+        };
+        final newId = await store.add(v5);
+        final byId = {for (final e in await store.list()) e.id: e.value};
+        expect(byId[newId]!.methodVersion, 5);
+        expect(byId[newId]!.method, 'camera-ppg');
+        for (final MapEntry(key: v, value: id) in oldIds.entries) {
+          final o = byId[id]!;
+          expect(o.methodVersion, v);
+          expect(o.rmssdMs, 61);
+          expect(o.restingHrBpm, 57.5);
+          expect(o.timingNoiseMs, 12);
+          expect(o.cameraIntervalsMs.take(2), [1000, 1100]);
+          expect(o.cameraIntervalsMs[2].isNaN, isTrue);
+          expect(o.cameraIntervalsMs[3], 1050);
+        }
+      },
+    );
 
     test('eingeschränkt: Ruhepuls ja, RMSSD nie', () {
       final x = build(meas(quality: PpgQuality.limited))!;

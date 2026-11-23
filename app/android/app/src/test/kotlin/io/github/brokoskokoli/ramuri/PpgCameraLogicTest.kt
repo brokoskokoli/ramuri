@@ -469,4 +469,71 @@ class PpgCameraLogicTest {
         assertNull(fixed.afMode)
         assertNull(fixed.focusDistance)
     }
+
+    // --- Antibanding und Belichtung (ADR-0011, Nachtrag 2026-11-22) ---
+
+    @Test fun antibandingIsOffOnlyWhenAvailable() {
+        assertEquals(CameraMetadata.CONTROL_AE_ANTIBANDING_MODE_OFF, PpgCameraLogic.antibandingMode(listOf(0, 1, 2, 3)))
+        for (modes in listOf(listOf(3), emptyList(), null)) {
+            assertNull("$modes", PpgCameraLogic.antibandingMode(modes))
+        }
+    }
+
+    private val ms = 1_000_000L
+    private val exposure30s = 0L to 30_000 * ms
+    private val iso = 50 to 6400
+
+    private fun lock(
+        fps: Int = 60,
+        e0: Long? = 10_005_000L,
+        s0: Int? = 2400,
+        exposure: Pair<Long, Long>? = exposure30s,
+        sensitivity: Pair<Int, Int>? = iso,
+        manual: Boolean = true,
+    ) = PpgCameraLogic.exposureLock(fps, e0, s0, exposure, sensitivity, manual)
+
+    @Test fun manualAt60FpsUsesTheWholeFrameAndScalesTheSensitivity() {
+        assertEquals(PpgExposureLock.Manual(16_666_667L, 1441, 16_666_667L), lock())
+    }
+
+    @Test fun manualAt30FpsUsesTheWholeFrame() {
+        assertEquals(PpgExposureLock.Manual(33_333_333L, 1441, 33_333_333L), lock(fps = 30, e0 = 20_010_000L))
+    }
+
+    @Test fun sensitivityReportedAboveTheRangeIsCappedAtTheTop() {
+        assertEquals(PpgExposureLock.Manual(16_666_667L, 6400, 16_666_667L), lock(e0 = 10 * ms, s0 = 12800))
+    }
+
+    @Test fun exposureIsLimitedByTheExposureRange() {
+        // 2400 · 10 / 12 = 2000.
+        assertEquals(PpgExposureLock.Manual(12 * ms, 2000, 16_666_667L), lock(e0 = 10 * ms, exposure = 0L to 12 * ms))
+    }
+
+    @Test fun neverShorterThanTheAutomatic() {
+        // Automatik schon bei der vollen Bilddauer (30 Bilder/s).
+        assertEquals(PpgExposureLock.Manual(33_333_333L, 2400, 33_333_333L), lock(fps = 30, e0 = 33_333_333L))
+        // Bereich kürzer als die Belichtung der Automatik: deren Belichtung bleibt.
+        assertEquals(
+            PpgExposureLock.Manual(10_005_000L, 2400, 16_666_667L),
+            lock(exposure = 0L to 8 * ms),
+        )
+    }
+
+    @Test fun sensitivityBelowTheRangeIsRaisedToTheBottom() {
+        // 60 · 10 / 16,67 = 36 < 50.
+        assertEquals(PpgExposureLock.Manual(16_666_667L, 50, 16_666_667L), lock(e0 = 10 * ms, s0 = 60))
+    }
+
+    @Test fun withoutManualSensorValuesOrRangesTheAeLockStays() {
+        val cases = mapOf(
+            "ohne MANUAL_SENSOR" to lock(manual = false),
+            "ohne e0" to lock(e0 = null),
+            "ohne s0" to lock(s0 = null),
+            "ohne Belichtungsbereich" to lock(exposure = null),
+            "ohne Empfindlichkeitsbereich" to lock(sensitivity = null),
+            "e0 = 0" to lock(e0 = 0L),
+            "s0 = 0" to lock(s0 = 0),
+        )
+        for ((name, result) in cases) assertEquals(name, PpgExposureLock.AeLock, result)
+    }
 }
