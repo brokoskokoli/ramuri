@@ -28,14 +28,18 @@ class PlanDataReader {
 
   PlanRepository get _plans => (session as PlanStorage).plans;
 
+  /// Die beendeten Läufe mit ihren Kennzahlen, wie in der Laufliste
+  /// ([RunOverviewService]; Laufband mit der Strecke des Bands, FR-0196).
+  Future<List<RunOverview>> runOverviews() => RunOverviewService(
+    session: session,
+    clock: clock,
+    offload: offload,
+  ).load();
+
   Future<List<RunFigures>> _runs() async {
     final custom = loadRuns;
     if (custom != null) return custom();
-    final overviews = await RunOverviewService(
-      session: session,
-      clock: clock,
-      offload: offload,
-    ).load();
+    final overviews = await runOverviews();
     return [
       for (final o in overviews)
         if (!o.readFailed) o.toFigures(),

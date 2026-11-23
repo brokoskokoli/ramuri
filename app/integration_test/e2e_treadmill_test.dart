@@ -256,6 +256,16 @@ Future<void> _guidedUnit(WidgetTester t) async {
   await tapKey(t, 'run_done_close');
   await waitFor(t, () => has('home_plan'), 'Heute');
   await waitFor(t, () => has('home_today_done'), 'Einheit als erledigt');
+  // Erledigt mit Bewegungszeit und Strecke des Laufs (FR-0171).
+  await waitFor(
+    t,
+    () => has('home_today_done_run'),
+    'Lauf an der erledigten Einheit',
+  );
+  log(
+    'E2E home_today_done_run='
+    '${t.widget<Text>(find.byKey(const Key('home_today_done_run'))).data}',
+  );
   // Einheit im Plan erledigt: zurueck auf "Heute" ordnet die App den Lauf der
   // gestarteten Einheit zu (plan_started_unit.dart), danach traegt sie ihn.
   final d0 = DateTime.now();

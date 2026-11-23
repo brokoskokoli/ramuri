@@ -34,4 +34,13 @@ void main() {
     expect(q.completedIntensive(highHrMinutes: 10), isFalse);
     expect(q.completedIntensive(highHrMinutes: 11), isTrue);
   });
+
+  test('Kennzeichen für die Anzeige: ohne Puls und RPE keins (FR-0171)', () {
+    expect(p.completedIntensity(), isNull);
+    expect(p.completedIntensity(rpe: 8), isTrue);
+    expect(p.completedIntensity(rpe: 6), isFalse);
+    expect(p.completedIntensity(highHrMinutes: 10), isTrue);
+    expect(p.completedIntensity(highHrMinutes: 0), isFalse);
+    expect(p.completedIntensity(rpe: 3, highHrMinutes: 12), isTrue);
+  });
 }
