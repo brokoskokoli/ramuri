@@ -8,6 +8,7 @@ class _Week extends StatelessWidget {
     required this.monday,
     required this.today,
     required this.units,
+    this.runs = const {},
     required this.onStep,
     required this.onOpen,
     this.onStart,
@@ -20,6 +21,10 @@ class _Week extends StatelessWidget {
 
   /// `null`, solange die Woche lädt.
   final List<PlanUnit>? units;
+
+  /// Zugeordnete Läufe der erledigten Einheiten nach Kennung
+  /// ([PlanController.doneRuns], FR-0171).
+  final Map<int, PlanDoneRun> runs;
 
   /// Laden der Woche ist fehlgeschlagen (statt ewig zu laden).
   final bool hasError;
@@ -151,6 +156,7 @@ class _Week extends StatelessWidget {
             _Day(
               day: monday.add(Duration(days: d)),
               unit: _unitOn(list, monday.add(Duration(days: d))),
+              runs: runs,
               dropped: dropped.any(
                 (x) => planDay(x) == planDay(monday.add(Duration(days: d))),
               ),
@@ -176,6 +182,7 @@ class _Day extends StatelessWidget {
   const _Day({
     required this.day,
     required this.unit,
+    this.runs = const {},
     required this.dropped,
     required this.isToday,
     required this.onOpen,
@@ -185,6 +192,7 @@ class _Day extends StatelessWidget {
 
   final DateTime day;
   final PlanUnit? unit;
+  final Map<int, PlanDoneRun> runs;
   final bool dropped;
   final bool isToday;
   final void Function(PlanUnit unit) onOpen;
@@ -250,6 +258,14 @@ class _Day extends StatelessWidget {
     final subline = purpose == null
         ? (isToday ? l.planToday : null)
         : (isToday ? '$purpose · ${l.planToday}' : purpose);
+    // Erledigt (kein Ruhetag) mit vorhandenem Lauf: oben der echte Lauf,
+    // darunter klein die Vorgabe (FR-0171). Ohne Lauf (gelöscht, nicht
+    // lesbar) wie bisher die Vorgabe.
+    final run = u.kind == PlanUnitKind.rest ? null : runs[u.runId];
+    final formatter = AppSettingsScope.formatterOf(context);
+    final runLine = run == null ? null : planDoneRunLine(l, formatter, run);
+    final intensity = run == null ? null : planDoneIntensity(l, run);
+    final planned = planPlannedLine(l, u);
     return RamuriCard(
       key: key,
       radius: 16,
@@ -260,7 +276,7 @@ class _Day extends StatelessWidget {
         builder: (context) {
           final t = Theme.of(context).textTheme;
           final cc = RamuriColors.of(context);
-          return Row(
+          final row = Row(
             children: [
               SizedBox(
                 width: 36,
@@ -276,13 +292,38 @@ class _Day extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label, style: t.titleSmall),
-                    if (subline != null)
+                    if (runLine != null) ...[
+                      Wrap(
+                        spacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            runLine,
+                            key: const Key('plan_day_run'),
+                            style: t.titleSmall,
+                          ),
+                          if (intensity != null)
+                            Text(
+                              intensity,
+                              key: const Key('plan_day_run_intensity'),
+                              style: t.labelMedium?.copyWith(color: cc.accent),
+                            ),
+                        ],
+                      ),
                       Text(
-                        subline,
-                        key: const Key('plan_day_purpose'),
+                        planned,
+                        key: const Key('plan_day_planned'),
                         style: t.bodySmall?.copyWith(color: cc.textMuted),
                       ),
+                    ] else ...[
+                      Text(label, style: t.titleSmall),
+                      if (subline != null)
+                        Text(
+                          subline,
+                          key: const Key('plan_day_purpose'),
+                          style: t.bodySmall?.copyWith(color: cc.textMuted),
+                        ),
+                    ],
                   ],
                 ),
               ),
@@ -322,6 +363,16 @@ class _Day extends StatelessWidget {
                   ),
                 ),
             ],
+          );
+          if (runLine == null) return row;
+          // Vorleser: Tag, Lauf (mit Kennzeichen) und Vorgabe in einem Satz.
+          return Semantics(
+            key: const Key('plan_day_done_semantics'),
+            label:
+                '${DateFormat.EEEE(lang).format(day)}. '
+                '${l.planDayDoneSemantics(intensity == null ? runLine : '$runLine, $intensity', planned)}',
+            excludeSemantics: true,
+            child: row,
           );
         },
       ),
