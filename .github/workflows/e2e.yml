@@ -85,7 +85,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ matrix.api }}-x86_64-pixel6-v1-miss-probe
+          key: avd-${{ matrix.api }}-x86_64-pixel6-v1
       # Festes Geraeteprofil pixel_6 (1080x2400): Der Standard des Runners ist ein
       # winziger Bildschirm (320x640), auf dem Tests wegen abgeschnittener
       # Bedienelemente scheitern, die auf einem echten Geraet sichtbar sind.
