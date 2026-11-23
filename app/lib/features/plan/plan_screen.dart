@@ -480,26 +480,48 @@ class _PlanScreenState extends State<PlanScreen> {
     );
   }
 
+  /// Eine Einheit wird gerade geöffnet: weitere Tipps öffnen keine zweite
+  /// Seite, bis die erste wieder geschlossen ist.
+  bool _opening = false;
+
+  /// Einheit aus der Woche: den Lauf hat die Woche schon geladen
+  /// ([_weekData]); `null` wie ohne lesbaren Lauf.
+  void _openWeekUnit(PlanUnit unit, PlanDoneRun? run) =>
+      _openUnit(unit, run: run, lookup: false);
+
   /// Einheit öffnen (FR-0143); eine erledigte mit dem gelaufenen Lauf oben
-  /// und „Lauf öffnen“ zum Laufdetail (FR-0171).
-  Future<void> _openUnit(PlanUnit unit) async {
-    final navigator = Navigator.of(context, rootNavigator: true);
-    final run = unit.runId == null
-        ? null
-        : (await _doneRuns([unit]))[unit.runId];
-    if (!mounted) return;
-    final recalculation = widget.recalculation;
-    await navigator.push(
-      MaterialPageRoute<void>(
-        builder: (context) => PlanUnitScreen(
-          unit: unit,
-          run: run,
-          onOpenRun: run == null || recalculation == null
+  /// und „Lauf öffnen“ zum Laufdetail (FR-0171). Ohne [run] liest [lookup]
+  /// den Lauf (Kalender); die Woche gibt ihn mit.
+  Future<void> _openUnit(
+    PlanUnit unit, {
+    PlanDoneRun? run,
+    bool lookup = true,
+  }) async {
+    if (_opening) return;
+    _opening = true;
+    try {
+      final navigator = Navigator.of(context, rootNavigator: true);
+      final done =
+          run ??
+          (!lookup || unit.runId == null
               ? null
-              : () => _openRun(context, run.id, recalculation),
+              : (await _doneRuns([unit]))[unit.runId]);
+      if (!mounted) return;
+      final recalculation = widget.recalculation;
+      await navigator.push(
+        MaterialPageRoute<void>(
+          builder: (context) => PlanUnitScreen(
+            unit: unit,
+            run: done,
+            onOpenRun: done == null || recalculation == null
+                ? null
+                : () => _openRun(context, done.id, recalculation),
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      _opening = false;
+    }
   }
 
   /// Laufdetail aus der Einheit; wird der Lauf dort gelöscht, schließt auch
@@ -737,7 +759,7 @@ class _PlanScreenState extends State<PlanScreen> {
               runs: snap.data?.runs ?? const {},
               hasError: snap.hasError,
               onStep: _step,
-              onOpen: _openUnit,
+              onOpen: _openWeekUnit,
               onStart: widget.onStartUnit == null ? null : _startUnit,
             ),
           ),

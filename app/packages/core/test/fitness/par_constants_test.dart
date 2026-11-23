@@ -10,7 +10,11 @@
 // in der Zuordnung; ändert sich ein Vorkommen, wird der Test rot. Jede
 // PAR-ID der Dokumente steht entweder in [parCodeValues] oder in
 // [parExceptions]; eine neue ID ohne Eintrag macht den Test rot. Annullierte
-// IDs brauchen keinen Eintrag.
+// IDs brauchen keinen Eintrag. Werte im App-Paket und im Android-Code prüft
+// app/test/par_constants_app_test.dart; hier stehen sie als Ausnahme bzw.
+// Doku-Zahl mit dem Grund [parCheckedInApp] (test/support/par_exceptions.dart).
+// Parser und Abgleich liegen in test/support/par_docs.dart. Gegenprobe: Jede
+// Zeile, die mit „| PAR-“ und einer Nummer beginnt, muss der Parser erfassen.
 //
 // Umrechnung: Die Werte stehen hier in der Einheit der Dokumente (Prozent,
 // Minuten, Sekunden, Stunden), umgerechnet aus der Einheit des Codes.
@@ -19,6 +23,9 @@ import 'dart:math' as math;
 
 import 'package:core/core.dart';
 import 'package:test/test.dart';
+
+import '../support/par_docs.dart';
+import '../support/par_exceptions.dart';
 
 const _docs = [
   '../../../docs/model-parameters.md',
@@ -48,14 +55,6 @@ const _factor = personalLoadFactorParameters;
 const _int = IntensityParameters();
 const _hint = hintParameters;
 const _feas = FeasibilityParameters();
-
-/// Zahl der Zelle, die kein Wert aus dem Code ist (Beispiel, Skala,
-/// Verweis), festgehalten mit Grund in einer Zeile.
-class DocOnly {
-  const DocOnly(this.value, this.reason);
-  final num value;
-  final String reason;
-}
 
 /// Doku-Zahlen mit gemeinsamem Grund, zum Einfügen mit `...`.
 List<DocOnly> _doc(List<num> values, String reason) => [
@@ -751,10 +750,8 @@ final Map<String, List<Object>> parCodeValues = {
   ],
   'PAR-229': [morningBeltCompareAmbiguityRatio],
   'PAR-234': [
-    ..._doc(
-      [5],
-      'Fenster im App-Paket (restingLiveStageWindowSeconds), nicht aus core erreichbar.',
-    ),
+    // Fenster (restingLiveStageWindowSeconds) im App-Paket.
+    ...parDocOnlyCheckedInApp['PAR-234']!,
     ppgLimitedQuality,
     _pct(ppgLimitedValidFraction),
   ],
@@ -772,219 +769,21 @@ final Map<String, List<Object>> parCodeValues = {
   ],
 };
 
-/// PAR-IDs ohne Zuordnung, je mit Grund in einer Zeile.
-const Map<String, String> parExceptions = {
-  'PAR-008': 'Schalter ohne Zahl (heartRateDiscardPoorContact).',
-  'PAR-018': 'Verhaltensregel bei HFmax ≤ HFRuhe, keine Zahl.',
-  'PAR-044': 'Verweist nur auf andere PAR; deren Werte sind dort geprüft.',
-  'PAR-048': 'Drift (Phase 4) ist nicht umgesetzt; keine Konstante im Code.',
-  'PAR-196': 'Regler in Stunden je Woche ohne festen Startwert.',
-  'PAR-203': 'Regel ohne Zahl (alles änderbar).',
-  'PAR-231': 'Zuordnungsregel ohne Zahl.',
-  'PAR-049': 'Grundsatz zu Texten, keine Zahl.',
-  'PAR-050': 'Verbot der 10-%-Regel als Sicherheitsregel; die Zahl ist kein Parameter.',
-  'PAR-059': 'Abstand als „voller Kalendertag“ ohne Zahl; minGapDays = 2 ist der Tagesabstand dazu.',
-  'PAR-060': 'Ablauf beim Verschieben, keine Zahl.',
-  'PAR-072': 'Aussagegrenze, keine Zahl.',
-  'PAR-076': 'Regel ohne Zahl.',
-  'PAR-091': 'Grundlage des Modells, keine Zahl.',
-  'PAR-092': 'Energiemodell (FR-0122) ist nicht umgesetzt.',
-  'PAR-093': 'Energiemodell (FR-0122) ist nicht umgesetzt.',
-  'PAR-094': 'Energiemodell (FR-0122) ist nicht umgesetzt.',
-  'PAR-095': 'Energiemodell (FR-0122) ist nicht umgesetzt.',
-  'PAR-096': 'Energiemodell (FR-0122) ist nicht umgesetzt.',
-  'PAR-097': 'Energiemodell (FR-0122) ist nicht umgesetzt.',
-  'PAR-098': 'Energiemodell (FR-0122) ist nicht umgesetzt.',
-  'PAR-099': 'Energiemodell (FR-0122) ist nicht umgesetzt.',
-  'PAR-100': 'Rangfolge der Grundlagen, keine Schwelle.',
-  'PAR-104': 'Zonen als Verweis, keine eigene Zahl.',
-  'PAR-105': 'RPE-Skala und Wortlaut, keine Schwelle.',
-  'PAR-106': 'Texte der Grundlage, keine Zahl.',
-  'PAR-116': 'Eintrag ohne Zielintensität, keine Zahl.',
-  'PAR-142': 'Rechtlicher Hinweis zur Quelle, keine Zahl.',
-  'PAR-147': 'Stufe als Verweis auf andere Bedingungen, keine eigene Zahl.',
-  'PAR-148': 'Zahlen sind Beispiele aus PAR-149 und OQ-0006.',
-  'PAR-151': 'Datenstufen der Energie (FR-0122), nicht umgesetzt.',
-  'PAR-152': 'Datenstufen der Energie (FR-0122), nicht umgesetzt.',
-  'PAR-153': 'Datenstufen der Energie (FR-0122), nicht umgesetzt.',
-  'PAR-154': 'Datenstufen der Energie (FR-0122), nicht umgesetzt.',
-  'PAR-155': 'Drift (Phase 4) ist nicht umgesetzt.',
-  'PAR-156': 'Drift (Phase 4) ist nicht umgesetzt.',
-  'PAR-157': 'Drift (Phase 4) ist nicht umgesetzt.',
-  'PAR-158': 'Drift (Phase 4) ist nicht umgesetzt.',
-  'PAR-159': 'Textregel; die Zahlen sind Beispiele.',
-  'PAR-171': 'Anzeige ohne Zahl; die Zahl ist ein Verweis auf eine Stufe.',
-  'PAR-171K': 'Bedingungen als Verweis auf OQ-0006, keine eigene Konstante.',
-  'PAR-173': 'Regel ohne Zahl.',
-  'PAR-174': 'Wortliste, keine Zahl.',
-  'PAR-179': 'Auslöser ohne Zahl.',
-  'PAR-184': 'Kein Text, keine Zahl.',
-  'PAR-186': 'Kein Code liest die Schwelle; FR-0161 und FR-0165 sind noch nicht umgesetzt.',
-  'PAR-188': 'Schwellen als Literale im App-Paket (plan_data_reader.dart), nicht aus core erreichbar.',
-  'PAR-189': 'Quellenregel ohne Zahl.',
-  'PAR-190': 'Beispielrechnung zur Bandbreite, keine eigenen Konstanten.',
-  'PAR-217': 'Konstante im Android-Code (PpgFrameStats.kt), nicht aus Dart erreichbar.',
-  'PAR-221': 'Konstante im App-Paket (resting_measure_controller.dart), nicht aus core erreichbar.',
-  'PAR-222': 'Konstante im App-Paket (resting_measure_controller.dart), nicht aus core erreichbar.',
-  'PAR-223': 'Konstante im App-Paket (resting_measure_controller.dart), nicht aus core erreichbar.',
-  'PAR-224': 'Konstante im App-Paket (resting_measure_controller.dart), nicht aus core erreichbar.',
-  'PAR-225': 'Konstante im App-Paket (resting_measure_controller.dart), nicht aus core erreichbar.',
-  'PAR-226': 'Konstante im App-Paket (resting_measure_controller.dart), nicht aus core erreichbar.',
-};
-
-/// Eine Zeile einer PAR-Tabelle.
-class ParRow {
-  ParRow(this.id, this.value, this.source);
-  final String id;
-  final String value;
-  final String source;
-  bool get annulled => value.toLowerCase().startsWith('annulliert');
-}
-
-final _idCell = RegExp(r'^PAR-\d{3}K?(?:/\d{3}K)?$');
-
-/// Liest die PAR-Tabellen eines Dokuments: nur Tabellen mit Kopf „| ID |“,
-/// Wert ist die Spalte „Startwert“ bzw. „Stand“.
-List<ParRow> parseParTables(String text, String source) {
-  final rows = <ParRow>[];
-  List<String>? header;
-  var inTable = false;
-  for (final line in text.split('\n')) {
-    if (!line.startsWith('|')) {
-      inTable = false;
-      header = null;
-      continue;
-    }
-    final cells = line.split('|').map((c) => c.trim()).toList();
-    if (!inTable) {
-      inTable = true;
-      header = cells;
-      continue;
-    }
-    final h = header!;
-    if (h.length < 3 || h[1] != 'ID' || cells.length < 4) continue;
-    if (!_idCell.hasMatch(cells[1])) continue;
-    var col = h.indexOf('Startwert');
-    if (col < 0) col = h.indexOf('Stand');
-    if (col < 0 || col >= cells.length) continue;
-    rows.add(ParRow(cells[1], cells[col], source));
-  }
-  return rows;
-}
-
-final _references = RegExp(
-  r'\b\d{4}-\d{2}-\d{2}\b|\b(?:PAR|FR|NFR|OQ|DEC|SEC|ADR|SRC)-\d+K?(?:/\d+K)?|\[[A-Z]+\d+\]|\bK-?\d+\b|\bR\d+\b',
-);
-final _number = RegExp(
-  r'([−-]?)(\d+):(\d{2})(?!\d)|([−-]?)(\d{1,3}(?:[  ]\d{3})+(?!\d)|\d+(?:,\d+)?)',
-);
-
-/// Zahlen einer Zelle: Verweise (PAR-, FR-, Quellen) und Datumsangaben
-/// entfallen, Dezimalkomma wird gelesen, „m:ss“ ergibt Minuten, ein Bereich
-/// „2–4“ ergibt beide Grenzen, „−2“ (Minuszeichen) ist negativ.
-List<double> extractNumbers(String cell) {
-  final s = cell.replaceAll(_references, ' ');
-  final out = <double>[];
-  for (final m in _number.allMatches(s)) {
-    final before = m.start == 0 ? ' ' : s[m.start - 1];
-    final signed = before == ' ' || before == '(' || before == '`';
-    if (m.group(2) != null) {
-      final v = int.parse(m.group(2)!) + int.parse(m.group(3)!) / 60;
-      out.add(m.group(1)!.isNotEmpty && signed ? -v : v);
-    } else {
-      final raw = m.group(5)!.replaceAll(RegExp('[  ]'), '');
-      final v = double.parse(raw.replaceAll(',', '.'));
-      out.add(m.group(4)!.isNotEmpty && signed ? -v : v);
-    }
-  }
-  return out;
-}
-
-bool _equal(double doc, num code) =>
-    (doc - code).abs() <= 1e-9 * (1 + code.abs());
-
-String _fmt(num v) {
-  final d = v.toDouble();
-  final r = (d * 1e9).roundToDouble() / 1e9;
-  return r == r.roundToDouble() ? r.toInt().toString() : r.toString();
-}
-
-/// Abweichungen zwischen Zuordnung und Tabellen, je eine Zeile mit ID,
-/// Doku-Werten und Code-Wert.
-List<String> compareParValues(
-  List<ParRow> rows,
-  Map<String, List<Object>> code,
-  Map<String, String> exceptions,
-) {
-  final problems = <String>[];
-  final byId = <String, List<ParRow>>{};
-  for (final r in rows) {
-    byId.putIfAbsent(r.id, () => []).add(r);
-  }
-  for (final e in byId.entries) {
-    final id = e.key;
-    final row = e.value.first;
-    if (e.value.length > 1) {
-      problems.add('$id: mehrfach in den Tabellen');
-    }
-    final mapped = code.containsKey(id);
-    final excepted = exceptions.containsKey(id);
-    if (row.annulled) {
-      if (mapped || excepted) problems.add('$id: annulliert, aber zugeordnet');
-      continue;
-    }
-    if (mapped && excepted) {
-      problems.add('$id: zugleich zugeordnet und Ausnahme');
-    } else if (!mapped && !excepted) {
-      problems.add('$id (${row.source}): weder zugeordnet noch Ausnahme');
-    }
-    if (!mapped) continue;
-    final doc = extractNumbers(row.value);
-    final rest = [...doc];
-    final missing = <num>[];
-    for (final entry in code[id]!) {
-      final num v;
-      if (entry is DocOnly) {
-        v = entry.value;
-        if (entry.reason.trim().isEmpty || entry.reason.contains('\n')) {
-          problems.add('$id: Doku-Zahl ${_fmt(v)} ohne einzeiligen Grund');
-        }
-      } else {
-        v = entry as num;
-      }
-      final i = rest.indexWhere((d) => _equal(d, v));
-      if (i < 0) {
-        missing.add(v);
-      } else {
-        rest.removeAt(i);
-      }
-    }
-    if (missing.isNotEmpty || rest.isNotEmpty) {
-      problems.add(
-        '$id: Code [${missing.map(_fmt).join(', ')}] nicht in der Doku, '
-        'Doku [${rest.map(_fmt).join(', ')}] nicht zugeordnet '
-        '(Zelle: [${doc.map(_fmt).join(', ')}])',
-      );
-    }
-  }
-  for (final id in {...code.keys, ...exceptions.keys}) {
-    if (!byId.containsKey(id)) {
-      problems.add('$id: zugeordnet, aber in keinem Dokument');
-    }
-  }
-  for (final e in exceptions.entries) {
-    if (e.value.trim().isEmpty || e.value.contains('\n')) {
-      problems.add('${e.key}: Ausnahme ohne einzeiligen Grund');
-    }
-  }
-  return problems;
-}
-
 List<ParRow> _readDocs() => [
   for (final path in _docs)
     ...parseParTables(
       File(path).readAsStringSync(),
       path.replaceFirst('../../../', ''),
+    ),
+];
+
+/// Zeilen der Dokumente, die mit „| PAR-“ beginnen, aber nicht erfasst sind.
+List<String> _unparsedDocLines(List<ParRow> rows) => [
+  for (final path in _docs)
+    ...unparsedParLines(
+      File(path).readAsStringSync(),
+      path.replaceFirst('../../../', ''),
+      rows,
     ),
 ];
 
@@ -1027,6 +826,46 @@ void main() {
       expect(rows.map((r) => r.id), ['PAR-900', 'PAR-902']);
       expect(rows.first.value, '3 min');
       expect(rows.last.annulled, isTrue);
+    });
+  });
+
+  group('Gegenprobe des Parsers', () {
+    const doc = '''
+| ID | Parameter | Startwert | Art |
+|---|---|---|---|
+| PAR-900 | A | 3 min | x |
+
+| Nr | Parameter | Startwert |
+|---|---|---|
+| PAR-298 | B | 4 s |
+''';
+
+    test('PAR-Zeile in Tabelle mit anderem Kopf ist ein Fehler', () {
+      final rows = parseParTables(doc, 'docs/planning-rules.md');
+      expect(rows.map((r) => r.id), ['PAR-900']);
+      expect(unparsedParLines(doc, 'docs/planning-rules.md', rows), [
+        'PAR-298 (docs/planning-rules.md:7): Zeile einer PAR-Tabelle nicht '
+            'erfasst',
+      ]);
+    });
+
+    test('erfasste Zeilen und andere Tabellen sind kein Fehler', () {
+      const ok = '''
+| ID | Parameter | Startwert | Art |
+|---|---|---|---|
+| PAR-900 | A | 3 min | x |
+| PAR-161K | B | 7 Tage | x |
+
+| Werte | Warum |
+|---|---|
+| FR-0001 | B |
+''';
+      expect(unparsedParLines(ok, 'x.md', parseParTables(ok, 'x.md')), isEmpty);
+    });
+
+    test('Zeile aus einem anderen Dokument zählt nicht als erfasst', () {
+      final rows = parseParTables(doc, 'a.md');
+      expect(unparsedParLines(doc, 'b.md', rows), hasLength(2));
     });
   });
 
@@ -1166,5 +1005,18 @@ void main() {
     );
     final problems = compareParValues(rows, parCodeValues, parExceptions);
     expect(problems, isEmpty, reason: problems.join('\n'));
+  });
+
+  test('jede PAR-Zeile der Dokumente ist vom Parser erfasst', () {
+    final problems = _unparsedDocLines(_readDocs());
+    expect(problems, isEmpty, reason: problems.join('\n'));
+  });
+
+  test('Doku-Zahlen für den App-Test stehen in der Zuordnung', () {
+    for (final e in parDocOnlyCheckedInApp.entries) {
+      for (final d in e.value) {
+        expect(parCodeValues[e.key], contains(same(d)), reason: e.key);
+      }
+    }
   });
 }
