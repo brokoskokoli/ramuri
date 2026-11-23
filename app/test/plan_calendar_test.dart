@@ -236,6 +236,81 @@ Future<(StorageSession, FakeClock)> _seed({
   return (session, clock);
 }
 
+/// Einheit an einem beliebigen Ortstag (Blättergrenze, FR-0172).
+PlanUnit _at(DateTime day, PlanUnitKind kind) => PlanUnit(
+  day: day,
+  kind: kind,
+  phase: PlanPhase.build,
+  weekIndex: 0,
+  minutes: 30,
+  segments: const [PlanSegment(kind: PlanSegmentKind.easy, minutes: 30)],
+);
+
+/// Schreibt eine Fassung ab [anchor] mit lockeren Einheiten an [days].
+Future<void> _writeVersion(
+  StorageSession session,
+  DateTime anchor,
+  List<DateTime> days, {
+  PlanTrigger trigger = PlanTrigger.weekly,
+}) async {
+  final plans = (session as PlanStorage).plans;
+  await plans.writeVersion(
+    PlanVersionDraft(
+      createdAt: anchor,
+      validFrom: anchor,
+      trigger: trigger,
+      reason: trigger.name,
+      version: const PlanVersion(),
+      inputs: PlanInputs(
+        anchor: anchor,
+        startWeeklyMinutes: 145,
+        today: anchor,
+        easyPaceSecondsPerKm: 360,
+        easyRunCount: 4,
+      ),
+      summary: const {'larger': false, 'changedUnitCount': 3},
+      units: [for (final d in days) _at(d, PlanUnitKind.easy)],
+      readState: planUnitsFingerprint(
+        await plans.unitsBetween(anchor, planFarFuture),
+      ),
+    ),
+  );
+}
+
+/// Lauf am Ortstag [day] (8–9 Uhr UTC), der Einheit des Tags zugeordnet.
+Future<void> _doneOn(StorageSession session, DateTime day) async {
+  final run = await session.runs.create(
+    startedAt: day.add(const Duration(hours: 8)),
+  );
+  await session.runs.setState(
+    run.id,
+    RunState.finished,
+    endedAt: day.add(const Duration(hours: 9)),
+    endedUtcOffset: Duration.zero,
+  );
+  final plans = (session as PlanStorage).plans;
+  await plans.assignRun((await plans.unitOn(day))!.id!, run.id);
+}
+
+/// Ziel und erste Fassung ab [anchor] mit Einheiten an [days]; [done]
+/// bekommt einen zugeordneten Lauf. Uhr: [now] (Ortszeit).
+Future<(StorageSession, FakeClock)> _seedFirst(
+  DateTime now,
+  DateTime anchor,
+  List<DateTime> days, {
+  DateTime? done,
+}) async {
+  final session = await FakeStorage().open(_key);
+  final clock = LocalFakeClock(now);
+  await (session as GoalStorage).goals.save(_goal(), today: anchor);
+  await _writeVersion(session, anchor, days, trigger: PlanTrigger.create);
+  if (done != null) await _doneOn(session, done);
+  return (session, clock);
+}
+
+bool _backEnabled(WidgetTester tester) =>
+    tester.widget<IconButton>(key('calendar_previous')).onPressed != null;
+
 /// Termine als Text, um „unverändert“ zu prüfen.
 Future<String> _schedule(StorageSession s) async => [
   for (final u in await (s as PlanStorage).plans.unitsBetween(
@@ -618,6 +693,159 @@ void main() {
       await _startMove(tester, 8, 9);
       expect(key('calendar_move_reduction'), findsNothing);
       expect(key('calendar_move_goal_day'), findsNothing);
+    });
+  });
+
+  group('Blättergrenze vor der neuesten Fassung (FR-0172)', () {
+    DateTime nov(int d) => DateTime.utc(2026, 11, d);
+    Finder inDay(DateTime d, String text) => find.descendant(
+      of: key('calendar_day_${_iso(d)}'),
+      matching: find.textContaining(text),
+    );
+
+    testWidgets('Neuberechnung am Montag: Woche blättert in die Vorwoche, '
+        'der Sonntag ist erledigt, dort ist die untere Grenze', (tester) async {
+      // Erste Fassung ab Mo 2.11., Sonntag 8.11. gelaufen; Neuberechnung am
+      // Mo 9.11. mit neuem Anker.
+      final (session, clock) = await _seedFirst(
+        DateTime(2026, 11, 9, 12),
+        nov(2),
+        [nov(3), nov(5), nov(8)],
+        done: nov(8),
+      );
+      await _writeVersion(session, nov(9), [nov(10), nov(12), nov(14)]);
+      await _pump(tester, session, clock);
+      expect(key('calendar_week'), findsOneWidget);
+      expect(key('calendar_day_2026-11-09'), findsOneWidget);
+      expect(_backEnabled(tester), isTrue);
+
+      await tester.tap(key('calendar_previous'));
+      await tester.pumpAndSettle();
+      expect(inDay(nov(8), 'erledigt'), findsOneWidget);
+      expect(inDay(nov(3), 'ausgefallen'), findsOneWidget);
+      // Tage früherer Planwochen ohne Einheit sind Ruhetage.
+      expect(inDay(nov(2), 'Ruhetag'), findsOneWidget);
+      expect(inDay(nov(4), 'Ruhetag'), findsOneWidget);
+      // Vergangene Einheit: keine Verschieben-Aktion.
+      await tester.tap(key('calendar_day_2026-11-03'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_frozen'), findsOneWidget);
+      expect(key('calendar_move'), findsNothing);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      // Woche der frühesten Einheit: untere Grenze.
+      expect(_backEnabled(tester), isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('einzige frühere Einheit am Sonntag direkt vor dem Anker: '
+        'Zurück zeigt ihn als erledigt, dort ist die untere Grenze', (
+      tester,
+    ) async {
+      // Erste Fassung ab Mo 2.11. nur mit der gelaufenen Einheit am So 8.11.;
+      // Neuberechnung am Mo 9.11. mit neuem Anker.
+      final (session, clock) = await _seedFirst(
+        DateTime(2026, 11, 9, 12),
+        nov(2),
+        [nov(8)],
+        done: nov(8),
+      );
+      await _writeVersion(session, nov(9), [nov(10), nov(12), nov(14)]);
+      await _pump(tester, session, clock);
+      expect(key('calendar_day_2026-11-09'), findsOneWidget);
+      expect(_backEnabled(tester), isTrue);
+
+      await tester.tap(key('calendar_previous'));
+      await tester.pumpAndSettle();
+      expect(inDay(nov(8), 'erledigt'), findsOneWidget);
+      expect(inDay(nov(2), 'Ruhetag'), findsOneWidget);
+      expect(_backEnabled(tester), isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('untere Grenze ist die Woche der frühesten Einheit über alle '
+        'Fassungen, auch mit Wochen ohne Einheit dazwischen', (tester) async {
+      // Früheste Einheit Mi 28.10.; die Woche ab 2.11. hat keine Einheit.
+      final (session, clock) = await _seedFirst(
+        DateTime(2026, 11, 11, 12),
+        DateTime.utc(2026, 10, 26),
+        [DateTime.utc(2026, 10, 28), DateTime.utc(2026, 10, 30)],
+      );
+      await _writeVersion(session, nov(9), [nov(10), nov(12)]);
+      await _pump(tester, session, clock);
+      expect(_backEnabled(tester), isTrue);
+      await tester.tap(key('calendar_previous'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_day_2026-11-02'), findsOneWidget);
+      expect(inDay(nov(4), 'Ruhetag'), findsOneWidget);
+      expect(_backEnabled(tester), isTrue);
+      await tester.tap(key('calendar_previous'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_day_2026-10-26'), findsOneWidget);
+      expect(inDay(DateTime.utc(2026, 10, 28), 'ausgefallen'), findsOneWidget);
+      expect(_backEnabled(tester), isFalse);
+    });
+
+    testWidgets('nur eine Fassung, Anker in der laufenden Woche: Zurück '
+        'bleibt gesperrt', (tester) async {
+      final (session, clock) = await _seed();
+      await _pump(tester, session, clock);
+      expect(key('calendar_day_2026-11-09'), findsOneWidget);
+      expect(_backEnabled(tester), isFalse);
+      await tester.tap(key('calendar_mode_month'));
+      await tester.pumpAndSettle();
+      expect(_backEnabled(tester), isFalse);
+    });
+
+    testWidgets('Monat, Anker am ersten Montag des Monats: Zurück zeigt den '
+        'Vormonat mit dem Sonntag vor dem Anker', (tester) async {
+      // 1.2.2027 ist ein Montag; frühere Fassung ab Mo 25.1.2027.
+      final (session, clock) = await _seedFirst(
+        DateTime(2027, 2, 3, 12),
+        DateTime.utc(2027, 1, 25),
+        [DateTime.utc(2027, 1, 26), DateTime.utc(2027, 1, 31)],
+        done: DateTime.utc(2027, 1, 31),
+      );
+      await _writeVersion(session, DateTime.utc(2027, 2, 1), [
+        DateTime.utc(2027, 2, 2),
+        DateTime.utc(2027, 2, 4),
+      ]);
+      await _pump(tester, session, clock);
+      await tester.tap(key('calendar_mode_month'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(key('calendar_period')).data, 'Februar 2027');
+      expect(key('calendar_day_2027-01-31'), findsNothing);
+      expect(_backEnabled(tester), isTrue);
+
+      await tester.tap(key('calendar_previous'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(key('calendar_period')).data, 'Januar 2027');
+      expect(
+        tester.getSemantics(key('calendar_day_2027-01-31')).label,
+        contains('erledigt'),
+      );
+      expect(_backEnabled(tester), isFalse);
+    });
+
+    testWidgets('neue Fassung bei offenem Kalender: die Grenze bleibt bei der '
+        'frühesten Einheit', (tester) async {
+      final (session, clock) = await _seedFirst(
+        DateTime(2026, 11, 9, 12),
+        nov(2),
+        [nov(3), nov(8)],
+        done: nov(8),
+      );
+      final c = _NoCheck(session, clock);
+      await _pump(tester, session, clock, controller: c);
+      expect(_backEnabled(tester), isTrue);
+      // Neuberechnung mit Anker heute, während der Kalender offen ist.
+      await _writeVersion(session, nov(9), [nov(10), nov(12)]);
+      await c.reload();
+      await tester.pumpAndSettle();
+      expect(_backEnabled(tester), isTrue);
+      await tester.tap(key('calendar_previous'));
+      await tester.pumpAndSettle();
+      expect(inDay(nov(8), 'erledigt'), findsOneWidget);
     });
   });
 

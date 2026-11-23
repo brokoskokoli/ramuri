@@ -92,11 +92,43 @@ class _PlanCalendarState extends State<PlanCalendar> {
   Future<_CalendarData>? _units;
   String? _unitsKey;
 
+  /// Montag der Woche der frühesten gespeicherten Planeinheit vor der
+  /// Ankerwoche (alle Fassungen), `null` ohne solche Einheit oder solange
+  /// sie lädt. Einmal geladen, bei jedem neuen Stand des Plans neu.
+  DateTime? _history;
+  int _historyRead = 0;
+
   @override
   void initState() {
     super.initState();
     _restoreTarget = _view.scrollOffset;
     widget.controller.addListener(_onState);
+    _loadHistory();
+  }
+
+  /// Liest die untere Blättergrenze vor der Ankerwoche (FR-0172); ein
+  /// Lesefehler lässt die Grenze bei der Ankerwoche.
+  void _loadHistory() {
+    final anchor = _anchorMonday;
+    final read = ++_historyRead;
+    if (anchor == null) {
+      _history = null;
+      return;
+    }
+    widget.controller
+        .firstUnitDayBefore(anchor)
+        .then(
+          (d) {
+            if (!mounted || read != _historyRead) return;
+            final h = d == null ? null : _mondayOf(d);
+            if (h != _history) setState(() => _history = h);
+          },
+          onError: (Object _) {
+            if (mounted && read == _historyRead) {
+              setState(() => _history = null);
+            }
+          },
+        );
   }
 
   @override
@@ -109,6 +141,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
   void _onState() {
     if (!mounted) return;
     setState(() => _units = null);
+    _loadHistory();
   }
 
   void _rememberScroll() {
@@ -123,10 +156,18 @@ class _PlanCalendarState extends State<PlanCalendar> {
 
   DateTime get _today => calendarDay(widget.clock.now());
 
-  /// Erster Ortstag des Plans (Montag der Ankerwoche).
-  DateTime? get _first {
+  /// Montag der Ankerwoche der neuesten Fassung.
+  DateTime? get _anchorMonday {
     final v = widget.controller.state.version;
     return v == null ? null : _mondayOf(v.inputs.anchor);
+  }
+
+  /// Erster Ortstag des Plans (FR-0172): Montag der Woche der frühesten
+  /// gespeicherten Planeinheit über alle Fassungen, ohne frühere Einheit der
+  /// Montag der Ankerwoche der neuesten Fassung.
+  DateTime? get _first {
+    final a = _anchorMonday, h = _history;
+    return a == null || h == null || !h.isBefore(a) ? a : h;
   }
 
   /// Letzter Ortstag des Plans (Sonntag der letzten Planwoche).
