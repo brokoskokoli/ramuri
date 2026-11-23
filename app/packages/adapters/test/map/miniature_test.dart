@@ -117,51 +117,50 @@ void main() {
     expect(thumbnailTimeLimit, const Duration(seconds: 15));
   });
 
-  test('Bildmaß 360 x 180 (WP13 N5)', () {
+  test('Bildmaß 360 x 180', () {
     expect(thumbnailWidth, 360);
     expect(thumbnailHeight, 180);
   });
 
-  testWidgets(
-    'Miniatur ohne eingebrannte Quellenangabe, die Karte sonst mit (WP13 N5)',
-    (tester) async {
-      final source = (await tester.runAsync(() => MapTileSource.open(gate)))!;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Column(
-            children: [
-              SizedBox(
-                width: 360,
-                height: 180,
-                child: ThumbnailMap(
-                  boundary: GlobalKey(),
-                  source: source,
-                  route: _route,
-                  style: _style,
-                ),
+  testWidgets('Miniatur ohne eingebrannte Quellenangabe, die Karte sonst mit', (
+    tester,
+  ) async {
+    final source = (await tester.runAsync(() => MapTileSource.open(gate)))!;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Column(
+          children: [
+            SizedBox(
+              width: 360,
+              height: 180,
+              child: ThumbnailMap(
+                boundary: GlobalKey(),
+                source: source,
+                route: _route,
+                style: _style,
               ),
-              SizedBox(
-                width: 360,
-                height: 180,
-                child: RouteMap(source: source, route: _route, style: _style),
-              ),
-            ],
-          ),
+            ),
+            SizedBox(
+              width: 360,
+              height: 180,
+              child: RouteMap(source: source, route: _route, style: _style),
+            ),
+          ],
         ),
-      );
-      expect(find.byKey(const Key('map_attribution')), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byType(ThumbnailMap),
-          matching: find.byKey(const Key('map_attribution')),
-        ),
-        findsNothing,
-      );
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+      ),
+    );
+    expect(find.byKey(const Key('map_attribution')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ThumbnailMap),
+        matching: find.byKey(const Key('map_attribution')),
+      ),
+      findsNothing,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
 
-  testWidgets('Nicht deckende Aufnahme (nichts gemalt): kein Bild (WP13 N5)', (
+  testWidgets('Nicht deckende Aufnahme (nichts gemalt): kein Bild', (
     tester,
   ) async {
     final key = GlobalKey();

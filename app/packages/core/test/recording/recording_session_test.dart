@@ -364,7 +364,7 @@ void main() {
     expect(r.s.snapshot().heartRateBpm, 142);
   });
 
-  test('observe: Stand und Vorverarbeitung aus einem Aufbau (Soll 4)', () {
+  test('observe: Stand und Vorverarbeitung aus einem Aufbau', () {
     final clock = _CountingClock(FakeClock(t0));
     final s = RecordingSession(clock: clock)..start();
     for (var i = 1; i <= 5; i++) {
@@ -379,7 +379,7 @@ void main() {
     expect(o.snapshot.distanceMeters, o.preprocessing!.position.distanceMeters);
   });
 
-  group('Zeitbasen: GPS-Zeit und Systemuhr (Review 1, Soll 1)', () {
+  group('Zeitbasen: GPS-Zeit und Systemuhr', () {
     // Ein Lauf bei Uhrversatz: Punkte tragen die GPS-Zeit, die Uhr zeigt
     // GPS-Zeit + [offset]. Die Entscheidung über Lücke und Veraltung darf nicht
     // vom Versatz abhängen.
@@ -466,7 +466,7 @@ void main() {
       expect(r.s.lastPointTime, t0.add(const Duration(seconds: 12)));
     });
 
-    // Sondenfälle aus Review 2 (Blocker 1).
+    // Sondenfälle: alter oder verspäteter erster Punkt, Wanduhr springt zurück.
     test('P1: erster Punkt 60 s alt wird verworfen, Folgepunkte kommen an', () {
       final r = Rig()..s.start();
       r.wait(1);
@@ -679,7 +679,7 @@ void main() {
     expect(r.s.preprocessing()!.altitude.ascentMeters, isNull);
   });
 
-  group('Neu ankern in der Sitzung (Nachbesserung E1)', () {
+  group('Neu ankern in der Sitzung', () {
     void at(Rig r, int sec, num north, {double? alt}) {
       r.clock.advance(t0.add(Duration(seconds: sec)).difference(r.clock.now()));
       r.s.addPosition(fix(sec, north, alt: alt));
