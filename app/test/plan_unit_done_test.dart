@@ -290,6 +290,31 @@ void main() {
     expect(detail.runId, id);
   });
 
+  testWidgets('Lauf im Laufdetail gelöscht: Einheit schließt, die Woche '
+      'zeigt sie wieder offen (ADR-0010)', (tester) async {
+    final d = Device();
+    final s = await _preopen(d);
+    final id = await _seedAssigned(s, rpe: 8);
+    await _openPlan(d, tester);
+    await tester.tap(_todayCard);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(key('plan_unit_open_run'));
+    await tester.tap(key('plan_unit_open_run'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(key('detail_delete'));
+    await tester.tap(key('detail_delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lauf löschen').last);
+    await tester.pumpAndSettle();
+    expect(await s.runs.get(id), isNull);
+    expect(find.byType(RunDetailScreen), findsNothing);
+    expect(find.byType(PlanUnitScreen), findsNothing);
+    await tester.ensureVisible(_todayCard);
+    await tester.pumpAndSettle();
+    expect(_inToday('plan_day_run'), findsNothing);
+    expect(_inToday('plan_day_purpose'), findsOneWidget);
+  });
+
   testWidgets('Tipp auf offene Einheit zeigt die Vorgabe ohne „Gelaufen“ '
       '(FR-0143)', (tester) async {
     final d = Device();

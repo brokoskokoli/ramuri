@@ -258,10 +258,10 @@ class _Day extends StatelessWidget {
     final subline = purpose == null
         ? (isToday ? l.planToday : null)
         : (isToday ? '$purpose · ${l.planToday}' : purpose);
-    // Erledigt (kein Ruhetag) mit vorhandenem Lauf: oben der echte Lauf,
-    // darunter klein die Vorgabe (FR-0171). Ohne Lauf (gelöscht, nicht
-    // lesbar) wie bisher die Vorgabe.
-    final run = u.kind == PlanUnitKind.rest ? null : runs[u.runId];
+    // Erledigt mit vorhandenem Lauf: oben der echte Lauf, darunter klein die
+    // Vorgabe (FR-0171). Ohne Lauf (gelöscht, nicht lesbar) und beim Ruhetag
+    // ([PlanController.doneRuns] lässt ihn aus) wie bisher die Vorgabe.
+    final run = runs[u.runId];
     final formatter = AppSettingsScope.formatterOf(context);
     final runLine = run == null ? null : planDoneRunLine(l, formatter, run);
     final intensity = run == null ? null : planDoneIntensity(l, run);
