@@ -170,11 +170,16 @@ Future<void> measureFromTile(WidgetTester t, {bool sitting = false}) async {
   await toResult(t);
 }
 
+/// Seite „Heute“ steht: am Schluessel der Seite, nicht an „Lauf starten“ –
+/// die Morgenkarte mit „Noch einmal messen“ kann den Knopf unter den
+/// sichtbaren Bereich schieben, dann baut die Liste ihn nicht.
+bool onToday() => has('home_screen');
+
 Future<void> closeResultToHome(WidgetTester t) async {
   await tapKey(t, 'morning_done');
   await waitFor(t, () => has('overview_about'), 'Uebersicht');
   await back(t);
-  await waitFor(t, () => has('home_start_run'), 'Heute');
+  await waitFor(t, () => onToday(), 'Heute');
 }
 
 /// Zeichnet die Aufrufe der App am Kanal der Erinnerungen auf und reicht jeden
@@ -339,7 +344,7 @@ Future<void> reminderTimeViaUi(WidgetTester t, StorageSession s) async {
   stopReminderCalls(t);
   await tapKey(t, 'measure_back');
   await back(t);
-  await waitFor(t, () => has('home_start_run'), 'S7b Heute');
+  await waitFor(t, () => onToday(), 'S7b Heute');
   log('S7b ok');
 }
 
@@ -458,7 +463,7 @@ Future<void> midnight(
     );
   }
   await back(t);
-  await waitFor(t, () => has('home_start_run'), 'S7c Heute (Systemuhr)');
+  await waitFor(t, () => onToday(), 'S7c Heute (Systemuhr)');
 }
 
 /// Von der Uebersicht ueber den Eintrag Morgenmessung bis zum Ergebnis.
@@ -623,7 +628,7 @@ Future<void> repeatAndChoose(
   );
   await tapKey(t, 'measure_back');
   await back(t);
-  await waitFor(t, () => has('home_start_run'), 'S3b Heute');
+  await waitFor(t, () => onToday(), 'S3b Heute');
   await entryLoaded(t, MorningCard, 'S3b Heute zurueck');
   await waitFor(
     t,
@@ -737,7 +742,7 @@ void main() {
       timeout: const Duration(seconds: 10),
     );
     await back(t);
-    await waitFor(t, () => has('home_start_run'), 'Heute');
+    await waitFor(t, () => onToday(), 'Heute');
     log('S2 karte_sofort=${has('morning_card')}');
     await waitFor(
       t,
@@ -1296,7 +1301,7 @@ void main() {
       isFalse,
     );
     await back(t);
-    await waitFor(t, () => has('home_start_run'), 'Heute');
+    await waitFor(t, () => onToday(), 'Heute');
     await waitFor(t, () => !has('morning_card'), 'Karte weg');
     await shot(t, 's8_heute_aus');
     await tapKey(t, 'home_overview');
