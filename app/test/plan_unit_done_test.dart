@@ -351,6 +351,41 @@ void main() {
     expect(_inToday('plan_day_done_semantics'), findsNothing);
   });
 
+  testWidgets('doneRuns liest nur die zugeordneten Läufe, ohne Ruhetag', (
+    tester,
+  ) async {
+    final d = Device();
+    final s = await _preopen(d);
+    final other = await seedRun(s, DateTime(2026, 11, 10, 7));
+    final id = await _seedAssigned(s, rpe: 8, highHrMinutes: 3);
+    final c = PlanController(
+      session: s,
+      clock: d.clock,
+      reader: PlanDataReader(
+        session: s,
+        clock: d.clock,
+        loadRuns: () async => const [],
+      ),
+    );
+    addTearDown(c.dispose);
+    final unit = (await (s as PlanStorage).plans.unitOn(_today))!;
+    final runs = await tester.runAsync(() => c.doneRuns([unit]));
+    expect(runs!.keys, [id]);
+    expect(runs[id]!.intensive, isTrue);
+    expect(runs[id]!.treadmill, isFalse);
+    expect(runs.containsKey(other), isFalse);
+    final rest = PlanUnit(
+      day: unit.day,
+      kind: PlanUnitKind.rest,
+      phase: unit.phase,
+      weekIndex: unit.weekIndex,
+      minutes: 0,
+      segments: const [],
+      runId: id,
+    );
+    expect(await tester.runAsync(() => c.doneRuns([rest])), isEmpty);
+  });
+
   group('Startseite (FR-0025)', () {
     testWidgets('„Heute erledigt.“ mit Bewegungszeit und Strecke', (
       tester,
@@ -358,6 +393,8 @@ void main() {
       final d = Device();
       final s = await _preopen(d);
       await _seedAssigned(s, rpe: 3);
+      // Ein späterer, nicht zugeordneter Lauf am selben Tag zählt nicht.
+      await seedRun(s, DateTime(2026, 11, 11, 10));
       await d.start(tester, const Locale('de'));
       expect(key('home_today_done'), findsOneWidget);
       expect(text('home_today_done_run'), '52 min · 9,1 km');
