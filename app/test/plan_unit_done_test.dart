@@ -404,9 +404,35 @@ void main() {
     await tester.tap(_todayCard);
     await tester.pumpAndSettle();
     expect(find.byType(PlanUnitScreen), findsOneWidget);
+    expect(key('plan_unit_run'), findsOneWidget);
     expect(text('plan_unit_run'), '52 min · 9,1 km');
     expect(text('plan_unit_run_intensity'), 'intensiv');
     expect(key('plan_unit_open_run'), findsOneWidget);
+    expect(d.storage.data.overviewReads, reads);
+  });
+
+  testWidgets('Lauf in der Woche nicht lesbar: Einheit öffnet ohne '
+      '„Gelaufen“, ohne erneutes Lesen (FR-0171)', (tester) async {
+    final d = Device();
+    final s = await _preopen(d);
+    final id = await _seedAssigned(s, rpe: 8);
+    // Die Wiedergabe scheitert; die beim Start gespeicherte Kurzfassung
+    // fehlt danach, also muss die Woche neu rechnen und kann es nicht.
+    d.offload = <A, R>(R Function(A) job, A arg) async =>
+        throw StateError('nicht lesbar');
+    await d.start(tester, const Locale('de'));
+    d.storage.data.preprocessing.remove(id);
+    await tester.tap(key('home_plan'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(_todayCard);
+    await tester.pumpAndSettle();
+    expect(_inToday('plan_day_run'), findsNothing);
+    final reads = d.storage.data.overviewReads;
+    await tester.tap(_todayCard);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlanUnitScreen), findsOneWidget);
+    expect(key('plan_unit_run'), findsNothing);
+    expect(key('plan_unit_open_run'), findsNothing);
     expect(d.storage.data.overviewReads, reads);
   });
 
