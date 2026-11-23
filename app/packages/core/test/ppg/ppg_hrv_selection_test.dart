@@ -299,13 +299,13 @@ void main() {
         ),
     ];
 
-    test('RMSSD aus intervalsMs nachgerechnet = rmssdMs, Version 3', () {
+    test('RMSSD aus intervalsMs nachgerechnet = rmssdMs, Version 4', () {
       for (final seed in [1, 2, 3, 21, 22]) {
         final m = evaluatePpg(frames(synth(0.85, 0.05, 0.03, 1.0, 30.0, seed)));
         if (m.rmssdMs == null) continue;
         expect(m.intervalsMs.length, m.intervals);
         expect(rmssdOf(m.intervalsMs), closeTo(m.rmssdMs!, 1e-9));
-        expect(m.methodVersion, 3);
+        expect(m.methodVersion, 4);
       }
     });
 

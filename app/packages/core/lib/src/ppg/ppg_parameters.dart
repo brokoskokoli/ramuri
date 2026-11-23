@@ -6,8 +6,10 @@ import '../algorithm_category.dart';
 /// Ende beim ersten guten Fenster (ALGORITHMUS.md Abschn. 2); Qualitätsgrenzen unverändert.
 /// Version 3 (PAR-230) = Schläge mit uneinigen Bezugspunkten zählen nicht für RMSSD, SDNN und
 /// pNN50 (ALGORITHMUS.md Abschn. 8); Puls, Anteil gültiger Intervalle und Fensterwahl unverändert.
+/// Version 4 = Aufnahme mit festem Fokus, ohne optische und Videostabilisierung (ADR-0011,
+/// Nachtrag 2026-11-21); Auswertung unverändert.
 const String ppgMethod = 'camera-ppg';
-const int ppgMethodVersion = 3;
+const int ppgMethodVersion = 4;
 
 /// Stand der Referenz, aus der das Verfahren portiert ist.
 const String ppgReference = 'algo-v0.4-frozen';

@@ -2,6 +2,7 @@ package io.github.brokoskokoli.ramuri
 
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraMetadata
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -397,5 +398,75 @@ class PpgCameraLogicTest {
         assertEquals(0, quits)
         g.quitWhenIdle()
         assertEquals(1, quits)
+    }
+
+    // --- Fokus und Stabilisierung (ADR-0011, Nachtrag 2026-11-21) ---
+
+    private val afOff = CameraMetadata.CONTROL_AF_MODE_OFF
+    private val afAuto = CameraMetadata.CONTROL_AF_MODE_AUTO
+    private val afPicture = CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+    private val oisOff = CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_OFF
+    private val oisOn = CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON
+    private val vsOff = CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF
+    private val vsOn = CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON
+
+    @Test fun manualFocusIsOffAtTheShortestDistance() {
+        val s = PpgCameraLogic.lensSettings(PpgLensProps(afModes = listOf(afOff, afAuto, afPicture), minFocusDistance = 10.0f))
+        assertEquals(afOff, s.afMode)
+        assertEquals(10.0f, s.focusDistance!!, 0f)
+    }
+
+    @Test fun fixedFocusSetsNoFocusKeys() {
+        for (min in listOf(0f, null)) {
+            for (modes in listOf(listOf(afOff), listOf(afOff, afAuto))) {
+                val s = PpgCameraLogic.lensSettings(PpgLensProps(afModes = modes, minFocusDistance = min))
+                assertNull("$min $modes", s.afMode)
+                assertNull("$min $modes", s.focusDistance)
+            }
+        }
+    }
+
+    @Test fun withoutOffFocusIsAutoWithoutDistance() {
+        val s = PpgCameraLogic.lensSettings(PpgLensProps(afModes = listOf(afAuto, afPicture), minFocusDistance = 10.0f))
+        assertEquals(afAuto, s.afMode)
+        assertNull(s.focusDistance)
+    }
+
+    @Test fun withoutOffAndAutoNothingIsSet() {
+        for (modes in listOf(listOf(afPicture), emptyList(), null)) {
+            val s = PpgCameraLogic.lensSettings(PpgLensProps(afModes = modes, minFocusDistance = 10.0f))
+            assertNull("$modes", s.afMode)
+            assertNull("$modes", s.focusDistance)
+        }
+    }
+
+    @Test fun stabilizationIsOffOnlyWhenAvailable() {
+        val on = PpgCameraLogic.lensSettings(PpgLensProps(oisModes = listOf(oisOff, oisOn), videoStabModes = listOf(vsOff, vsOn)))
+        assertEquals(oisOff, on.oisMode)
+        assertEquals(vsOff, on.videoStabMode)
+        for (ois in listOf(listOf(oisOn), emptyList(), null)) {
+            assertNull("$ois", PpgCameraLogic.lensSettings(PpgLensProps(oisModes = ois)).oisMode)
+        }
+        for (vs in listOf(listOf(vsOn), listOf(vsOn, CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION), emptyList(), null)) {
+            assertNull("$vs", PpgCameraLogic.lensSettings(PpgLensProps(videoStabModes = vs)).videoStabMode)
+        }
+    }
+
+    @Test fun nothingKnownSetsNothing() {
+        assertEquals(PpgLensSettings(null, null, null, null), PpgCameraLogic.lensSettings(PpgLensProps()))
+    }
+
+    @Test fun physicalCameraDeterminesTheFocusDistance() {
+        // AF-Modi und Stabilisierung von der logischen Kamera (Anfrage), kürzeste Distanz von der physischen.
+        val logical = PpgLensProps(listOf(afOff, afAuto), 10.0f, listOf(oisOff, oisOn), listOf(vsOff))
+        val s = PpgCameraLogic.lensSettings(logical, PpgLensProps(afModes = null, minFocusDistance = 5.0f))
+        assertEquals(afOff, s.afMode)
+        assertEquals(5.0f, s.focusDistance!!, 0f)
+        assertEquals(oisOff, s.oisMode)
+        assertEquals(vsOff, s.videoStabMode)
+        // Physische Kamera mit Fixfokus: keine Fokus-Schlüssel, auch wenn die logische fokussieren kann.
+        val fixed = PpgCameraLogic.lensSettings(logical, PpgLensProps(minFocusDistance = 0f))
+        assertNull(fixed.afMode)
+        assertNull(fixed.focusDistance)
     }
 }

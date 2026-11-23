@@ -761,7 +761,11 @@ final Map<String, List<Object>> parCodeValues = {
     ppgInconsistentMedianRadius,
     ..._doc([50], 'Name des Maßes pNN50.'),
     ppgMinHrvDiffs,
-    ppgMethodVersion,
+    ..._doc(
+      [3],
+      'Version, ab der PAR-230 gilt; die aktuelle Version (ppgMethodVersion) '
+      'ist seit der festen Kameraeinstellung (ADR-0011) 4.',
+    ),
   ],
 };
 
