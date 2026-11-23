@@ -704,8 +704,10 @@ void main() {
       expect(offer!.runIds, contains(only));
       await s.confirm(offer);
       await expectOneScale(BanisterTrimp.methodIdMale);
-      // Kein Laufwert nebenbei entstanden.
+      // Kein Laufwert (VO2max) nebenbei entstanden; die Zeit bei mindestens
+      // 80 % HFmax legt die Neuberechnung als neue Methode an.
       expect((await pairs(only)).map((p) => p.original.key), [
+        highHeartRateTimeValueKey,
         trimpRunValueKey,
       ]);
 

@@ -616,12 +616,14 @@ class PlanController extends ChangeNotifier {
 
   /// Beendete Läufe mit Ortstag (Tag des Laufendes, [dayOfRun]) in
   /// `from <= Tag <= to`, für den Kalender (FR-0171) und die Prüfung beim
-  /// Verschieben: [PlanCalendarRun.intensive] nach PAR-058 aus der
-  /// RPE-Angabe ([PlanParameters.completedIntensiveMinRpe]).
+  /// Verschieben: [PlanCalendarRun.intensive] nach PAR-058
+  /// ([PlanParameters.completedIntensive]) aus der Zeit bei mindestens 80 %
+  /// HFmax (Laufwert [highHeartRateTimeValueKey]) oder der RPE-Angabe; ohne
+  /// verfügbaren Wert zählt nur die RPE-Angabe.
   ///
   /// Liest nur die Läufe, deren Ende höchstens den größten UTC-Versatz
   /// ([maxRunEndUtcOffset]) außerhalb des Zeitraums liegt, und nur deren
-  /// subjektive Angaben (Befund E2-6).
+  /// subjektive Angaben und Laufwerte (Befund E2-6).
   Future<List<PlanCalendarRun>> runsBetween(DateTime from, DateTime to) async {
     final f = planDay(from), t = planDay(to);
     final result = <PlanCalendarRun>[];
@@ -632,13 +634,21 @@ class PlanController extends ChangeNotifier {
       final p = DateTime.parse(dayOfRun(r));
       final day = DateTime.utc(p.year, p.month, p.day);
       if (day.isBefore(f) || day.isAfter(t)) continue;
-      final value = (await session.subjective.read(r.id))?.subjective.rpe;
+      final rpe = (await session.subjective.read(r.id))?.subjective.rpe;
+      double? highHr;
+      for (final p in await session.values.read(ValueOwner.run(r.id))) {
+        if (p.current.key == highHeartRateTimeValueKey) {
+          highHr = p.current.value;
+        }
+      }
       result.add(
         PlanCalendarRun(
           id: r.id,
           day: day,
-          intensive:
-              value != null && value >= parameters.completedIntensiveMinRpe,
+          intensive: parameters.completedIntensive(
+            rpe: rpe,
+            highHrMinutes: highHr,
+          ),
         ),
       );
     }

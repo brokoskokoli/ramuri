@@ -378,8 +378,11 @@ final Map<String, List<Object>> parCodeValues = {
     _plan.peakFallbackHalf,
   ],
   'PAR-058': [
-    ..._doc([10, 80], 'Pulskriterium für absolvierte Läufe; im Code fehlt es.'),
+    _plan.completedIntensiveMinHighHrMinutes,
+    _fit.highHeartRateMinSharePercent,
     _plan.completedIntensiveMinRpe,
+    // Auslegung: „Zeit bei mindestens 80 % HFmax“.
+    _fit.highHeartRateMinSharePercent,
   ],
   'PAR-206': [
     _feas.fitsUpToPercentPerWeek,
