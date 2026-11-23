@@ -86,6 +86,7 @@ final class PpgCameraInfo {
     this.focalLengthMm,
     this.isDefault = false,
     this.unusable,
+    this.frameRate,
   });
 
   final PpgCameraRef ref;
@@ -98,6 +99,10 @@ final class PpgCameraInfo {
 
   /// Grund, wenn die Kamera nicht nutzbar ist; `null` = nutzbar.
   final PpgCameraUnusable? unusable;
+
+  /// Bilder pro Sekunde, mit denen die Messung auf dieser Kamera liefe (höchste feste
+  /// Bildrate 30 bis 60, 60 vor 30, ADR-0011); `null` = unbekannt (FR-0220).
+  final int? frameRate;
 
   /// Taschenlampe schaltbar, feste Bildrate 30 bis 60 fps und passende Bildgröße.
   bool get usable => unusable == null;
