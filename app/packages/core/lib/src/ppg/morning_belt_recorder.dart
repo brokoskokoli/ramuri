@@ -5,9 +5,9 @@ import '../preprocessing/measurement.dart' show RrPacket;
 
 /// Sammelt für die Morgenmessung die Gurt-RR der aktiven Pulsquelle (WP33
 /// Teil E, K61 Punkt 3): nur im Entwicklermodus, je Messung genau deren Ablauf:
-/// von Beginn der Ruhephase (bei übersprungener Ruhe ab Beginn der Messung, bei
-/// „Noch einmal messen“ ab dessen Beginn) bis Ende der Aufnahme; Pakete der
-/// vorherigen Aufnahme gehören nie dazu. Nur vom ersten Quellgerät, je BLE-Paket mit Empfangszeit roh (1/1024 s). Ohne Gurt
+/// von Beginn der Ruhephase (bei übersprungener Ruhe ab Beginn der Messung;
+/// „Noch einmal messen“ beginnt wieder mit der Ruhephase) bis Ende der
+/// Aufnahme; Pakete der vorherigen Aufnahme gehören nie dazu. Nur vom ersten Quellgerät, je BLE-Paket mit Empfangszeit roh (1/1024 s). Ohne Gurt
 /// oder ohne Modus bleibt [packets] leer. Der Aufrufer speichert die Pakete
 /// erst mit einer gespeicherten Messung; sonst gehen sie mit [dispose]
 /// verloren (keine verwaisten RR). Keine Werte in Logs.
@@ -32,7 +32,8 @@ class MorningBeltRecorder {
   /// Bisher gesammelte Pakete in Empfangsreihenfolge (Kopie).
   List<RrPacket> get packets => List.unmodifiable(_packets);
 
-  /// Die Ruhephase beginnt: das Fenster öffnet sich bei [at].
+  /// Die Ruhephase beginnt: das Fenster öffnet sich bei [at]; nach [stop]
+  /// (vorige gültige Messung) abonniert der Recorder die Quelle neu.
   Future<void> onRestStarted(DateTime at) async {
     _openWindow(at);
     await _sub?.cancel();
@@ -47,9 +48,8 @@ class MorningBeltRecorder {
     _sub = readings.listen(_onReading, onError: (Object _) {});
   }
 
-  /// Eine neue Aufnahme beginnt bei [at] („Noch einmal messen“ nach
-  /// verworfener Messung oder Messung nach übersprungener Ruhe): das Fenster
-  /// öffnet sich neu, Pakete der vorherigen Aufnahme und der Lücke davor
+  /// Eine neue Aufnahme beginnt bei [at] (Messung nach übersprungener Ruhe):
+  /// das Fenster öffnet sich neu, Pakete der vorherigen Aufnahme und der Lücke davor
   /// gehören nicht dazu.
   void onMeasurementStarted(DateTime at) => _openWindow(at);
 

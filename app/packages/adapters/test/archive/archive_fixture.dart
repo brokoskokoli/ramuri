@@ -50,15 +50,16 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     "INSERT INTO raw_rr_packets (run_id, time_us, source, rr) VALUES (1, 1, 'strap', x'0004ffff00000a03'), (1, 2, 'strap2', x'0004')",
   );
-  // Morgenmessungen (WP33, Schema 13): eine volle mit Gurt-RR, eine ohne
+  // Morgenmessungen (WP33, Schema 13): eine volle mit Gurt-RR (gewählt,
+  // Schema 16), eine ohne
   // RMSSD, Zeitrauschen, Schlafstufe, Abstände und Gurt (synthetisch). camera_ibi
   // = float32 LE (1100.5 ms), rr wie raw_rr_packets.
   await sql(
     db,
-    'INSERT INTO morning_measurements (measured_at_us, utc_offset_s, posture, device_manufacturer, device_model, method, method_version, quality, resting_hr_bpm, rmssd_ms, timing_noise_ms, sleep_band, before_validation, outside_window, camera_ibi, window_start_s, window_end_s, rest_skipped_after_s, unusable_reason) '
-    "VALUES (5000, 3600, 'lying', 'Testhersteller', 'Testmodell', 'camera-ppg', 2, 'good', 52.3, 41.5, 12.25, 'from6to7', 1, 0, x'00608944', 5.0, 65.0, 37.5, NULL), "
-    "(6000, -12600, 'sitting', 'Testhersteller', 'Testmodell', 'camera-ppg', 1, 'limited', 60.1, NULL, NULL, NULL, 0, 1, x'', NULL, NULL, NULL, NULL), "
-    "(7000, 0, 'lying', 'Testhersteller', 'Testmodell', 'camera-ppg', 2, 'unusable', NULL, NULL, NULL, NULL, 0, 0, x'', NULL, NULL, NULL, 'noFinger')",
+    'INSERT INTO morning_measurements (measured_at_us, utc_offset_s, posture, device_manufacturer, device_model, method, method_version, quality, resting_hr_bpm, rmssd_ms, timing_noise_ms, sleep_band, before_validation, outside_window, camera_ibi, window_start_s, window_end_s, rest_skipped_after_s, unusable_reason, chosen) '
+    "VALUES (5000, 3600, 'lying', 'Testhersteller', 'Testmodell', 'camera-ppg', 2, 'good', 52.3, 41.5, 12.25, 'from6to7', 1, 0, x'00608944', 5.0, 65.0, 37.5, NULL, 1), "
+    "(6000, -12600, 'sitting', 'Testhersteller', 'Testmodell', 'camera-ppg', 1, 'limited', 60.1, NULL, NULL, NULL, 0, 1, x'', NULL, NULL, NULL, NULL, 0), "
+    "(7000, 0, 'lying', 'Testhersteller', 'Testmodell', 'camera-ppg', 2, 'unusable', NULL, NULL, NULL, NULL, 0, 0, x'', NULL, NULL, NULL, 'noFinger', 0)",
   );
   await sql(
     db,

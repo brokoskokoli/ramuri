@@ -245,7 +245,7 @@ void main() {
     });
 
     test('Aufheben mit gemessenen Eingaben: die nächste wöchentliche Prüfung '
-        'erzeugt keine zusätzliche Fassung (Befund 4)', () async {
+        'erzeugt keine zusätzliche Fassung', () async {
       // Gemessene Werte von heute (langsames lockeres Tempo, 3 Läufe).
       PlanInputs measuredFor(PlanInputs stored, DateTime today) => PlanInputs(
         anchor: stored.anchor,
@@ -393,7 +393,7 @@ void main() {
   });
 
   test('Melden und Aufheben setzen den Prüftag nicht: die Wochenbewertung '
-      'bleibt fällig (NB8 4)', () async {
+      'bleibt fällig', () async {
     final e = await _Env.open();
     await e.goals.save(_goal(), today: _goal().createdAt);
     await e.recalc(PlanTrigger.create, 0);
@@ -409,7 +409,7 @@ void main() {
     expect(await e.session.settings.get(planLastCheckDayKey), checked);
   });
 
-  group('Melden scheitert beim Schreiben des Plans (E2E 4)', () {
+  group('Melden scheitert beim Schreiben des Plans', () {
     Future<(_Env, WarningService)> failing() async {
       final e = await _Env.withFixed();
       return (
@@ -521,7 +521,7 @@ void main() {
     expect(out[2].pinned, isFalse);
   });
 
-  group('Warnsignal und Brücke vor dem Anker (NB7 1)', () {
+  group('Warnsignal und Brücke vor dem Anker', () {
     test('zu schwer Do, Warnsignal Do, Aufheben Fr: Sa hat wieder Dauer und '
         'Abschnitte', () async {
       final e = await _Env.open();
@@ -579,7 +579,7 @@ void main() {
   });
 
   test('Brücke aus altem Fassungseintrag ohne Dauer und Abschnitte wird '
-      'gefüllt (NB8 3)', () async {
+      'gefüllt', () async {
     final e = await _Env.open();
     await e.goals.save(_goal(), today: _goal().createdAt);
     await e.recalc(PlanTrigger.create, -2);
@@ -645,7 +645,7 @@ void main() {
     expect(back.segments, isNotEmpty);
   });
 
-  group('WarningHeld: Speichern und Lesen (NB8 2, 3)', () {
+  group('WarningHeld: Speichern und Lesen', () {
     String sig(PlanSegment s) {
       final i = s.intensity;
       return [

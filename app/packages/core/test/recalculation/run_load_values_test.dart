@@ -183,7 +183,8 @@ void main() {
           for (final p in await w.session.values.read(ValueOwner.run(old)))
             p.original.key,
         ],
-        [vo2maxRunValueKey],
+        // Die Zeit bei mindestens 80 % HFmax kommt als neue Methode dazu.
+        [highHeartRateTimeValueKey, vo2maxRunValueKey],
         reason: 'kein TRIMP nachträglich',
       );
       final overviews = await RunOverviewService(

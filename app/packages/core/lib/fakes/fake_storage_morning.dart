@@ -1,6 +1,8 @@
 import '../ports/storage.dart';
 import '../ports/storage_morning.dart';
 import '../ports/storage_raw.dart';
+import '../src/morning/morning_logic.dart'
+    show morningChoice, morningNotChoosable;
 import '../src/preprocessing/measurement.dart';
 import 'fake_storage_data.dart';
 
@@ -22,6 +24,7 @@ class FakeMorningStore implements MorningStore {
       rawSignal: rawSignal,
     );
     final id = _d.nextMorningId++;
+    // `chosen` schreibt `add` nie (immer 0, wie die Datenbank).
     _d.morning[id] = _copy(
       measurement,
       measuredAt: measurement.measuredAt.toUtc(),
@@ -78,7 +81,7 @@ class FakeMorningStore implements MorningStore {
   Future<void> setSleepBand(int measurementId, SleepBand? band) async {
     final m = _d.morning[measurementId];
     if (m == null) throw const StorageException(StorageFailure.notFound);
-    _d.morning[measurementId] = _copy(m, sleepBand: band);
+    _d.morning[measurementId] = _copy(m, sleepBand: band, chosen: m.chosen);
   }
 
   @override
@@ -89,18 +92,38 @@ class FakeMorningStore implements MorningStore {
       throw const StorageException(StorageFailure.notFound);
     }
     for (final id in ids) {
-      _d.morning[id] = _copy(_d.morning[id]!);
+      _d.morning[id] = _copy(_d.morning[id]!, chosen: _d.morning[id]!.chosen);
     }
   }
 
+  @override
+  Future<void> choose(int measurementId) async {
+    // Erst alles berechnen und prüfen, dann schreiben: ganz oder gar nicht.
+    final c = morningChoice(await list(), measurementId);
+    if (!_d.morning[measurementId]!.isChoosable) {
+      throw morningNotChoosable(measurementId);
+    }
+    for (final id in c.unchoose) {
+      final m = _d.morning[id]!;
+      _d.morning[id] = _copy(m, sleepBand: m.sleepBand, chosen: false);
+    }
+    _d.morning[measurementId] = _copy(
+      _d.morning[measurementId]!,
+      sleepBand: c.sleepBand,
+      chosen: true,
+    );
+  }
+
   /// Kopie mit den gespeicherten Abwandlungen; `sleepBand` und der Rest
-  /// kommen sonst von [m] (null bei `sleepBand` heißt: gelöscht).
+  /// kommen sonst von [m] (null bei `sleepBand` heißt: gelöscht). Eine neue
+  /// Messung ist nie gewählt ([chosen] Standard `false`, wie die Datenbank).
   static MorningMeasurement _copy(
     MorningMeasurement m, {
     DateTime? measuredAt,
     double? restingHrBpm,
     SleepBand? sleepBand,
     List<double>? cameraIntervalsMs,
+    bool? chosen,
   }) => MorningMeasurement(
     measuredAt: measuredAt ?? m.measuredAt,
     utcOffset: m.utcOffset,
@@ -121,6 +144,7 @@ class FakeMorningStore implements MorningStore {
     windowEndS: m.windowEndS,
     restSkippedAfterS: m.restSkippedAfterS,
     unusableReason: m.unusableReason,
+    chosen: chosen ?? false,
   );
 
   @override

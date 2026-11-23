@@ -25,6 +25,10 @@ class FakeStorageData {
   /// Importierte Gesundheitsdaten (WP32).
   final health = FakeHealthImportStore();
 
+  /// Wie oft die Übersichten aller Läufe gelesen wurden
+  /// (`preprocessing.readOverviews`); für Tests ohne doppeltes Lesen.
+  int overviewReads = 0;
+
   int nextRunId = 1;
   int nextGapId = 1;
   int nextTrainingId = 1;

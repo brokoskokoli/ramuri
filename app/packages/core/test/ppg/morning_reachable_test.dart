@@ -10,10 +10,11 @@ void main() {
     q: s,
   };
 
-  test('heutiger Stand: alles nicht geprüft, Verfahren camera-ppg v3', () {
-    // Version 3 (PAR-230): die Validierung beginnt neu, beide Größen bleiben „nicht geprüft“.
+  test('heutiger Stand: alles nicht geprüft, Verfahren camera-ppg v5', () {
+    // Version 5 (Belichtung, ADR-0011, Nachtrag 2026-11-22): die Validierung
+    // beginnt neu, beide Größen bleiben „nicht geprüft“.
     expect(ppgMethod, 'camera-ppg');
-    expect(ppgMethodVersion, 3);
+    expect(ppgMethodVersion, 5);
     expect(ppgValidationState.keys, ValidationQuantity.values);
     expect(
       ppgValidationState.values.every((s) => s == ValidationState.notChecked),

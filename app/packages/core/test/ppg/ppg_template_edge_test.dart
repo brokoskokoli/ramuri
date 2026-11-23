@@ -2,7 +2,7 @@ import 'package:core/core.dart';
 import 'package:test/test.dart';
 
 void main() {
-  // Review 1, Befund 6: Feinbestimmung des Anstiegs-Bezugspunkts an beiden Rändern der Vorlage.
+  // Feinbestimmung des Anstiegs-Bezugspunkts an beiden Rändern der Vorlage.
   // Die Randwerte der Steigungsvorlage waren -inf; `refine` machte daraus NaN, sobald der steilste
   // Anstieg am zweiten oder vorletzten Index lag.
   const fs = 100.0;

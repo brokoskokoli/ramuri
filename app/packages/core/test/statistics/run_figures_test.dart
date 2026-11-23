@@ -119,7 +119,7 @@ void main() {
       final loss = movingTimeInPositionGaps(pre);
       expect(loss.inSeconds, inInclusiveRange(25, 35));
 
-      // fromRun zieht die Lücke von der Pace-Zeit ab (Befund 2).
+      // fromRun zieht die Lücke von der Pace-Zeit ab.
       final f = RunFigures.fromRun(
         run: StoredRun(
           id: 1,

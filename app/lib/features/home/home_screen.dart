@@ -786,6 +786,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             );
             lines.add(Text(l.planTodayDone, key: const Key('home_today_done')));
+            // Bewegungszeit und Strecke des zugeordneten Laufs (FR-0171) aus
+            // den schon geladenen Läufen; ein Ruhetag mit Lauf bleibt ohne.
+            final runId = unit.runId;
+            if (unit.kind != PlanUnitKind.rest) {
+              lines.add(
+                FutureBuilder<_Data>(
+                  future: _future,
+                  builder: (context, snap) {
+                    for (final o in snap.data?.overviews ?? <RunOverview>[]) {
+                      if (o.run.id != runId || o.readFailed) continue;
+                      return Text(
+                        planDoneRunLine(l, formatter, PlanDoneRun.of(o)),
+                        key: const Key('home_today_done_run'),
+                        style: t.bodyMedium,
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              );
+            }
           } else if (!open) {
             lines.add(Text(l.planTodayRest, key: const Key('home_today_rest')));
           } else {

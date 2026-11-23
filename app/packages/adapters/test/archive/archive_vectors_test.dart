@@ -477,6 +477,38 @@ void main() {
     expect(lines.last['rows']['morning_raw_signals'], 2);
   });
 
+  test('archive_v2_s16: Format 2, Schema 16, gewählte Morgenmessung (Abschnitt 32)', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s16');
+    final plain = await _collect(
+      createArchiveCipher().decrypt(
+        v['password'] as String,
+        Stream.value(_read(v['file'] as String)),
+      ),
+    );
+    expect(_read(v['file'] as String)[9], 2);
+    final text = utf8.decode(gzip.decode(plain));
+    expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+    final lines = [
+      for (final l in const LineSplitter().convert(text))
+        jsonDecode(l) as Map<String, dynamic>,
+    ];
+    expect(lines.first['format'], 2);
+    expect(lines.first['schema_version'], 16);
+    final start = lines.indexWhere(
+      (l) => l['type'] == 'section' && l['name'] == 'morning_measurements',
+    );
+    final morning = [
+      for (final l
+          in lines.skip(start + 1).takeWhile((l) => l['type'] == 'row'))
+        l['data'] as Map,
+    ];
+    expect(morning.map((r) => r['id']), [1, 2, 3]);
+    // Die neue Spalte steht am Zeilenende.
+    expect(morning.first.keys.last, 'chosen');
+    expect(morning.map((r) => r['chosen']), [1, 0, 0]);
+    expect(lines.last['rows'], v['row_counts']);
+  });
+
   test('archive_v2_s11: Format 2, Schema 11, active_warning mit einer Zeile (Abschnitt 21)', () async {
     final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s11');
     final plain = await _collect(

@@ -2,6 +2,7 @@ package io.github.brokoskokoli.ramuri
 
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraMetadata
 
 /**
  * Entscheidungen und Ablaufsteuerung der Kamera-Messung ohne Android-Objekte (ADR-0011 Punkte 2, 6),
@@ -117,6 +118,74 @@ object PpgCameraLogic {
         return PpgCameraPick(e, e.reason)
     }
 
+    /**
+     * Fokus und Stabilisierung der Aufnahme (ADR-0011, Nachtrag 2026-11-21): die Linse bewegt sich
+     * während der Messung nicht. Nur was die Kamera laut Characteristics kann; `null` oder leer gilt
+     * als „nicht unterstützt“, dann bleibt der Schlüssel ungesetzt.
+     * - Fokus: kürzeste Distanz > 0 und AF-Modus OFF verfügbar → OFF mit Fokus auf die kürzeste
+     *   Distanz; sonst AUTO ohne Auslöser, wenn verfügbar; Fixfokus (kürzeste Distanz fehlt oder 0) → nichts.
+     * - OIS und Videostabilisierung: OFF, wenn verfügbar.
+     * [request] ist die Kamera, an die die Anfrage geht (AF-Modi, OIS, Videostabilisierung);
+     * [imageSource] die physische Kamera, die die Bilder liefert (FR-0220): von ihr kommt die
+     * kürzeste Distanz. Ohne physische Kamera gilt die von [request].
+     */
+    fun lensSettings(request: PpgLensProps, imageSource: PpgLensProps? = null): PpgLensSettings {
+        val minFocus = (imageSource ?: request).minFocusDistance
+        val af = request.afModes.orEmpty()
+        val manual = minFocus != null && minFocus > 0f && CameraMetadata.CONTROL_AF_MODE_OFF in af
+        val afMode = when {
+            minFocus == null || minFocus <= 0f -> null
+            manual -> CameraMetadata.CONTROL_AF_MODE_OFF
+            CameraMetadata.CONTROL_AF_MODE_AUTO in af -> CameraMetadata.CONTROL_AF_MODE_AUTO
+            else -> null
+        }
+        return PpgLensSettings(
+            afMode = afMode,
+            focusDistance = if (manual) minFocus else null,
+            oisMode = CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_OFF
+                .takeIf { it in request.oisModes.orEmpty() },
+            videoStabMode = CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF
+                .takeIf { it in request.videoStabModes.orEmpty() },
+        )
+    }
+
+    /**
+     * Antibanding der Aufnahme (ADR-0011, Nachtrag 2026-11-22): OFF, wenn die Kamera, die die Bilder
+     * liefert, es in CONTROL_AE_AVAILABLE_ANTIBANDING_MODES führt; sonst `null` (Standard bleibt).
+     * Unter dem Finger leuchtet nur der Blitz, es gibt kein Netzflimmern.
+     */
+    fun antibandingMode(modes: List<Int>?): Int? =
+        CameraMetadata.CONTROL_AE_ANTIBANDING_MODE_OFF.takeIf { it in modes.orEmpty() }
+
+    /**
+     * Sperre nach der Einschwingzeit (ADR-0011, Nachtrag 2026-11-22). Mit [manualSensor] (Fähigkeit
+     * MANUAL_SENSOR der Kamera, die die Bilder liefert), Belichtung [e0] und Empfindlichkeit [s0] aus
+     * dem letzten Ergebnis und beiden Bereichen: manuell mit Bilddauer T = 1 s / [fps], Belichtung
+     * e = min(T, obere Grenze von [exposureRange]), nie kürzer als [e0], und Empfindlichkeit
+     * s = round(s0 · e0 / e), begrenzt auf [sensitivityRange] – die Helligkeit bleibt wie bei der
+     * Automatik. Sonst die AE-Sperre wie bisher. Bereiche als (untere, obere) Grenze; Zeiten in ns.
+     */
+    fun exposureLock(
+        fps: Int,
+        e0: Long?,
+        s0: Int?,
+        exposureRange: Pair<Long, Long>?,
+        sensitivityRange: Pair<Int, Int>?,
+        manualSensor: Boolean,
+    ): PpgExposureLock {
+        if (!manualSensor || e0 == null || s0 == null || exposureRange == null || sensitivityRange == null) {
+            return PpgExposureLock.AeLock
+        }
+        // Ohne brauchbare Werte lässt sich nichts umrechnen.
+        if (fps <= 0 || e0 <= 0 || s0 <= 0) return PpgExposureLock.AeLock
+        val frame = Math.round(1e9 / fps)
+        var e = minOf(frame, exposureRange.second)
+        if (e <= e0) e = e0
+        val s = Math.round(s0.toDouble() * e0 / e).toInt()
+            .coerceIn(sensitivityRange.first, sensitivityRange.second)
+        return PpgExposureLock.Manual(exposureNs = e, sensitivity = s, frameDurationNs = frame)
+    }
+
     /** CameraDevice.StateCallback.onError. */
     fun fromDeviceError(code: Int): String = when (code) {
         CameraDevice.StateCallback.ERROR_CAMERA_IN_USE, CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE -> "busy"
@@ -179,6 +248,43 @@ data class PpgCameraEntry(
         "usable" to usable,
         "reason" to reason,
     )
+}
+
+/**
+ * Characteristics einer Kamera für [PpgCameraLogic.lensSettings] (ohne Android-Objekte), `null` = fehlt.
+ */
+data class PpgLensProps(
+    /** CONTROL_AF_AVAILABLE_MODES. */
+    val afModes: List<Int>? = null,
+    /** LENS_INFO_MINIMUM_FOCUS_DISTANCE in Dioptrien; 0 = Fixfokus. */
+    val minFocusDistance: Float? = null,
+    /** LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION. */
+    val oisModes: List<Int>? = null,
+    /** CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES. */
+    val videoStabModes: List<Int>? = null,
+)
+
+/**
+ * Zu setzende Werte der Anfrage, `null` = nicht setzen: CONTROL_AF_MODE, LENS_FOCUS_DISTANCE,
+ * LENS_OPTICAL_STABILIZATION_MODE, CONTROL_VIDEO_STABILIZATION_MODE.
+ */
+data class PpgLensSettings(
+    val afMode: Int?,
+    val focusDistance: Float?,
+    val oisMode: Int?,
+    val videoStabMode: Int?,
+)
+
+/** Ergebnis von [PpgCameraLogic.exposureLock]. */
+sealed class PpgExposureLock {
+    /** CONTROL_AE_LOCK wie bisher (Automatik bleibt, gesperrt). */
+    object AeLock : PpgExposureLock()
+
+    /**
+     * CONTROL_AE_MODE_OFF mit SENSOR_EXPOSURE_TIME = [exposureNs], SENSOR_SENSITIVITY = [sensitivity]
+     * und SENSOR_FRAME_DURATION = [frameDurationNs].
+     */
+    data class Manual(val exposureNs: Long, val sensitivity: Int, val frameDurationNs: Long) : PpgExposureLock()
 }
 
 /** Ergebnis von [PpgCameraLogic.pick]: die zu öffnende Kamera oder der Grund des Abbruchs. */

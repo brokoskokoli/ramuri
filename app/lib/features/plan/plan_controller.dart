@@ -614,14 +614,32 @@ class PlanController extends ChangeNotifier {
   Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) =>
       _plans.unitsBetween(from, to);
 
+  /// Ortstag der frühesten gespeicherten Planeinheit vor [before] über alle
+  /// Fassungen, `null` ohne solche Einheit: untere Blättergrenze des
+  /// Kalenders (FR-0172). Liest nur die Einheiten vor [before].
+  Future<DateTime?> firstUnitDayBefore(DateTime before) async {
+    final units = await _plans.unitsBetween(
+      DateTime.utc(2000),
+      planDay(before).subtract(const Duration(days: 1)),
+    );
+    DateTime? first;
+    for (final u in units) {
+      final d = planDay(u.day);
+      if (first == null || d.isBefore(first)) first = d;
+    }
+    return first;
+  }
+
   /// Beendete Läufe mit Ortstag (Tag des Laufendes, [dayOfRun]) in
   /// `from <= Tag <= to`, für den Kalender (FR-0171) und die Prüfung beim
-  /// Verschieben: [PlanCalendarRun.intensive] nach PAR-058 aus der
-  /// RPE-Angabe ([PlanParameters.completedIntensiveMinRpe]).
+  /// Verschieben: [PlanCalendarRun.intensive] nach PAR-058
+  /// ([PlanParameters.completedIntensive]) aus der Zeit bei mindestens 80 %
+  /// HFmax (Laufwert [highHeartRateTimeValueKey]) oder der RPE-Angabe; ohne
+  /// verfügbaren Wert zählt nur die RPE-Angabe.
   ///
   /// Liest nur die Läufe, deren Ende höchstens den größten UTC-Versatz
   /// ([maxRunEndUtcOffset]) außerhalb des Zeitraums liegt, und nur deren
-  /// subjektive Angaben (Befund E2-6).
+  /// subjektive Angaben und Laufwerte (Befund E2-6).
   Future<List<PlanCalendarRun>> runsBetween(DateTime from, DateTime to) async {
     final f = planDay(from), t = planDay(to);
     final result = <PlanCalendarRun>[];
@@ -632,17 +650,58 @@ class PlanController extends ChangeNotifier {
       final p = DateTime.parse(dayOfRun(r));
       final day = DateTime.utc(p.year, p.month, p.day);
       if (day.isBefore(f) || day.isAfter(t)) continue;
-      final value = (await session.subjective.read(r.id))?.subjective.rpe;
+      final rpe = (await session.subjective.read(r.id))?.subjective.rpe;
+      double? highHr;
+      for (final p in await session.values.read(ValueOwner.run(r.id))) {
+        if (p.current.key == highHeartRateTimeValueKey) {
+          highHr = p.current.value;
+        }
+      }
       result.add(
         PlanCalendarRun(
           id: r.id,
           day: day,
-          intensive:
-              value != null && value >= parameters.completedIntensiveMinRpe,
+          intensive: parameters.completedIntensive(
+            rpe: rpe,
+            highHrMinutes: highHr,
+          ),
         ),
       );
     }
     return result;
+  }
+
+  /// Die zugeordneten Läufe der erledigten Einheiten in [units] (ohne
+  /// Ruhetage) für die Anzeige (FR-0171): Bewegungszeit und Strecke wie in der
+  /// Laufliste, das Kennzeichen nach PAR-058
+  /// ([PlanParameters.completedIntensity]). Gelesen in je einer Abfrage für
+  /// alle Läufe, nicht je Einheit. Ein Lauf, den es nicht (mehr) gibt oder
+  /// dessen Daten nicht lesbar sind, fehlt in der Antwort.
+  Future<Map<int, PlanDoneRun>> doneRuns(Iterable<PlanUnit> units) async {
+    final ids = {
+      for (final u in units)
+        if (u.kind != PlanUnitKind.rest) ?u.runId,
+    };
+    if (ids.isEmpty) return const {};
+    final overviews = [
+      for (final o in await reader.runOverviews())
+        if (ids.contains(o.run.id) && !o.readFailed) o,
+    ];
+    if (overviews.isEmpty) return const {};
+    final subjective = await session.subjective.readAll();
+    final values = await session.values.readRunValues({
+      highHeartRateTimeValueKey,
+    });
+    return {
+      for (final o in overviews)
+        o.run.id: PlanDoneRun.of(
+          o,
+          intensive: parameters.completedIntensity(
+            rpe: subjective[o.run.id]?.subjective.rpe,
+            highHrMinutes: values[o.run.id]?[highHeartRateTimeValueKey]?.value,
+          ),
+        ),
+    };
   }
 
   /// Die Einheit an [day] oder `null`.
@@ -1535,4 +1594,39 @@ class PlanCalendarRun {
 
   /// Gilt nach PAR-058 als intensiv (RPE-Angabe).
   final bool intensive;
+}
+
+/// Der zugeordnete Lauf einer erledigten Einheit für die Anzeige
+/// ([PlanController.doneRuns], FR-0171). Die Einheit selbst (Vorgabe) bleibt
+/// unverändert (FR-0156).
+class PlanDoneRun {
+  const PlanDoneRun({
+    required this.id,
+    this.movingTime,
+    this.distanceMeters,
+    this.treadmill = false,
+    this.intensive,
+  });
+
+  /// Aus der Übersicht des Laufs wie in der Laufliste.
+  PlanDoneRun.of(RunOverview o, {this.intensive})
+    : id = o.run.id,
+      movingTime = o.movingTime,
+      distanceMeters = o.distanceMeters,
+      treadmill = o.run.mode == RunMode.treadmill;
+
+  final int id;
+
+  /// `null`: nicht verfügbar.
+  final Duration? movingTime;
+
+  /// `null`: nicht verfügbar; beim Laufband die Strecke des Bands.
+  final double? distanceMeters;
+
+  /// Laufbandlauf (FR-0196).
+  final bool treadmill;
+
+  /// PAR-058: `true` intensiv, `false` locker, `null` ohne Puls und RPE
+  /// (kein Kennzeichen).
+  final bool? intensive;
 }

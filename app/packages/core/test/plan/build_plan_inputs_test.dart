@@ -196,7 +196,7 @@ void main() {
     });
 
     test('einer harten/Geh-Lauf-Einheit zugeordnet: nie locker, auch bei '
-        'RPE 3 oder niedrigem Puls (NB3 Muss 2)', () {
+        'RPE 3 oder niedrigem Puls', () {
       final runs = [
         _run(1, 3, 300, avgHr: 130),
         _run(2, 4, 300, avgHr: 130),

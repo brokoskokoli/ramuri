@@ -859,7 +859,7 @@ void main() {
       );
       expect(s([r], ref: asRef), isEmpty);
     });
-    test('schon gespeicherte Referenz-Läufe kommen nicht wieder (Befund 2)', () {
+    test('schon gespeicherte Referenz-Läufe kommen nicht wieder', () {
       // Ein bestätigter Lauf, der älter ist als die aktive Referenz, ist nicht
       // die aktive Referenz, aber gespeichert.
       final r = run(40, seconds: limit - 60, meters: 10000);

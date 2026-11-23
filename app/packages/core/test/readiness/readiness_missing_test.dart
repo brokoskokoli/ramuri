@@ -19,6 +19,7 @@ MorningMeasurement _m(
   double? rmssd = 42,
   bool outside = false,
   String model = 'M1',
+  bool chosen = false,
 }) => MorningMeasurement(
   measuredAt: DateTime.utc(
     day.year,
@@ -40,6 +41,7 @@ MorningMeasurement _m(
   cameraIntervalsMs: const [],
   beforeValidation: false,
   outsideWindow: outside,
+  chosen: chosen,
 );
 
 DateTime _back(int n) => _today.subtract(Duration(days: n));
@@ -210,6 +212,43 @@ void main() {
           ReadinessMissingCode.cameraQualityLimited,
           laterIgnored: true,
         ),
+      );
+    });
+
+    test(
+      'gewählte spätere Messung gilt, die frühere ist die andere (PAR-160K)',
+      () {
+        final r = _run([
+          ..._history(1, 20),
+          _m(_today, hour: 6, rmssd: 44, hr: 57),
+          _m(
+            _today,
+            hour: 7,
+            quality: PpgQuality.limited,
+            hr: 56,
+            chosen: true,
+          ),
+        ]);
+        expect(
+          _hrv(r),
+          const ReadinessMissingReason(
+            ReadinessMissingCode.cameraQualityLimited,
+            laterIgnored: true,
+          ),
+        );
+      },
+    );
+
+    test('nur nicht wählbare andere Messungen: kein Zusatz', () {
+      final r = _run([
+        ..._history(1, 20),
+        _m(_today, hour: 6, quality: PpgQuality.limited, hr: 56),
+        _m(_today, hour: 7, quality: PpgQuality.unusable),
+        _m(_today, hour: 7, minute: 30, outside: true),
+      ]);
+      expect(
+        _hrv(r),
+        const ReadinessMissingReason(ReadinessMissingCode.cameraQualityLimited),
       );
     });
 

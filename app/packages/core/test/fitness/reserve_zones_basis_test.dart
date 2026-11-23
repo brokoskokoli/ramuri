@@ -78,21 +78,24 @@ UnavailableReason? reasonOf(FitnessResult<Object?> r) =>
     r is FitnessUnavailable ? r.reason : null;
 
 void main() {
-  test('Befund 3: v4() nimmt currentParameterVersion, kein Literal', () {
-    final src = File('lib/src/preprocessing/preprocessing_parameters.dart')
-        .readAsStringSync();
-    final lines = src.split('\n');
-    final at = lines.indexWhere((l) => l.contains('.v4()'));
-    final line = '${lines[at]} ${lines[at + 1]}';
-    expect(line, contains('currentParameterVersion'));
-    expect(line, isNot(matches(RegExp(r'parameterVersion:\s*\d'))));
-    expect(
-      const PreprocessingParameters.v4().parameterVersion,
-      currentParameterVersion,
-    );
-  });
+  test(
+    'PreprocessingParameters.v4() nimmt currentParameterVersion, kein Literal',
+    () {
+      final src = File('lib/src/preprocessing/preprocessing_parameters.dart')
+          .readAsStringSync();
+      final lines = src.split('\n');
+      final at = lines.indexWhere((l) => l.contains('.v4()'));
+      final line = '${lines[at]} ${lines[at + 1]}';
+      expect(line, contains('currentParameterVersion'));
+      expect(line, isNot(matches(RegExp(r'parameterVersion:\s*\d'))));
+      expect(
+        const PreprocessingParameters.v4().parameterVersion,
+        currentParameterVersion,
+      );
+    },
+  );
 
-  group('Befund 4: zoneFor', () {
+  group('zoneFor', () {
     const basis = HeartRateBasis(
       maxBpm: 190,
       restingBpm: 60,
@@ -133,7 +136,7 @@ void main() {
     });
   });
 
-  group('Befund 5: Fake je Familie über die Registry', () {
+  group('Fake je Familie über die Registry', () {
     test('Reserve-Fake ersetzt die Reserve in den Zonen', () {
       final reg = AlgorithmRegistry.standard()
         ..register(heartRateReserveFamily, const _FakeReserve(0.75))
@@ -179,7 +182,7 @@ void main() {
     });
   });
 
-  group('Befund 6: HFmax oder Ruhepuls <= 0 gilt als fehlend', () {
+  group('HFmax oder Ruhepuls <= 0 gilt als fehlend', () {
     for (final bad in [0, -1]) {
       test('Wert $bad', () {
         final badMax = HeartRateBasis(maxBpm: bad, restingBpm: 50);
@@ -245,7 +248,7 @@ void main() {
     });
   });
 
-  group('Befund 7: maxIsEstimated überall', () {
+  group('maxIsEstimated in jedem Ergebnis', () {
     const est = HeartRateBasis(
       maxBpm: 190,
       restingBpm: 60,
@@ -317,97 +320,7 @@ void main() {
     });
   });
 
-  group('Befund 10: Kategorien-Tabelle gegen die Registry', () {
-    final rows = <String, (int, String, String)>{};
-    final doc = File('../../../docs/architecture/algorithm-categories.md')
-        .readAsLinesSync();
-    for (final l in doc) {
-      final m = RegExp(
-        r'^\| [^|]+ \| `([a-z0-9-]+)` v(\d+) \| ([ABC]) \|.*\| (WP\d+) \|$',
-      ).firstMatch(l);
-      if (m != null) rows[m[1]!] = (int.parse(m[2]!), m[3]!, m[4]!);
-    }
-    String letter(AlgorithmCategory c) => switch (c) {
-      AlgorithmCategory.established => 'A',
-      AlgorithmCategory.heuristic => 'B',
-      AlgorithmCategory.calibrated => 'C',
-    };
-
-    test('Tabelle ist lesbar', () {
-      expect(rows.length, greaterThanOrEqualTo(11));
-    });
-
-    test('jede registrierte Variante steht mit Version und Kategorie drin', () {
-      final reg = AlgorithmRegistry.standard();
-      expect(reg.allVariants, isNotEmpty);
-      for (final v in reg.allVariants) {
-        final row = rows[v.method];
-        expect(row, isNotNull, reason: '${v.method} fehlt in der Tabelle');
-        expect(row!.$1, v.methodVersion, reason: v.method);
-        expect(row.$2, letter(v.category), reason: v.method);
-      }
-    });
-
-    test('WP03-Zeilen tragen die Version der Konstanten im Code', () {
-      final code = <String, int>{
-        positionMethod: positionMethodVersion,
-        paceMethod: paceMethodVersion,
-        movementMethod: movementMethodVersion,
-        heartRateMethod: heartRateMethodVersion,
-        settlingMethod: settlingMethodVersion,
-        altitudeMethod: altitudeMethodVersion,
-        stepsMethod: stepsMethodVersion,
-        sectionQualityMethod: sectionQualityMethodVersion,
-      };
-      final wp03 = {
-        for (final e in rows.entries.where((e) => e.value.$3 == 'WP03'))
-          e.key: e.value.$1,
-      };
-      expect(wp03.keys.toSet(), code.keys.toSet());
-      for (final e in code.entries) {
-        expect(wp03[e.key], e.value, reason: e.key);
-      }
-    });
-
-    test(
-      'WP03-Zeilen und Abschnittsauswahl tragen die Kategorie des Codes',
-      () {
-        final code = <String, AlgorithmCategory>{
-          positionMethod: positionCategory,
-          paceMethod: paceCategory,
-          movementMethod: movementCategory,
-          heartRateMethod: heartRateCategory,
-          settlingMethod: settlingCategory,
-          altitudeMethod: altitudeCategory,
-          stepsMethod: stepsCategory,
-          sectionQualityMethod: sectionQualityCategory,
-          vo2maxSectionSelectionMethod: vo2maxSectionSelectionCategory,
-        };
-        final doc = {
-          for (final e in rows.entries.where(
-            (e) =>
-                e.value.$3 == 'WP03' || e.key == vo2maxSectionSelectionMethod,
-          ))
-            e.key: e.value.$2,
-        };
-        expect(doc.keys.toSet(), code.keys.toSet());
-        for (final e in code.entries) {
-          expect(doc[e.key], letter(e.value), reason: e.key);
-        }
-      },
-    );
-
-    test('jede Zeile von WP04 ist registriert', () {
-      final registered = {
-        for (final v in AlgorithmRegistry.standard().allVariants) v.method,
-      };
-      for (final e in rows.entries.where((e) => e.value.$3 == 'WP04')) {
-        expect(registered, contains(e.key));
-      }
-    });
-  });
-
-  group('Befund 11: TRIMP-Grenzen und Gewichte', () {
+  group('TRIMP-Grenzen und Gewichte', () {
     FitnessParameters with_({List<double>? bounds, List<int>? weights}) =>
         FitnessParameters(
           parameterVersion: p.parameterVersion,

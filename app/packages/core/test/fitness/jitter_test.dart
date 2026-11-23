@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 import '../preprocessing/support.dart';
 
-// Befund 1 (Review 2): Zeitstempel-Jitter ohne fehlende Werte darf weder
+// Zeitstempel-Jitter ohne fehlende Werte darf weder
 // `incomplete` setzen noch Punkte kosten. Alles über den echten
 // RunPreprocessor, 1800 s, 3 m/s, Puls 150 bei HFmax 200 (Gewicht 3, also
 // 90 Punkte), fester Seed.

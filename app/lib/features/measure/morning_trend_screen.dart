@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../plan/plan_recovery_trigger.dart';
 import '../reminders/morning_reminder_tile.dart';
 import 'device_info.dart';
 import 'morning_trend_logic.dart';
@@ -13,6 +14,9 @@ import 'resting_widgets.dart';
 /// (liegend und sitzend zusammen, Punkte nach Haltung markiert), Ruhepuls und
 /// RMSSD der letzten 14 Tage aus den zählenden Messungen, 7-Tage-Mittel
 /// gestrichelt, Markierungen nach K-1, Liste der letzten Messungen, Morgenfenster.
+/// In der Liste lässt sich eine Messung, die nicht zählt, weil an ihrem Morgen
+/// eine andere zählt, als gültige des Tages wählen (FR-0215, PAR-160K); eine
+/// Wahl für heute prüft danach den Plan ([recovery], FR-0157).
 /// Ohne Sichtbarkeit ([morningMeasurementReachable]) zeigt sie nichts.
 class MorningTrendScreen extends StatefulWidget {
   const MorningTrendScreen({
@@ -21,12 +25,16 @@ class MorningTrendScreen extends StatefulWidget {
     required this.clock,
     this.validationState = ppgValidationState,
     this.device = readDeviceInfo,
+    this.recovery,
   });
 
   final StorageSession session;
   final Clock clock;
   final Map<ValidationQuantity, ValidationState> validationState;
   final DeviceInfoReader device;
+
+  /// Prüft nach einer Wahl für heute den Plan (FR-0157); `null` ohne Plan.
+  final PlanRecoveryTrigger? recovery;
 
   @override
   State<MorningTrendScreen> createState() => _MorningTrendScreenState();
@@ -36,6 +44,7 @@ class _Data {
   const _Data({
     required this.developerMode,
     required this.measurements,
+    required this.ids,
     required this.window,
     required this.optIn,
     required this.device,
@@ -43,6 +52,9 @@ class _Data {
 
   final bool developerMode;
   final List<MorningMeasurement> measurements;
+
+  /// Speicher-Id je Messung (Identität), für die Wahl.
+  final Map<MorningMeasurement, int> ids;
   final MorningWindow window;
   final bool optIn;
   final DeviceInfo device;
@@ -68,12 +80,12 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
     )) {
       return null;
     }
-    final visible = [
-      for (final e in await (session as MorningStorage).morning.list()) e.value,
-    ];
+    final stored = await (session as MorningStorage).morning.list();
     return _Data(
       developerMode: dev,
-      measurements: visible,
+      measurements: [for (final e in stored) e.value],
+      ids: Map.identity()
+        ..addEntries(stored.map((e) => MapEntry(e.value, e.id))),
       window: await SettingsMorningWindowStore(
         session.settings,
         widget.clock,
@@ -101,6 +113,33 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
     } catch (_) {
       if (mounted) setState(() => _failed = true);
     }
+  }
+
+  /// Wählt [m] nach Bestätigung als gültige Messung ihres Tages
+  /// ([MorningStore.choose]). Liegt sie auf dem heutigen Ortstag, prüft
+  /// [MorningTrendScreen.recovery] den Plan wie nach einer Morgenmessung.
+  /// Scheitert das Speichern, erscheint der Fehler der Seite und die Liste
+  /// bleibt, wie sie war.
+  Future<void> _choose(_Data d, MorningMeasurement m) async {
+    final id = d.ids[m];
+    if (id == null) return;
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _ChooseSheet(),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await (widget.session as MorningStorage).morning.choose(id);
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+      return;
+    }
+    final now = widget.clock.now();
+    final local = now.toUtc().add(widget.clock.utcOffsetAt(now));
+    final today = DateTime.utc(local.year, local.month, local.day);
+    if (mounted) _reload();
+    if (morningLocalDay(m) == today) await widget.recovery?.recheck();
   }
 
   Future<void> _pickWindow(MorningWindow current) async {
@@ -261,7 +300,13 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
               : null,
         ),
       ],
-      if (rows.isNotEmpty) _RecentList(rows: rows, nf: nf0, nf1: nf1),
+      if (rows.isNotEmpty)
+        _RecentList(
+          rows: rows,
+          nf: nf0,
+          nf1: nf1,
+          onChoose: (m) => _choose(d, m),
+        ),
       RamuriCard(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Column(
@@ -373,11 +418,20 @@ class _PostureLegend extends StatelessWidget {
 }
 
 class _RecentList extends StatelessWidget {
-  const _RecentList({required this.rows, required this.nf, required this.nf1});
+  const _RecentList({
+    required this.rows,
+    required this.nf,
+    required this.nf1,
+    required this.onChoose,
+  });
 
   final List<MorningRow> rows;
   final NumberFormat nf;
   final NumberFormat nf1;
+
+  /// Aktion „Als gültige Messung des Tages verwenden“ (nur Status „zählt
+  /// nicht, an diesem Morgen zählt eine andere“).
+  final void Function(MorningMeasurement m) onChoose;
 
   @override
   Widget build(BuildContext context) {
@@ -458,7 +512,10 @@ class _RecentList extends StatelessWidget {
           ].join(' · ');
     final local = m.measuredAt.toUtc().add(m.utcOffset);
     final muted = r.status != MorningRowStatus.counts;
-    return MergeSemantics(
+    // Nur „zählt nicht, an diesem Morgen zählt eine andere“ ist wählbar
+    // (PAR-160K); außerhalb des Fensters, unbrauchbar und zählend nicht.
+    final choosable = r.status == MorningRowStatus.later;
+    final row = MergeSemantics(
       child: ConstrainedBox(
         key: Key('morning_row_${m.measuredAt.millisecondsSinceEpoch}'),
         constraints: const BoxConstraints(minHeight: 56),
@@ -482,6 +539,11 @@ class _RecentList extends StatelessWidget {
                       note,
                       style: theme.bodySmall!.copyWith(color: c.textMuted),
                     ),
+                    if (choosable)
+                      Text(
+                        l10n.morningChooseRow,
+                        style: theme.labelMedium!.copyWith(color: c.action),
+                      ),
                   ],
                 ),
               ),
@@ -493,6 +555,58 @@ class _RecentList extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+    if (!choosable) return row;
+    // Ganze Zeile als Tippfläche (mindestens 56 dp hoch), mit Ansage der
+    // Aktion für den Screenreader.
+    return Semantics(
+      button: true,
+      onTapHint: l10n.morningChooseRow,
+      child: InkWell(
+        key: Key('morning_choose_${m.measuredAt.millisecondsSinceEpoch}'),
+        onTap: () => onChoose(m),
+        child: row,
+      ),
+    );
+  }
+}
+
+/// Bestätigung „Als gültige Messung des Tages verwenden“.
+class _ChooseSheet extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              l10n.morningRowLater,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 56,
+              child: RamuriPrimaryButton(
+                key: const Key('morning_choose_confirm'),
+                label: l10n.morningChooseRow,
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ),
+            TextButton(
+              key: const Key('morning_choose_cancel'),
+              style: TextButton.styleFrom(
+                minimumSize: const Size.fromHeight(RamuriTheme.minTarget),
+              ),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.measureCancel),
+            ),
+          ],
         ),
       ),
     );

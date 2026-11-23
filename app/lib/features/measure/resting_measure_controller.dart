@@ -899,6 +899,27 @@ class RestingMeasureController extends ChangeNotifier {
     await _begin(restElapsed: _restElapsed);
   }
 
+  /// Neuer Ablauf nach einem Ergebnis (Morgenmessung, „Noch einmal messen“):
+  /// zurück zum Einstieg mit der zuletzt gewählten Haltung (änderbar) und
+  /// derselben Ruhedauer; der Start beginnt wieder mit der Ruhephase
+  /// ([startRest]), ein Überspringen wird wie beim ersten Ablauf vermerkt.
+  void restart() {
+    if (_phase != RestingMeasurePhase.result) return;
+    _run++;
+    _stopTicker();
+    _resetMeasurement();
+    _result = null;
+    _stopCause = null;
+    _restStart = null;
+    _restElapsed = null;
+    _restRemaining = Duration.zero;
+    _restSkipped = false;
+    _restSkippedAfter = null;
+    _pendingStart = false;
+    _phase = RestingMeasurePhase.entry;
+    _notify();
+  }
+
   // Lebenszyklus -----------------------------------------------------------
 
   /// Die App ging in den Hintergrund. Eine laufende Anfrage oder Messung endet

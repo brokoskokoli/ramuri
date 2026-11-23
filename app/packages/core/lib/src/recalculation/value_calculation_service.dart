@@ -14,6 +14,7 @@ import '../profile/heart_rate_resolution.dart';
 import '../settings/load_settings.dart';
 import '../settings/reserve_zone_settings.dart';
 import 'calculation_failures.dart';
+import 'high_heart_rate_value.dart';
 import 'run_analysis.dart';
 import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'run_load_values.dart';
@@ -39,12 +40,33 @@ class RunCalculationResult {
 }
 
 /// Zwischenstand einer Neuberechnung: alle neuen Werte, noch nicht gespeichert.
+/// [runValues] und [dayValues] tauschen vorhandene Werte (`current`);
+/// [runCreates] legt Laufwerte an, die ein Lauf noch nicht hat (ein Wert, den
+/// eine neue Methode einführt, ADR-0004).
 class ValueSnapshot {
-  const ValueSnapshot({required this.runValues, required this.dayValues});
+  const ValueSnapshot({
+    required this.runValues,
+    required this.dayValues,
+    this.runCreates = const {},
+  });
 
   final Map<ValueOwner, List<ComputedValue>> runValues;
   final Map<ValueOwner, List<ComputedValue>> dayValues;
+  final Map<ValueOwner, List<ComputedValue>> runCreates;
+
+  /// Läufe mit getauschten oder neu angelegten Werten.
+  int get runCount => {...runValues.keys, ...runCreates.keys}.length;
 }
+
+/// Gehört ein Lauf mit diesen gespeicherten Werten zur Neuberechnung? Ja,
+/// wenn er einen Laufwert (VO₂max) oder einen TRIMP hat; ein Lauf ohne beide
+/// ist noch nicht gerechnet und bekommt alle Werte mit seiner Berechnung. Die
+/// EINE Stelle für [ValueCalculationService.buildSnapshot], die betroffenen
+/// Läufe und die Prüfung auf fehlende Werte im Angebot.
+bool hasRecalculatedRunValue(Iterable<ValuePair> stored) => stored.any(
+  (p) =>
+      p.original.key == vo2maxRunValueKey || p.original.key == trimpRunValueKey,
+);
 
 /// ISO-Datum (UTC) `JJJJ-MM-TT` eines Zeitpunkts.
 String isoDay(DateTime t) {
@@ -219,6 +241,15 @@ class ValueCalculationService {
       computedAt: now,
       loadProfile: await loadResolution(profile),
     );
+    // Zeit bei mindestens 80 % HFmax (PAR-058) mit der Basis zum Laufende.
+    final highTime = buildHighHeartRateTimeValue(
+      run: run,
+      pre: analysis.preprocessing,
+      basis: profile,
+      fitness: fitness,
+      sources: analysis.sources,
+      computedAt: now,
+    );
     // Kurzfassung für Historie und Vergleich (vor den Werten: scheitert sie,
     // ist nichts geschrieben und ein neuer Versuch möglich).
     final pre = analysis.preprocessing;
@@ -238,7 +269,7 @@ class ValueCalculationService {
     }
     await session.values.writeAll(
       create: {
-        ValueOwner.run(runId): [runValue, ...loadValues],
+        ValueOwner.run(runId): [runValue, ...loadValues, highTime],
         ...plan.create,
       },
       swap: plan.swap,
@@ -621,29 +652,42 @@ class ValueCalculationService {
 
     final runValues = <int, ComputedValue>{};
     final runOwners = <ValueOwner, List<ComputedValue>>{};
+    final runCreates = <ValueOwner, List<ComputedValue>>{};
     for (final r in runs) {
+      final stored = await session.values.read(ValueOwner.run(r.id));
+      if (!hasRecalculatedRunValue(stored)) continue;
+      final analysis = await analysisOf(r, profile);
+      final high = buildHighHeartRateTimeValue(
+        run: r,
+        pre: analysis.preprocessing,
+        basis: profile,
+        fitness: fitness,
+        sources: analysis.sources,
+        computedAt: now,
+      );
+      // Vorhanden: tauschen (hängt an HFmax wie der TRIMP); fehlt er (Lauf
+      // von vor dieser Methode): anlegen.
+      if (stored.any((p) => p.original.key == highHeartRateTimeValueKey)) {
+        runOwners[ValueOwner.run(r.id)] = [high];
+      } else {
+        runCreates[ValueOwner.run(r.id)] = [high];
+      }
       if (await _runValue(r.id) == null) {
         // Lauf mit TRIMP, aber ohne Laufwert (VO2max): nur der TRIMP wird
         // getauscht, sonst bliebe er nach einem Profilwechsel im alten Modell
         // und ATL/CTL mischten Skalen (FR-0097, FR-0197).
-        if (!await _hasTrimp(r.id)) continue;
-        final trimp = await _trimpSwap(
-          r,
-          await analysisOf(r, profile),
-          profile,
-          resolution,
-          now,
-        );
-        if (trimp.isNotEmpty) runOwners[ValueOwner.run(r.id)] = trimp;
+        final trimp = await _trimpSwap(r, analysis, profile, resolution, now);
+        if (trimp.isNotEmpty) {
+          (runOwners[ValueOwner.run(r.id)] ??= []).addAll(trimp);
+        }
         continue;
       }
-      final analysis = await analysisOf(r, profile);
       final value = analysis.vo2maxValue(now);
       runValues[r.id] = value;
-      runOwners[ValueOwner.run(r.id)] = [
+      (runOwners[ValueOwner.run(r.id)] ??= []).addAll([
         value,
         ...await _trimpSwap(r, analysis, profile, resolution, now),
-      ];
+      ]);
     }
     final dayOwners = <ValueOwner, List<ComputedValue>>{};
     final days = _daysWithRun(runs);
@@ -666,7 +710,11 @@ class ValueCalculationService {
       ];
       if (swappable.isNotEmpty) dayOwners[ValueOwner.day(day)] = swappable;
     }
-    return ValueSnapshot(runValues: runOwners, dayValues: dayOwners);
+    return ValueSnapshot(
+      runValues: runOwners,
+      dayValues: dayOwners,
+      runCreates: runCreates,
+    );
   }
 
   /// TRIMP des Laufs mit der neuen Basis, wenn der Lauf schon einen gespeicherten

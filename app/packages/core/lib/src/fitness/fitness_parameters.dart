@@ -16,6 +16,7 @@ class FitnessParameters {
     this.hintAboveShare = 1.0,
     this.minCoveragePercent = 80,
     this.fullCoveragePercent = 100,
+    this.highHeartRateMinSharePercent = 80,
     this.sectionSelection = const SectionSelectionParameters(),
     this.vo2max = const Vo2maxParameters(),
     this.aerobicEfficiency = const AerobicEfficiencyParameters(),
@@ -41,6 +42,7 @@ class FitnessParameters {
     hintAboveShare: hintAboveShare,
     minCoveragePercent: minCoveragePercent,
     fullCoveragePercent: fullCoveragePercent,
+    highHeartRateMinSharePercent: highHeartRateMinSharePercent,
     sectionSelection: sectionSelection ?? this.sectionSelection,
     vo2max: vo2max ?? this.vo2max,
     aerobicEfficiency: aerobicEfficiency ?? this.aerobicEfficiency,
@@ -80,6 +82,10 @@ class FitnessParameters {
 
   /// OQ-0051: Abdeckung in Prozent, ab der ein Ergebnis vollständig ist.
   final int fullCoveragePercent;
+
+  /// PAR-058: Untergrenze in Prozent von HFmax, ab der Pulszeit für eine
+  /// absolvierte intensive Einheit zählt (inklusiv, „mindestens 80 %“).
+  final int highHeartRateMinSharePercent;
 
   /// PAR-020 bis PAR-031: Grenzen der Abschnittsauswahl für die VO₂max.
   final SectionSelectionParameters sectionSelection;
