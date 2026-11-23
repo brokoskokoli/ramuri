@@ -313,6 +313,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(_inToday('plan_day_run'), findsNothing);
     expect(_inToday('plan_day_purpose'), findsOneWidget);
+    // Wieder offen: ohne Haken, mit „Start“.
+    expect(
+      find.descendant(
+        of: _todayCard,
+        matching: find.byIcon(Icons.check_rounded),
+      ),
+      findsNothing,
+    );
+    expect(_inToday('plan_day_start'), findsOneWidget);
   });
 
   testWidgets('Tipp auf offene Einheit zeigt die Vorgabe ohne „Gelaufen“ '
