@@ -32,7 +32,8 @@ MorningMeasurement _m({
   deviceManufacturer: 'Testhersteller',
   deviceModel: 'Test, "Modell"',
   method: ppgMethod,
-  methodVersion: ppgMethodVersion,
+  // Gespeicherte Messung einer früheren Verfahrensversion: sie exportiert unverändert.
+  methodVersion: 3,
   quality: quality,
   unusableReason: reason,
   windowStartS: windowStart,

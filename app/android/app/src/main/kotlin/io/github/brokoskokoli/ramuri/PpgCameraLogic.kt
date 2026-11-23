@@ -2,6 +2,7 @@ package io.github.brokoskokoli.ramuri
 
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraMetadata
 
 /**
  * Entscheidungen und Ablaufsteuerung der Kamera-Messung ohne Android-Objekte (ADR-0011 Punkte 2, 6),
@@ -117,6 +118,37 @@ object PpgCameraLogic {
         return PpgCameraPick(e, e.reason)
     }
 
+    /**
+     * Fokus und Stabilisierung der Aufnahme (ADR-0011, Nachtrag 2026-11-21): die Linse bewegt sich
+     * während der Messung nicht. Nur was die Kamera laut Characteristics kann; `null` oder leer gilt
+     * als „nicht unterstützt“, dann bleibt der Schlüssel ungesetzt.
+     * - Fokus: kürzeste Distanz > 0 und AF-Modus OFF verfügbar → OFF mit Fokus auf die kürzeste
+     *   Distanz; sonst AUTO ohne Auslöser, wenn verfügbar; Fixfokus (kürzeste Distanz fehlt oder 0) → nichts.
+     * - OIS und Videostabilisierung: OFF, wenn verfügbar.
+     * [request] ist die Kamera, an die die Anfrage geht (AF-Modi, OIS, Videostabilisierung);
+     * [imageSource] die physische Kamera, die die Bilder liefert (FR-0220): von ihr kommt die
+     * kürzeste Distanz. Ohne physische Kamera gilt die von [request].
+     */
+    fun lensSettings(request: PpgLensProps, imageSource: PpgLensProps? = null): PpgLensSettings {
+        val minFocus = (imageSource ?: request).minFocusDistance
+        val af = request.afModes.orEmpty()
+        val manual = minFocus != null && minFocus > 0f && CameraMetadata.CONTROL_AF_MODE_OFF in af
+        val afMode = when {
+            minFocus == null || minFocus <= 0f -> null
+            manual -> CameraMetadata.CONTROL_AF_MODE_OFF
+            CameraMetadata.CONTROL_AF_MODE_AUTO in af -> CameraMetadata.CONTROL_AF_MODE_AUTO
+            else -> null
+        }
+        return PpgLensSettings(
+            afMode = afMode,
+            focusDistance = if (manual) minFocus else null,
+            oisMode = CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_OFF
+                .takeIf { it in request.oisModes.orEmpty() },
+            videoStabMode = CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF
+                .takeIf { it in request.videoStabModes.orEmpty() },
+        )
+    }
+
     /** CameraDevice.StateCallback.onError. */
     fun fromDeviceError(code: Int): String = when (code) {
         CameraDevice.StateCallback.ERROR_CAMERA_IN_USE, CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE -> "busy"
@@ -180,6 +212,31 @@ data class PpgCameraEntry(
         "reason" to reason,
     )
 }
+
+/**
+ * Characteristics einer Kamera für [PpgCameraLogic.lensSettings] (ohne Android-Objekte), `null` = fehlt.
+ */
+data class PpgLensProps(
+    /** CONTROL_AF_AVAILABLE_MODES. */
+    val afModes: List<Int>? = null,
+    /** LENS_INFO_MINIMUM_FOCUS_DISTANCE in Dioptrien; 0 = Fixfokus. */
+    val minFocusDistance: Float? = null,
+    /** LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION. */
+    val oisModes: List<Int>? = null,
+    /** CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES. */
+    val videoStabModes: List<Int>? = null,
+)
+
+/**
+ * Zu setzende Werte der Anfrage, `null` = nicht setzen: CONTROL_AF_MODE, LENS_FOCUS_DISTANCE,
+ * LENS_OPTICAL_STABILIZATION_MODE, CONTROL_VIDEO_STABILIZATION_MODE.
+ */
+data class PpgLensSettings(
+    val afMode: Int?,
+    val focusDistance: Float?,
+    val oisMode: Int?,
+    val videoStabMode: Int?,
+)
 
 /** Ergebnis von [PpgCameraLogic.pick]: die zu öffnende Kamera oder der Grund des Abbruchs. */
 data class PpgCameraPick(val entry: PpgCameraEntry?, val reason: String?)
