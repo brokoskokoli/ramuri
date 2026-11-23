@@ -30,13 +30,16 @@ Future<StorageSession> _preopen(Device d, {bool miles = false}) async {
   return s;
 }
 
-/// Beendeter Lauf, der um [end] (UTC) endet und den Versatz [offset] trägt.
+/// Beendeter Lauf, der um [end] endet und den Versatz [offset] trägt; ohne
+/// [offset] den Versatz der Prozesszone zu [end], wie die Systemuhr beim
+/// Beenden (Tests setzen dafür [end] in Ortszeit, `DateTime(…)`).
 Future<int> _run(
   StorageSession s,
-  DateTime end,
-  Duration offset, {
+  DateTime end, [
+  Duration? offset,
   int minutes = 10,
-}) async {
+]) async {
+  offset ??= end.toLocal().timeZoneOffset;
   final start = end.subtract(Duration(minutes: minutes));
   final id = await seedRun(s, start, minutes: minutes);
   await s.runs.setState(
@@ -53,6 +56,24 @@ Future<void> _start(Device d, WidgetTester tester, [String locale = 'de']) =>
 
 String _dayLabel(WidgetTester tester, int i) =>
     tester.widget<Semantics>(key('week_day_$i')).properties.label!;
+
+/// Art des Kreises am Wochentag [i] (Montag 0).
+String _dot(WidgetTester tester, int i) {
+  for (final k in [
+    'week_dot_done',
+    'week_dot_past',
+    'week_dot_today',
+    'week_dot_future',
+  ]) {
+    if (find
+        .descendant(of: key('week_day_$i'), matching: key(k))
+        .evaluate()
+        .isNotEmpty) {
+      return k;
+    }
+  }
+  return 'keiner';
+}
 
 /// Zurück in den Vordergrund.
 Future<void> _resume(WidgetTester tester) async {
@@ -100,7 +121,7 @@ void main() {
   testWidgets('Woche Mo bis So: Haken, Tagesnamen, Summe wie die '
       'Wochenstatistik (Lokalzeit, Vorwoche)', (tester) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12)); // Mittwoch
+    d.clock.set(DateTime(2026, 6, 10, 12)); // Mittwoch
     final s = await _preopen(d);
     const plus2 = Duration(hours: 2);
     const plus3 = Duration(hours: 3);
@@ -109,7 +130,7 @@ void main() {
     // Montag früh in Ortszeit (UTC noch Sonntag): zählt zur Woche.
     await _run(s, DateTime.utc(2026, 6, 7, 23, 30), plus2);
     // Sonntag spät in Ortszeit, 20 Minuten: zählt zur Woche.
-    await _run(s, DateTime.utc(2026, 6, 14, 23, 5), minus2, minutes: 20);
+    await _run(s, DateTime.utc(2026, 6, 14, 23, 5), minus2, 20);
     // Sonntagabend UTC, in Ortszeit schon Montag der Folgewoche: nicht.
     await _run(s, DateTime.utc(2026, 6, 14, 22, 5), plus3);
     // Montag früh UTC, in Ortszeit noch Sonntag der Vorwoche: nicht.
@@ -156,9 +177,9 @@ void main() {
     tester,
   ) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    d.clock.set(DateTime(2026, 6, 10, 12));
     final s = await _preopen(d, miles: true);
-    await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    await _run(s, DateTime(2026, 6, 9, 9));
     await _start(d, tester, 'en');
     expect(text('home_week_km'), matches(RegExp(r'^1\.12 mi$')));
     expect(text('home_last_run_values'), contains('mi'));
@@ -179,7 +200,7 @@ void main() {
 
   testWidgets('Datum auf Deutsch', (tester) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    d.clock.set(DateTime(2026, 6, 10, 12));
     await _preopen(d);
     await _start(d, tester);
     expect(text('home_date'), 'Mittwoch, 10. Juni');
@@ -189,10 +210,10 @@ void main() {
     tester,
   ) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    d.clock.set(DateTime(2026, 6, 10, 12));
     final s = await _preopen(d);
-    await _run(s, DateTime.utc(2026, 6, 2, 9), Duration.zero);
-    final last = await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    await _run(s, DateTime(2026, 6, 2, 9));
+    final last = await _run(s, DateTime(2026, 6, 9, 9));
     await _start(d, tester);
     expect(text('home_last_run_values'), '1,80 km · 5:33 min/km');
     await tester.tap(key('home_last_run'));
@@ -208,9 +229,9 @@ void main() {
     tester,
   ) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    d.clock.set(DateTime(2026, 6, 10, 12));
     final s = await _preopen(d);
-    await s.runs.create(startedAt: DateTime.utc(2026, 6, 10, 8));
+    await s.runs.create(startedAt: DateTime(2026, 6, 10, 8));
     await _start(d, tester);
     // Das Angebot zur Wiederaufnahme liegt über Heute; darunter zählt Heute
     // den Lauf nicht (die Läufe kommen aus derselben Quelle wie in der
@@ -242,9 +263,9 @@ void main() {
   testWidgets('Tageswechsel im Hintergrund: beim Fortsetzen zeigt Heute den '
       'neuen Tag und die neue Woche (Sonntag zu Montag)', (tester) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 14, 12)); // Sonntag
+    d.clock.set(DateTime(2026, 6, 14, 12)); // Sonntag
     final s = await _preopen(d);
-    await _run(s, DateTime.utc(2026, 6, 14, 9), Duration.zero);
+    await _run(s, DateTime(2026, 6, 14, 9));
     await _start(d, tester);
     expect(text('home_date'), 'Sonntag, 14. Juni');
     expect(text('home_week_km'), '1,80 km');
@@ -252,13 +273,13 @@ void main() {
 
     // Dieselbe Uhr am selben Tag: Fortsetzen ändert nichts.
     _pause(tester);
-    d.clock.set(DateTime.utc(2026, 6, 14, 20));
+    d.clock.set(DateTime(2026, 6, 14, 20));
     await _resume(tester);
     expect(text('home_date'), 'Sonntag, 14. Juni');
     expect(text('home_week_km'), '1,80 km');
 
     _pause(tester);
-    d.clock.set(DateTime.utc(2026, 6, 15, 7)); // Montag, neue Woche
+    d.clock.set(DateTime(2026, 6, 15, 7)); // Montag, neue Woche
     await _resume(tester);
     expect(text('home_date'), 'Montag, 15. Juni');
     // Neue Woche: der Lauf vom Sonntag zählt nicht mehr, kein Haken.
@@ -278,15 +299,15 @@ void main() {
   testWidgets('Beobachter wird mit dem Heute-Tab abgebaut: Fortsetzen nach '
       'Tab-Wechsel und Tageswechsel wirft nichts', (tester) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 14, 12));
+    d.clock.set(DateTime(2026, 6, 14, 12));
     final s = await _preopen(d);
-    await _run(s, DateTime.utc(2026, 6, 14, 9), Duration.zero);
+    await _run(s, DateTime(2026, 6, 14, 9));
     await _start(d, tester);
     await tester.tap(key('home_history'));
     await tester.pumpAndSettle();
     expect(key('home_screen'), findsNothing, reason: 'Heute ist abgebaut');
     _pause(tester);
-    d.clock.set(DateTime.utc(2026, 6, 15, 7));
+    d.clock.set(DateTime(2026, 6, 15, 7));
     await _resume(tester);
     expect(tester.takeException(), isNull);
     await tester.tap(key('home_today'));
@@ -297,9 +318,9 @@ void main() {
   testWidgets('Fortsetzen lädt nur bei neuem Tag neu: am selben Tag und nach '
       'dem Neuladen am neuen Tag bleibt die Anzeige stehen', (tester) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 14, 12));
+    d.clock.set(DateTime(2026, 6, 14, 12));
     final s = await _preopen(d);
-    final id = await _run(s, DateTime.utc(2026, 6, 14, 9), Duration.zero);
+    final id = await _run(s, DateTime(2026, 6, 14, 9));
     await _start(d, tester);
     expect(key('home_last_run'), findsOneWidget);
     // Der Lauf verschwindet am Speicher vorbei; die Seite weiß es nicht.
@@ -307,22 +328,22 @@ void main() {
 
     // Selber Tag: kein Neuladen, der gelöschte Lauf steht noch da.
     _pause(tester);
-    d.clock.set(DateTime.utc(2026, 6, 14, 20));
+    d.clock.set(DateTime(2026, 6, 14, 20));
     await _resume(tester);
     expect(key('home_last_run'), findsOneWidget);
     expect(key('home_empty'), findsNothing);
 
     // Neuer Tag: Neuladen, der Lauf ist weg.
     _pause(tester);
-    d.clock.set(DateTime.utc(2026, 6, 15, 7));
+    d.clock.set(DateTime(2026, 6, 15, 7));
     await _resume(tester);
     expect(key('home_last_run'), findsNothing);
     expect(key('home_empty'), findsOneWidget);
 
     // Neuer Lauf am Speicher vorbei; am selben (neuen) Tag lädt nichts neu.
-    await _run(s, DateTime.utc(2026, 6, 15, 8), Duration.zero);
+    await _run(s, DateTime(2026, 6, 15, 8));
     _pause(tester);
-    d.clock.set(DateTime.utc(2026, 6, 15, 9));
+    d.clock.set(DateTime(2026, 6, 15, 9));
     await _resume(tester);
     expect(key('home_last_run'), findsNothing);
     expect(key('home_empty'), findsOneWidget);
@@ -331,16 +352,26 @@ void main() {
   testWidgets('Tageswechsel mitten in der Woche: Datum und Heute-Kreis '
       'ziehen mit', (tester) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12)); // Mittwoch
+    // Mittwoch kurz vor Mitternacht Ortszeit, in jeder Zone.
+    d.clock.set(DateTime(2026, 6, 10, 23, 30));
     final s = await _preopen(d);
-    await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    await _run(s, DateTime(2026, 6, 9, 9)); // Dienstag
     await _start(d, tester);
     expect(text('home_date'), 'Mittwoch, 10. Juni');
+    expect(text('home_week_km'), '1,80 km');
+    expect(_dot(tester, 2), 'week_dot_today');
+    expect(_dot(tester, 3), 'week_dot_future');
+    // Lauf am Donnerstag kurz nach Mitternacht, am Speicher vorbei: erst das
+    // Neuladen am neuen Ortstag zählt ihn.
+    await _run(s, DateTime(2026, 6, 11, 0, 20));
     _pause(tester);
-    d.clock.set(DateTime.utc(2026, 6, 11, 6));
+    d.clock.set(DateTime(2026, 6, 11, 0, 30)); // Donnerstag, Ortszeit
     await _resume(tester);
     expect(text('home_date'), 'Donnerstag, 11. Juni');
-    expect(text('home_week_km'), '1,80 km');
+    expect(text('home_week_km'), '3,60 km');
+    expect(_dot(tester, 2), 'week_dot_past');
+    expect(_dot(tester, 3), 'week_dot_done');
+    expect(_dayLabel(tester, 3), 'Donnerstag, gelaufen');
   });
 
   testWidgets('Woche und Datum nach Ortszeit, nicht nach UTC: Sonntag 23:30 '
@@ -355,7 +386,7 @@ void main() {
       s,
       DateTime.utc(2026, 6, 14, 22, 10),
       const Duration(hours: 2),
-      minutes: 20,
+      20,
     );
     await _start(d, tester);
     expect(text('home_date'), 'Montag, 15. Juni');
@@ -373,16 +404,16 @@ void main() {
   testWidgets('Wochensumme aus einem Teil der Läufe sagt es, wie die '
       'Statistik', (tester) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    d.clock.set(DateTime(2026, 6, 10, 12));
     final s = await _preopen(d);
-    await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    await _run(s, DateTime(2026, 6, 9, 9));
     // Beendet, aber ohne Messwerte: keine Strecke.
-    final empty = await s.runs.create(startedAt: DateTime.utc(2026, 6, 8, 9));
+    final empty = await s.runs.create(startedAt: DateTime(2026, 6, 8, 9));
     await s.runs.setState(
       empty.id,
       RunState.finished,
-      endedAt: DateTime.utc(2026, 6, 8, 9),
-      endedUtcOffset: Duration.zero,
+      endedAt: DateTime(2026, 6, 8, 9),
+      endedUtcOffset: DateTime(2026, 6, 8, 9).timeZoneOffset,
     );
     await _start(d, tester);
     expect(text('home_week_km'), '1,80 km');
@@ -395,9 +426,9 @@ void main() {
 
   testWidgets('Wochensumme vollständig: kein Teilhinweis', (tester) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    d.clock.set(DateTime(2026, 6, 10, 12));
     final s = await _preopen(d);
-    await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    await _run(s, DateTime(2026, 6, 9, 9));
     await _start(d, tester);
     expect(key('home_week_partial'), findsNothing);
   });
@@ -405,9 +436,9 @@ void main() {
   testWidgets('Zurück von Alles löschen bei Lesefehler der Einstellungen: '
       'Heute meldet und lädt neu', (tester) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    d.clock.set(DateTime(2026, 6, 10, 12));
     final s = await _preopen(d);
-    await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    await _run(s, DateTime(2026, 6, 9, 9));
     final gate = SettingsGateStorage(d.storage);
     d.storageOverride = gate;
     await _start(d, tester);
@@ -442,9 +473,9 @@ void main() {
 
   testWidgets('Ladefehler sichtbar, Start bleibt, Erneut lädt', (tester) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    d.clock.set(DateTime(2026, 6, 10, 12));
     final s = await _preopen(d);
-    await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    await _run(s, DateTime(2026, 6, 9, 9));
     final flaky = _FlakyStorage(d.storage)..failRuns = true;
     d.storageOverride = flaky;
     await _start(d, tester);
@@ -465,29 +496,12 @@ void main() {
     tester,
   ) async {
     final d = Device();
-    d.clock.set(DateTime.utc(2026, 6, 10, 12)); // Mittwoch
+    d.clock.set(DateTime(2026, 6, 10, 12)); // Mittwoch
     final s = await _preopen(d);
-    await _run(s, DateTime.utc(2026, 6, 8, 8), Duration.zero); // Montag
+    await _run(s, DateTime(2026, 6, 8, 8)); // Montag
     await _start(d, tester);
-    String kind(int i) {
-      for (final k in [
-        'week_dot_done',
-        'week_dot_past',
-        'week_dot_today',
-        'week_dot_future',
-      ]) {
-        if (find
-            .descendant(of: key('week_day_$i'), matching: key(k))
-            .evaluate()
-            .isNotEmpty) {
-          return k;
-        }
-      }
-      return 'keiner';
-    }
-
     expect(
-      [for (var i = 0; i < 7; i++) kind(i)],
+      [for (var i = 0; i < 7; i++) _dot(tester, i)],
       [
         'week_dot_done',
         'week_dot_past',
