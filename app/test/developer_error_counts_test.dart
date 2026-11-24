@@ -1,11 +1,11 @@
 // FR-0223: Fehlerzähler in den Entwicklereinstellungen – nur im
 // Entwicklermodus, sortiert nach Anzahl, leerer Zustand, Zurücksetzen mit
 // Rückfrage, „Alles löschen“ leert die Zähler (SEC-0004).
-import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:core/fakes/fake_storage_settings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/error_counter.dart';
 import 'package:running_app/features/export/file_handoff_scope.dart';
@@ -42,6 +42,19 @@ const _entries = [
     lastDay: '2026-11-05',
   ),
 ];
+
+/// Plattformkanal mit einer anderen Version: Reicht ein Bildschirm die
+/// übergebene Versionsquelle nicht weiter, steht diese im Export.
+void _platformVersion() {
+  const channel = MethodChannel('ramuri/permissions');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(
+    channel,
+    (call) async => call.method == 'appVersion' ? '0.0.0 (0)' : null,
+  );
+  addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+}
 
 class _Setup {
   _Setup(this.storage, this.errors, this.mode, this.handoff);
@@ -245,6 +258,7 @@ void main() {
 
   testWidgets('Über → Entwicklereinstellungen: Abschnitt da, App-Version im '
       'Diagnose-Export', (tester) async {
+    _platformVersion();
     final s = await _setup(developer: true);
     tester.view.physicalSize = const Size(800, 3000);
     tester.view.devicePixelRatio = 1;
@@ -292,6 +306,7 @@ void main() {
 
     testWidgets('Übersicht → Entwicklereinstellungen: App-Version der '
         'Übersicht im Diagnose-Export', (tester) async {
+      _platformVersion();
       final d = Device();
       await d.start(tester, const Locale('de'));
       await d.skipSetup(tester);
