@@ -258,6 +258,50 @@ void main() {
   });
 
   group('keine Laufwerte (FR-0221, DEC-0056)', () {
+    // Eine Sporteinheit hat nie Positionen aus der Aufzeichnung; ein Archiv
+    // oder eine Fremdquelle könnte welche mitbringen. Auch dann gibt es keine
+    // Strecke und keine Pace.
+    Future<int> sportWithPositions(RecalcWorld w) async {
+      final id = await seedSport(w, _t0, _series([(1800, 150)]));
+      await w.session.rawData.append(
+        id,
+        RawBatch(
+          positions: [
+            for (var s = 0; s <= 1800; s += 5)
+              RawPosition(
+                time: _t0.add(Duration(seconds: s)),
+                source: 'gps',
+                latitude: 10 + s * 3 / 111195,
+                longitude: 20,
+                accuracyMeters: 5,
+              ),
+          ],
+        ),
+      );
+      return id;
+    }
+
+    test('mit Positionen: keine Strecke nach der Berechnung', () async {
+      final w = await RecalcWorld.create();
+      final id = await sportWithPositions(w);
+      await w.calc().calculateAfterRun(id);
+      final o = await overview(w, id);
+      expect(o.distanceMeters, isNull);
+      expect(o.averagePaceSecondsPerKm, isNull);
+      expect(o.bestPaceSecondsPerKm, isNull);
+      expect(o.movingTime, const Duration(minutes: 30));
+    });
+
+    test('mit Positionen: keine Strecke in der Historie', () async {
+      final w = await RecalcWorld.create();
+      final id = await sportWithPositions(w);
+      final o = await overview(w, id);
+      expect(o.distanceMeters, isNull);
+      expect(o.averagePaceSecondsPerKm, isNull);
+      expect(o.bestPaceSecondsPerKm, isNull);
+      expect(o.movingTime, const Duration(minutes: 30));
+    });
+
     test(
       'keine Strecke, Pace, VO2max; nicht in Prognose und Effizienz',
       () async {
