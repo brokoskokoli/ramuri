@@ -74,6 +74,10 @@ jobs:
           restore-keys: sqlite3mc-e2e-${{ hashFiles('app/pubspec.lock') }}-
       - name: sqlite3mc vor dem Build
         run: find app/.dart_tool/hooks_runner/shared/sqlite3 -type f -printf '%TY-%Tm-%Td %TT %s %P\n' 2>/dev/null || echo "kein sqlite3mc im Cache"
+      # Systemimage vor den Emulator-Schritten fest installieren (bis zu drei Versuche mit Pause); der Runner
+      # findet es danach installiert. Scheitert es, meldet der Schritt „Systemimage nicht ladbar“.
+      - name: Systemimage installieren
+        run: bash tool/ci_sysimage.sh ${{ matrix.api }}
       - name: AVD-Cache
         id: avd-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -85,8 +89,12 @@ jobs:
       # Festes Geraeteprofil pixel_6 (1080x2400): Der Standard des Runners ist ein
       # winziger Bildschirm (320x640), auf dem Tests wegen abgeschnittener
       # Bedienelemente scheitern, die auf einem echten Geraet sichtbar sind.
+      # Scheitert die Erzeugung, wird sie genau einmal wiederholt (Versuch 2); erst wenn auch der scheitert, ist
+      # der Job rot mit „AVD nicht erzeugbar“. Die Testschritte laufen in jedem Fall höchstens einmal.
       - name: AVD und Snapshot erzeugen (nur bei Cache-Miss)
+        id: avd-1
         if: steps.avd-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ matrix.api }}
@@ -97,6 +105,32 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
           script: echo "Snapshot erzeugt"
+      # Reste des gescheiterten Versuchs (halbes AVD, laufender Emulator) entfernen, damit Versuch 2 neu anfängt.
+      - name: AVD-Reste entfernen (nach gescheitertem Versuch 1)
+        if: steps.avd-1.outcome == 'failure'
+        run: |
+          echo "AVD-Erzeugung Versuch 1 gescheitert, Versuch 2 folgt"
+          "$ANDROID_HOME/platform-tools/adb" emu kill 2>/dev/null || true
+          "$ANDROID_HOME/platform-tools/adb" kill-server 2>/dev/null || true
+          rm -rf ~/.android/avd/*
+      - name: AVD und Snapshot erzeugen (Versuch 2)
+        id: avd-2
+        if: steps.avd-1.outcome == 'failure'
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          profile: pixel_6
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Snapshot erzeugt"
+      - name: AVD nicht erzeugbar
+        if: failure() && steps.avd-2.outcome == 'failure'
+        run: |
+          echo "::error title=Infrastruktur::AVD nicht erzeugbar: API ${{ matrix.api }} nach 2 Versuchen gescheitert, kein Test gelaufen"
+          exit 1
       # Der Test-Sensor (main_debug.dart) braucht keine Hardware; die
       # Integrationstests starten die App selbst (kein TEST_SENSOR_RR nötig).
       # E2E_SHOTS=1: Bildschirmfotos hell und dunkel bei jeder SHOT-Marke nach e2e-out/shots/ (tool/ci_e2e.sh).
