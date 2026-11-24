@@ -239,14 +239,20 @@ shot_watch() {
   done
 }
 
+# Je `geo fix`-Aufruf eine Zeile in $geo_zaehler: 0 erfolgreich, 1 fehlgeschlagen (nie Koordinaten). Die Datei liegt
+# ausserhalb des Ausgabeordners (kein Artefakt); stufe() meldet daraus je Stufe "geo fix fehlgeschlagen: <n> von <m>".
+geo_zaehler=$(mktemp) || exit 1
 gps_feed() {
   lat=10.0
   while :; do
     lat=$(awk -v l="$lat" 'BEGIN { printf "%.6f", l + 0.00003 }')
-    a emu geo fix 20.0 "$lat" >/dev/null 2>&1
+    if a emu geo fix 20.0 "$lat" >/dev/null 2>&1; then echo 0; else echo 1; fi >>"$geo_zaehler"
     sleep 1
   done
 }
+
+# geo_stand: "<aufrufe> <fehlgeschlagen>" bisher, in einem Lesevorgang (der Zufuehrer schreibt nebenher weiter).
+geo_stand() { awk '{ m++ } $0 == "1" { n++ } END { print m + 0, n + 0 }' "$geo_zaehler"; }
 
 # Rechte setzen: Wartebedingung mit Ende. `pm grant` schlaegt fehl, solange die App
 # nicht installiert ist; sobald alle Rechte gewaehrt und per dumpsys bestaetigt
@@ -297,6 +303,7 @@ stufe() {
   tw_bis=""
   pause=0
   t0=$(date +%s)
+  geo_vorher=$(geo_stand)
   a logcat -c
   : >"$log"
   # $shots_define ist leer oder ein Wort ohne Leerzeichen (ungequotet: leer = kein Argument).
@@ -363,6 +370,9 @@ stufe() {
   # Nach dem Zeitlimit immer rot, auch wenn NEED_KILL schon kam.
   [ "$zeitlimit" = 0 ] || rc=1
   echo "STUFE $name rc=$rc dauer=$(($(date +%s) - t0))s"
+  # Aufrufe des GPS-Zufuehrers waehrend der Stufe (Differenz zum Stand bei Stufenbeginn), nur Zaehler.
+  geo_nachher=$(geo_stand)
+  echo "geo fix fehlgeschlagen: $((${geo_nachher#* } - ${geo_vorher#* })) von $((${geo_nachher% *} - ${geo_vorher% *}))"
   # Nur Zeilen ohne "E2E_" (Wertausgaben der Tests) in das oeffentliche Log.
   grep -v 'E2E_' "$log" >"$log.pub"
   # Alle Schrittmarken der Stufe (die letzten Zeilen unten zeigen bei langen Stufen nur das Ende).
@@ -394,7 +404,7 @@ stufe() {
 a uninstall "$pkg" >/dev/null 2>&1
 gps_feed &
 fpid=$!
-trap 'beende_baum "$fpid"' EXIT
+trap 'beende_baum "$fpid"; rm -f "$geo_zaehler"' EXIT
 
 stufe sammlung 0 integration_test/all_test.dart
 stufe treadmill-plan 0 integration_test/e2e_treadmill_test.dart --dart-define=TREADMILL_PLAN=true
