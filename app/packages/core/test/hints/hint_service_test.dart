@@ -282,5 +282,27 @@ void main() {
       plan(2, PlanUnitKind.easy, runId: id);
       expect((await service.today()).hint?.code, HintCode.steepIncrease);
     });
+
+    test('als ersetzte Einheit zählt die Bewegungszeit, nicht die Dauer '
+        '(PAR-232)', () async {
+      final id = await setUpWeeks();
+      plan(2, PlanUnitKind.easy, runId: id);
+      // 30 min Dauer, 10 min Bewegungszeit: 30 + 10 min liegen unter dem
+      // 1,5-Fachen des Wochenschnitts (45 min).
+      await w.session.preprocessing.replace(
+        id,
+        StoredPreprocessing(
+          summary: PreprocessingSummary(
+            method: 'test',
+            methodVersion: 1,
+            parameterVersion: 1,
+            computedAt: recalcNow,
+            totalTime: const Duration(minutes: 30),
+            movingTime: const Duration(minutes: 10),
+          ),
+        ),
+      );
+      expect((await service.today()).hint?.code, isNot(HintCode.steepIncrease));
+    });
   });
 }
