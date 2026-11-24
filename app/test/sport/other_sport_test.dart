@@ -17,7 +17,7 @@ import 'package:running_app/features/summary/subjective_section.dart';
 import 'package:running_app/ui/ui.dart';
 
 import '../app_harness.dart';
-import '../history_summary_test.dart' show openHistory, text;
+import '../history_summary_test.dart' show ReadFailStorage, openHistory, text;
 import '../run_detail_page_test.dart' show pumpDetail;
 
 bool goEnabled(WidgetTester tester) =>
@@ -370,6 +370,40 @@ void main() {
       expect(c.runSport, OtherSport.rowing);
       expect(text('live_other_sport'), 'Rudern/Ergometer');
       expect(service.startModes, [RecordingServiceMode.sport]);
+      expectNoRunValues();
+    });
+
+    testWidgets('Rad: Zusammenfassung mit Hinweis Unterschätzung, ohne Wade', (
+      tester,
+    ) async {
+      final d = await launch(tester);
+      await openStart(tester);
+      await chooseSport(tester, OtherSport.cycling);
+      await go(tester);
+      await beat(d, tester, 60);
+      await finish(tester);
+      expect(text('sum_other_sport_name'), 'Radfahren');
+      expect(key('sum_other_sport_underestimated'), findsOneWidget);
+      expect(key('sum_other_sport_rope_hint'), findsNothing);
+      expectNoRunValues();
+    });
+
+    testWidgets('Lesefehler: Werte der Aufzeichnung ohne Laufwerte', (
+      tester,
+    ) async {
+      final d = Device()..recordingService = FakeRecordingServicePort();
+      final storage = ReadFailStorage(d.storage);
+      d.storageOverride = storage;
+      await launch(tester, device: d);
+      storage.session.raw.fail = true;
+      await openStart(tester);
+      await chooseSport(tester);
+      await go(tester);
+      await beat(d, tester, 30);
+      await finish(tester);
+      expect(key('sum_fallback'), findsOneWidget);
+      expect(text('run_time'), '0:30');
+      expect(key('run_moving_time'), findsOneWidget);
       expectNoRunValues();
     });
   });
