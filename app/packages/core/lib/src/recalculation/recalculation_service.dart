@@ -467,7 +467,8 @@ class RecalculationService {
   /// Kette. Zonenzeiten gehören bewusst nicht dazu: sie werden
   /// nie neu gerechnet (L11), das Angebot käme nach jeder Bestätigung wieder.
   /// Aus demselben Grund zählen nur Tageswerte an Tagen, die [confirm] neu
-  /// rechnet ([ValueCalculationService.recalculableDays]). Fehlt einem Lauf,
+  /// rechnet ([ValueCalculationService.recalculableDays]); ein Tageswert an
+  /// einem Tag ohne Lauf zählt immer, [confirm] entfernt ihn (PAR-237). Fehlt einem Lauf,
   /// den die Neuberechnung erfasst ([hasRecalculatedRunValue]), die Zeit bei
   /// mindestens 80 % HFmax (Lauf von vor dieser Methode), ist das ebenfalls
   /// eine neue Methodenversion: [confirm] legt sie an (ADR-0004). Die
@@ -517,14 +518,17 @@ class RecalculationService {
   }
 
   /// Trägt ein gespeicherter Tageswert (`current`) an einem Tag, den [confirm]
-  /// neu rechnet, eine andere Methode oder Version als [dayValueMethods]? Alle
-  /// Tage in einer Abfrage.
+  /// neu rechnet, eine andere Methode oder Version als [dayValueMethods], oder
+  /// steht er an einem Tag ohne Lauf (PAR-237)? Alle Tage in einer Abfrage.
   Future<bool> _dayValuesOutdated() async {
     final stored = await session.values.readDayValues(dayValueKeys);
     if (stored.isEmpty) return false;
     final days = await _calc.recalculableDays();
     for (final MapEntry(key: day, value: values) in stored.entries) {
-      if (!days.contains(day)) continue;
+      // Ein Tageswert an einem Tag ohne Lauf (Endtag eines Laufs über
+      // Mitternacht nach der alten Tageszuordnung, PAR-237) ist veraltet:
+      // [confirm] entfernt ihn.
+      if (!days.contains(day)) return true;
       for (final v in values.values) {
         // Ohne Zuordnung nicht vergleichen; ein Test verlangt sie für jeden
         // Schlüssel aus [dayValueKeys].
@@ -587,10 +591,19 @@ class RecalculationService {
       final swap = {...snapshot.runValues, ...snapshot.dayValues};
       // Neue Laufwerte (Lauf von vor einer Methode) in derselben Transaktion
       // wie der Tausch.
-      if (snapshot.runCreates.isEmpty) {
+      // Tageswerte an Tagen ohne Lauf entfallen, fehlende an Tagen mit Lauf
+      // werden angelegt (neue Tageszuordnung, PAR-237), ebenfalls in derselben
+      // Transaktion.
+      if (snapshot.runCreates.isEmpty &&
+          snapshot.dayCreates.isEmpty &&
+          snapshot.removedDays.isEmpty) {
         await session.values.swapCurrentAll(swap);
       } else {
-        await session.values.writeAll(create: snapshot.runCreates, swap: swap);
+        await session.values.writeAll(
+          create: {...snapshot.runCreates, ...snapshot.dayCreates},
+          swap: swap,
+          removeDays: snapshot.removedDays,
+        );
       }
     }
     // Ab hier ist getauscht: ein Fehler beim Erledigen des Angebots darf nicht
@@ -665,7 +678,7 @@ class RecalculationService {
     }
     return RecalculationResult(
       runCount: snapshot.runCount,
-      dayCount: snapshot.dayValues.length,
+      dayCount: snapshot.dayValues.length + snapshot.dayCreates.length,
       offerCleared: cleared,
     );
   }

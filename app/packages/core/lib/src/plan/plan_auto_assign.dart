@@ -1,4 +1,5 @@
 import '../../ports/storage_runs.dart';
+import '../recalculation/value_calculation_service.dart' show runStartLocalDay;
 import 'plan_unit.dart';
 import 'weekly_time.dart' show planDay;
 
@@ -43,13 +44,11 @@ class PlanRunCandidate {
   final Duration movingTime;
 }
 
-/// Ortstag des Laufbeginns: Beginn plus der am Lauf gespeicherte
-/// UTC-Versatz (Zeitzone des Laufs, nicht die des Geräts jetzt). Ein Lauf
-/// über Mitternacht zählt für den Starttag.
-DateTime planRunStartDay(StoredRun run, {required Duration fallbackOffset}) {
-  final local = run.startedAt.toUtc().add(run.endedUtcOffset ?? fallbackOffset);
-  return DateTime.utc(local.year, local.month, local.day);
-}
+/// Ortstag des Laufbeginns (PAR-231, PAR-237): dieselbe Rechnung wie für
+/// alle anderen Tage eines Laufs ([runStartLocalDay]). [fallbackOffset] gilt
+/// nur, wenn am Lauf kein UTC-Versatz steht (alte Läufe).
+DateTime planRunStartDay(StoredRun run, {required Duration fallbackOffset}) =>
+    runStartLocalDay(run, fallbackOffset: fallbackOffset);
 
 /// Eine Zuordnung, die [planAutoAssignments] vorschlägt.
 class PlanRunAssignment {

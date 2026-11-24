@@ -65,7 +65,8 @@ class _CountingValues implements ComputedValueStore {
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
-  }) => inner.writeAll(create: create, swap: swap);
+    Set<String> removeDays = const {},
+  }) => inner.writeAll(create: create, swap: swap, removeDays: removeDays);
 
   @override
   Future<List<ValuePair>> read(ValueOwner owner) {

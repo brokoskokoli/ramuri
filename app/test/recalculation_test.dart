@@ -62,6 +62,7 @@ class _GatedValues implements ComputedValueStore {
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
+    Set<String> removeDays = const {},
   }) async {
     gate.swaps++;
     for (final o in create.keys) {
@@ -70,7 +71,7 @@ class _GatedValues implements ComputedValueStore {
     }
     await gate.hold?.future;
     if (gate.fail) throw const StorageException(StorageFailure.failed);
-    return inner.writeAll(create: create, swap: swap);
+    return inner.writeAll(create: create, swap: swap, removeDays: removeDays);
   }
 }
 

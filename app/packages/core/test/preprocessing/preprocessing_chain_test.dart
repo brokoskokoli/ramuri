@@ -1,6 +1,8 @@
 // Kettenversion der Vorverarbeitung (ADR-0004, NFR-0001, NFR-0005): jede
 // Stufe mit eigener `*MethodVersion` in lib/src/preprocessing steht in
-// preprocessingChainVersion(), und jede Stufenerhöhung ändert den Wert.
+// preprocessingChainVersion(), und jede Stufenerhöhung ändert den Wert. Dazu
+// kommt die Stufe der Tageszuordnung (`runDayMethodVersion`, PAR-237), die
+// nicht in lib/src/preprocessing steht.
 
 import 'dart:io';
 
@@ -44,13 +46,16 @@ Map<String, int> _stageConstants() {
   return stages;
 }
 
+/// Stufen der Kette außerhalb von lib/src/preprocessing.
+const _otherStages = {'runDayMethodVersion': runDayMethodVersion};
+
 void main() {
   final chainSource = File('lib/src/preprocessing/preprocessing_chain.dart')
       .readAsStringSync();
 
   test('jede *MethodVersion der Vorverarbeitung steht als Vorgabe in der '
       'Kettenversion, und die Kette hat genau so viele Glieder', () {
-    final stages = _stageConstants();
+    final stages = {..._stageConstants(), ..._otherStages};
     expect(stages, isNotEmpty);
     // Vorgaben der Parameter: `int <name> = <Konstante>,`.
     final defaults = {
@@ -89,6 +94,7 @@ void main() {
         sectionQuality: sectionQualityMethodVersion + 1,
       ),
       preprocessingChainVersion(steps: stepsMethodVersion + 1),
+      preprocessingChainVersion(runDay: runDayMethodVersion + 1),
     ];
     // Die Suche findet genau die Stufen, die dieser Test erhöht.
     expect(_stageConstants().keys.toSet(), {
@@ -101,7 +107,7 @@ void main() {
       'sectionQualityMethodVersion',
       'stepsMethodVersion',
     });
-    expect(raised, hasLength(_stageConstants().length));
+    expect(raised, hasLength(_stageConstants().length + _otherStages.length));
     for (final r in raised) {
       expect(r, isNot(now));
     }
@@ -110,16 +116,13 @@ void main() {
     expect(preprocessingChainVersion(), now);
   });
 
-  test('Kette der Bestandswerte (vor Schema 19) ist die heutige', () {
-    // Gilt bis zur ersten Stufenerhöhung; dann diesen Test streichen, die
-    // Konstante bleibt unverändert (Bestandswerte bekommen ein Angebot).
+  test('Bestandswerte (vor Schema 19) tragen eine ältere Kette: Angebot', () {
+    // Die Tageszuordnung (Stufe `day`, PAR-237) ist seit Schema 19 erhöht;
+    // die Konstante bleibt unverändert.
+    expect(legacyPreprocessingChainVersion, isNot(preprocessingChainVersion()));
     expect(
-      legacyPreprocessingChainVersion,
       preprocessingChainVersion(),
-      reason:
-          'Nach einer Stufenerhöhung wird dieser Test gestrichen; '
-          'legacyPreprocessingChainVersion bleibt unverändert, sonst bekommen '
-          'Bestandswerte (vor Schema 19) kein Angebot zur Neuberechnung.',
+      '$legacyPreprocessingChainVersion.day$runDayMethodVersion',
     );
   });
 }

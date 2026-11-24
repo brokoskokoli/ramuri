@@ -221,13 +221,30 @@ class FakeComputedValueStore implements ComputedValueStore {
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
+    Set<String> removeDays = const {},
   }) async {
     // Erst alles prüfen, dann schreiben: bei einem Fehler ändert sich nichts.
+    // Entfallende Tage zählen für die Prüfung schon als leer.
     for (final e in swap.entries) {
+      if (e.key.day != null && removeDays.contains(e.key.day)) {
+        throw const StorageException(StorageFailure.notFound);
+      }
       _checkSwap(e.key, e.value);
     }
-    for (final e in create.entries) {
-      _checkCreate(e.key, e.value);
+    final removed = {
+      for (final day in removeDays)
+        ValueOwner.day(day): ?_d.values[ValueOwner.day(day)],
+    };
+    for (final o in removed.keys) {
+      _d.values.remove(o);
+    }
+    try {
+      for (final e in create.entries) {
+        _checkCreate(e.key, e.value);
+      }
+    } on Object {
+      _d.values.addAll(removed);
+      rethrow;
     }
     for (final e in create.entries) {
       _create(e.key, e.value);
