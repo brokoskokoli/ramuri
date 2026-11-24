@@ -582,8 +582,14 @@ class RecordingSession {
 
   /// Nimmt [newSteps] neue Schritte des Sensors an (Zeit: Empfang in
   /// Sitzungszeit, wie die Anzeige). Nur im laufenden Lauf (auch in der
-  /// erkannten Pause); weniger als ein Schritt ändert nichts.
+  /// erkannten Pause); weniger als ein Schritt ändert nichts. Eine andere
+  /// Sportart (FR-0221) hat keine Kadenz: Schritte werden nicht angenommen.
   Intake addSteps(int newSteps) {
+    if (_sportMode) {
+      return _phase == RecordingPhase.finished
+          ? Intake.ignoredFinished
+          : Intake.ignoredNotActive;
+    }
     final time = _now();
     final gate = _gate(time);
     if (gate != null) return gate;

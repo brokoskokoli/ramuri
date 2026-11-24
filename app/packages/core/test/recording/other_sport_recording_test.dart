@@ -170,6 +170,25 @@ void main() {
       },
     );
 
+    test('keine Kadenz und keine Splits: Schritte werden nicht angenommen, '
+        'nichts in raw_steps (FR-0221)', () async {
+      final rec = make();
+      await rec.start(mode: RunMode.sport, sport: OtherSport.rope);
+      for (var i = 0; i < 20; i++) {
+        clock.advance(m(1));
+        expect(rec.addSteps(150), Intake.ignoredNotActive);
+        rec.addHeartRate(HeartRateReading('hr', clock.now(), 150));
+        rec.tick();
+      }
+      expect(computeKilometerSplits(rec.preprocessing()!).splits, isEmpty);
+      await rec.finish();
+      await rec.flush();
+      expect(rec.addSteps(150), Intake.ignoredFinished);
+      final raw = await store.rawData.read(rec.runId!);
+      expect(raw.steps, isEmpty);
+      expect(raw.heartRates, isNotEmpty);
+    });
+
     for (final sport in OtherSport.values) {
       test('Wiederanlauf nach Prozessende setzt ${sport.wire} fort', () async {
         final a = make();

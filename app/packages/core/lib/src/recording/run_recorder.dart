@@ -374,7 +374,8 @@ class RunRecorder {
   }
 
   /// Nimmt [newSteps] neue Schritte des Telefonsensors an (FR-0202) und
-  /// speichert den Zähler des Laufs als `raw_steps` (GPS- und Bandlauf). Die
+  /// speichert den Zähler des Laufs als `raw_steps` (GPS- und Bandlauf, nie bei
+  /// einer anderen Sportart, FR-0221). Die
   /// Zeit ist die Sitzungszeit beim Empfang. Gespeichert wird höchstens ein
   /// Wert je Anzeigetakt.
   Intake addSteps(int newSteps) {
