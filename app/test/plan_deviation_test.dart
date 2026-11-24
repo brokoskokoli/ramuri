@@ -100,8 +100,13 @@ class _Env {
   }
 
   /// Beendeter Lauf am Dienstag (Tag 15) mit [minutes] Bewegungszeit und
-  /// [rpe]; noch keiner Einheit zugeordnet.
-  Future<int> tuesdayRun({required int minutes, int? rpe}) async {
+  /// [rpe] bzw. [highHrMinutes] Zeit bei mindestens 80 % HFmax (Laufwert
+  /// nach PAR-058); noch keiner Einheit zugeordnet.
+  Future<int> tuesdayRun({
+    required int minutes,
+    int? rpe,
+    double? highHrMinutes,
+  }) async {
     final start = DateTime(2026, 12, 1, 7);
     final r = await session.runs.create(startedAt: start);
     final end = start.add(Duration(minutes: minutes));
@@ -113,6 +118,22 @@ class _Env {
     );
     if (rpe != null) {
       await session.subjective.save(r.id, RunSubjective(rpe: rpe));
+    }
+    if (highHrMinutes != null) {
+      await session.values.createOriginals(ValueOwner.run(r.id), [
+        ComputedValue(
+          key: highHeartRateTimeValueKey,
+          value: highHrMinutes,
+          unit: minutesUnit,
+          computedAt: end.toUtc(),
+          measurementCount: 600,
+          sources: const ['strap'],
+          method: HighHeartRateTime.methodId,
+          methodVersion: 1,
+          parameterVersion: 1,
+          quality: ValueQuality.good,
+        ),
+      ]);
     }
     figures.add(
       RunFigures(
@@ -168,6 +189,20 @@ void main() {
       expect(await e.sigs(), first);
       expect(planRunNoteFor(now, await e.notes())?.change, PlanRunChange.eased);
       expect((await e.plans.history()).length, greaterThanOrEqualTo(versions));
+    });
+
+    test('intensiv statt locker nur nach Puls (ohne RPE): Zuordnung macht '
+        'die harte Einheit am Mittwoch locker mit Begründung', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      final wed = (await e.plans.unitOn(_day(16)))!;
+      final id = await e.tuesdayRun(minutes: 36, highHrMinutes: 12);
+      expect(await e.assignTuesday(id), PlanActionResult.done);
+      final now = (await e.plans.unitOn(_day(16)))!;
+      expect(now.kind, PlanUnitKind.easy);
+      expect(now.minutes, wed.minutes);
+      final note = planRunNoteFor(now, await e.notes())!;
+      expect(note.change, PlanRunChange.eased);
+      expect(note.runDay, _day(15));
     });
 
     test(
@@ -263,6 +298,25 @@ void main() {
       await e.controller.open();
       expect(await e.controller.recalculate(), PlanActionResult.done);
       expect(await e.sigs(), first);
+    });
+
+    test('intensiv nur nach Puls (ohne RPE) am Dienstag: Mittwoch und '
+        'Freitag tauschen, Art und Dauer bleiben', () async {
+      final e = await _Env.open(PlanAdaptationMode.fixed);
+      final wed = (await e.plans.unitOn(_day(16)))!;
+      final fri = (await e.plans.unitOn(_day(18)))!;
+      final id = await e.tuesdayRun(minutes: 36, highHrMinutes: 12);
+      expect(await e.assignTuesday(id), PlanActionResult.done);
+      final wedNow = (await e.plans.unitOn(_day(16)))!;
+      final friNow = (await e.plans.unitOn(_day(18)))!;
+      expect(friNow.kind, wed.kind);
+      expect(friNow.minutes, wed.minutes);
+      expect(wedNow.kind, fri.kind);
+      expect(wedNow.minutes, fri.minutes);
+      expect(
+        planRunNoteFor(friNow, await e.notes())?.change,
+        PlanRunChange.swapped,
+      );
     });
 
     test('2,5 × geplante Dauer gelaufen: keine Planänderung', () async {
