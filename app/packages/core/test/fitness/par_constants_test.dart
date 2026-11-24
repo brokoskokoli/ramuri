@@ -366,6 +366,7 @@ final Map<String, List<Object>> parCodeValues = {
     _plan.pauseNewStartDays / 7,
   ],
   'PAR-204': [_pct(_plan.largeChangeShare)],
+  'PAR-235': [_plan.deviationTimeFactor, _plan.deviationRpeSteps],
   'PAR-205': [
     ..._doc([5, 10], 'Namen der Zielstrecken 5 km und 10 km.'),
     _plan.peakHalfMarathonKm,
@@ -764,8 +765,25 @@ final Map<String, List<Object>> parCodeValues = {
     ..._doc(
       [3],
       'Version, ab der PAR-230 gilt; die aktuelle Version (ppgMethodVersion) '
-      'ist seit der Belichtungsänderung (ADR-0011, Nachtrag 2026-11-22) 5.',
+      'ist seit der Neusperre der Belichtung (PAR-245, PAR-246) 6.',
     ),
+  ],
+  'PAR-245': [
+    ..._doc(
+      [20, 0.5, 1.5],
+      'Kotlin-Konstanten in PpgCameraLogic.kt, geprüft in PpgCameraLogicTest.',
+    ),
+    ppgMethodVersion,
+  ],
+  'PAR-246': [
+    ..._doc([
+      5,
+    ], 'Kotlin-Konstante CALM_RELATIVE, geprüft in PpgCameraLogicTest.'),
+    ppgExposureLockSeconds,
+    // Fensterbeginn frühestens so lange nach der neuen Sperre wie beim ersten Mal.
+    ppgSearchStartMin(relockedAt: 60) - 60,
+    ppgSearchMaxRecordSeconds,
+    ppgMethodVersion,
   ],
 };
 

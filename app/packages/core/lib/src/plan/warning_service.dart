@@ -3,6 +3,7 @@ import '../../ports/storage_settings.dart';
 import '../../ports/storage_warning.dart';
 import '../goals/training_goal.dart';
 import 'build_plan_inputs.dart' show refreshMeasuredInputs;
+import 'plan_deviation.dart' show PlanRunFacts;
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
 import 'plan_warning.dart';
@@ -20,6 +21,7 @@ class WarningService {
     required this.warning,
     this.parameters = const PlanParameters(),
     this.measuredInputs,
+    this.runFacts,
   });
 
   final PlanRepository plans;
@@ -35,6 +37,11 @@ class WarningService {
   /// Messwerte.
   final Future<PlanInputs> Function(TrainingGoal goal, DateTime today)?
   measuredInputs;
+
+  /// Die beendeten Läufe für die Regel der Abweichung (PAR-235) am Ortstag
+  /// `today`; ohne Funktion gilt die geplante Dauer. Mit ihr entsteht nach
+  /// dem Aufheben dieselbe Fassung wie bei der nächsten Neuberechnung.
+  final Future<List<PlanRunFacts>> Function(DateTime today)? runFacts;
 
   /// Das aktive Warnsignal oder `null`.
   Future<WarningSignal?> current() => warning.read();
@@ -120,6 +127,7 @@ class WarningService {
         );
       }
     }
+    final facts = runFacts;
     return recalculatePlan(
       plans: plans,
       settings: settings,
@@ -128,6 +136,7 @@ class WarningService {
       now: now,
       reason: reason,
       inputs: inputs,
+      runs: facts == null ? const [] : await facts(today),
       parameters: parameters,
       warning: warning,
       // Melden und Aufheben sind keine Wochenprüfung: der Prüftag bleibt.

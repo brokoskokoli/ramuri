@@ -1008,13 +1008,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     final today = _today;
     // Dieselbe Woche und dieselbe Summe wie die Wochenstatistik (FR-0044).
+    // Strecke, Trainingstage und Wochenziel zählen nur Läufe: Eine
+    // Sporteinheit zählt für den Plan nur, wenn sie eine Einheit ersetzt
+    // (DEC-0056), und hat keine Strecke (FR-0221).
     final week = StatisticsPeriod.weekOf(today);
-    final inWeek = [
-      for (final f in data.figures)
-        if (week.contains(id: f.runId, day: f.day)) f,
-    ];
     final stats = computePeriodStatistics(week, data.figures);
-    final runDays = {for (final f in inWeek) f.day};
+    final runDays = {for (final f in stats.runs) f.day};
     final km = stats.runCount == 0
         ? formatter.distance(0)
         : formatter.distance(stats.distanceMeters.value);

@@ -1,5 +1,6 @@
 import '../goals/training_goal.dart';
 import 'plan_course.dart';
+import 'plan_deviation.dart' show PlanRunChange, PlanRunNote;
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
 import 'plan_unit.dart';
@@ -57,6 +58,7 @@ class GeneratedPlan {
     this.walkRunStaysAtWeek,
     this.walkRunNoWeekFits = false,
     this.hardFit = HardFitStatus.notApplicable,
+    this.runNotes = const [],
   });
 
   final PlanVersion version;
@@ -105,11 +107,17 @@ class GeneratedPlan {
   /// [HardFitStatus.partialAtPeak], [HardFitStatus.neverFits]); der Aufrufer zeigt den Grund an.
   final HardFitStatus hardFit;
 
+  /// Begründungen an den Einheiten, die die Abweichung eines Laufs geändert
+  /// hat (PAR-235, aus `countedMinutes` und `intensiveRunDays` von
+  /// [generatePlan]); nach Tag.
+  final List<PlanRunNote> runNotes;
+
   /// Kopie mit anderen neuen Einheiten und Konflikten (für den Dienst, der
   /// den Zeitplan festhält).
   GeneratedPlan copyWith({
     List<PlanUnit>? units,
     List<PinnedConflict>? pinnedConflicts,
+    List<PlanRunNote>? runNotes,
   }) => GeneratedPlan(
     version: version,
     weeks: weeks,
@@ -122,6 +130,7 @@ class GeneratedPlan {
     walkRunStaysAtWeek: walkRunStaysAtWeek,
     walkRunNoWeekFits: walkRunNoWeekFits,
     hardFit: hardFit,
+    runNotes: runNotes ?? this.runNotes,
   );
 
   /// Eingefrorene und neue Einheiten, nach Tag sortiert.
@@ -177,6 +186,20 @@ List<PlanUnit> _byDay(List<PlanUnit> l) {
 /// wurde. Eine eingefrorene Einheit auf einem solchen Tag zählt als harte
 /// Einheit ihrer Woche: Die Lockerung wird nicht auf einen späteren Tag
 /// übertragen.
+///
+/// Abweichung eines Laufs (PAR-235, nur bei „adaptiv“ vom Aufrufer gesetzt):
+/// [countedMinutes] trägt für eingefrorene Einheiten (Tag) die echte
+/// Bewegungszeit eines deutlich längeren oder härteren Laufs; liegt sie über
+/// der geplanten Dauer, zählt die Woche sie statt der geplanten, und die
+/// übrigen künftigen Einheiten der Woche werden gekürzt, bis die Woche
+/// höchstens die Wochenzeit hat: zuerst die lockeren, dann die langen, je
+/// Art die späteste zuerst; eine Einheit ohne verbleibende Minute entfällt
+/// (harte nur über die Regel der Wochenzeit). Weniger echte Zeit erhöht
+/// nichts. [intensiveRunDays]: Tage eingefrorener lockerer Einheiten, die
+/// nach PAR-058 intensiv gelaufen wurden; eine solche Einheit zählt als harte
+/// Einheit ihrer Woche, die künftige harte Einheit der Woche wird ein
+/// lockerer Lauf gleicher Dauer. Beides steht in [GeneratedPlan.runNotes].
+/// Geh-Lauf-Wochen bleiben unverändert (die Abfolge gilt).
 GeneratedPlan generatePlan(
   TrainingGoal goal,
   PlanInputs inputs,
@@ -186,6 +209,8 @@ GeneratedPlan generatePlan(
   Set<DateTime>? heldDays,
   DateTime? heldUntil,
   Set<DateTime> easedHardDays = const {},
+  Map<DateTime, int> countedMinutes = const {},
+  Set<DateTime> intensiveRunDays = const {},
   PlanParameters parameters = const PlanParameters(),
 }) {
   final p = parameters;
@@ -245,6 +270,7 @@ GeneratedPlan generatePlan(
   final omissions = <int, HardOmission>{};
   final unplaced = <int, int>{};
   final dropped = <int, List<DateTime>>{};
+  final runNotes = <PlanRunNote>[];
 
   for (final week in course.weeks) {
     final start = week.start;
@@ -263,8 +289,17 @@ GeneratedPlan generatePlan(
     final frozenEased = frozenWeek.any(
       (u) => easedHardDays.contains(planDay(u.day)),
     );
-    final frozenHard =
+    final frozenHardOwn =
         frozenReplaced || frozenEased || frozenWeek.any((u) => u.isHard);
+    // Ein intensiv gelaufener lockerer Lauf (PAR-235) zählt als harte Einheit
+    // der Woche, wenn sie sonst keine hat.
+    final DateTime? hardRunDay = frozenHardOwn
+        ? null
+        : [
+            for (final u in frozenWeek)
+              if (intensiveRunDays.contains(planDay(u.day))) planDay(u.day),
+          ].firstOrNull;
+    final frozenHard = frozenHardOwn || hardRunDay != null;
 
     int? prevWeekday;
     final prevUnits = byWeek[start.subtract(const Duration(days: 7))];
@@ -321,6 +356,22 @@ GeneratedPlan generatePlan(
     final noHardUntil = inputs.noHardUntil;
     bool noHard(PlanUnit u) =>
         noHardUntil != null && !u.day.isAfter(noHardUntil);
+    if (hardRunDay != null && walkPlan == null) {
+      for (final u in planned.units) {
+        if (u.isHard &&
+            !u.day.isBefore(todayDay) &&
+            !frozenDays.contains(u.day)) {
+          runNotes.add(
+            PlanRunNote(
+              day: planDay(u.day),
+              kind: PlanUnitKind.easy,
+              change: PlanRunChange.eased,
+              runDay: hardRunDay,
+            ),
+          );
+        }
+      }
+    }
     var future = <PlanUnit>[
       for (final u in planned.units)
         if (!u.day.isBefore(todayDay) && !frozenDays.contains(u.day))
@@ -450,6 +501,41 @@ GeneratedPlan generatePlan(
     // entfallen die letzten lockeren, zuletzt die langen und harten.
     final weekMinutes = week.minutes;
     if (weekMinutes != null && walkPlan == null) {
+      // Abweichung (PAR-235): echte statt geplanter Zeit, Rest kürzen.
+      var excess = 0;
+      DateTime? excessDay;
+      for (final u in frozenWeek) {
+        final c = countedMinutes[planDay(u.day)];
+        if (c != null && c > u.minutes) {
+          excess += c - u.minutes;
+          excessDay ??= planDay(u.day);
+        }
+      }
+      if (excess > 0) {
+        frozenMinutes += excess;
+        final over =
+            frozenMinutes +
+            future.fold<int>(0, (a, u) => a + u.minutes) -
+            weekMinutes;
+        if (over > 0) {
+          final shrunk = _shrinkEasyFirst(future, over);
+          future = shrunk.kept;
+          for (final d in shrunk.shortenedDays) {
+            final u = future.firstWhere((f) => f.day == d);
+            runNotes.add(
+              PlanRunNote(
+                day: planDay(d),
+                kind: u.kind,
+                change: PlanRunChange.shortened,
+                runDay: excessDay!,
+              ),
+            );
+          }
+          if (shrunk.droppedDays.isNotEmpty) {
+            (dropped[week.index] ??= []).addAll(shrunk.droppedDays);
+          }
+        }
+      }
       final fitted = _fitBudget(future, weekMinutes - frozenMinutes);
       future = fitted.kept;
       if (fitted.droppedDays.isNotEmpty) {
@@ -562,6 +648,7 @@ GeneratedPlan generatePlan(
     }, created),
     pinnedConflicts: conflicts,
     hardFit: setup.hardFit,
+    runNotes: runNotes..sort((a, b) => a.day.compareTo(b.day)),
   );
 }
 
@@ -917,6 +1004,53 @@ List<PinnedConflict> _spacingConflicts(
     droppedDays.add(out.removeAt(drop).day);
   }
   return (kept: out, droppedDays: droppedDays);
+}
+
+/// Kürzt [units] um [over] Minuten (PAR-235): zuerst die lockeren, dann die
+/// langen Einheiten, je Art die späteste zuerst; eine Einheit, der keine
+/// Minute bleibt, entfällt. Harte Einheiten bleiben.
+({
+  List<PlanUnit> kept,
+  List<DateTime> shortenedDays,
+  List<DateTime> droppedDays,
+})
+_shrinkEasyFirst(List<PlanUnit> units, int over) {
+  final out = [...units];
+  final shortened = <DateTime>[];
+  final droppedDays = <DateTime>[];
+  var rest = over;
+  for (final kind in const [PlanUnitKind.easy, PlanUnitKind.long]) {
+    final order = [
+      for (final u in out)
+        if (u.kind == kind) u,
+    ]..sort((a, b) => b.day.compareTo(a.day));
+    for (final u in order) {
+      if (rest <= 0) break;
+      final i = out.indexOf(u);
+      if (u.minutes <= rest) {
+        rest -= u.minutes;
+        out.removeAt(i);
+        droppedDays.add(u.day);
+        continue;
+      }
+      final m = u.minutes - rest;
+      rest = 0;
+      out[i] = PlanUnit(
+        day: u.day,
+        kind: u.kind,
+        phase: u.phase,
+        weekIndex: u.weekIndex,
+        minutes: m,
+        segments: [PlanSegment(kind: PlanSegmentKind.easy, minutes: m)],
+        pinned: u.pinned,
+        fixed: u.fixed,
+        method: u.method,
+        methodVersion: u.methodVersion,
+      );
+      shortened.add(u.day);
+    }
+  }
+  return (kept: out, shortenedDays: shortened, droppedDays: droppedDays);
 }
 
 PlanUnit _asEasy(PlanUnit u) => PlanUnit(

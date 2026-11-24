@@ -29,6 +29,7 @@ Future<void> Function(bool yes)? warningEntry({
     warning: (session as WarningStorage).warning,
     measuredInputs: (goal, today) async =>
         (await reader.read(goal: goal, today: today)).inputs,
+    runFacts: reader.runFacts,
   );
   return (yes) async {
     final now = clock.now();

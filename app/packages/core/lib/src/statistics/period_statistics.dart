@@ -8,7 +8,9 @@ const double _microsPerSecond = 1e6;
 
 /// Ein Wert der Statistik. [value] ist `null`, wenn kein Lauf des Zeitraums
 /// ihn liefert (FR-0057: nicht verfügbar, nie 0). Liefern ihn nur einige Läufe,
-/// ist [isPartial] gesetzt; die Zahlen sagen, wie viele.
+/// ist [isPartial] gesetzt; die Zahlen sagen, wie viele. [runsTotal] ist bei
+/// Umfang und Geschwindigkeit die Zahl der Läufe, bei Puls, Zonen und TRIMP die
+/// aller Einheiten samt Sporteinheiten (FR-0043, Festlegung FR-0221).
 class StatValue<T> {
   const StatValue({
     required this.value,
@@ -29,6 +31,7 @@ class StatValue<T> {
 class PeriodStatistics {
   PeriodStatistics({
     required this.period,
+    required List<RunFigures> units,
     required List<RunFigures> runs,
     required this.trainingDays,
     required this.distanceMeters,
@@ -43,21 +46,28 @@ class PeriodStatistics {
     required this.belowZone1Time,
     required this.trimpPoints,
     required this.trimpIncomplete,
-  }) : runs = List.unmodifiable(runs);
+  }) : units = List.unmodifiable(units),
+       runs = List.unmodifiable(runs);
 
   String get method => statisticsMethod;
   int get methodVersion => statisticsMethodVersion;
 
   final StatisticsPeriod period;
 
-  /// Die Läufe des Zeitraums, nach Laufende aufsteigend.
+  /// Alle Einheiten des Zeitraums (Läufe und Sporteinheiten, FR-0221), nach
+  /// Laufende aufsteigend. Aus ihnen kommen Puls, Zonen und TRIMP.
+  final List<RunFigures> units;
+
+  /// Nur die Läufe (GPS und Laufband) aus [units], gleiche Reihenfolge. Aus
+  /// ihnen kommen Umfang, Geschwindigkeit und Runden.
   final List<RunFigures> runs;
 
-  /// Trainingshäufigkeit: Zahl der Läufe. Ein Zeitraum ohne Läufe hat 0 (das
-  /// ist gezählt, nicht fehlend).
+  /// Trainingshäufigkeit: Zahl der Läufe, ohne Sporteinheiten. Ein Zeitraum
+  /// ohne Läufe hat 0 (das ist gezählt, nicht fehlend).
   int get runCount => runs.length;
 
-  /// Zahl der verschiedenen Kalendertage mit mindestens einem Lauf.
+  /// Zahl der verschiedenen Kalendertage mit mindestens einem Lauf; ein Tag
+  /// nur mit Sporteinheit zählt nicht.
   final int trainingDays;
 
   final StatValue<double> distanceMeters;
@@ -89,37 +99,60 @@ class PeriodStatistics {
   final bool trimpIncomplete;
 }
 
-/// Rechnet die Statistik von [period] aus den Läufen in [all]; Läufe außerhalb
-/// des Zeitraums werden ausgelassen. Wirft [ArgumentError] bei doppelter Lauf-Id.
+/// Rechnet die Statistik von [period] aus den Einheiten in [all]; Einheiten
+/// außerhalb des Zeitraums werden ausgelassen. Umfang, Geschwindigkeit und
+/// Runden zählen nur Läufe ([RunFigures.isRunning]), Puls, Zonen und TRIMP alle
+/// Einheiten (FR-0043, Festlegung FR-0221). Wirft [ArgumentError] bei doppelter
+/// Lauf-Id.
 PeriodStatistics computePeriodStatistics(
   StatisticsPeriod period,
   Iterable<RunFigures> all,
 ) {
   final seen = <int>{};
-  final runs = <RunFigures>[];
+  final units = <RunFigures>[];
   for (final r in all) {
     if (!seen.add(r.runId)) {
       throw ArgumentError.value(r.runId, 'all', 'doppelte Lauf-Id');
     }
-    if (period.contains(id: r.runId, day: r.day)) runs.add(r);
+    if (period.contains(id: r.runId, day: r.day)) units.add(r);
   }
-  runs.sort((a, b) {
+  units.sort((a, b) {
     final c = a.endedAt.compareTo(b.endedAt);
     return c != 0 ? c : a.runId.compareTo(b.runId);
   });
+  final runs = [
+    for (final u in units)
+      if (u.isRunning) u,
+  ];
   final n = runs.length;
+  final nUnits = units.length;
 
-  StatValue<T> sum<T>(T? Function(RunFigures) pick, T Function(T, T) add) {
+  StatValue<T> sumOf<T>(
+    List<RunFigures> over,
+    T? Function(RunFigures) pick,
+    T Function(T, T) add,
+  ) {
     T? total;
     var count = 0;
-    for (final r in runs) {
+    for (final r in over) {
       final v = pick(r);
       if (v == null) continue;
       total = total == null ? v : add(total, v);
       count++;
     }
-    return StatValue(value: total, runsWithValue: count, runsTotal: n);
+    return StatValue(
+      value: total,
+      runsWithValue: count,
+      runsTotal: over.length,
+    );
   }
+
+  StatValue<T> sum<T>(T? Function(RunFigures) pick, T Function(T, T) add) =>
+      sumOf(runs, pick, add);
+  StatValue<T> sumUnits<T>(
+    T? Function(RunFigures) pick,
+    T Function(T, T) add,
+  ) => sumOf(units, pick, add);
 
   Duration plus(Duration a, Duration b) => a + b;
 
@@ -140,7 +173,7 @@ PeriodStatistics computePeriodStatistics(
   var hrSum = 0.0;
   var hrMicros = 0;
   var hrRuns = 0;
-  for (final r in runs) {
+  for (final r in units) {
     final avg = r.heartRateAverageBpm;
     final t = r.heartRateTime?.inMicroseconds ?? 0;
     if (avg == null || t <= 0) continue;
@@ -154,7 +187,7 @@ PeriodStatistics computePeriodStatistics(
   var zoneRuns = 0;
   var belowMicros = 0;
   var belowRuns = 0;
-  for (final r in runs) {
+  for (final r in units) {
     final z = r.zoneTimes;
     if (z == null) continue;
     zoneTotal ??= List.filled(z.length, Duration.zero);
@@ -173,6 +206,7 @@ PeriodStatistics computePeriodStatistics(
 
   return PeriodStatistics(
     period: period,
+    units: units,
     runs: runs,
     trainingDays: {for (final r in runs) r.day}.length,
     distanceMeters: sum<double>((r) => r.distanceMeters, (a, b) => a + b),
@@ -193,24 +227,24 @@ PeriodStatistics computePeriodStatistics(
     heartRateAverageBpm: StatValue(
       value: hrMicros == 0 ? null : hrSum / hrMicros,
       runsWithValue: hrRuns,
-      runsTotal: n,
+      runsTotal: nUnits,
     ),
-    heartRateMaxBpm: sum<int>(
+    heartRateMaxBpm: sumUnits<int>(
       (r) => r.heartRateMaxBpm,
       (a, b) => a > b ? a : b,
     ),
     zoneTimes: StatValue(
       value: zoneTotal == null ? null : List.unmodifiable(zoneTotal),
       runsWithValue: zoneRuns,
-      runsTotal: n,
+      runsTotal: nUnits,
     ),
     belowZone1Time: StatValue(
       value: belowRuns == 0 ? null : Duration(microseconds: belowMicros),
       runsWithValue: belowRuns,
-      runsTotal: n,
+      runsTotal: nUnits,
     ),
-    trimpPoints: sum<double>((r) => r.trimpPoints, (a, b) => a + b),
-    trimpIncomplete: runs.any(
+    trimpPoints: sumUnits<double>((r) => r.trimpPoints, (a, b) => a + b),
+    trimpIncomplete: units.any(
       (r) => r.trimpPoints != null && r.trimpIncomplete,
     ),
   );

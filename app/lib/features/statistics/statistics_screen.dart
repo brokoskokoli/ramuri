@@ -369,7 +369,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               WeekDistanceCard(
                 series: series,
                 formatter: formatter,
-                hasAnyRun: data.figures.isNotEmpty,
+                hasAnyRun: data.figures.any((f) => f.isRunning),
               ),
               const SizedBox(height: 14),
               Vo2ProgressCard(

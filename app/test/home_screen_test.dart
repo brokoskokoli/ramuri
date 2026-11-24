@@ -4,6 +4,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/history/run_detail_screen.dart';
+import 'package:running_app/features/plan/plan_controller.dart';
+import 'package:running_app/features/plan/plan_data_reader.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show seedRun, text;
@@ -49,6 +51,65 @@ Future<int> _run(
     endedUtcOffset: offset,
   );
   return id;
+}
+
+/// Beendete Sporteinheit (FR-0221) von [minutes] Minuten bis [end] mit Puls
+/// 150 und ohne Positionen.
+Future<int> _sport(StorageSession s, DateTime end, int minutes) async {
+  final start = end.subtract(Duration(minutes: minutes));
+  final run = await s.runs.create(
+    startedAt: start,
+    mode: RunMode.sport,
+    sport: OtherSport.rope,
+  );
+  await s.rawData.append(
+    run.id,
+    RawBatch(
+      heartRates: [
+        for (var i = 0; i <= minutes * 60; i++)
+          RawHeartRate(
+            time: start.add(Duration(seconds: i)),
+            source: 'strap',
+            bpm: 150,
+            contact: SensorContact.good,
+          ),
+      ],
+    ),
+  );
+  await s.runs.setState(
+    run.id,
+    RunState.finished,
+    endedAt: end,
+    endedUtcOffset: end.timeZoneOffset,
+  );
+  return run.id;
+}
+
+/// Ziel mit erster Fassung des Plans (Lauftage Mo, Mi, Fr), über den echten
+/// Controller.
+Future<void> _plan(Device d, StorageSession s) async {
+  final c = PlanController(
+    session: s,
+    clock: d.clock,
+    reader: PlanDataReader(
+      session: s,
+      clock: d.clock,
+      loadRuns: () async => const [],
+    ),
+  );
+  final goal = TrainingGoal(
+    type: GoalType.distance,
+    distance: GoalDistance.tenKilometers,
+    targetDate: DateTime.utc(2027, 3, 14),
+    runDays: const {1, 3, 5},
+    maxSessionSeconds: 7200,
+    weeklyCapSeconds: 240 * 60.0,
+    createdAt: DateTime.utc(2026, 11, 1),
+    hardSessionEnabled: false,
+    canRun30: ContinuousRun30.yes,
+  );
+  expect(await c.saveGoal(goal), PlanActionResult.done);
+  c.dispose();
 }
 
 Future<void> _start(Device d, WidgetTester tester, [String locale = 'de']) =>
@@ -529,6 +590,38 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Sporteinheit zählt nicht ins Wochenziel, in Strecke und '
+      'Trainingstage (FR-0221, DEC-0056)', (tester) async {
+    final d = Device();
+    d.clock.set(DateTime(2026, 11, 11, 12)); // Mittwoch
+    final s = await _preopen(d);
+    await _plan(d, s);
+    // Montag 40 min Lauf (7,20 km), Dienstag 30 min Sporteinheit.
+    await _run(s, DateTime(2026, 11, 9, 8, 40), null, 40);
+    await _sport(s, DateTime(2026, 11, 10, 8, 30), 30);
+    await _start(d, tester);
+    expect(text('home_week_goal_time'), startsWith('40 min von'));
+    expect(text('home_week_km'), '7,20 km');
+    expect(key('home_week_partial'), findsNothing);
+    expect(_dayLabel(tester, 0), 'Montag, gelaufen');
+    expect(_dayLabel(tester, 1), 'Dienstag, kein Lauf');
+  });
+
+  testWidgets('nur eine Sporteinheit: Woche wie ohne Lauf, Fortschritt '
+      'ohne Lauf (FR-0221)', (tester) async {
+    final d = Device();
+    d.clock.set(DateTime(2026, 11, 11, 12));
+    final s = await _preopen(d);
+    await _sport(s, DateTime(2026, 11, 10, 8, 30), 30);
+    await _start(d, tester);
+    expect(text('home_week_km'), '0,00 km');
+    expect(key('home_week_partial'), findsNothing);
+    expect(_dayLabel(tester, 1), 'Dienstag, kein Lauf');
+    await tester.tap(key('home_statistics'));
+    await tester.pumpAndSettle();
+    expect(key('progress_week_no_runs'), findsOneWidget);
   });
 }
 

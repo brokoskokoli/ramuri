@@ -55,7 +55,7 @@ Im Diagramm sollen beispielsweise Pace und Herzfrequenz zeitlich miteinander ver
 ### FR-0043 — Statistische Kennzahlen
 - **Status:** Approved | **Phase:** 1 (je Kennzahl abhängig von der liefernden Funktion)
 - **Quelle:** SRC-001 §5.2, Z. 203–212
-- **Verwandt:** FR-0055, OQ-0039, OQ-0065, OQ-0075
+- **Verwandt:** FR-0055, FR-0221, OQ-0039, OQ-0065, OQ-0075
 
 Die Statistik umfasst diese Bereiche.
 
@@ -77,6 +77,8 @@ In der Oberfläche heißt die langfristige Trainingsbelastung „langfristiges B
 **Festlegung (OQ-0065):** Persönliche Bestzeiten werden bis zu ihrer Definition nicht angezeigt.
 
 **Festlegung (OQ-0075):** Der Bereich „Fortschritt“ zeigt nach Design oben die Kilometer der letzten 8 Wochen als Balken, darunter VO₂max und aerobe Effizienz in der Darstellung ihrer Specs und danach die übrigen Kennzahlen mit der Zeitraumwahl (FR-0044).
+
+**Festlegung (FR-0221):** Umfang (Laufkilometer, Laufzeit, Trainingshäufigkeit, Trainingstage), Geschwindigkeit (Durchschnittspace, Bestpace, Runden), die Kilometer der letzten 8 Wochen und der Vergleich mit Vorläufen zählen nur Läufe (GPS und Laufband). Herzfrequenz (Durchschnitt, Maximum, Zonenverteilung) und TRIMP zählen auch Sporteinheiten.
 
 **Akzeptanzkriterien:**
 - [ ] Jede Kennzahl ist entweder berechnet oder als nicht verfügbar erkennbar (FR-0057).
