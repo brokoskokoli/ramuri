@@ -209,6 +209,30 @@ void main() {
       expect(await e.sigs(), isNot(isEmpty));
     });
 
+    test('Puls und RPE aus dem Speicher: 9 min über 80 % HFmax bzw. RPE 6 '
+        'zählen nicht als „hart nach Puls, leicht empfunden“', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15, highHr: 9);
+      await e.run(18, rpe: 6);
+      await e.run(20);
+      final c = await e.opened();
+      expect(c.state.underloadPrompt, isNull, reason: 'nur 1 von 3');
+      expect(await e.stage(), isNull);
+    });
+
+    test('Läufe ohne Puls oder ohne RPE zählen nicht mit', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      await e.run(18);
+      await e.run(20, highHr: null);
+      await e.run(22, rpe: null);
+      // Zählten die beiden letzten mit, wäre es 1 von 3: kein Muster.
+      expect(
+        (await e.opened()).state.underloadPrompt,
+        PlanUnderloadPrompt.hint,
+      );
+    });
+
     test(
       'Neustart zeigt Hinweis bzw. Frage nach der Antwort nicht erneut',
       () async {
