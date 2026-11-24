@@ -526,6 +526,55 @@ void main() {
       );
 
       test(
+        'Morgenmessung: Sperre später als 2,5 s nach relocking: Einschwingen '
+        'bis zur Sperre und danach 2,5 s nach ihrer Sensorzeit',
+        () async {
+          final r = await Rig.make();
+          final checkedWith = <double?>[];
+          var relocking = false;
+          final liveWhileRelocking = <PpgWindow>[];
+          final c = search(
+            r,
+            evaluate: (frames, window) async {
+              if (relocking) liveWhileRelocking.add(window);
+              return evaluatePpg(frames, window: window);
+            },
+            check: (frames, {relockedAt}) async {
+              checkedWith.add(relockedAt);
+              return checkPpgRecording(frames, relockedAt: relockedAt);
+            },
+          );
+          await c.startNow();
+          final src = FrameSource();
+          await src.emitUntil(r.cam, 2.5);
+          r.cam.emitLocked(2.5);
+          await src.emitUntil(r.cam, 24);
+          r.cam.emitRelocking(24);
+          relocking = true;
+          await pump();
+          // Die Sperre kommt erst bei 30,3 s: bis dahin bleibt es Einschwingen,
+          // auch nach dem vorläufigen frühesten Beginn (29 s).
+          await src.emitUntil(r.cam, 30.2);
+          expect(c.settling, isTrue, reason: 'Sperre steht noch aus');
+          expect(liveWhileRelocking, isEmpty, reason: 'keine Live-Auswertung');
+          relocking = false;
+          r.cam.emitLocked(30.3);
+          await src.emitUntil(r.cam, 32.7);
+          expect(
+            c.settling,
+            isTrue,
+            reason: 'bis 2,5 s nach der Sperre bei 30,3 s',
+          );
+          await src.emitUntil(r.cam, 33.0);
+          expect(c.settling, isFalse);
+          await src.emitUntil(r.cam, 40);
+          await pump();
+          expect(checkedWith, isNotEmpty);
+          expect(checkedWith.last, 30.3);
+        },
+      );
+
+      test(
         'Morgenmessung: Höchstdauer bleibt 120 s, die Endauswertung kennt die '
         'Neusperre',
         () async {
