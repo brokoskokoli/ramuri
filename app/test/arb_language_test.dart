@@ -65,6 +65,13 @@ final Map<String, RegExp> negated = {
   'readinessNumberNote': RegExp(
     r'Sie ist keine Diagnose|It is not a diagnosis',
   ),
+  // FR-0217: Titel der Entwickler-Karte; „Diagnose“ meint die Fehlersuche an
+  // der Kamera-Bildverarbeitung, keine Aussage über die Gesundheit. Nur genau
+  // dieser Titel.
+  'devDiagTitle': RegExp(
+    r'^(Kamera-Bildverarbeitung \(Diagnose\)|'
+    r'Camera image processing \(diagnostics\))$',
+  ),
   // FR-0203: fester Text, Wortlaut vorbehaltlich OQ-0048.
   'planWarnBannerText': RegExp(
     r'Diese App stellt keine Diagnose|This app does not provide a diagnosis',
