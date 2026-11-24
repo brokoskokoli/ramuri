@@ -119,6 +119,21 @@ String planConflictText(
   PinnedConflictKind.walkRunFirst => l.planHintWalkRunFirst(day(c.day)),
 };
 
+/// Begründung an einer Einheit, die die Regel der Abweichung geändert hat
+/// (PAR-235); [day] formatiert einen Tag.
+String planRunNoteText(
+  AppLocalizations l,
+  PlanRunNote n,
+  String Function(DateTime) day,
+) => switch (n.change) {
+  PlanRunChange.eased => l.planRunNoteEased(day(n.runDay)),
+  PlanRunChange.shortened => l.planRunNoteShortened(day(n.runDay)),
+  PlanRunChange.swapped => l.planRunNoteSwapped(
+    day(n.runDay),
+    n.otherDay == null ? '–' : day(n.otherDay!),
+  ),
+};
+
 String planHardOmissionText(AppLocalizations l, HardOmission o) => switch (o) {
   HardOmission.tooFewRunDays => l.planHintHardTooFewRunDays,
   HardOmission.notContinuous30 => l.planHintHardNotContinuous30,

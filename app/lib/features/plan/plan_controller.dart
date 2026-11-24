@@ -448,6 +448,7 @@ class PlanController extends ChangeNotifier {
       parameters: parameters,
       warning: _warning,
       readiness: readiness,
+      runs: await reader.runFacts(today),
       // `manual` bewertet die Woche nicht (ADR-0010 Nachtrag WP24, K63): Der
       // Prüftag bleibt, sonst fiele die fällige Wochenbewertung weg.
       markChecked:
@@ -529,6 +530,15 @@ class PlanController extends ChangeNotifier {
             if (c.kind != PinnedConflictKind.spacing && !c.day.isBefore(today))
               c,
           ...planSpacingConflicts(units, today, parameters: parameters),
+          // Bei „fix“ zusätzlich der Abstand der nächsten harten Einheit zu
+          // einem intensiven Lauf, wenn kein Tausch möglich war (PAR-235).
+          if (await _adaptation.read() == PlanAdaptationMode.fixed)
+            ...planRunSpacingConflicts(
+              units,
+              await _intensiveRunDays(today),
+              today,
+              parameters: parameters,
+            ),
         ],
       );
     }
@@ -661,6 +671,7 @@ class PlanController extends ChangeNotifier {
         PlanCalendarRun(
           id: r.id,
           day: day,
+          running: r.mode.isRunning,
           intensive: parameters.completedIntensive(
             rpe: rpe,
             highHrMinutes: highHr,
@@ -669,6 +680,21 @@ class PlanController extends ChangeNotifier {
       );
     }
     return result;
+  }
+
+  /// Ortstage der intensiven Läufe (PAR-058, ohne andere Sportart, DEC-0056),
+  /// zu denen die harte Einheit der Woche von [today] Abstand halten muss
+  /// (PAR-059), wie [planIntensiveRunDays]; über [runsBetween], damit die
+  /// Seite nicht auf die Kennzahlen aller Läufe wartet.
+  Future<Set<DateTime>> _intensiveRunDays(DateTime today) async {
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    return {
+      for (final r in await runsBetween(
+        monday.subtract(Duration(days: parameters.minGapDays - 1)),
+        today,
+      ))
+        if (r.running && r.intensive) r.day,
+    };
   }
 
   /// Die zugeordneten Läufe der erledigten Einheiten in [units] (ohne
@@ -1150,6 +1176,7 @@ class PlanController extends ChangeNotifier {
     parameters: parameters,
     measuredInputs: (goal, today) async =>
         (await reader.read(goal: goal, today: today)).inputs,
+    runFacts: reader.runFacts,
   );
 
   /// Antwort auf die Nachfrage (PAR-200). „Passt“ und „zu leicht“ am Regler
@@ -1195,6 +1222,7 @@ class PlanController extends ChangeNotifier {
           inputs: next,
           parameters: parameters,
           warning: _warning,
+          runs: await reader.runFacts(today),
         );
         _fresh = w.generated;
         _lastChange = w.summary;
@@ -1287,6 +1315,7 @@ class PlanController extends ChangeNotifier {
         inputs: next,
         parameters: parameters,
         warning: _warning,
+        runs: await reader.runFacts(today),
       );
       _fresh = r.generated;
       _lastChange = r.summary;
@@ -1419,6 +1448,7 @@ class PlanController extends ChangeNotifier {
       inputs: inputs,
       parameters: parameters,
       warning: _warning,
+      runs: await reader.runFacts(today),
     );
     _fresh = r.generated;
     _lastChange = r.summary;
@@ -1585,9 +1615,13 @@ class PlanCalendarRun {
     required this.id,
     required this.day,
     required this.intensive,
+    this.running = true,
   });
 
   final int id;
+
+  /// Ein Lauf, keine andere Sportart (FR-0221).
+  final bool running;
 
   /// Ortstag des Laufendes.
   final DateTime day;
