@@ -119,6 +119,21 @@ class MethodChannelPpgCamera implements PpgCamera {
 
   static int? _int(Object? v) => v is num && v.isFinite ? v.toInt() : null;
 
+  /// Werte der Bildverarbeitung eines Bilds: genau [ppgIspValueCount] Einträge
+  /// (Float64List von Kotlin), `null`, `NaN` oder Unpassendes je Eintrag = nicht
+  /// gemeldet (`NaN`). Fehlt die Liste oder hat sie eine andere Länge: `null`.
+  static List<double>? _isp(Object? v) {
+    if (v is! List || v.length != ppgIspValueCount) return null;
+    return List.unmodifiable([
+      for (final e in v) e is num && e.isFinite ? e.toDouble() : double.nan,
+    ]);
+  }
+
+  static Set<PpgCameraDiagnostic> _diagnostics(Object? v) => {
+    if (v is List)
+      for (final e in v) ?PpgCameraDiagnostic.fromWire(e),
+  };
+
   static double? _fraction(Object? v) =>
       v is num && v.isFinite && v >= 0 && v <= 1 ? v.toDouble() : null;
 
@@ -143,6 +158,7 @@ class MethodChannelPpgCamera implements PpgCamera {
             r16: r16,
             g16: g16,
           ),
+          _isp(event['isp']),
         );
       case 'details':
         return PpgCameraDetails(
@@ -160,9 +176,16 @@ class MethodChannelPpgCamera implements PpgCamera {
       case 'started':
         final fps = event['fps'];
         final camera = _ref(event);
-        return fps is int && camera != null
-            ? PpgCameraStarted(fps, camera)
-            : null;
+        if (fps is! int || camera == null) return null;
+        final diagnostics = _diagnostics(event['diagnostics']);
+        return PpgCameraStarted(
+          fps,
+          camera,
+          diagnostics: diagnostics,
+          awbVariant: diagnostics.contains(PpgCameraDiagnostic.awbFixed)
+              ? PpgAwbVariant.fromWire(event['awbVariant'])
+              : null,
+        );
       case 'locked':
         return const PpgCameraExposureLocked();
       case 'stopped':
@@ -171,18 +194,44 @@ class MethodChannelPpgCamera implements PpgCamera {
     return null;
   }
 
+  /// Argument für den Kanal: `null` ohne jede Angabe, sonst die Kamera und nur
+  /// bei Anforderung `diagnostics` (Namen in fester Reihenfolge) und `ispFrames`.
+  static Map<String, Object?>? startArguments({
+    PpgCameraRef? camera,
+    Set<PpgCameraDiagnostic> diagnostics = const {},
+    bool ispFrames = false,
+  }) {
+    if (camera == null && diagnostics.isEmpty && !ispFrames) return null;
+    return <String, Object?>{
+      if (camera != null) ...{
+        'cameraId': camera.cameraId,
+        'physicalCameraId': camera.physicalCameraId,
+      },
+      if (diagnostics.isNotEmpty)
+        'diagnostics': [
+          for (final d in PpgCameraDiagnostic.values)
+            if (diagnostics.contains(d)) d.wire,
+        ],
+      if (ispFrames) 'ispFrames': true,
+    };
+  }
+
   /// Bewusst kein `async*`: Abbestellen eines Generators wirkt erst am nächsten `yield`,
   /// die Kamera bliebe mit Torch an. Abbestellen meldet sich in Kotlin über onCancel
   /// (Torch aus, Sitzung und Gerät zu).
   @override
-  Stream<PpgCameraEvent> start({PpgCameraRef? camera}) {
-    // Ohne Angabe kein Argument: Kotlin nimmt die Standardkamera wie vor FR-0220.
-    final args = camera == null
-        ? null
-        : <String, Object?>{
-            'cameraId': camera.cameraId,
-            'physicalCameraId': camera.physicalCameraId,
-          };
+  Stream<PpgCameraEvent> start({
+    PpgCameraRef? camera,
+    Set<PpgCameraDiagnostic> diagnostics = const {},
+    bool ispFrames = false,
+  }) {
+    // Ohne Angabe kein Argument: Kotlin nimmt die Standardkamera wie vor FR-0220;
+    // Schalter und ISP-Werte nur, wenn angefordert (sonst die Vorgabe).
+    final args = startArguments(
+      camera: camera,
+      diagnostics: diagnostics,
+      ispFrames: ispFrames,
+    );
     late final StreamController<PpgCameraEvent> out;
     out = StreamController<PpgCameraEvent>(
       onListen: () {

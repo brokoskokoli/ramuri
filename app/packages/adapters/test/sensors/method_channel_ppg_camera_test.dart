@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
@@ -279,6 +280,84 @@ void main() {
       await sub.cancel();
     },
   );
+
+  test('Schalter und ISP-Werte gehen als Start-Argumente an Kotlin, started meldet die gesetzten', () async {
+    final out = <PpgCameraEvent>[];
+    final sub = MethodChannelPpgCamera()
+        .start(
+          diagnostics: const {
+            PpgCameraDiagnostic.shadingOff,
+            PpgCameraDiagnostic.noiseReductionOff,
+            PpgCameraDiagnostic.awbFixed,
+          },
+          ispFrames: true,
+        )
+        .listen(out.add);
+    await pumpEventQueue();
+    expect(listenArgs, {
+      'diagnostics': ['noise_reduction_off', 'awb_fixed', 'shading_off'],
+      'ispFrames': true,
+    });
+    sink!.add({
+      'type': 'started',
+      'fps': 60,
+      'cameraId': '0',
+      'diagnostics': ['awb_fixed', 'shading_off', 'unbekannt'],
+      'awbVariant': 'lock',
+    });
+    sink!.add({'type': 'started', 'fps': 60, 'cameraId': '0'});
+    await pumpEventQueue();
+    final started = out.cast<PpgCameraStarted>();
+    expect(started[0].diagnostics, {
+      PpgCameraDiagnostic.awbFixed,
+      PpgCameraDiagnostic.shadingOff,
+    });
+    expect(started[0].awbVariant, PpgAwbVariant.lock);
+    expect(started[1].diagnostics, isEmpty);
+    expect(started[1].awbVariant, isNull);
+    await sub.cancel();
+    expect(
+      MethodChannelPpgCamera.startArguments(
+        camera: const PpgCameraRef('2'),
+        ispFrames: true,
+      ),
+      {'cameraId': '2', 'physicalCameraId': null, 'ispFrames': true},
+    );
+  });
+
+  test('Bild mit 19 ISP-Werten, einzelnen fehlenden und ohne ISP-Werte', () {
+    final full = Float64List.fromList([for (var k = 0; k < 19; k++) k + 0.5]);
+    final a = MethodChannelPpgCamera.parse({
+      ..._frame(0.1),
+      'isp': full,
+    }) as PpgCameraFrame;
+    expect(a.isp, [for (var k = 0; k < 19; k++) k + 0.5]);
+    final gaps = Float64List.fromList(full)
+      ..[4] = double.nan
+      ..[18] = double.nan;
+    final b = MethodChannelPpgCamera.parse({
+      ..._frame(0.2),
+      'isp': gaps,
+    }) as PpgCameraFrame;
+    expect(b.isp![4].isNaN, isTrue);
+    expect(b.isp![18].isNaN, isTrue);
+    expect(b.isp![5], 5.5);
+    final nulls = [for (var k = 0; k < 19; k++) k == 3 ? null : k];
+    final c = MethodChannelPpgCamera.parse({
+      ..._frame(0.3),
+      'isp': nulls,
+    }) as PpgCameraFrame;
+    expect(c.isp![3].isNaN, isTrue);
+    expect(c.isp![2], 2.0);
+    final none = MethodChannelPpgCamera.parse(_frame(0.4)) as PpgCameraFrame;
+    expect(none.isp, isNull);
+    expect(none.frame.t, 0.4);
+    final short = MethodChannelPpgCamera.parse({
+      ..._frame(0.5),
+      'isp': full.sublist(1),
+    }) as PpgCameraFrame;
+    expect(short.isp, isNull, reason: 'nicht 19 Werte: nicht gemeldet');
+  });
 
   test('unbekannte oder unbrauchbare Kamera: Strom endet mit Grund', () async {
     for (final (code, reason) in [
