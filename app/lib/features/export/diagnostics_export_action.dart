@@ -171,7 +171,8 @@ class _DiagnosticsDialog extends StatelessWidget {
             SelectableText(
               text,
               key: const Key('dev_errors_share_content'),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(fontFamily: 'monospace'),
             ),
           ],
         ),
