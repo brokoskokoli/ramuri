@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/home/home_screen.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 
@@ -96,6 +98,29 @@ void main() {
     final history = await plans.history();
     expect(history, hasLength(before + 1));
     expect(history.last.reason, planReasonUnderload);
+  });
+
+  testWidgets('„Ja, steigern“ wartet auf eine laufende Berechnung', (
+    tester,
+  ) async {
+    final d = Device();
+    final s = await _preopen(d, 'question');
+    final plans = (s as PlanStorage).plans;
+    final before = (await plans.history()).length;
+    await d.start(tester, const Locale('de'));
+    final home = tester.widget<HomeScreen>(find.byType(HomeScreen));
+    final gate = Completer<void>();
+    unawaited(home.recalculation.exclusive(() => gate.future));
+    await tester.ensureVisible(_key('plan_underload_yes'));
+    await tester.tap(_key('plan_underload_yes'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(await plans.history(), hasLength(before));
+    expect(await s.settings.get(planUnderloadStageKey), 'question');
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(await plans.history(), hasLength(before + 1));
+    expect(await s.settings.get(planUnderloadStageKey), 'accepted');
   });
 
   testWidgets('Frage: „Nein“ → keine neue Fassung', (tester) async {
