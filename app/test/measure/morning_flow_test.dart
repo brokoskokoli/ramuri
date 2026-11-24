@@ -1641,6 +1641,7 @@ void diagnosticsTests() {
       expect(diag.raw.diagnostics, {PpgCameraDiagnostic.noiseReductionOff});
       expect(diag.raw.withCameraDiagnostics, isTrue);
       expect(diag.raw.awbVariant, isNull, reason: 'Weißabgleich nicht gesetzt');
+      expect(diag.raw.ispFrames, isNotNull, reason: 'ISP-Werte aufgezeichnet');
       final isp = diag.raw.ispFrames!;
       expect(isp, hasLength(diag.raw.frames.length));
       for (var i = 0; i < isp.length; i++) {
