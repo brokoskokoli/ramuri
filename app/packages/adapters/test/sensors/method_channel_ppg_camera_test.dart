@@ -538,6 +538,174 @@ void main() {
     expect((out.single as PpgCameraStopped).reason, PpgCameraStopReason.busy);
     expect(done, isTrue);
   });
+
+  group('Kamerasuche', () {
+    const previewChannel = EventChannel(ppgCameraPreviewChannelName);
+    StreamController<Object?>? psink;
+    Object? pargs;
+    var pcancelled = 0;
+
+    setUp(() {
+      pcancelled = 0;
+      pargs = null;
+      messenger.setMockStreamHandler(
+        previewChannel,
+        MockStreamHandler.inline(
+          onListen: (arguments, e) {
+            pargs = arguments;
+            psink = StreamController<Object?>(sync: true)
+              ..stream.listen(
+                e.success,
+                onError: (Object x) {
+                  final c = x is PlatformException ? x.code : 'error';
+                  e.error(code: c);
+                },
+                onDone: e.endOfStream,
+              );
+          },
+          onCancel: (arguments) => pcancelled++,
+        ),
+      );
+    });
+
+    tearDown(() => messenger.setMockStreamHandler(previewChannel, null));
+
+    test('Kanalname steht in PpgCameraPreview.kt', () {
+      final kt = File(
+        '../../android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/PpgCameraPreview.kt',
+      ).readAsStringSync();
+      expect(kt, contains('"$ppgCameraPreviewChannelName"'));
+    });
+
+    test('Kameras gehen als Argument, Ereignisse kommen an', () async {
+      final out = <PpgPreviewEvent>[];
+      final sub = MethodChannelPpgCamera()
+          .preview(const [PpgCameraRef('0'), PpgCameraRef('0', '2')])
+          .listen(out.add);
+      await pumpEventQueue();
+      expect(pargs, {
+        'cameras': [
+          {'cameraId': '0', 'physicalCameraId': null},
+          {'cameraId': '0', 'physicalCameraId': '2'},
+        ],
+      });
+      psink!
+        ..add({
+          'type': 'started',
+          'mode': 'alternating',
+          'textures': [
+            {'cameraId': '0', 'physicalCameraId': null, 'textureId': 7},
+            {'cameraId': '0', 'physicalCameraId': '2', 'textureId': -1},
+          ],
+        })
+        ..add({'type': 'turn', 'cameraId': '0', 'physicalCameraId': '2'})
+        ..add({
+          'type': 'frame',
+          'cameraId': '0',
+          'physicalCameraId': '2',
+          't': 1.25,
+          'r': 200.0,
+          'g': 40.0,
+          'exposureNs': 10000000,
+          'iso': 400,
+        })
+        ..add({
+          'type': 'failed',
+          'cameraId': '0',
+          'physicalCameraId': null,
+          'reason': 'busy',
+        });
+      await pumpEventQueue();
+      final started = out[0] as PpgPreviewStarted;
+      expect(started.mode, PpgPreviewMode.alternating);
+      expect(started.textures, {const PpgCameraRef('0'): 7});
+      expect((out[1] as PpgPreviewTurn).camera, const PpgCameraRef('0', '2'));
+      final f = out[2] as PpgPreviewFrame;
+      expect(f.camera, const PpgCameraRef('0', '2'));
+      expect(
+        [f.t, f.r, f.g, f.exposureNs, f.iso],
+        [1.25, 200, 40, 10000000, 400],
+      );
+      final failed = out[3] as PpgPreviewCameraFailed;
+      expect(failed.camera, const PpgCameraRef('0'));
+      expect(failed.reason, PpgCameraStopReason.busy);
+      await sub.cancel();
+      expect(pcancelled, 1);
+    });
+
+    test('Bild ohne Belichtungsangaben: null; Unpassendes entfällt', () {
+      final f = MethodChannelPpgCamera.parsePreview({
+        'type': 'frame',
+        'cameraId': '0',
+        't': 0.5,
+        'r': 10,
+        'g': 5,
+        'exposureNs': 0,
+      }) as PpgPreviewFrame;
+      expect(f.exposureNs, isNull);
+      expect(f.iso, isNull);
+      for (final bad in <Object?>[
+        null,
+        'x',
+        {'type': 'frame', 'cameraId': '0', 't': 0.5, 'r': 10},
+        {'type': 'frame', 't': 0.5, 'r': 10, 'g': 5},
+        {'type': 'frame', 'cameraId': '0', 't': -1, 'r': 10, 'g': 5},
+        {'type': 'started', 'mode': 'x'},
+        {'type': 'turn'},
+        {'type': 'failed', 'reason': 'busy'},
+        {'type': 'unbekannt'},
+      ]) {
+        expect(
+          MethodChannelPpgCamera.parsePreview(bad),
+          isNull,
+          reason: '$bad',
+        );
+      }
+    });
+
+    test('Ende mit Grund und Fehler des Kanals beenden den Strom', () async {
+      final out = <PpgPreviewEvent>[];
+      var done = false;
+      MethodChannelPpgCamera()
+          .preview(const [PpgCameraRef('0')])
+          .listen(out.add, onDone: () => done = true);
+      await pumpEventQueue();
+      psink!.add({'type': 'stopped', 'reason': 'background'});
+      await pumpEventQueue();
+      expect(
+        (out.single as PpgPreviewStopped).reason,
+        PpgCameraStopReason.background,
+      );
+      expect(done, isTrue);
+
+      out.clear();
+      done = false;
+      MethodChannelPpgCamera()
+          .preview(const [PpgCameraRef('0')])
+          .listen(out.add, onDone: () => done = true);
+      await pumpEventQueue();
+      psink!.addError(PlatformException(code: 'disconnected'));
+      await pumpEventQueue();
+      expect(
+        (out.single as PpgPreviewStopped).reason,
+        PpgCameraStopReason.disconnected,
+      );
+      expect(done, isTrue);
+    });
+
+    test('stop beendet die Vorschau (Abbestellen in Kotlin)', () async {
+      final c = MethodChannelPpgCamera();
+      var done = false;
+      c
+          .preview(const [PpgCameraRef('0')])
+          .listen((_) {}, onDone: () => done = true);
+      await pumpEventQueue();
+      await c.stop();
+      await pumpEventQueue();
+      expect(pcancelled, 1);
+      expect(done, isTrue);
+    });
+  });
 }
 
 const Object _absent = Object();

@@ -850,3 +850,138 @@ class PpgIspMatcher<F>(
         }
     }
 }
+
+/** Kamera der Kamerasuche (Dart: PpgCameraRef). */
+data class PpgPreviewRef(val cameraId: String, val physicalCameraId: String?)
+
+/**
+ * Plan der Kamerasuche (FR-0220): [live] sind die angefragten Kameras, die nutzbar sind (Reihenfolge
+ * wie angefragt), [failed] die übrigen mit Grund ("no_camera", "no_flash", "frame_rate", "error").
+ */
+data class PpgPreviewPlan(val live: List<PpgPreviewRef>, val failed: List<Pair<PpgPreviewRef, String>>)
+
+/**
+ * Reine Regeln der Kamerasuche (FR-0220, PAR-227; ADR-0011, Nachtrag 2026-11-24): welche Kameras,
+ * gleichzeitig oder im Wechsel, Reihenfolge und Takt des Wechsels, Größe und Nachrichten an Dart.
+ * Vorschaubilder gehen nur in die Texture der Anzeige, nie nach Dart, in Logs oder auf Platte.
+ */
+object PpgPreviewLogic {
+    /** PAR-227: Dauer einer Kamera im Wechsel und Fenster des gleitenden Mittels (1,5 s). */
+    const val PREVIEW_TURN_NS = 1_500_000_000L
+
+    /** Vorschaubild je Kamera (klein, eine Ausgabe je Kamera). */
+    const val PREVIEW_WIDTH = 160
+    const val PREVIEW_HEIGHT = 120
+
+    /** Argument von Dart (`{cameras: [{cameraId, physicalCameraId}]}`); Unpassendes entfällt, doppelte auch. */
+    fun parseRefs(arguments: Any?): List<PpgPreviewRef> {
+        val list = (arguments as? Map<*, *>)?.get("cameras") as? List<*> ?: return emptyList()
+        val out = LinkedHashSet<PpgPreviewRef>()
+        for (m in list) {
+            if (m !is Map<*, *>) continue
+            val id = m["cameraId"] as? String ?: continue
+            if (id.isEmpty()) continue
+            val physical = m["physicalCameraId"]
+            if (physical != null && (physical !is String || physical.isEmpty())) continue
+            out.add(PpgPreviewRef(id, physical as String?))
+        }
+        return out.toList()
+    }
+
+    /** Ordnet die angefragten Kameras der Kameraliste zu ([PpgCameraLogic.pick]): nutzbar oder mit Grund. */
+    fun plan(refs: List<PpgPreviewRef>, entries: List<PpgCameraEntry>): PpgPreviewPlan {
+        val live = ArrayList<PpgPreviewRef>()
+        val failed = ArrayList<Pair<PpgPreviewRef, String>>()
+        for (r in refs) {
+            val pick = PpgCameraLogic.pick(entries, r.cameraId, r.physicalCameraId)
+            val reason = pick.reason ?: if (pick.entry == null) "error" else null
+            if (reason == null) live.add(r) else failed.add(r to reason)
+        }
+        return PpgPreviewPlan(live, failed)
+    }
+
+    /**
+     * Gleichzeitiger Betrieb kommt nur in Frage, wenn alle Kameras zu derselben logischen Kamera
+     * gehören (gleiche cameraId): eine Sitzung, die logische Kamera selbst mit einem Ausgang ohne,
+     * ihre physischen Kameras je mit einem Ausgang mit setPhysicalCameraId. Ob das Gerät die
+     * Kombination trägt, entscheidet isSessionConfigurationSupported ([previewMode]). Getrennte
+     * Kamera-IDs werden nie gleichzeitig geöffnet. Eine einzelne Kamera braucht keinen Wechsel.
+     */
+    fun canShareSession(live: List<PpgPreviewRef>): Boolean = when {
+        live.size <= 1 -> true
+        else -> live.all { it.cameraId == live[0].cameraId } && live.toSet().size == live.size
+    }
+
+    /**
+     * PAR-227: gleichzeitig ("simultaneous"), wenn die Kameras eine Sitzung teilen können und das Gerät
+     * die Kombination bestätigt ([sessionSupported], CameraDevice.isSessionConfigurationSupported), sonst
+     * im Wechsel ("alternating"). Eine einzelne Kamera läuft immer allein in ihrer Sitzung.
+     */
+    fun previewMode(live: List<PpgPreviewRef>, sessionSupported: Boolean): String = when {
+        live.size <= 1 -> "simultaneous"
+        canShareSession(live) && sessionSupported -> "simultaneous"
+        else -> "alternating"
+    }
+
+    /**
+     * Nächste Kamera im Wechsel nach [current] (Reihenfolge der Anfrage, Standardkamera zuerst, endlos),
+     * ausgelassen werden die mit Fehler ([failed]); `null`, wenn keine mehr übrig ist. [current] -1 = Beginn.
+     */
+    fun nextTurn(current: Int, count: Int, failed: Set<Int>): Int? {
+        if (count <= 0) return null
+        for (step in 1..count) {
+            val k = Math.floorMod(current + step, count)
+            if (k !in failed) return k
+        }
+        return null
+    }
+
+    /** Größe des Vorschauausgangs: die kleinste ab [PREVIEW_WIDTH]×[PREVIEW_HEIGHT], sonst die größte. */
+    fun chooseSize(sizes: List<Pair<Int, Int>>): Pair<Int, Int>? =
+        sizes.filter { it.first >= PREVIEW_WIDTH && it.second >= PREVIEW_HEIGHT }.minByOrNull { it.first * it.second }
+            ?: sizes.maxByOrNull { it.first * it.second }
+
+    /**
+     * Verkleinertes Farbbild (ARGB, BT.601 Vollbereich) aus YUV_420_888 für die Anzeige, [outW]×[outH]
+     * Pixel durch Abtasten. Nur für die Texture; nie gespeichert, nie nach Dart.
+     */
+    fun argb(w: Int, h: Int, y: PpgPlane, u: PpgPlane, v: PpgPlane, outW: Int, outH: Int, out: IntArray) {
+        for (oy in 0 until outH) {
+            val sy = oy * h / outH
+            for (ox in 0 until outW) {
+                val sx = ox * w / outW
+                val yy = (y.buffer.get(sy * y.rowStride + sx * y.pixelStride).toInt() and 0xff).toDouble()
+                val ci = (sy / 2) * u.rowStride + (sx / 2) * u.pixelStride
+                val cv = (sy / 2) * v.rowStride + (sx / 2) * v.pixelStride
+                val uu = (u.buffer.get(ci).toInt() and 0xff) - 128.0
+                val vv = (v.buffer.get(cv).toInt() and 0xff) - 128.0
+                val r = clamp(yy + 1.402 * vv)
+                val g = clamp(yy - 0.344136 * uu - 0.714136 * vv)
+                val b = clamp(yy + 1.772 * uu)
+                out[oy * outW + ox] = (0xff shl 24) or (r shl 16) or (g shl 8) or b
+            }
+        }
+    }
+
+    private fun clamp(x: Double): Int = x.toInt().coerceIn(0, 255)
+
+    private fun refMap(r: PpgPreviewRef): Map<String, Any?> =
+        mapOf("cameraId" to r.cameraId, "physicalCameraId" to r.physicalCameraId)
+
+    fun startedMap(mode: String, textures: Map<PpgPreviewRef, Long>): Map<String, Any?> = mapOf(
+        "type" to "started",
+        "mode" to mode,
+        "textures" to textures.map { (r, id) -> refMap(r) + ("textureId" to id) },
+    )
+
+    /** Ein Bild: R, G der Bildmitte, Belichtungszeit und ISO, [t] Sensorzeit in s seit dem ersten Bild der Suche. */
+    fun frameMap(r: PpgPreviewRef, t: Double, red: Double, green: Double, exposureNs: Long?, iso: Int?): Map<String, Any?> =
+        refMap(r) + mapOf("type" to "frame", "t" to t, "r" to red, "g" to green, "exposureNs" to exposureNs, "iso" to iso)
+
+    fun turnMap(r: PpgPreviewRef): Map<String, Any?> = refMap(r) + ("type" to "turn")
+
+    fun failedMap(r: PpgPreviewRef, reason: String): Map<String, Any?> =
+        refMap(r) + mapOf("type" to "failed", "reason" to reason)
+
+    fun stoppedMap(reason: String): Map<String, Any?> = mapOf("type" to "stopped", "reason" to reason)
+}

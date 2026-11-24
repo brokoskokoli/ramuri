@@ -197,4 +197,16 @@ void main() {
     );
     expect(problems, isEmpty, reason: problems.join('\n'));
   });
+  test('PAR-227: Takt des Wechsels in PpgCameraLogic.kt wie in core', () {
+    // Der Wert selbst wird in core gegen die Doku geprüft (ppgCameraFinderTurnSeconds).
+    final text = File(
+      'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/PpgCameraLogic.kt',
+    ).readAsStringSync();
+    final m = RegExp(r'const val PREVIEW_TURN_NS = ([\d_]+)L').firstMatch(text);
+    expect(m, isNotNull);
+    expect(
+      int.parse(m!.group(1)!.replaceAll('_', '')),
+      (ppgCameraFinderTurnSeconds * 1e9).round(),
+    );
+  });
 }
