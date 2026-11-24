@@ -190,7 +190,9 @@ Die App stellt daraus keine medizinische Diagnose.
 - **Quelle:** SRC-003 (Maintainer 2026-11-09)
 - **Verwandt:** FR-0109, FR-0112, FR-0115, FR-0214, FR-0216, FR-0217, OQ-0006, OQ-0078, DEC-0073, DEC-0074, DEC-0075, DEC-0076, FR-0220
 
-Für die erweiterte Einschätzung ohne Uhr misst der Nutzer morgens 60 s mit der Kamera wie in FR-0214. Daraus entstehen Ruhepuls und RMSSD als eigene Reihe (nicht gemischt mit Werten aus Health Connect, FR-0115). Eine morgendliche Erinnerung ist freiwillig. Protokoll und Regeln stammen aus R009 (`research/R009-kamera-ppg-morgenmessung/RESULTS.md`, Abschnitte 1, 5 und 5a); es gilt die Regelversion K-1 in [phase-2-3-rules.md](../phase-2-3-rules.md#7-regelversion-k-1-kamera-morgenmessung-phase-3). Freigegeben mit Auflage: RMSSD zählt erst nach bestandener Validierung gegen Polar H9 (R009, Abschnitt 6) und Opt-in des Nutzers. Vor der ersten Messung kann die Kamerasuche nach FR-0220 vorgeschaltet sein.
+Für die erweiterte Einschätzung ohne Uhr misst der Nutzer morgens 60 s mit der Kamera wie in FR-0214. Daraus entstehen Ruhepuls und RMSSD als eigene Reihe (nicht gemischt mit Werten aus Health Connect, FR-0115). Eine morgendliche Erinnerung ist freiwillig. Protokoll und Regeln stammen aus R009 (`research/R009-kamera-ppg-morgenmessung/RESULTS.md`, Abschnitte 1, 5 und 5a); es gilt die Regelversion K-1 in [phase-2-3-rules.md](../phase-2-3-rules.md#7-regelversion-k-1-kamera-morgenmessung-phase-3). Freigegeben mit Auflage: RMSSD zählt erst nach bestandener Validierung gegen Polar H9 (R009, Abschnitt 6) und Opt-in des Nutzers.
+
+Vor der ersten Messung kann die Kamerasuche nach FR-0220 vorgeschaltet sein.
 
 **Entwicklermodus (Entscheidung des Maintainers 2026-11-13, K61, K62):** Bis zur bestandenen Validierung ist die Morgenmessung nur im Entwicklermodus (FR-0217) nutzbar; dort gelten Ruhepuls und RMSSD vollständig als gültig, als wäre die Validierung bestanden, ohne Kennzeichnung. Nach dem Bestehen gilt K-1 für alle. Ob der Plan auf die Werte reagiert, regelt FR-0216.
 
