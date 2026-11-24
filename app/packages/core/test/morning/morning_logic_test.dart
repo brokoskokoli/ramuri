@@ -4,6 +4,8 @@ import 'package:core/core.dart';
 import 'package:core/fakes/fake_storage_morning.dart';
 import 'package:test/test.dart';
 
+import '../ppg/ppg_synth.dart';
+
 PpgMeasurement meas({
   PpgQuality quality = PpgQuality.good,
   double? bpm = 58,
@@ -399,6 +401,96 @@ void main() {
       expect(logical.physicalCameraId, isNull);
       expect(logical.focalLengthMm, 5.4);
     });
+
+    test('ISP-Werte je Bild und gesetzte Schalter gehen ins Rohsignal', () {
+      final isp = [
+        for (var i = 0; i < 3; i++)
+          [
+            for (var k = 0; k < ppgIspValueCount; k++)
+              k == 5 ? double.nan : k + i / 10,
+          ],
+      ];
+      final raw = buildMorningRawSignal(
+        [frame(0), frame(0.5), frame(1)],
+        ispFrames: isp,
+        diagnostics: const {
+          PpgCameraDiagnostic.edgeOff,
+          PpgCameraDiagnostic.awbFixed,
+        },
+        awbVariant: PpgAwbVariant.matrix,
+      );
+      expect(raw.ispFrames!.length, 3);
+      expect(raw.ispFrames![2][7], 7.2);
+      expect(raw.ispFrames![1][5].isNaN, isTrue);
+      expect(raw.diagnostics, {
+        PpgCameraDiagnostic.edgeOff,
+        PpgCameraDiagnostic.awbFixed,
+      });
+      expect(raw.awbVariant, PpgAwbVariant.matrix);
+      expect(raw.withCameraDiagnostics, isTrue);
+      checkMorningForStorage(withExtras(meas())!, rawSignal: raw);
+      final plain = buildMorningRawSignal([frame(0)]);
+      expect(plain.ispFrames, isNull);
+      expect(plain.diagnostics, isEmpty);
+      expect(plain.withCameraDiagnostics, isFalse);
+      // Variante ohne festen Weißabgleich wird nicht übernommen.
+      expect(
+        buildMorningRawSignal([
+          frame(0),
+        ], awbVariant: PpgAwbVariant.lock).awbVariant,
+        isNull,
+      );
+      expect(
+        () => buildMorningRawSignal([frame(0)], ispFrames: const []),
+        throwsArgumentError,
+      );
+    });
+
+    test(
+      'Auswertung mit und ohne ISP-Werte und Schalter identisch (FR-0215)',
+      () {
+        final s = synth(0.95, 0.03, 0.01, 0.4, 30, 7);
+        final frames = [
+          for (var i = 0; i < s.t.length; i++)
+            PpgFrame(
+              t: s.t[i],
+              r: s.red[i],
+              g: s.green[i],
+              r16: List.filled(16, s.red[i]),
+              g16: List.filled(16, s.green[i]),
+            ),
+        ];
+        final plain = buildMorningRawSignal(frames);
+        final diag = buildMorningRawSignal(
+          frames,
+          ispFrames: [
+            for (var i = 0; i < frames.length; i++)
+              List.filled(ppgIspValueCount, i.isEven ? 1.0 : double.nan),
+          ],
+          diagnostics: PpgCameraDiagnostic.values.toSet(),
+          awbVariant: PpgAwbVariant.lock,
+        );
+        final a = evaluatePpgBestWindow(plain.frames);
+        final b = evaluatePpgBestWindow(diag.frames);
+        String key(PpgWindowedMeasurement w) => [
+          w.measurement.quality,
+          w.measurement.bpm,
+          w.measurement.rmssdMs,
+          w.measurement.timingNoiseMs,
+          w.measurement.intervalsMs.join(','),
+          w.windowStartSeconds,
+          w.windowEndSeconds,
+        ].join('|');
+        expect(key(b), key(a));
+        expect(a.measurement.bpm, isNotNull);
+        final ma = build(a.measurement)!;
+        final mb = build(b.measurement)!;
+        expect(mb.quality, ma.quality);
+        expect(mb.restingHrBpm, ma.restingHrBpm);
+        expect(mb.rmssdMs, ma.rmssdMs);
+        expect(mb.methodVersion, ppgMethodVersion);
+      },
+    );
 
     test('Kamera ohne Eintrag in der Liste: Brennweite unbekannt', () {
       final raw = buildMorningRawSignal(
