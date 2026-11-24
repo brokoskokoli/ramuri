@@ -148,8 +148,9 @@ void main() {
     expect(has('detail_km_none'), isFalse, reason: 'ohne Splits');
     expect(has('run_distance'), isFalse, reason: 'ohne Strecke');
     log('SPORT ende');
+    // Zurueck in den Verlauf (Reiter, kein weiteres Zurueck).
     await back(t);
-    await back(t);
+    await waitFor(t, () => has('history_title'), 'Verlauf nach dem Detail');
   }, timeout: const Timeout(Duration(minutes: 5)));
 }
 
