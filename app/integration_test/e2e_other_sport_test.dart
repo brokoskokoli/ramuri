@@ -249,6 +249,12 @@ Future<void> _planUnit(WidgetTester t) async {
     'Grund zu intensiv',
   );
   expect(has('other_sport_replaced'), isFalse, reason: 'nicht abgehakt');
+  _expectDialogText(
+    t,
+    'other_sport_not_assigned_tooIntensive',
+    (l) => l.otherSportBlockTooIntensive,
+    'Grund zu intensiv sichtbar',
+  );
   await tapDialog(t, 'other_sport_dialog_ok');
   await waitFor(t, () => has('home_start_unit'), 'Einheit bleibt offen');
   expect(has('home_today_done'), isFalse, reason: 'Einheit offen');
@@ -264,13 +270,12 @@ Future<void> _planUnit(WidgetTester t) async {
   w.sensor.setBase(_belt, 120);
   await _planSport(t, const Duration(seconds: 150));
   await waitFor(t, () => has('other_sport_replaced'), 'Hinweis Ersatz');
-  expect(
-    find.descendant(
-      of: find.byKey(const Key('other_sport_replaced')),
-      matching: find.text('Ersetzt den Ausdauerreiz, nicht das Laufen selbst.'),
-    ),
-    findsOneWidget,
-    reason: 'Hinweis Ausdauerreiz',
+  // Wortlaut aus den Texten der App (Sprache des Geraets).
+  _expectDialogText(
+    t,
+    'other_sport_replaced',
+    (l) => l.otherSportReplacedHint,
+    'Hinweis Ausdauerreiz',
   );
   await tapDialog(t, 'other_sport_dialog_ok');
 
@@ -306,6 +311,22 @@ Future<void> _planSport(WidgetTester t, Duration moving) async {
   await tapKey(t, 'subjective_rpe_3');
   await waitFor(t, () => has('sum_other_sport'), 'Zusammenfassung');
   await tapKey(t, 'run_done_close');
+}
+
+/// Der Dialog [key] zeigt den Text [text] in der Sprache der App.
+void _expectDialogText(
+  WidgetTester t,
+  String key,
+  String Function(AppLocalizations) text,
+  String reason,
+) {
+  final dialog = find.byKey(Key(key));
+  final l = AppLocalizations.of(t.element(dialog));
+  expect(
+    find.descendant(of: dialog, matching: find.text(text(l))),
+    findsOneWidget,
+    reason: reason,
+  );
 }
 
 /// Sensorverwaltung oeffnen, suchen, [act] ausfuehren, zurueck nach "Heute".
