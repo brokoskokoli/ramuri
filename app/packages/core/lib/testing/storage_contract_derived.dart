@@ -342,6 +342,37 @@ Future<void> _values(StorageContractHarness h) async {
     0,
     'keine Schlüssel, keine Antwort (Tage)',
   );
+
+  // Kettenversion der Vorverarbeitung (ADR-0004): steht am Wert, übersteht
+  // Anlegen, Tausch, Lesen und die gebündelte Abfrage; null bleibt null.
+  final chained = (await s.runs.create(startedAt: at(2))).id;
+  final co = ValueOwner.run(chained);
+  await s.values.createOriginals(co, [
+    sampleValue('vo2max', 41, chain: 'hr1.alt'),
+    sampleValue('ohne', 2),
+  ]);
+  await s.values.swapCurrent(co, [sampleValue('vo2max', 42, chain: 'hr2.neu')]);
+  final cr = await s.values.read(co);
+  expectEq(
+    [
+      for (final p in cr)
+        '${p.original.key}:${p.original.preprocessingVersion}:'
+            '${p.current.preprocessingVersion}',
+    ],
+    ['ohne:null:null', 'vo2max:hr1.alt:hr2.neu'],
+    'Kette an original und current',
+  );
+  final cb = await s.values.readRunValues({'vo2max', 'ohne'});
+  expectEq(
+    cb[chained]!['vo2max']!.preprocessingVersion,
+    'hr2.neu',
+    'gebündelte Abfrage liest die Kette des current',
+  );
+  expectEq(
+    cb[chained]!['ohne']!.preprocessingVersion,
+    null,
+    'ohne Kette bleibt null',
+  );
   await s.close();
 }
 
