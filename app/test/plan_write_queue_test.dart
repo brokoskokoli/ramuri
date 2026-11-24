@@ -298,6 +298,50 @@ void main() {
     });
   });
 
+  group('Zuordnung mit erwartetem Stand', () {
+    test(
+      'Zuordnung aufheben erwartet den gelesenen Lauf und schreibt',
+      () async {
+        final e = await _Env.open();
+        final run = await e.runToday(8);
+        final unit = (await e.plans.unitOn(e.today))!;
+        await e.plans.assignRun(unit.id!, run, expectedRunId: null);
+        final c = e.controller();
+        expect(await c.assignRun(unit.id!, null), PlanActionResult.done);
+        expect((await e.plans.unitOn(e.today))!.runId, isNull);
+        c.dispose();
+      },
+    );
+
+    test('ein anderer Schreiber ordnet zwischen Lesen und Schreiben zu: '
+        'nichts überschrieben, abgelehnt, die Seite zeigt den neuen '
+        'Stand', () async {
+      final e = await _Env.open();
+      final mine = await e.runToday(8);
+      final other = await e.runToday(10);
+      final unit = (await e.plans.unitOn(e.today))!;
+      expect(unit.runId, isNull);
+      // Ohne open(): das ordnete die Läufe von heute schon selbst zu.
+      final c = e.controller();
+      e.storage.data.beforeAssignRun = () async {
+        e.storage.data.beforeAssignRun = null;
+        await e.plans.assignRun(unit.id!, other, expectedRunId: null);
+      };
+      final writes = e.storage.data.planAssignWrites;
+      expect(await c.assignRun(unit.id!, mine), PlanActionResult.rejected);
+      expect((await e.plans.unitOn(e.today))!.runId, other);
+      expect(e.storage.data.planAssignWrites, writes + 1);
+      expect(
+        [
+          for (final u in c.state.weekUnits)
+            if (u.id == unit.id) u.runId,
+        ],
+        [other],
+      );
+      c.dispose();
+    });
+  });
+
   group('abgelehnte Planfassung (ADR-0010)', () {
     test('einmal abgelehnt: neu gelesen und einmal wiederholt, die Fassung '
         'ist gespeichert', () async {

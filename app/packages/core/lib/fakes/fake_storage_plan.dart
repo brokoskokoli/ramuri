@@ -60,6 +60,7 @@ class FakePlanRepository implements PlanRepository {
     if (_d.failAssignRun) {
       throw const StorageException(StorageFailure.failed);
     }
+    await _d.beforeAssignRun?.call();
     final u = _d.planUnits[unitId];
     if (u == null || (runId != null && !_d.runs.containsKey(runId))) {
       throw const StorageException(StorageFailure.notFound);

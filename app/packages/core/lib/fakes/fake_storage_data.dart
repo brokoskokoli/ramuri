@@ -99,6 +99,11 @@ class FakeStorageData {
   /// anderer Aufrufer ohne gemeinsame Reihe den alten Stand lesen könnte.
   Future<void> Function()? beforePlanWrite;
 
+  /// Wie [beforePlanWrite] für `PlanRepository.assignRun`: wartet vor der
+  /// Prüfung des erwarteten Laufs darauf (etwa auf eine Zuordnung eines
+  /// anderen Schreibers außerhalb der Reihe).
+  Future<void> Function()? beforeAssignRun;
+
   /// Zählt jede geschriebene Zuordnung (`assignRun` mit Ergebnis
   /// [PlanAssignResult.assigned]).
   int planAssignWrites = 0;
