@@ -12,6 +12,7 @@ import 'package:running_app/features/measure/morning_launcher.dart';
 import 'package:running_app/features/measure/morning_measure_controller.dart';
 import 'package:running_app/features/measure/morning_measure_screen.dart';
 import 'package:running_app/features/measure/resting_measure_controller.dart';
+import 'package:running_app/features/measure/resting_measure_launcher.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
@@ -159,6 +160,7 @@ class _Rig {
     bool strapConnected = true,
     bool deviceFails = false,
     Future<PpgCameraRef?> Function()? cameraChoice,
+    Set<PpgCameraDiagnostic>? diagnostics,
   }) async {
     final cam = HoldingCamera();
     final s = session ?? await FakeStorage().open(testKey);
@@ -172,6 +174,10 @@ class _Rig {
     MorningBelt? belt;
     if (developerMode) {
       await SettingsDeveloperModeStore(s.settings, clock).set(true);
+    }
+    final diagStore = SettingsPpgCameraDiagnosticsStore(s.settings, clock);
+    for (final d in diagnostics ?? const <PpgCameraDiagnostic>{}) {
+      await diagStore.set(d, on: true);
     }
     if (withBelt) {
       await SettingsDeveloperModeStore(s.settings, clock).set(developerMode);
@@ -193,6 +199,13 @@ class _Rig {
       },
       belt: belt,
       cameraChoice: cameraChoice,
+      // Wie der Startweg (`MorningMeasureHost`): nur mit [diagnostics].
+      cameraDiagnostics: diagnostics == null
+          ? null
+          : () => morningCameraDiagnostics(
+              developerMode: SettingsDeveloperModeStore(s.settings, clock).read,
+              store: diagStore,
+            ),
       hooks: MorningMeasureHooks(
         onRestStarted: (t) => rig.restStarts.add(t),
         onMeasurementEnded: (t) => rig.measureEnds.add(t),
@@ -1450,5 +1463,239 @@ void main() {
     final d = await readDeviceInfo();
     expect(d.manufacturer, '');
     expect(d.model, '');
+  });
+
+  diagnosticsTests();
+}
+
+/// Startet über den echten Startweg [MorningMeasureHost] (Morgenmessung) bzw.
+/// `RestingMeasureHost` (Ruhepuls) bis die Kamera läuft und gibt sie zurück.
+/// Entwicklermodus und Diagnose-Schalter stehen vorher in den Einstellungen.
+Future<FakePpgCamera> _startViaHost(
+  WidgetTester tester, {
+  required bool morning,
+  required bool developerMode,
+  required Set<PpgCameraDiagnostic> on,
+}) async {
+  tester.view.physicalSize = const Size(390, 2400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  final clock = FakeClock(DateTime.utc(2026, 11, 18, 5, 30));
+  final session = (await tester.runAsync(() => FakeStorage().open(testKey)))!;
+  await tester.runAsync(() async {
+    await SettingsDeveloperModeStore(
+      session.settings,
+      clock,
+    ).set(developerMode);
+    final store = SettingsPpgCameraDiagnosticsStore(session.settings, clock);
+    for (final d in on) {
+      await store.set(d, on: true);
+    }
+  });
+  final cam = FakePpgCamera();
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: RamuriTheme.light,
+      locale: const Locale('de'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: morning
+          ? MorningMeasureHost(
+              camera: cam,
+              store: (session as MorningStorage).morning,
+              settings: session.settings,
+              clock: clock,
+              evaluate: evalFinalOnly,
+              autoTick: false,
+            )
+          : RestingMeasureHost(
+              camera: cam,
+              profile: ProfileService(
+                session.profile,
+                clock,
+                settings: session.settings,
+              ),
+              settings: session.settings,
+              clock: clock,
+              evaluate: evalFinalOnly,
+            ),
+    ),
+  );
+  bool has(String key) => find.byKey(Key(key)).evaluate().isNotEmpty;
+
+  // Wartet auf das Ereignis des nächsten Schritts, nicht auf eine feste Zeit.
+  Future<void> tap(String key, bool Function() next, String what) async {
+    final f = find.byKey(Key(key));
+    await tester.ensureVisible(f);
+    await tester.pump();
+    await tester.tap(f);
+    await settleStorage(tester, until: next, what: what);
+  }
+
+  bool started() => cam.startCount > 0 && has('measure_cancel');
+  if (morning) {
+    await settleStorage(
+      tester,
+      until: () => has('morning_start'),
+      what: 'Einstieg',
+    );
+    await tap('morning_start', () => has('morning_skip_rest'), 'Ruhephase');
+    await tap('morning_skip_rest', started, 'Kamera gestartet');
+  } else {
+    await settleStorage(
+      tester,
+      until: () => has('measure_mode_now'),
+      what: 'Einstieg',
+    );
+    await tap('measure_mode_now', () => has('measure_start'), 'Start');
+    await tap('measure_start', started, 'Kamera gestartet');
+  }
+  expect(cam.startCount, 1);
+  return cam;
+}
+
+void diagnosticsTests() {
+  group('Diagnose der Kamera-Bildverarbeitung (FR-0217)', () {
+    testWidgets('Startweg Morgenmessung, Entwicklermodus: eingeschaltete '
+        'Schalter und ISP-Werte gehen an die Kamera', (tester) async {
+      final cam = await _startViaHost(
+        tester,
+        morning: true,
+        developerMode: true,
+        on: {PpgCameraDiagnostic.noiseReductionOff},
+      );
+      expect(cam.diagnosticsWith, [
+        {PpgCameraDiagnostic.noiseReductionOff},
+      ]);
+      expect(cam.ispFramesWith, [true]);
+      await tester.tap(find.byKey(const Key('measure_cancel')));
+      await tester.pump();
+    });
+
+    testWidgets('Startweg Morgenmessung, Entwicklermodus ohne Schalter: '
+        'ISP-Werte, keine Schalter', (tester) async {
+      final cam = await _startViaHost(
+        tester,
+        morning: true,
+        developerMode: true,
+        on: const {},
+      );
+      expect(cam.diagnosticsWith, [<PpgCameraDiagnostic>{}]);
+      expect(cam.ispFramesWith, [true]);
+      await tester.tap(find.byKey(const Key('measure_cancel')));
+      await tester.pump();
+    });
+
+    testWidgets('Startweg Morgenmessung ohne Entwicklermodus: gespeicherte '
+        'Schalter wirken nicht, keine ISP-Werte', (tester) async {
+      final cam = await _startViaHost(
+        tester,
+        morning: true,
+        developerMode: false,
+        on: PpgCameraDiagnostic.values.toSet(),
+      );
+      expect(cam.diagnosticsWith, [<PpgCameraDiagnostic>{}]);
+      expect(cam.ispFramesWith, [false]);
+      await tester.tap(find.byKey(const Key('measure_cancel')));
+      await tester.pump();
+    });
+
+    testWidgets('Startweg Ruhepuls (FR-0214), Entwicklermodus, alle Schalter '
+        'an: fordert weder Schalter noch ISP-Werte an', (tester) async {
+      final cam = await _startViaHost(
+        tester,
+        morning: false,
+        developerMode: true,
+        on: PpgCameraDiagnostic.values.toSet(),
+      );
+      expect(cam.diagnosticsWith, [<PpgCameraDiagnostic>{}]);
+      expect(cam.ispFramesWith, [false]);
+      await tester.tap(find.byKey(const Key('measure_cancel')));
+      await tester.pump();
+    });
+
+    testWidgets('Entwicklermodus mit Schalter: Rohsignal trägt ISP-Werte je '
+        'Bild und die gesetzten Schalter, die Messung zählt wie ohne', (
+      tester,
+    ) async {
+      Future<({MorningMeasurement m, MorningRawSignal raw})> run(
+        Set<PpgCameraDiagnostic>? on,
+      ) async {
+        final r = await _Rig.make(developerMode: true, diagnostics: on);
+        // Kamera bietet Rauschunterdrückung und Weißabgleich, aber keine Kanten an.
+        r.cam.offeredDiagnostics = {
+          PpgCameraDiagnostic.noiseReductionOff,
+          PpgCameraDiagnostic.awbFixed,
+        };
+        r.cam.awbVariant = PpgAwbVariant.lock;
+        await r.show(tester, dark: false);
+        await _startMeasurement(tester, r);
+        await r.feed(tester, 80);
+        final e = (await tester.runAsync(() => r.store.list()))!.single;
+        final raw = (await tester.runAsync(() => r.store.rawSignal(e.id)))!;
+        return (m: e.value, raw: raw);
+      }
+
+      final plain = await run(null);
+      expect(plain.raw.ispFrames, isNull);
+      expect(plain.raw.withCameraDiagnostics, isFalse);
+
+      final diag = await run({
+        PpgCameraDiagnostic.noiseReductionOff,
+        PpgCameraDiagnostic.edgeOff,
+      });
+      expect(diag.raw.diagnostics, {PpgCameraDiagnostic.noiseReductionOff});
+      expect(diag.raw.withCameraDiagnostics, isTrue);
+      expect(diag.raw.awbVariant, isNull, reason: 'Weißabgleich nicht gesetzt');
+      expect(diag.raw.ispFrames, isNotNull, reason: 'ISP-Werte aufgezeichnet');
+      final isp = diag.raw.ispFrames!;
+      expect(isp, hasLength(diag.raw.frames.length));
+      for (var i = 0; i < isp.length; i++) {
+        final want = FakePpgCamera.syntheticIsp(diag.raw.frames[i].t);
+        expect(isp[i].sublist(0, 18), want.sublist(0, 18), reason: '$i');
+        expect(isp[i][18].isNaN, isTrue, reason: 'nicht gemeldet');
+      }
+
+      // Zählt wie jede Messung im Entwicklermodus: gleiche Werte, Stufe,
+      // Fenster und Vermerke wie ohne Diagnose.
+      for (final (a, b) in [(plain.m, diag.m)]) {
+        expect(b.restingHrBpm, a.restingHrBpm);
+        expect(b.rmssdMs, a.rmssdMs);
+        expect(b.quality, a.quality);
+        expect(b.methodVersion, a.methodVersion);
+        expect(b.methodVersion, ppgMethodVersion);
+        expect(b.beforeValidation, a.beforeValidation);
+        expect(b.outsideWindow, a.outsideWindow);
+        expect(b.windowStartS, a.windowStartS);
+        expect(b.cameraIntervalsMs, a.cameraIntervalsMs);
+      }
+      expect(diag.raw.frames.length, plain.raw.frames.length);
+    });
+
+    testWidgets('Entwicklermodus mit „Weißabgleich fest“: Rohsignal trägt den '
+        'Schalter und die gemeldete Variante', (tester) async {
+      for (final variant in PpgAwbVariant.values) {
+        final r = await _Rig.make(
+          developerMode: true,
+          diagnostics: {
+            PpgCameraDiagnostic.awbFixed,
+            PpgCameraDiagnostic.edgeOff,
+          },
+        );
+        // Kamera bietet nur den Weißabgleich an.
+        r.cam.offeredDiagnostics = {PpgCameraDiagnostic.awbFixed};
+        r.cam.awbVariant = variant;
+        await r.show(tester, dark: false);
+        await _startMeasurement(tester, r);
+        await r.feed(tester, 80);
+        final e = (await tester.runAsync(() => r.store.list()))!.single;
+        final raw = (await tester.runAsync(() => r.store.rawSignal(e.id)))!;
+        expect(raw.diagnostics, {
+          PpgCameraDiagnostic.awbFixed,
+        }, reason: variant.wire);
+        expect(raw.awbVariant, variant, reason: variant.wire);
+        expect(raw.withCameraDiagnostics, isTrue, reason: variant.wire);
+      }
+    });
   });
 }

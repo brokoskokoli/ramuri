@@ -405,7 +405,12 @@ interface PpgSink {
  * (Abbruch mit Grund, Hintergrund, Abbestellen) schaltet immer zuerst den Torch aus, schließt dann
  * Sitzung und Gerät und beendet den Strom genau einmal. Danach wird nichts mehr gemeldet.
  */
-class PpgController(private val hw: PpgHardware, private val sink: PpgSink) {
+class PpgController(
+    private val hw: PpgHardware,
+    private val sink: PpgSink,
+    /** ISP-Werte je Bild mitsenden (nur auf Anforderung: Morgenmessung im Entwicklermodus). */
+    private val ispFrames: Boolean = false,
+) {
     private var firstNs = -1L
     private var locked = false
     private var finished = false
@@ -413,30 +418,43 @@ class PpgController(private val hw: PpgHardware, private val sink: PpgSink) {
     private var saturatedSum = 0.0
     private var sinceLock = 0
 
-    /** Kamera läuft; meldet Bildrate und die tatsächlich geöffnete Kamera. */
+    /**
+     * Kamera läuft; meldet Bildrate, die tatsächlich geöffnete Kamera und die tatsächlich gesetzten
+     * Diagnose-Schalter ([diagnostics], Schlüssel "diagnostics" nur, wenn welche gesetzt sind; dazu
+     * "awbVariant" bei festem Weißabgleich).
+     */
     @Synchronized
-    fun started(fps: Int, cameraId: String, physicalCameraId: String? = null) {
+    fun started(
+        fps: Int,
+        cameraId: String,
+        physicalCameraId: String? = null,
+        diagnostics: PpgDiagnosticSettings = PpgDiagnosticSettings.NONE,
+    ) {
         if (finished) return
         val m = mutableMapOf<String, Any>("type" to "started", "fps" to fps, "cameraId" to cameraId)
         physicalCameraId?.let { m["physicalCameraId"] = it }
+        val applied = diagnostics.applied
+        if (applied.isNotEmpty()) m["diagnostics"] = applied.map { it.wire }
+        diagnostics.awb?.let { m["awbVariant"] = it.wire }
         sink.event(m)
     }
 
     @Synchronized
-    fun frame(timestampNs: Long, stats: PpgStats, capture: PpgCaptureInfo? = null) {
+    fun frame(timestampNs: Long, stats: PpgStats, capture: PpgCaptureInfo? = null, isp: DoubleArray? = null) {
         if (finished) return
         if (firstNs < 0) firstNs = timestampNs
         val t = (timestampNs - firstNs) / 1e9
-        sink.event(
-            mapOf(
-                "type" to "frame",
-                "t" to t,
-                "r" to stats.r,
-                "g" to stats.g,
-                "r16" to stats.r16.toList(),
-                "g16" to stats.g16.toList(),
-            ),
+        val m = mutableMapOf<String, Any>(
+            "type" to "frame",
+            "t" to t,
+            "r" to stats.r,
+            "g" to stats.g,
+            "r16" to stats.r16.toList(),
+            "g16" to stats.g16.toList(),
         )
+        // 19 Werte als DoubleArray (Dart: Float64List), NaN = nicht gemeldet; nur auf Anforderung.
+        if (ispFrames) m["isp"] = isp?.takeIf { it.size == PpgDiagnostics.ISP_VALUES } ?: PpgDiagnostics.notReported()
+        sink.event(m)
         frames++
         saturatedSum += stats.saturated
         if (!locked && t >= PpgCameraLogic.AE_LOCK_AT_SECONDS) {
@@ -501,5 +519,210 @@ class PpgController(private val hw: PpgHardware, private val sink: PpgSink) {
     } catch (_: Exception) {
         // Gerät schon weg oder Sitzung schon zu: die übrigen Schritte laufen trotzdem.
         false
+    }
+}
+
+/**
+ * Diagnose-Schalter der Bildverarbeitung (FR-0217, ADR-0011, Nachtrag 2026-11-21: Diagnose der
+ * Bildverarbeitung). [wire] ist der Name im Kanal (Argument "diagnostics", Meldung in "started").
+ */
+enum class PpgDiagnostic(val wire: String) {
+    NOISE_REDUCTION_OFF("noise_reduction_off"),
+    EDGE_OFF("edge_off"),
+    AWB_FIXED("awb_fixed"),
+    TONEMAP_LINEAR("tonemap_linear"),
+    SHADING_OFF("shading_off"),
+    ;
+
+    companion object {
+        /** Liest die Liste aus dem Start-Argument; Unbekanntes entfällt. */
+        fun fromWire(list: Any?): Set<PpgDiagnostic> {
+            val names = (list as? List<*>)?.filterIsInstance<String>().orEmpty().toSet()
+            return entries.filter { it.wire in names }.toSet()
+        }
+    }
+}
+
+/** Variante „Weißabgleich fest ab Start“: (a) [MATRIX] AWB aus mit fester Matrix, (b) [LOCK] AWB-Sperre ab dem ersten Bild. */
+enum class PpgAwbVariant(val wire: String) { MATRIX("matrix"), LOCK("lock") }
+
+/**
+ * Characteristics der Kamera, an die die Anfrage geht, für [PpgCameraLogic.diagnosticSettings]
+ * (ohne Android-Objekte); `null` = fehlt.
+ */
+data class PpgIspProps(
+    /** NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES. */
+    val noiseReductionModes: List<Int>? = null,
+    /** EDGE_AVAILABLE_EDGE_MODES. */
+    val edgeModes: List<Int>? = null,
+    /** CONTROL_AWB_AVAILABLE_MODES. */
+    val awbModes: List<Int>? = null,
+    /** CONTROL_AWB_LOCK_AVAILABLE. */
+    val awbLockAvailable: Boolean? = null,
+    /** Fähigkeit MANUAL_POST_PROCESSING (REQUEST_AVAILABLE_CAPABILITIES). */
+    val manualPostProcessing: Boolean = false,
+    /** TONEMAP_AVAILABLE_TONE_MAP_MODES. */
+    val tonemapModes: List<Int>? = null,
+    /** SHADING_AVAILABLE_MODES. */
+    val shadingModes: List<Int>? = null,
+)
+
+/**
+ * Zusätzliche Werte der Anfrage aus den Diagnose-Schaltern, `null` = nicht setzen:
+ * NOISE_REDUCTION_MODE, EDGE_MODE, TONEMAP_MODE (mit [tonemapCurve] für alle Kanäle), SHADING_MODE
+ * und die Variante des festen Weißabgleichs. [applied] sind die tatsächlich gesetzten Schalter.
+ */
+data class PpgDiagnosticSettings(
+    val noiseReductionMode: Int? = null,
+    val edgeMode: Int? = null,
+    val tonemapMode: Int? = null,
+    val tonemapCurve: FloatArray? = null,
+    val shadingMode: Int? = null,
+    val awb: PpgAwbVariant? = null,
+) {
+    val applied: List<PpgDiagnostic>
+        get() = buildList {
+            if (noiseReductionMode != null) add(PpgDiagnostic.NOISE_REDUCTION_OFF)
+            if (edgeMode != null) add(PpgDiagnostic.EDGE_OFF)
+            if (awb != null) add(PpgDiagnostic.AWB_FIXED)
+            if (tonemapMode != null) add(PpgDiagnostic.TONEMAP_LINEAR)
+            if (shadingMode != null) add(PpgDiagnostic.SHADING_OFF)
+        }
+
+    override fun equals(other: Any?): Boolean =
+        other is PpgDiagnosticSettings && noiseReductionMode == other.noiseReductionMode &&
+            edgeMode == other.edgeMode && tonemapMode == other.tonemapMode &&
+            (tonemapCurve?.toList() == other.tonemapCurve?.toList()) &&
+            shadingMode == other.shadingMode && awb == other.awb
+
+    override fun hashCode(): Int =
+        listOf(noiseReductionMode, edgeMode, tonemapMode, tonemapCurve?.toList(), shadingMode, awb).hashCode()
+
+    companion object {
+        /** Alle Schalter aus: die Anfrage bleibt wie in der Vorgabe des Verfahrens. */
+        val NONE = PpgDiagnosticSettings()
+    }
+}
+
+/** Diagnose der Bildverarbeitung (ADR-0011, Nachtrag 2026-11-21), reine Funktionen und kleine Zustände. */
+object PpgDiagnostics {
+    /** Lineare Tonwertkurve (0,0)–(1,1) als (Eingang, Ausgang)-Paare je Kanal. */
+    val LINEAR_CURVE = floatArrayOf(0f, 0f, 1f, 1f)
+
+    /** Spätestens nach dieser Zeit ab dem ersten Ergebnis gilt das Ergebnis für den festen Weißabgleich (a). */
+    const val AWB_FIX_LATEST_NS = 500_000_000L
+
+    /** Anzahl der ISP-Werte je Bild (Reihenfolge siehe [PpgIspValues]). */
+    const val ISP_VALUES = 19
+
+    /** Größe des Puffers für die Zuordnung Ergebnis ↔ Bild über den Sensor-Zeitstempel. */
+    const val MATCH_CAPACITY = 8
+
+    /**
+     * Schalter + Characteristics → Schlüssel und Werte. Gesetzt wird nur, was die Kamera laut
+     * Characteristics anbietet; `null` oder leer gilt als „nicht angeboten“, dann wirkt der Schalter
+     * nicht. Weißabgleich: (a) AWB OFF mit Transformationsmatrix, wenn die Kamera MANUAL_POST_PROCESSING
+     * meldet und AWB OFF führt; sonst (b) AWB-Sperre ab dem ersten Bild, wenn CONTROL_AWB_LOCK_AVAILABLE.
+     */
+    fun diagnosticSettings(requested: Set<PpgDiagnostic>, props: PpgIspProps): PpgDiagnosticSettings {
+        fun offered(on: PpgDiagnostic, mode: Int, modes: List<Int>?): Int? =
+            mode.takeIf { on in requested && it in modes.orEmpty() }
+        val tonemap = offered(
+            PpgDiagnostic.TONEMAP_LINEAR, CameraMetadata.TONEMAP_MODE_CONTRAST_CURVE, props.tonemapModes,
+        )
+        val awb = when {
+            PpgDiagnostic.AWB_FIXED !in requested -> null
+            props.manualPostProcessing && CameraMetadata.CONTROL_AWB_MODE_OFF in props.awbModes.orEmpty() ->
+                PpgAwbVariant.MATRIX
+            props.awbLockAvailable == true -> PpgAwbVariant.LOCK
+            else -> null
+        }
+        return PpgDiagnosticSettings(
+            noiseReductionMode = offered(
+                PpgDiagnostic.NOISE_REDUCTION_OFF, CameraMetadata.NOISE_REDUCTION_MODE_OFF, props.noiseReductionModes,
+            ),
+            edgeMode = offered(PpgDiagnostic.EDGE_OFF, CameraMetadata.EDGE_MODE_OFF, props.edgeModes),
+            tonemapMode = tonemap,
+            tonemapCurve = if (tonemap != null) LINEAR_CURVE.copyOf() else null,
+            shadingMode = offered(PpgDiagnostic.SHADING_OFF, CameraMetadata.SHADING_MODE_OFF, props.shadingModes),
+            awb = awb,
+        )
+    }
+
+    /** Packt die 19 Werte eines Ergebnisses; was fehlt (`null`), ist NaN („nicht gemeldet“). */
+    fun pack(values: List<Number?>): DoubleArray {
+        require(values.size == ISP_VALUES)
+        return DoubleArray(ISP_VALUES) { values[it]?.toDouble() ?: Double.NaN }
+    }
+
+    /** Alle 19 Werte „nicht gemeldet“. */
+    fun notReported(): DoubleArray = DoubleArray(ISP_VALUES) { Double.NaN }
+}
+
+/**
+ * Wählt für den festen Weißabgleich (a) das Ergebnis, dessen Farbverstärkungen [G] und Matrix [M]
+ * gelten: das erste mit AWB-Zustand CONVERGED, spätestens das erste ab [PpgDiagnostics.AWB_FIX_LATEST_NS]
+ * nach dem ersten Ergebnis. Ein Ergebnis ohne Verstärkungen oder Matrix zählt nicht. Liefert genau
+ * einmal einen Wert, danach immer `null`.
+ */
+class PpgAwbFixer<G, M> {
+    private var firstNs: Long? = null
+    private var done = false
+
+    fun offer(timestampNs: Long, awbState: Int?, gains: G?, matrix: M?): Pair<G, M>? {
+        if (done) return null
+        val first = firstNs ?: timestampNs.also { firstNs = it }
+        if (gains == null || matrix == null) return null
+        val due = awbState == CameraMetadata.CONTROL_AWB_STATE_CONVERGED ||
+            timestampNs - first >= PpgDiagnostics.AWB_FIX_LATEST_NS
+        if (!due) return null
+        done = true
+        return gains to matrix
+    }
+}
+
+/**
+ * Ordnet jedem Bild die ISP-Werte des Ergebnisses mit demselben Sensor-Zeitstempel zu
+ * (CaptureResult.SENSOR_TIMESTAMP = Image.getTimestamp()). Ergebnisse und Bilder kommen je in
+ * zeitlicher Reihenfolge, aber nicht zwingend im Wechsel: ein Bild ohne passendes Ergebnis wartet, bis
+ * es kommt (verspätetes Ergebnis), bis ein Ergebnis eines späteren Bildes kommt oder bis mehr als
+ * [capacity] Bilder warten; dann ist es „nicht gemeldet“ (`null`), nie der Wert eines anderen Bildes.
+ * Bilder gehen in ihrer Reihenfolge an [emit]. Gemerkt werden höchstens [capacity] Ergebnisse.
+ */
+class PpgIspMatcher<F>(
+    private val capacity: Int = PpgDiagnostics.MATCH_CAPACITY,
+    private val emit: (timestampNs: Long, frame: F, isp: DoubleArray?) -> Unit,
+) {
+    private val results = LinkedHashMap<Long, DoubleArray>()
+    private val pending = ArrayDeque<Pair<Long, F>>()
+    private var latestResultNs = Long.MIN_VALUE
+
+    fun onResult(timestampNs: Long, values: DoubleArray) {
+        results[timestampNs] = values
+        while (results.size > capacity) results.remove(results.keys.first())
+        if (timestampNs > latestResultNs) latestResultNs = timestampNs
+        drain()
+    }
+
+    fun onFrame(timestampNs: Long, frame: F) {
+        pending.addLast(timestampNs to frame)
+        drain()
+        while (pending.size > capacity) {
+            val (ts, f) = pending.removeFirst()
+            emit(ts, f, results.remove(ts))
+        }
+    }
+
+    private fun drain() {
+        while (pending.isNotEmpty()) {
+            val (ts, f) = pending.first()
+            val r = results.remove(ts)
+            when {
+                r != null -> emit(ts, f, r)
+                latestResultNs > ts -> emit(ts, f, null)
+                else -> return
+            }
+            pending.removeFirst()
+        }
     }
 }

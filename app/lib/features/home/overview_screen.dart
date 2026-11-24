@@ -90,6 +90,9 @@ class _OverviewScreenState extends State<OverviewScreen> {
   PpgCameraChoiceStore get _cameraChoice =>
       SettingsPpgCameraChoiceStore(session.settings, clock);
 
+  PpgCameraDiagnosticsStore get _cameraDiagnostics =>
+      SettingsPpgCameraDiagnosticsStore(session.settings, clock);
+
   MorningStore? get _morning =>
       session is MorningStorage ? (session as MorningStorage).morning : null;
 
@@ -194,6 +197,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                     appVersion: appVersion,
                     ppgCamera: PpgCameraScope.maybeOf(context),
                     cameraChoice: _cameraChoice,
+                    cameraDiagnostics: _cameraDiagnostics,
                     morning: _morning,
                   ),
                 ),
@@ -209,6 +213,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                       developerMode: _developerMode,
                       ppgCamera: PpgCameraScope.maybeOf(context),
                       cameraChoice: _cameraChoice,
+                      cameraDiagnostics: _cameraDiagnostics,
                       morning: _morning,
                     ),
                   ),

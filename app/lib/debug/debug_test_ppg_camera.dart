@@ -106,6 +106,11 @@ class DebugTestPpgCamera implements PpgCamera {
   /// Gestartete Kameras in Reihenfolge (die tatsächlich geöffnete, wie `PpgCameraStarted`).
   final List<PpgCameraRef> startedCameras = [];
 
+  /// Angeforderte Diagnose-Schalter und Werte je Bild jedes gelungenen Starts
+  /// (gleiche Reihenfolge wie [startedCameras]).
+  final List<({Set<PpgCameraDiagnostic> diagnostics, bool ispFrames})>
+  startedRequests = [];
+
   /// Zeitraffer; über das Debug-Panel umschaltbar (gilt ab dem nächsten Start).
   double speed;
   final int fps;
@@ -162,7 +167,11 @@ class DebugTestPpgCamera implements PpgCamera {
   };
 
   @override
-  Stream<PpgCameraEvent> start({PpgCameraRef? camera}) {
+  Stream<PpgCameraEvent> start({
+    PpgCameraRef? camera,
+    Set<PpgCameraDiagnostic> diagnostics = const {},
+    bool ispFrames = false,
+  }) {
     late final StreamController<PpgCameraEvent> c;
     var cancelled = false;
     c = StreamController<PpgCameraEvent>(
@@ -191,7 +200,20 @@ class DebugTestPpgCamera implements PpgCamera {
         }
         torchOn = true;
         startedCameras.add(ref);
-        c.add(PpgCameraStarted(fps, ref));
+        final requested = Set<PpgCameraDiagnostic>.unmodifiable(diagnostics);
+        startedRequests.add((diagnostics: requested, ispFrames: ispFrames));
+        // Die erfundene Kamera bietet jeden Schalter an: gesetzt ist, was angefordert
+        // wurde; Weißabgleich fest mit fester Matrix (Variante a, ADR-0011).
+        c.add(
+          PpgCameraStarted(
+            fps,
+            ref,
+            diagnostics: requested,
+            awbVariant: requested.contains(PpgCameraDiagnostic.awbFixed)
+                ? PpgAwbVariant.matrix
+                : null,
+          ),
+        );
         final weak = sc == DebugPpgScenario.weakSignal;
         final end = sc == DebugPpgScenario.disconnected
             ? 3.0
@@ -214,7 +236,12 @@ class DebugTestPpgCamera implements PpgCamera {
           final due = (_wall() - startedAt).inMicroseconds / 1e6 * sp;
           do {
             framesGenerated++;
-            c.add(PpgCameraFrame(gen.frame(t)));
+            c.add(
+              PpgCameraFrame(
+                gen.frame(t),
+                ispFrames ? debugIspValues(t, fps, requested) : null,
+              ),
+            );
             if (!locked && t >= 2.5) {
               locked = true;
               c.add(const PpgCameraExposureLocked());
@@ -261,6 +288,38 @@ const PpgCameraDetails debugCameraDetails = PpgCameraDetails(
   torchStrength: 1,
   saturatedFraction: 0.02,
 );
+
+/// Erfundene Werte der Bildverarbeitung eines Bildes zur Zeit [t] (s) in der Reihenfolge von
+/// [ppgIspValueCount] (ADR-0011, Nachtrag 2026-11-21): feste Farbverstärkungen, Modi nach den
+/// gesetzten Schaltern [set] (aus = `0`, sonst der übliche Modus der Kamera-API), AWB- und
+/// AE-Zustand ab der Sperre bei 2,5 s „gesperrt“, fester Fokus. Der Linsenzustand ist bei
+/// jedem 50. Bild „nicht gemeldet“ (NaN), damit der Weg leerer Felder geprüft wird.
+List<double> debugIspValues(double t, int fps, Set<PpgCameraDiagnostic> set) {
+  final locked = t >= 2.5;
+  final frame = (t * fps).round();
+  return [
+    2.0, 1.0, 1.0, 1.5, // Farbverstärkungen R, G gerade, G ungerade, B
+    locked ? 3 : 2, // AWB-Zustand: LOCKED bzw. CONVERGED
+    set.contains(PpgCameraDiagnostic.awbFixed)
+        ? 0
+        : 1, // AWB-Modus: OFF bzw. AUTO
+    set.contains(PpgCameraDiagnostic.awbFixed)
+        ? 0
+        : 1, // Farbkorrektur: MATRIX bzw. FAST
+    set.contains(PpgCameraDiagnostic.noiseReductionOff) ? 0 : 1,
+    set.contains(PpgCameraDiagnostic.edgeOff) ? 0 : 1,
+    set.contains(PpgCameraDiagnostic.tonemapLinear) ? 0 : 1,
+    set.contains(PpgCameraDiagnostic.shadingOff) ? 0 : 1,
+    debugCameraDetails.exposureTimeNs!.toDouble(),
+    debugCameraDetails.iso!.toDouble(),
+    locked ? 3 : 2, // AE-Zustand: LOCKED bzw. CONVERGED
+    (1e9 / fps).roundToDouble(), // Bilddauer (ns)
+    0, // AF-Modus OFF
+    10.0, // Fokusdistanz (Dioptrien)
+    0, // OIS aus
+    frame % 50 == 49 ? double.nan : 0, // Linsenzustand STATIONARY
+  ];
+}
 
 /// Mittlerer Schlagabstand der Fake-Kamera in s (ca. 70/min).
 const double debugPpgBeatPeriodSeconds = 0.85;

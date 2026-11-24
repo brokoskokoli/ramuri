@@ -48,6 +48,11 @@ class FakeMorningStore implements MorningStore {
         cameraId: rawSignal.cameraId,
         physicalCameraId: rawSignal.physicalCameraId,
         focalLengthMm: rawSignal.focalLengthMm,
+        ispFrames: rawSignal.ispFrames == null
+            ? null
+            : decodeIspFrames(encodeIspFrames(rawSignal.ispFrames!)),
+        diagnostics: Set.unmodifiable(rawSignal.diagnostics),
+        awbVariant: rawSignal.awbVariant,
       );
     }
     _d.morningPackets[id] = [

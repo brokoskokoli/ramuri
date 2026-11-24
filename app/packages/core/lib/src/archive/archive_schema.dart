@@ -354,14 +354,27 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     'measurement_id I, frame_count I, frames X, exposure_time_ns I?, iso I?, '
         'timestamp_source T?, rolling_shutter_skew_ns I?, torch_strength I?, '
         'frame_gap_count I, frame_gap_total_s R, saturated_fraction R?, '
-        'camera_id T?, physical_camera_id T?, focal_length_mm R?',
+        'camera_id T?, physical_camera_id T?, focal_length_mm R?, '
+        'isp_frames X?, diag_noise_reduction_off B, diag_edge_off B, '
+        'diag_awb_fixed B, diag_tonemap_linear B, diag_shading_off B, '
+        'diag_awb_variant T?',
     key: 'measurement_id',
     sinceSchema: 14,
     // Schema 15: verwendete Kamera (FR-0220); ältere Archive: null.
+    // Schema 17: Werte der Bildverarbeitung je Bild (`isp_frames`, je Bild 19
+    // float64 little endian, null = nicht aufgezeichnet) und gesetzte
+    // Diagnose-Schalter (FR-0217); ältere Archive: null bzw. 0.
     addedColumns: {
       'camera_id': (15, null),
       'physical_camera_id': (15, null),
       'focal_length_mm': (15, null),
+      'isp_frames': (17, null),
+      'diag_noise_reduction_off': (17, 0),
+      'diag_edge_off': (17, 0),
+      'diag_awb_fixed': (17, 0),
+      'diag_tonemap_linear': (17, 0),
+      'diag_shading_off': (17, 0),
+      'diag_awb_variant': (17, null),
     },
   ),
 ]);
@@ -373,18 +386,18 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 16;
+const int archiveSchemaVersion = 17;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 16).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 17).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
 /// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7 und 8:
-/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`, ab 14: 34 mit `morning_raw_signals` (ab 15 mit der verwendeten Kamera, ab 16 mit `morning_measurements.chosen`); ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
+/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`, ab 14: 34 mit `morning_raw_signals` (ab 15 mit der verwendeten Kamera, ab 16 mit `morning_measurements.chosen`, ab 17 mit ISP-Werten und Diagnose-Schaltern); ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
 /// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche

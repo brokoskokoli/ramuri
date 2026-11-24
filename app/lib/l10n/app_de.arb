@@ -3914,5 +3914,19 @@
   "devCompareLegend": "Linie: Gurt · Punkte: Kamera · x: Nummer des Schlagabstands · y: ms",
   "@devCompareLegend": {"description": "Vergleich Kamera gegen Gurt (FR-0217)"},
   "devCompareChart": "Kurve der Schlagabstände, Gurt als Linie, Kamera als Punkte. RMSSD Kamera {camera}, Gurt {belt} ms; Fehler je Schlagabstand {error} ms; {pairs} Paare.",
-  "@devCompareChart": {"description": "Vergleich Kamera gegen Gurt (FR-0217)", "placeholders": {"camera": {"type": "String"}, "belt": {"type": "String"}, "error": {"type": "String"}, "pairs": {"type": "int"}}}
+  "@devCompareChart": {"description": "Vergleich Kamera gegen Gurt (FR-0217)", "placeholders": {"camera": {"type": "String"}, "belt": {"type": "String"}, "error": {"type": "String"}, "pairs": {"type": "int"}}},
+  "devDiagTitle": "Kamera-Bildverarbeitung (Diagnose)",
+  "@devDiagTitle": {"description": "Karte auf den Entwicklereinstellungen mit den Diagnose-Schaltern (FR-0217)"},
+  "devDiagNoiseReductionOff": "Rauschunterdrückung aus",
+  "@devDiagNoiseReductionOff": {"description": "Diagnose-Schalter (FR-0217)"},
+  "devDiagEdgeOff": "Kantenschärfung aus",
+  "@devDiagEdgeOff": {"description": "Diagnose-Schalter (FR-0217)"},
+  "devDiagAwbFixed": "Weißabgleich fest ab Start",
+  "@devDiagAwbFixed": {"description": "Diagnose-Schalter (FR-0217)"},
+  "devDiagTonemapLinear": "Tonwertkurve linear",
+  "@devDiagTonemapLinear": {"description": "Diagnose-Schalter (FR-0217)"},
+  "devDiagShadingOff": "Linsenschattierung fest",
+  "@devDiagShadingOff": {"description": "Diagnose-Schalter (FR-0217)"},
+  "devDiagHint": "Nur für die Fehlersuche. Gilt für die Morgenmessung im Entwicklermodus; die Einstellung wird mit der Messung gespeichert. Was die Kamera nicht anbietet, bleibt unverändert.",
+  "@devDiagHint": {"description": "Hinweis unter den Diagnose-Schaltern (FR-0217)"}
 }

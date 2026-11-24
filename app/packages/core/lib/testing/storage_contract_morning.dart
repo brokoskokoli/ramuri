@@ -122,6 +122,9 @@ MorningRawSignal _raw({
   String? cameraId = '0',
   String? physicalCameraId = '2',
   double? focal = 2.2,
+  List<List<double>>? isp,
+  Set<PpgCameraDiagnostic> diagnostics = const {},
+  PpgAwbVariant? awb,
 }) => MorningRawSignal(
   frames: frames ?? [_frame(0.033), _frame(0.0667), _frame(0.1)],
   exposureTimeNs: exposure,
@@ -135,7 +138,24 @@ MorningRawSignal _raw({
   cameraId: cameraId,
   physicalCameraId: physicalCameraId,
   focalLengthMm: focal,
+  ispFrames: isp,
+  diagnostics: diagnostics,
+  awbVariant: awb,
 );
+
+/// Synthetische Werte der Bildverarbeitung je Bild (19, mit nicht gemeldeten).
+List<double> _isp(int i) => [
+  for (var k = 0; k < ppgIspValueCount; k++)
+    k == 16
+        ? 10.0 + i / 3
+        : k == 18 || (i == 1 && k < 4)
+        ? double.nan
+        : (k * 7 + i).toDouble(),
+];
+
+/// Bitgenau, auch `NaN` (über die gespeicherte Form).
+String _ispBits(List<List<double>>? v) =>
+    v == null ? 'null' : encodeIspFrames(v).join(',');
 
 String _rawFields(MorningRawSignal r) => [
   for (final f in r.frames) [f.t, f.r, f.g, ...f.r16, ...f.g16].join(','),
@@ -150,6 +170,9 @@ String _rawFields(MorningRawSignal r) => [
   r.cameraId,
   r.physicalCameraId,
   r.focalLengthMm,
+  _ispBits(r.ispFrames),
+  [for (final d in PpgCameraDiagnostic.values) r.diagnostics.contains(d)],
+  r.awbVariant?.wire,
 ].join('|');
 
 RrPacket _packet(int seconds, List<int> rr, [String source = 'gurt-1']) =>
@@ -249,7 +272,16 @@ Future<void> _extended(StorageContractHarness h) async {
     windowEnd: 65.5,
     skippedAfter: 37.25,
   );
-  final raw = _raw();
+  // Mit Werten der Bildverarbeitung (auch nicht gemeldet = NaN) und Schaltern.
+  final raw = _raw(
+    isp: [_isp(0), _isp(1), _isp(2)],
+    diagnostics: const {
+      PpgCameraDiagnostic.noiseReductionOff,
+      PpgCameraDiagnostic.awbFixed,
+      PpgCameraDiagnostic.shadingOff,
+    },
+    awb: PpgAwbVariant.lock,
+  );
   final idA = await _m(s).add(a, rawSignal: raw);
   // Unbrauchbar: ohne Puls, mit Grund, ohne Fenster, Rohsignal ohne
   // Kamera-Angaben (alles nicht geliefert) und ohne Bilder.
@@ -309,8 +341,15 @@ Future<void> _extended(StorageContractHarness h) async {
       _rawFields(raw),
       'Rohsignal bitgenau (Runde $round)',
     );
+    final gotA = (await _m(s).rawSignal(idA))!;
+    expectTrue(gotA.ispFrames![1][0].isNaN, 'nicht gemeldet bleibt NaN');
+    expectTrue(gotA.withCameraDiagnostics, 'Merkmal Diagnose-Einstellung');
     final gotB = (await _m(s).rawSignal(idB))!;
     expectEq(_rawFields(gotB), _rawFields(rawB), 'leeres Rohsignal');
+    expectTrue(gotB.ispFrames == null, 'ohne ISP-Werte null');
+    expectTrue(gotB.diagnostics.isEmpty, 'ohne Schalter keine');
+    expectTrue(!gotB.withCameraDiagnostics, 'ohne Schalter kein Merkmal');
+    expectTrue(gotB.awbVariant == null, 'ohne Variante');
     expectTrue(gotB.timestampSource == null, 'Zeitstempelquelle unbekannt');
     expectTrue(
       await _m(s).rawSignal(idC) == null,
@@ -411,6 +450,12 @@ Future<void> _extendedRejected(StorageContractHarness h) async {
     'Brennweite 0': _raw(focal: 0),
     'Brennweite negativ': _raw(focal: -1.5),
     'Brennweite nicht endlich': _raw(focal: double.nan),
+    'ISP-Werte nicht je Bild': _raw(isp: [_isp(0)]),
+    'ISP-Werte nicht 19': _raw(isp: [_isp(0), _isp(1), _isp(2).sublist(1)]),
+    'ISP-Wert unendlich': _raw(
+      isp: [_isp(0), _isp(1), List.filled(19, double.infinity)],
+    ),
+    'Weißabgleich-Variante ohne Schalter': _raw(awb: PpgAwbVariant.matrix),
     'mehr Bilder als morningRawMaxFrames': _raw(
       frames: List.filled(morningRawMaxFrames + 1, _frame(0.5)),
     ),

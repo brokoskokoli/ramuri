@@ -37,6 +37,20 @@ class FakePpgCamera implements PpgCamera {
   /// Argument `camera` jedes [start] in Reihenfolge (`null` = ohne Angabe).
   final List<PpgCameraRef?> startedWith = [];
 
+  /// Argumente `diagnostics` und `ispFrames` jedes [start] in Reihenfolge.
+  final List<Set<PpgCameraDiagnostic>> diagnosticsWith = [];
+  final List<bool> ispFramesWith = [];
+
+  /// Schalter, die diese Kamera anbietet: gemeldet als gesetzt wird die
+  /// Schnittmenge mit den angeforderten. Vorgabe: alle.
+  Set<PpgCameraDiagnostic> offeredDiagnostics = PpgCameraDiagnostic.values
+      .toSet();
+
+  /// Variante bei festem Weißabgleich.
+  PpgAwbVariant awbVariant = PpgAwbVariant.matrix;
+
+  bool _isp = false;
+
   @override
   Future<List<PpgCameraInfo>> cameras() async {
     camerasCount++;
@@ -59,12 +73,19 @@ class FakePpgCamera implements PpgCamera {
   }
 
   @override
-  Stream<PpgCameraEvent> start({PpgCameraRef? camera}) {
+  Stream<PpgCameraEvent> start({
+    PpgCameraRef? camera,
+    Set<PpgCameraDiagnostic> diagnostics = const {},
+    bool ispFrames = false,
+  }) {
     late final StreamController<PpgCameraEvent> c;
     c = StreamController<PpgCameraEvent>(
       onListen: () {
         startCount++;
         startedWith.add(camera);
+        diagnosticsWith.add(Set.unmodifiable(diagnostics));
+        ispFramesWith.add(ispFrames);
+        _isp = ispFrames;
         var reason = switch (_availability) {
           PpgCameraAvailability.available => null,
           PpgCameraAvailability.noCamera => PpgCameraStopReason.noCamera,
@@ -95,7 +116,19 @@ class FakePpgCamera implements PpgCamera {
           return;
         }
         torchOn = true;
-        if (sendStarted) c.add(PpgCameraStarted(60, info!.ref));
+        final applied = diagnostics.intersection(offeredDiagnostics);
+        if (sendStarted) {
+          c.add(
+            PpgCameraStarted(
+              60,
+              info!.ref,
+              diagnostics: applied,
+              awbVariant: applied.contains(PpgCameraDiagnostic.awbFixed)
+                  ? awbVariant
+                  : null,
+            ),
+          );
+        }
       },
       onCancel: () => _release(c),
     );
@@ -117,7 +150,20 @@ class FakePpgCamera implements PpgCamera {
     await c.close();
   }
 
-  void emitFrame(PpgFrame frame) => _controller?.add(PpgCameraFrame(frame));
+  /// Bild; mit angeforderten ISP-Werten ([start] mit `ispFrames`) trägt es [isp]
+  /// oder, ohne Angabe, synthetische Werte ([syntheticIsp]).
+  void emitFrame(PpgFrame frame, {List<double>? isp}) => _controller?.add(
+    PpgCameraFrame(frame, _isp ? (isp ?? syntheticIsp(frame.t)) : null),
+  );
+
+  /// Synthetische ISP-Werte eines Bilds (keine Messwerte): feste Modi, die
+  /// Fokusdistanz aus dem Zeitstempel, `LENS_STATE` nicht gemeldet.
+  static List<double> syntheticIsp(double t) => List.unmodifiable(<double>[
+    1.5, 1.0, 1.0, 2.25, // Farbverstärkungen
+    2, 1, 1, 1, 1, 1, 1, // AWB-Zustand und -Modus, Modi
+    16666666, 100, 2, 16666666, // Belichtung, Empfindlichkeit, AE, Bilddauer
+    0, 10 + t, 0, double.nan, // AF, Fokusdistanz, OIS, Linsenzustand
+  ]);
 
   void emitDetails(PpgCameraDetails details) => _controller?.add(details);
 

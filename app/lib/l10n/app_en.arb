@@ -3154,5 +3154,19 @@
   "devCompareLegend": "Line: strap · dots: camera · x: interval number · y: ms",
   "@devCompareLegend": {"description": "Vergleich Kamera gegen Gurt (FR-0217)"},
   "devCompareChart": "Curve of beat intervals, strap as line, camera as dots. RMSSD camera {camera}, strap {belt} ms; error per beat interval {error} ms; {pairs} pairs.",
-  "@devCompareChart": {"description": "Vergleich Kamera gegen Gurt (FR-0217)", "placeholders": {"camera": {"type": "String"}, "belt": {"type": "String"}, "error": {"type": "String"}, "pairs": {"type": "int"}}}
+  "@devCompareChart": {"description": "Vergleich Kamera gegen Gurt (FR-0217)", "placeholders": {"camera": {"type": "String"}, "belt": {"type": "String"}, "error": {"type": "String"}, "pairs": {"type": "int"}}},
+  "devDiagTitle": "Camera image processing (diagnostics)",
+  "@devDiagTitle": {"description": "Card on the developer settings page with the diagnostic switches (FR-0217)"},
+  "devDiagNoiseReductionOff": "Noise reduction off",
+  "@devDiagNoiseReductionOff": {"description": "Diagnostic switch (FR-0217)"},
+  "devDiagEdgeOff": "Edge enhancement off",
+  "@devDiagEdgeOff": {"description": "Diagnostic switch (FR-0217)"},
+  "devDiagAwbFixed": "White balance fixed from start",
+  "@devDiagAwbFixed": {"description": "Diagnostic switch (FR-0217)"},
+  "devDiagTonemapLinear": "Linear tone curve",
+  "@devDiagTonemapLinear": {"description": "Diagnostic switch (FR-0217)"},
+  "devDiagShadingOff": "Lens shading fixed",
+  "@devDiagShadingOff": {"description": "Diagnostic switch (FR-0217)"},
+  "devDiagHint": "For troubleshooting only. Applies to the morning measurement in developer mode; the setting is saved with the measurement. Anything the camera does not offer stays unchanged.",
+  "@devDiagHint": {"description": "Hint under the diagnostic switches (FR-0217)"}
 }

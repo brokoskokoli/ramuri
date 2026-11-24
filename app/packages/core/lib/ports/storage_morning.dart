@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import '../src/ppg/ppg_evaluator.dart'
     show PpgFrame, PpgQuality, PpgQualityReason;
+import 'ppg_camera.dart'
+    show PpgAwbVariant, PpgCameraDiagnostic, ppgIspValueCount;
 import '../src/preprocessing/measurement.dart' show RrPacket;
 import '../src/profile/resting_hr_origin.dart' show RestingPosture;
 import 'storage.dart' show StorageException, StorageFailure;
@@ -234,9 +236,31 @@ class MorningRawSignal {
     this.cameraId,
     this.physicalCameraId,
     this.focalLengthMm,
+    this.ispFrames,
+    this.diagnostics = const {},
+    this.awbVariant,
   });
 
   final List<PpgFrame> frames;
+
+  /// Werte der Bildverarbeitung je Bild (FR-0217, ADR-0011): je Eintrag von
+  /// [frames] genau [ppgIspValueCount] Werte in der Reihenfolge von
+  /// `PpgIspValue`, `NaN` = von der Kamera nicht gemeldet; `null` = nicht
+  /// aufgezeichnet (ältere Messungen). Spalte `isp_frames`.
+  final List<List<double>>? ispFrames;
+
+  /// Tatsächlich gesetzte Diagnose-Schalter der Kamera (`PpgCameraStarted`);
+  /// leer = Vorgabe des Verfahrens. Spalten `diag_*`.
+  final Set<PpgCameraDiagnostic> diagnostics;
+
+  /// Variante des festen Weißabgleichs; nur mit
+  /// [PpgCameraDiagnostic.awbFixed]. Spalte `diag_awb_variant`.
+  final PpgAwbVariant? awbVariant;
+
+  /// Internes Merkmal „mit Diagnose-Einstellung der Kamera gemessen“ (FR-0217,
+  /// E7c): mindestens ein Schalter war gesetzt. Ändert weder Anzeige noch
+  /// Rechnung; die Messung geht nicht in die Validierung des Verfahrens ein.
+  bool get withCameraDiagnostics => diagnostics.isNotEmpty;
 
   /// Belichtungszeit in Nanosekunden.
   final int? exposureTimeNs;
@@ -321,6 +345,44 @@ List<PpgFrame> decodeRawFrames(List<int> bytes) {
         r16: List.unmodifiable([for (var k = 0; k < 16; k++) get()]),
         g16: List.unmodifiable([for (var k = 0; k < 16; k++) get()]),
       ),
+  ]);
+}
+
+/// Bytes je Bild der Werte der Bildverarbeitung: [ppgIspValueCount] float64.
+const int morningIspFrameBytes = ppgIspValueCount * 8;
+
+/// Packt die Werte der Bildverarbeitung als float64 little endian (Spalte
+/// `isp_frames`, [morningIspFrameBytes] Byte je Bild, bitgenau samt `NaN`).
+/// Ein Bild ohne genau [ppgIspValueCount] Werte ist ein Fehler.
+Uint8List encodeIspFrames(List<List<double>> frames) {
+  final out = Uint8List(frames.length * morningIspFrameBytes);
+  final view = ByteData.sublistView(out);
+  var o = 0;
+  for (final f in frames) {
+    if (f.length != ppgIspValueCount) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    for (final v in f) {
+      view.setFloat64(o, v, Endian.little);
+      o += 8;
+    }
+  }
+  return out;
+}
+
+/// Umkehrung von [encodeIspFrames]; eine Länge, die kein Vielfaches von
+/// [morningIspFrameBytes] ist, ist ein Fehler.
+List<List<double>> decodeIspFrames(List<int> bytes) {
+  if (bytes.length % morningIspFrameBytes != 0) {
+    throw const StorageException(StorageFailure.failed);
+  }
+  final view = ByteData.sublistView(Uint8List.fromList(bytes));
+  return List.unmodifiable([
+    for (var i = 0; i < bytes.length ~/ morningIspFrameBytes; i++)
+      List<double>.unmodifiable([
+        for (var k = 0; k < ppgIspValueCount; k++)
+          view.getFloat64((i * ppgIspValueCount + k) * 8, Endian.little),
+      ]),
   ]);
 }
 
@@ -449,6 +511,17 @@ void checkMorningForStorage(
                       raw.saturatedFraction! <= 1)) ||
               (raw.physicalCameraId != null && raw.cameraId == null) ||
               (raw.focalLengthMm != null &&
-                  !(raw.focalLengthMm!.isFinite && raw.focalLengthMm! > 0))));
+                  !(raw.focalLengthMm!.isFinite && raw.focalLengthMm! > 0)) ||
+              // Je Bild genau 19 Werte, endlich oder NaN (nicht gemeldet).
+              (raw.ispFrames != null &&
+                  (raw.ispFrames!.length != raw.frames.length ||
+                      raw.ispFrames!.any(
+                        (v) =>
+                            v.length != ppgIspValueCount ||
+                            v.any((x) => x.isInfinite),
+                      ))) ||
+              // Variante nur mit festem Weißabgleich.
+              (raw.awbVariant != null &&
+                  !raw.diagnostics.contains(PpgCameraDiagnostic.awbFixed))));
   if (invalid) throw const StorageException(StorageFailure.rejected);
 }

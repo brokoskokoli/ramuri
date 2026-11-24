@@ -104,6 +104,14 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
         ).read,
         choice: SettingsPpgCameraChoiceStore(widget.settings, widget.clock),
       ),
+      // Diagnose-Schalter und Werte je Bild nur im Entwicklermodus (FR-0217).
+      cameraDiagnostics: () => morningCameraDiagnostics(
+        developerMode: SettingsDeveloperModeStore(
+          widget.settings,
+          widget.clock,
+        ).read,
+        store: SettingsPpgCameraDiagnosticsStore(widget.settings, widget.clock),
+      ),
       autoTick: widget.autoTick,
       validationState: widget.validationState,
       marksFor: morningMarksReader(

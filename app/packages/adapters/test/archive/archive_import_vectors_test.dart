@@ -100,22 +100,38 @@ void main() {
                 'camera_id',
                 'physical_camera_id',
                 'focal_length_mm',
+                // Schema 17: ISP-Werte und Weißabgleich-Variante; ältere: null.
+                'isp_frames',
+                'diag_awb_variant',
               ]) {
                 row.putIfAbsent(c, () => null);
+              }
+              // Archive bis Schema 16 haben die Schalter (Schema 17) nicht,
+              // der Leser setzt 0 (nicht gesetzt).
+              for (final c in const [
+                'diag_noise_reduction_off',
+                'diag_edge_off',
+                'diag_awb_fixed',
+                'diag_tonemap_linear',
+                'diag_shading_off',
+              ]) {
+                row.putIfAbsent(c, () => 0);
               }
             }
             // BLOB (Schema 9): Hex-Text der Datei, im Ziel als Bytes.
             // Ebenso Gurt-RR (`rr`) und Kamera-Abstände (`camera_ibi`) der
             // Morgenmessung (Schema 13), Rohsignal `frames` (Schema 14).
-            for (final c in const {
-              'raw_rr_packets': 'rr',
-              'morning_rr_packets': 'rr',
-              'morning_measurements': 'camera_ibi',
-              'morning_raw_signals': 'frames',
-            }.entries) {
-              if (section != c.key) continue;
-              final hex = row[c.value]! as String;
-              row[c.value] = Uint8List.fromList([
+            for (final c in const [
+              ('raw_rr_packets', 'rr'),
+              ('morning_rr_packets', 'rr'),
+              ('morning_measurements', 'camera_ibi'),
+              ('morning_raw_signals', 'frames'),
+              // Schema 17: ISP-Werte je Bild (null = nicht aufgezeichnet).
+              ('morning_raw_signals', 'isp_frames'),
+            ]) {
+              if (section != c.$1 || row[c.$2] == null) continue;
+              final hex = row[c.$2]! as String;
+              row[c.$2] = Uint8List.fromList([
                 for (var k = 0; k < hex.length; k += 2)
                   int.parse(hex.substring(k, k + 2), radix: 16),
               ]);

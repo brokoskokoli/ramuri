@@ -24,6 +24,7 @@ class AboutScreen extends StatefulWidget {
     this.clock,
     this.ppgCamera,
     this.cameraChoice,
+    this.cameraDiagnostics,
   });
 
   final DeveloperModeStore developerMode;
@@ -33,6 +34,7 @@ class AboutScreen extends StatefulWidget {
 
   final PpgCamera? ppgCamera;
   final PpgCameraChoiceStore? cameraChoice;
+  final PpgCameraDiagnosticsStore? cameraDiagnostics;
 
   final DateTime Function()? clock;
 
@@ -90,6 +92,7 @@ class _AboutScreenState extends State<AboutScreen> {
           clock: widget.clock,
           ppgCamera: widget.ppgCamera,
           cameraChoice: widget.cameraChoice,
+          cameraDiagnostics: widget.cameraDiagnostics,
         ),
       ),
     );
