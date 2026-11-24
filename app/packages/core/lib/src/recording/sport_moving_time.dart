@@ -5,46 +5,55 @@
 library;
 
 import '../../ports/storage_runs.dart';
+import '../preprocessing/movement_time_processor.dart' show TimeSpan;
 import 'treadmill.dart';
 
-/// Zeit von [start] bis [end] ohne die Vereinigung der [pauses] (jeweils auf
-/// den Bereich beschnitten; überlappende Pausen zählen einmal). Nie negativ.
-Duration activeTimeWithoutPauses({
+/// Aktive Abschnitte von [start] bis [end]: der Bereich ohne die
+/// Vereinigung der [pauses] (jeweils auf den Bereich beschnitten), aufsteigend
+/// und ohne Überlappung.
+List<TimeSpan> activeIntervalsWithoutPauses({
   required DateTime start,
   required DateTime end,
   required List<(DateTime, DateTime)> pauses,
 }) {
-  if (!end.isAfter(start)) return Duration.zero;
+  if (!end.isAfter(start)) return const [];
   final cuts = [
     for (final (ps, pe) in pauses)
       if (pe.isAfter(start) && ps.isBefore(end) && pe.isAfter(ps))
         (ps.isBefore(start) ? start : ps, pe.isAfter(end) ? end : pe),
   ]..sort((a, b) => a.$1.compareTo(b.$1));
-  var paused = Duration.zero;
-  DateTime? curStart;
-  DateTime? curEnd;
+  final spans = <TimeSpan>[];
+  var cursor = start;
   for (final (ps, pe) in cuts) {
-    if (curEnd != null && !ps.isAfter(curEnd)) {
-      if (pe.isAfter(curEnd)) curEnd = pe;
-      continue;
-    }
-    if (curStart != null) paused += curEnd!.difference(curStart);
-    curStart = ps;
-    curEnd = pe;
+    if (ps.isAfter(cursor)) spans.add(TimeSpan(start: cursor, end: ps));
+    if (pe.isAfter(cursor)) cursor = pe;
   }
-  if (curStart != null) paused += curEnd!.difference(curStart);
-  return end.difference(start) - paused;
+  if (end.isAfter(cursor)) spans.add(TimeSpan(start: cursor, end: end));
+  return spans;
 }
 
-/// Bewegungszeit einer beendeten Sporteinheit aus den gespeicherten Lücken
-/// (PAR-232); `null`, wenn [run] keine andere Sportart ist.
-Duration? sportMovingTimeOfRun(
+/// Zeit von [start] bis [end] ohne die [pauses] (überlappende Pausen zählen
+/// einmal); nie negativ.
+Duration activeTimeWithoutPauses({
+  required DateTime start,
+  required DateTime end,
+  required List<(DateTime, DateTime)> pauses,
+}) => activeIntervalsWithoutPauses(
+  start: start,
+  end: end,
+  pauses: pauses,
+).fold(Duration.zero, (a, s) => a + s.duration);
+
+/// Aktive Abschnitte einer beendeten Sporteinheit aus den gespeicherten
+/// Lücken (PAR-232); ihre Summe ist die Bewegungszeit. `null`, wenn [run]
+/// keine andere Sportart ist.
+List<TimeSpan>? sportMovingIntervalsOfRun(
   StoredRun run,
   DateTime end,
   List<StoredGap> gaps,
 ) {
   if (run.mode != RunMode.sport) return null;
-  return activeTimeWithoutPauses(
+  return activeIntervalsWithoutPauses(
     start: run.startedAt,
     end: end,
     pauses: [
