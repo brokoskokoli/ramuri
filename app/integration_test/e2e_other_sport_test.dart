@@ -41,17 +41,22 @@ void main() {
     final before = (await t.runAsync(() => s.runs.list()))!.length;
 
     step('SPORT ohne_sensor');
-    // Ist der Test-Gurt aus frueheren Gruppen bekannt und verbunden, trennen.
-    await _sensors(t, () async {
-      if (has('sensor_disconnect_$_belt')) {
-        await tapKey(t, 'sensor_disconnect_$_belt');
-        await waitFor(t, () => !has('sensor_bpm_$_belt'), 'Gurt getrennt');
-      }
-    });
     await _openSport(t);
-    await waitFor(t, () => has('other_sport_needs_sensor'), 'Sperre');
-    expect(_goEnabled(t), isFalse, reason: 'Start ohne Gurt gesperrt');
     expect(has('other_sport_chest_hint'), isTrue, reason: 'Brustgurt-Hinweis');
+    // Der Test-Gurt ist aus frueheren Gruppen bekannt und verbindet sich beim
+    // Start der App ggf. automatisch: trennen, bis die Sperre steht.
+    final sensors = w.deps.sensors;
+    await waitFor(t, () {
+      if (sensors.connectedIds.contains(_belt)) sensors.disconnect(_belt);
+      return !sensors.autoConnecting &&
+          sensors.connectedIds.isEmpty &&
+          _goEnabled(t) == false;
+    }, 'Start ohne Gurt gesperrt');
+    await t.scrollUntilVisible(
+      find.byKey(const Key('other_sport_needs_sensor')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tapKey(t, 'other_sport_manual_entry');
     await waitFor(t, () => has('manual_kind_other'), 'Nachtrag offen');
     expect(
@@ -75,7 +80,7 @@ void main() {
     step('SPORT seilspringen');
     await _openSport(t);
     await tapKey(t, 'other_sport_rope');
-    await waitFor(t, () => _goEnabled(t), 'Start frei mit Gurt');
+    await waitFor(t, () => _goEnabled(t) == true, 'Start frei mit Gurt');
     expect(has('other_sport_needs_sensor'), isFalse);
     expect(has('other_sport_rope_hint'), isTrue, reason: 'Hinweis Wade');
     await tapKey(t, 'run_start_ready');
@@ -167,8 +172,10 @@ Future<void> _openSport(WidgetTester t) async {
   await waitFor(t, () => has('other_sport_card'), 'Sportwahl');
 }
 
-bool _goEnabled(WidgetTester t) =>
-    t
-        .widget<RamuriStartButton>(find.byKey(const Key('run_start_ready')))
-        .onPressed !=
-    null;
+/// Ob "Start" frei ist; `null`, solange die Taste nicht im Baum steht.
+bool? _goEnabled(WidgetTester t) {
+  final b = maybeWidget<RamuriStartButton>(
+    find.byKey(const Key('run_start_ready')),
+  );
+  return b == null ? null : b.onPressed != null;
+}
