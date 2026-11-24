@@ -1,7 +1,7 @@
 # Vertrag: Dateiexport GPX, TCX, FIT
 
 **Status:** Vorschläge (WP11, OQ-0032). Formatversionen vom Maintainer bestätigt (2026-11-06); die Abbildungsregeln sind Vorschläge des Pakets und umkehrbar.
-**Anforderungen:** [FR-0182, FR-0183](../specs/export-sync.md), FR-0196, FR-0201, SEC-0003, CON-0008, CON-0010, ACC-13.
+**Anforderungen:** [FR-0182, FR-0183](../specs/export-sync.md), FR-0196, FR-0201, FR-0221, SEC-0003, CON-0008, CON-0010, ACC-13.
 **Code:** `app/packages/core/lib/src/export/` (`export_run.dart` Abbildung, `gpx_encoder.dart`, `tcx_encoder.dart`, `xml_text.dart`, `fit_encoder.dart`, `fit_crc.dart`).
 
 ## Formatversionen
@@ -36,7 +36,7 @@ Die TCX-ActivityExtension v2 trägt nur die Schrittfrequenz (`RunCadence`); ihr 
 |---|---|---|---|
 | Quelle | `gpx/@creator = "ramuri"` | – | `file_id`: Hersteller „development“ (255) |
 | Name | `metadata/name`, `trk/name` | – | – |
-| Sportart | `trk/type = running` | `Activity/@Sport = Running` | `lap`/`session.sport` = running (1), `session.sub_sport` = generic (0) |
+| Sportart | `trk/type = running` | `Activity/@Sport = Running` | `lap`/`session.sport` = running (1), `session.sub_sport` = generic (0) (Bandlauf treadmill (1)); andere Sportart siehe unten |
 | Laufstart | `metadata/time` | `Activity/Id`, `Lap/@StartTime` der ersten Runde | `file_id.time_created`, `session.start_time` |
 | Laufende | – (kein Feld) | – (kein Feld; nur Rundenstart + Trackpoint-Zeiten) | `session.timestamp`, `activity.timestamp` |
 | Position | `trkpt/@lat`, `@lon` (Dezimal ohne Exponent, verlustfrei) | `Trackpoint/Position/LatitudeDegrees`, `LongitudeDegrees` | `record.position_lat`, `position_long` (sint32, Semicircles = Grad · 2³¹/180, gerundet) |
@@ -74,6 +74,23 @@ Nicht ausgegeben: `total_calories`, Durchschnitts- und Höchstwerte, `distance` 
 - **FIT:** eigene `record`-Definition mit `timestamp`, `heart_rate`, `distance` (uint32, Zentimeter, Feld 5), `speed` (uint16, Millimeter je Sekunde, Feld 6; über 65,5 m/s fehlt der Wert) und ohne `position_lat`, `position_long`, `altitude`; mit Schrittfrequenz zusätzlich `cadence` wie oben; `session.sub_sport` = treadmill (1). `lap.total_distance` und `session.total_distance` sind der Streckenzuwachs. Alle übrigen Nachrichten wie oben.
 - **Schrittfrequenz:** wie bei GPS-Läufen (Regel 11), der Schrittzähler läuft auch auf dem Laufband.
 - GPS-Läufe bleiben byte-gleich (Goldens).
+
+**Andere Sportart (FR-0221; Maintainer 2026-11-20):** Eine Einheit mit `runs.mode = sport` exportiert nur Puls und Zeit. Zusätzlich zu den Regeln oben gilt für sie:
+
+- **GPX gesperrt:** wie beim Bandlauf; der Kodierer lehnt die Einheit ab (`ArgumentError`), das Exportfenster zeigt nur TCX und FIT (ohne GPX-Feld und ohne Hinweis) und wählt TCX vor.
+- **Punkte:** nur aus dem Puls (Regel 4); Positionen, Höhen und Schritte werden nicht exportiert, auch wenn gespeichert. Kein 1-s-Raster, keine Strecke, keine Geschwindigkeit, keine Schrittfrequenz.
+- Pausen und Runden wie oben (Regeln 5 und 6).
+
+| Inhalt | Seilspringen (`rope`) | Radfahren (`cycling`) | Rudern/Ergometer (`rowing`) | Sonstiges (`other`) |
+|---|---|---|---|---|
+| GPX | nicht verfügbar | nicht verfügbar | nicht verfügbar | nicht verfügbar |
+| TCX `Activity/@Sport` | `Other` | `Biking` | `Other` | `Other` |
+| FIT `session.sport`, `lap.sport` (Profil 21.40, Typ `sport`) | generic (0) | cycling (2) | rowing (15) | generic (0) |
+| FIT `session.sub_sport` | generic (0) | generic (0) | generic (0) | generic (0) |
+
+- **TCX:** `Trackpoint` nur mit `Time` und `HeartRateBpm`; kein `Position`, `AltitudeMeters`, `DistanceMeters`, keine `Extensions`. Die Pflichtfelder der Runde wie oben, `Lap/DistanceMeters` = 0.
+- **FIT:** eigene `record`-Definition nur mit `timestamp` und `heart_rate`; `lap` und `session` ohne `total_distance` (die übrigen Felder wie oben). Alle übrigen Nachrichten wie oben.
+- GPS- und Bandläufe bleiben byte-gleich (Goldens).
 
 **Bekannte Verluste:** GPX trägt Puls und Höhe ohne gleichzeitige Position nicht; GPX hat keine Runden und kein Laufende. GPX trägt keine Schrittfrequenz. TCX hat kein Namensfeld. FIT hat kein Namensfeld (nur der Dateiname), Zeit nur in ganzen Sekunden und Höhe in 0,2 m.
 
