@@ -22,16 +22,20 @@ PlanUnit _unit(
   runId: runId,
 );
 
-RunFigures _sport({int id = 100, int minutes = 30, double? avg = 130}) =>
-    RunFigures(
-      runId: id,
-      endedAt: DateTime.utc(2026, 11, 18, 18),
-      day: '2026-11-18',
-      isRunning: false,
-      movingTime: Duration(minutes: minutes),
-      totalTime: Duration(minutes: minutes),
-      heartRateAverageBpm: avg,
-    );
+RunFigures _sport({
+  int id = 100,
+  int minutes = 30,
+  int? totalMinutes,
+  double? avg = 130,
+}) => RunFigures(
+  runId: id,
+  endedAt: DateTime.utc(2026, 11, 18, 18),
+  day: '2026-11-18',
+  isRunning: false,
+  movingTime: Duration(minutes: minutes),
+  totalTime: Duration(minutes: totalMinutes ?? minutes),
+  heartRateAverageBpm: avg,
+);
 
 void main() {
   // Mittwoch, 18.11.2026; Woche Montag 16.11. bis Sonntag 22.11.
@@ -78,6 +82,28 @@ void main() {
       expect(
         check(unit: _unit(1, wed, minutes: 30), sport: _sport(minutes: 19)),
         SportReplacementBlock.tooShort,
+      );
+    });
+
+    test('Pause zählt nicht: 40 min Dauer, 25 min Bewegung von 40 min '
+        'geplant ist zu kurz', () {
+      expect(
+        check(
+          unit: _unit(1, wed),
+          sport: _sport(minutes: 25, totalMinutes: 40),
+        ),
+        SportReplacementBlock.tooShort,
+      );
+    });
+
+    test('Bewegungszeit entscheidet: 27 min Bewegung bei 40 min Dauer '
+        'reicht für 40 min geplant', () {
+      expect(
+        check(
+          unit: _unit(1, wed),
+          sport: _sport(minutes: 27, totalMinutes: 40),
+        ),
+        isNull,
       );
     });
 
