@@ -121,6 +121,43 @@ class PpgCameraLogicTest {
         assertEquals(true, l[0].toMap()["usable"])
     }
 
+    @Test fun frameRateIsTheRateTheMeasurementWouldUse() {
+        val l = list(
+            cam("0", fps = listOf(30 to 30, 60 to 60)),
+            cam("1", fps = listOf(30 to 30, 15 to 30)),
+            cam("2", fps = listOf(15 to 30)),
+        )
+        assertEquals(listOf("0", "1", "2"), keys(l))
+        assertEquals(60, l[0].frameRate)
+        assertEquals(30, l[1].frameRate)
+        assertNull(l[1].reason)
+        assertNull(l[2].frameRate)
+        assertEquals("frame_rate", l[2].reason)
+    }
+
+    @Test fun physicalCameraHasItsOwnFrameRate() {
+        // Logische Kamera kann 60, ihre physische nur 30 (FR-0220, ADR-0011).
+        val l = list(
+            cam("0", physical = listOf("3", "4"), fps = listOf(30 to 30, 60 to 60)),
+            extra = mapOf(
+                "3" to cam("3", flash = false, fps = listOf(30 to 30)),
+                "4" to cam("4", flash = false, fps = listOf(60 to 60, 30 to 30)),
+            ),
+        )
+        assertEquals(listOf("0", "0/3", "0/4"), keys(l))
+        assertEquals(60, l[0].frameRate)
+        assertEquals(30, l[1].frameRate)
+        assertEquals(60, l[2].frameRate)
+    }
+
+    @Test fun frameRateIsNullWithoutReadablePropertiesAndOnlyInTheMapWhenKnown() {
+        val l = list(cam("0", physical = listOf("9")))
+        assertEquals("error", l[1].reason)
+        assertNull(l[1].frameRate)
+        assertFalse(l[1].toMap().containsKey("frameRate"))
+        assertEquals(60, l[0].toMap()["frameRate"])
+    }
+
     // --- Kamera für den Start ---
 
     @Test fun pickWithoutArgumentIsTheDefaultCamera() {

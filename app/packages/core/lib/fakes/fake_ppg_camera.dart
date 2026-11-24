@@ -23,7 +23,12 @@ class FakePpgCamera implements PpgCamera {
   /// Liste für [cameras]; Vorgabe: eine nutzbare Standardkamera `0`. Die erste mit
   /// `isDefault` ist die Standardkamera.
   List<PpgCameraInfo> cameraList = const [
-    PpgCameraInfo(ref: PpgCameraRef('0'), focalLengthMm: 4.2, isDefault: true),
+    PpgCameraInfo(
+      ref: PpgCameraRef('0'),
+      focalLengthMm: 4.2,
+      isDefault: true,
+      frameRate: 60,
+    ),
   ];
 
   /// Zahl der Aufrufe von [cameras].

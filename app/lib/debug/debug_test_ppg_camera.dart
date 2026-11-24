@@ -46,10 +46,16 @@ typedef DebugPpgSensorTime = ({int run, double seconds, double speed});
 
 /// Die drei erfundenen Rückkameras der Debug-Quelle (FR-0220), in der Reihenfolge von
 /// [PpgCamera.cameras]: Standardkamera, eine physische Kamera der Standardkamera (nutzbar)
-/// und eine Kamera ohne Blitz (nicht nutzbar).
+/// und eine Kamera ohne Blitz (nicht nutzbar). Bildrate: Standardkamera 60, die übrigen
+/// nutzbaren 30 (nur Anzeige der Liste; die Aufnahme nutzt [DebugTestPpgCamera.fps]).
 const List<PpgCameraInfo> debugPpgCameras = [
-  PpgCameraInfo(ref: PpgCameraRef('0'), focalLengthMm: 5.4, isDefault: true),
-  PpgCameraInfo(ref: PpgCameraRef('0', '2'), focalLengthMm: 2.2),
+  PpgCameraInfo(
+    ref: PpgCameraRef('0'),
+    focalLengthMm: 5.4,
+    isDefault: true,
+    frameRate: 60,
+  ),
+  PpgCameraInfo(ref: PpgCameraRef('0', '2'), focalLengthMm: 2.2, frameRate: 30),
   PpgCameraInfo(
     ref: PpgCameraRef('1'),
     focalLengthMm: 6.8,

@@ -250,6 +250,26 @@ const List<PpgCameraInfo> _cameras = [
   ),
 ];
 
+/// Erfundene Kameras mit Bildrate: 60 (Standard), 30, ohne Bildrate, nicht nutzbar mit
+/// bekannter Bildrate und nicht nutzbar ohne feste Bildrate.
+const List<PpgCameraInfo> _rateCameras = [
+  PpgCameraInfo(
+    ref: PpgCameraRef('0'),
+    focalLengthMm: 6.4,
+    isDefault: true,
+    frameRate: 60,
+  ),
+  PpgCameraInfo(ref: PpgCameraRef('0', '2'), focalLengthMm: 2.2, frameRate: 30),
+  PpgCameraInfo(ref: PpgCameraRef('0', '3'), focalLengthMm: 4.0),
+  PpgCameraInfo(
+    ref: PpgCameraRef('1'),
+    focalLengthMm: 6.8,
+    frameRate: 60,
+    unusable: PpgCameraUnusable.noFlash,
+  ),
+  PpgCameraInfo(ref: PpgCameraRef('2'), unusable: PpgCameraUnusable.frameRate),
+];
+
 typedef _CameraSetup = ({
   SettingsStore settings,
   DeveloperModeStore mode,
@@ -334,6 +354,33 @@ void cameraTests() {
       expect(_selected(tester, null), isTrue);
     },
   );
+
+  testWidgets('Kamera: Bildrate je nutzbarer Kamera im Untertitel', (
+    tester,
+  ) async {
+    final s = await _cameraSetup();
+    s.camera.cameraList = _rateCameras;
+    await _pumpCamera(tester, s);
+    expect(find.text('6,4 mm · 60 Bilder/s · Standard'), findsOneWidget);
+    expect(find.text('2,2 mm · 30 Bilder/s'), findsOneWidget);
+    // Ohne Bildrate entfällt das Teilstück.
+    expect(find.text('4,0 mm'), findsOneWidget);
+    // Nicht nutzbar: Grund, keine Bildrate (auch wenn Kotlin eine kennt).
+    expect(find.text('6,8 mm · ohne Blitz'), findsOneWidget);
+    expect(find.text('Bildrate'), findsOneWidget);
+    expect(find.textContaining('Bilder/s'), findsNWidgets(2));
+  });
+
+  testWidgets('Kamera: Bildrate englisch', (tester) async {
+    final s = await _cameraSetup();
+    s.camera.cameraList = _rateCameras;
+    await _pumpCamera(tester, s, locale: 'en');
+    expect(find.text('6.4 mm · 60 fps · Default'), findsOneWidget);
+    expect(find.text('2.2 mm · 30 fps'), findsOneWidget);
+    expect(find.text('4.0 mm'), findsOneWidget);
+    expect(find.text('6.8 mm · no flash'), findsOneWidget);
+    expect(find.textContaining('fps'), findsNWidgets(2));
+  });
 
   testWidgets('Kamera: Wahl bleibt nach Neuaufbau, „Standard“ löscht sie', (
     tester,

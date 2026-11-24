@@ -141,12 +141,12 @@ Unter Einstellungen → Über schaltet 10-maliges Tippen auf die Versionsnummer 
 
 ### FR-0220 — Kamera für die Kamera-Messung
 - **Status:** Approved | **Phase:** 3
-- **Quelle:** SRC-003 (Maintainer 2026-11-18)
+- **Quelle:** SRC-003 (Maintainer 2026-11-18, 2026-11-22)
 - **Verwandt:** FR-0214, FR-0215, FR-0217, ADR-0011
 
 Die Kamera-Messung (FR-0214, FR-0215) nutzt eine Rückkamera mit Blitz. Hat das Handy mehrere Rückkameras (auch als einzelne Objektive einer Mehrfachkamera), gilt: Im Entwicklermodus (FR-0217) lässt sich in den Entwicklereinstellungen eine Kamera wählen; sie gilt für Ruhepuls- und Morgenmessung. Sonst gilt das Ergebnis der Kamerasuche, wenn eine stattgefunden hat, sonst die Standardkamera (die erste Rückkamera mit Blitz). Ohne Entwicklermodus gilt die Wahl von Hand nicht, bleibt aber gespeichert. Ist die gewählte Kamera nicht mehr vorhanden oder nicht nutzbar, gilt die nächste Stufe; startet die Kamera nicht, endet die Messung mit Grund wie bisher, ohne Wechsel der Kamera. Wahl und Suchergebnis sind Einstellungen des Geräts: nicht im Archiv, „Alles löschen“ setzt sie zurück. Bei gespeichertem Rohsignal (Entwicklermodus) trägt die Messung die verwendete Kamera (Kamera-ID, physische Kamera, Brennweite); sie steht im Archiv und in der Messpaare-CSV.
 
-**Umsetzung:** Die Karte „Kamera für die Pulsmessung“ auf der Seite „Entwicklereinstellungen“ zeigt „Standard“ (löscht die Wahl von Hand) und jede Rückkamera als „Kamera <Kennung>“ bzw. „Kamera <Kennung>/<physische Kennung>“ mit Brennweite; die Standardkamera ist als „Standard“ markiert. Nicht nutzbare Kameras (ohne Blitz, ohne feste Bildrate) sind sichtbar, aber nicht wählbar, mit Grund. Ist die gespeicherte Wahl nicht mehr in der Liste, steht dort ein Hinweis, dass die Standardkamera gilt; ohne Rückkamera „Keine Rückkamera“. Die Liste braucht kein Kamera-Recht. Kennungen, Brennweiten und die Liste stehen in keinem Log. Technik der Kamerawahl: ADR-0011, Nachtrag 2026-11-18.
+**Umsetzung:** Die Karte „Kamera für die Pulsmessung“ auf der Seite „Entwicklereinstellungen“ zeigt „Standard“ (löscht die Wahl von Hand) und jede Rückkamera als „Kamera <Kennung>“ bzw. „Kamera <Kennung>/<physische Kennung>“ mit Brennweite und der Bildrate, mit der die Messung auf ihr liefe (höchste feste Bildrate 30–60 Bilder/s, 60 vor 30, ADR-0011); die Standardkamera ist als „Standard“ markiert. Nicht nutzbare Kameras (ohne Blitz, ohne feste Bildrate) sind sichtbar, aber nicht wählbar, mit Grund. Ist die gespeicherte Wahl nicht mehr in der Liste, steht dort ein Hinweis, dass die Standardkamera gilt; ohne Rückkamera „Keine Rückkamera“. Die Liste braucht kein Kamera-Recht. Kennungen, Brennweiten, Bildraten und die Liste stehen in keinem Log. Technik der Kamerawahl: ADR-0011, Nachtrag 2026-11-18.
 
 **Akzeptanzkriterien:**
 - [ ] Die Kameraliste nennt jede Rückkamera und bei einer logischen Mehrfachkamera ihre physischen Kameras, sortiert (Standardkamera zuerst), mit „nutzbar“ nach Blitz und fester Bildrate; ohne Rückkamera ist sie leer.
@@ -154,6 +154,7 @@ Die Kamera-Messung (FR-0214, FR-0215) nutzt eine Rückkamera mit Blitz. Hat das 
 - [ ] Welche Kamera gilt: Entwicklermodus an mit gültiger Wahl von Hand → diese; Entwicklermodus aus mit gespeicherter Wahl → Ergebnis der Suche bzw. Standard; Wahl von Hand nicht mehr vorhanden oder nicht nutzbar → Suche bzw. Standard; Ergebnis der Suche vorhanden → dieses; nichts gespeichert → Standard.
 - [ ] Ruhepuls- und Morgenmessung starten die geltende Kamera; nach Ausschalten des Entwicklermodus wieder die Standardkamera.
 - [ ] Seite „Entwicklereinstellungen“ im Entwicklermodus: Liste der Kameras, nicht wählbare mit Grund, die Wahl bleibt nach Neustart der App, „Standard“ löscht sie, Hinweis bei verschwundener Kamera; ohne Entwicklermodus keine Karte.
+- [ ] Die Liste nennt je nutzbarer Kamera die Bildrate, mit der die Messung auf ihr liefe.
 - [ ] Wahl und Suchergebnis kommen nicht ins Archiv und werden von „Alles löschen“ zurückgesetzt.
 - [ ] Ohne Entwicklermodus und ohne Suchergebnis verhält sich die Messung wie vor dieser Anforderung.
 
