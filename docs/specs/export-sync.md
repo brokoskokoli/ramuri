@@ -4,7 +4,7 @@ title: Export und externe Fitnessplattformen
 status: Teilweise Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0182, FR-0183, FR-0184, FR-0185, FR-0186, FR-0187, FR-0188, FR-0189, FR-0190, FR-0191, FR-0192, FR-0198, FR-0201]
+related_requirements: [FR-0182, FR-0183, FR-0184, FR-0185, FR-0186, FR-0187, FR-0188, FR-0189, FR-0190, FR-0191, FR-0192, FR-0198, FR-0201, FR-0223]
 ---
 
 # Export und externe Fitnessplattformen
@@ -166,6 +166,23 @@ Der Nutzer kann die Exportdatei eines Laufs über das Teilen-Menü des Systems w
 **Akzeptanzkriterien:**
 - [ ] Eine FIT- oder GPX-Datei lässt sich über das Teilen-Menü weitergeben.
 - [ ] Die App überträgt dabei nichts ohne Aktion des Nutzers.
+
+### FR-0223 — Diagnose-Export ohne Werte
+- **Status:** Approved | **Phase:** 1
+- **Quelle:** SRC-003 (Entscheidung Maintainer 2026-11-20)
+- **Verwandt:** FR-0217, FR-0201, SEC-0004, SEC-0008
+
+Im Entwicklermodus zeigen die Entwicklereinstellungen die lokal gezählten Fehler (Typ, Ort, Anzahl, Zeitraum). Der Nutzer kann sie als Diagnose-Datei über das Teilen-Menü weitergeben. Die Datei enthält nur Fehlertyp, Ortskennung, Anzahl, App-Version und Zeitraum, keine Gesundheitswerte, Nachrichten oder Stacks. Die App überträgt nichts von selbst.
+
+**Umsetzung:** Der Abschnitt „Fehler“ steht als letzter auf der Seite „Entwicklereinstellungen“ (FR-0217). Je Eintrag zeigt er Fehlertyp, Ortskennung (Datei der App als `package:…`-Name, ohne Pfad des Geräts, sonst `unknown`), Anzahl und den lokalen Tag des ersten und letzten Auftretens (`JJJJ-MM-TT`; „–“ bei Einträgen, die vor dieser Anzeige gezählt wurden), sortiert nach Anzahl absteigend; ohne Einträge „Keine Fehler gezählt.“, ist der Stand nicht lesbar „Die Fehlerzähler konnten nicht geladen werden.“. „Zähler zurücksetzen“ leert die Zähler erst nach einer Rückfrage. „Diagnose teilen“ zeigt den Inhalt der Datei in einem Dialog; erst „Teilen“ dort erzeugt die Datei und öffnet das Teilen-Menü des Systems, „Abbrechen“ erzeugt keine. Format und Felder: [diagnostics-export.md](../contracts/diagnostics-export.md). Die Datei liegt im Export-Cache und wird wie jeder Export geleert ([file-export.md](../contracts/file-export.md)); „Alles löschen“ setzt die Zähler zurück (SEC-0004). Gezählt wird wie bisher nur Typ und Ort (SEC-0009).
+
+**Akzeptanzkriterien:**
+- [ ] Ohne Entwicklermodus gibt es weder den Abschnitt „Fehler“ noch „Diagnose teilen“; mit Entwicklermodus ist die Liste nach Anzahl absteigend sortiert, ohne Einträge steht „Keine Fehler gezählt.“.
+- [ ] „Zähler zurücksetzen“ leert die Liste nach Bestätigung; Abbrechen ändert nichts.
+- [ ] Ein gezählter Fehler, dessen Nachricht einen Zahlenwert enthält, ergibt eine Datei mit Typ, Ort, Anzahl, App-Version und Zeitraum, aber ohne die Nachricht, den Zahlenwert und den Stack (SEC-0008).
+- [ ] Geteilt wird erst nach dem Bestätigen im Dialog; Abbrechen erzeugt keine Datei (FR-0201).
+- [ ] Nach „Alles löschen“ sind die Zähler leer (SEC-0004).
+- [ ] Kein Netzzugriff.
 
 ## Abhängigkeiten
 - Formate und externe Schnittstellen: siehe [Verträge](../contracts/README.md)
