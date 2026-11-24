@@ -83,6 +83,61 @@ void main() {
     expect(d.fileHandoff.shared.single.fileName, endsWith('.tcx'));
   });
 
+  testWidgets('Sporteinheit: nur TCX und FIT, TCX Vorgabe, FIT teilbar', (
+    tester,
+  ) async {
+    tester_ = tester;
+    final d = Device();
+    await d.start(tester, const Locale('de'));
+    await d.skipSetup(tester);
+    final run = await d.session.runs.create(
+      startedAt: _start,
+      mode: RunMode.sport,
+      sport: OtherSport.cycling,
+    );
+    await d.session.rawData.append(
+      run.id,
+      RawBatch(
+        heartRates: [
+          for (var i = 0; i <= 120; i++)
+            RawHeartRate(
+              time: _start.add(Duration(seconds: i)),
+              source: 'strap',
+              bpm: 130,
+              contact: SensorContact.good,
+            ),
+        ],
+      ),
+    );
+    await d.session.runs.setState(
+      run.id,
+      RunState.finished,
+      endedAt: _start.add(const Duration(minutes: 2)),
+    );
+    await openHistory(d, tester);
+    await tester.tap(key('history_run_${run.id}'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(key('detail_export'));
+    await tester.pumpAndSettle();
+    await tester.tap(key('detail_export'));
+    await tester.pumpAndSettle();
+    expect(key('export_format_gpx'), findsNothing);
+    expect(key('export_format_tcx'), findsOneWidget);
+    expect(key('export_format_fit'), findsOneWidget);
+    expect(key('export_no_gpx'), findsNothing);
+    // Ohne Wahl ist TCX vorgewählt.
+    await tester.tap(key('export_share'));
+    await tester.pumpAndSettle();
+    expect(d.fileHandoff.shared.single.fileName, endsWith('.tcx'));
+    expect(
+      utf8.decode(d.fileHandoff.shared.single.bytes!),
+      contains('Sport="Biking"'),
+    );
+    await _export(tester, ExportFormat.fit, 'export_share');
+    expect(d.fileHandoff.shared, hasLength(2));
+    expect(d.fileHandoff.shared.last.fileName, endsWith('.fit'));
+  });
+
   testWidgets('GPS-Lauf: GPX wählbar, kein Hinweis auf Sperre', (tester) async {
     tester_ = tester;
     await _openDetail(tester);

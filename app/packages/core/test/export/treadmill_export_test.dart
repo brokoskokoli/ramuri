@@ -61,10 +61,10 @@ void main() {
       laps: await s.markers.laps(id),
     );
     expect(() => encodeGpx(run), throwsArgumentError);
-    expect(ExportFormat.gpx.availableFor(treadmill: true), isFalse);
-    expect(ExportFormat.tcx.availableFor(treadmill: true), isTrue);
-    expect(ExportFormat.fit.availableFor(treadmill: true), isTrue);
-    expect(ExportFormat.gpx.availableFor(treadmill: false), isTrue);
+    expect(ExportFormat.gpx.availableFor(RunMode.treadmill), isFalse);
+    expect(ExportFormat.tcx.availableFor(RunMode.treadmill), isTrue);
+    expect(ExportFormat.fit.availableFor(RunMode.treadmill), isTrue);
+    expect(ExportFormat.gpx.availableFor(RunMode.gps), isTrue);
   });
 
   test('TCX: Trackpoints ohne Position mit kumulierter Strecke', () async {
