@@ -7,13 +7,18 @@
 // Profil. Szenario noFinger: kein Wert, nichts gespeichert. Kamerawahl
 // (FR-0220): Entwicklermodus an, auf Ueber die zweite Debug-Kamera waehlen;
 // die Standardkamera spielt schwaches Signal, die zweite guten Puls, also
-// belegt ein Ergebnis die zweite Kamera. Synthetische Werte,
+// belegt ein Ergebnis die zweite Kamera. Kamerasuche (FR-0220, PAR-228):
+// in den Entwicklereinstellungen "Kamera suchen"; die Standardkamera zeigt
+// keinen Finger, die zweite den Finger, also ist die zweite empfohlen;
+// "Uebernehmen" speichert sie als Suchergebnis, und eine Messung ohne
+// Entwicklermodus startet sie. Synthetische Werte,
 // Ausgabe nur Zaehler. Laeuft in der Sammlung (all_test.dart).
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:running_app/debug/debug_test_ppg_camera.dart';
+import 'package:running_app/features/measure/camera_finder_screen.dart';
 
 import 'support/e2e_support.dart';
 
@@ -29,10 +34,9 @@ Future<void> _openMeasure(WidgetTester t, World w) async {
   await tapKey(t, 'measure_start');
 }
 
-/// Entwicklermodus ueber zehn Tipps auf die Version (falls noch aus) und in
-/// den Entwicklereinstellungen die Kamera [camera] waehlen; danach zurueck zur
-/// Uebersicht.
-Future<void> _chooseCamera(WidgetTester t, String camera) async {
+/// Entwicklermodus ueber zehn Tipps auf die Version (falls noch aus) und die
+/// Entwicklereinstellungen oeffnen.
+Future<void> _openDeveloperSettings(WidgetTester t) async {
   await tapKey(t, 'home_overview');
   await tapKey(t, 'overview_about');
   await waitFor(t, () => has('about_version'), 'Ueber');
@@ -46,6 +50,12 @@ Future<void> _chooseCamera(WidgetTester t, String camera) async {
   await back(t); // Ueber -> Uebersicht
   await waitFor(t, () => has('overview_developer'), 'Eintrag Entwickler');
   await tapKey(t, 'overview_developer');
+}
+
+/// In den Entwicklereinstellungen die Kamera [camera] waehlen; danach zurueck
+/// zur Uebersicht.
+Future<void> _chooseCamera(WidgetTester t, String camera) async {
+  await _openDeveloperSettings(t);
   await waitFor(
     t,
     () => has('about_ppg_camera_$camera'),
@@ -215,4 +225,107 @@ void main() {
       });
     }
   }, timeout: const Timeout(Duration(minutes: 3)));
+
+  testWidgets(
+    'Kamerasuche: zweite Kamera empfohlen, uebernommen, Messung mit ihr',
+    (t) async {
+      // Standardkamera ohne Finger (grau, kein Wert), zweite mit Finger und
+      // gutem Puls: nur die zweite kann empfohlen sein und einen Wert liefern.
+      final cam = DebugTestPpgCamera(
+        speed: 30,
+        scenario: DebugPpgScenario.noFinger,
+      );
+      step('RESTING_KAMERASUCHE start');
+      const second = PpgCameraRef('0', '2');
+      expect(cam.scenarioOf(second), DebugPpgScenario.goodPulse);
+      final w = buildWorld(camera: cam);
+      await startApp(t, w);
+      await setupIfShown(t);
+      final s = await session(t, w);
+      final choice = SettingsPpgCameraChoiceStore(s.settings, w.deps.clock);
+      final mode = SettingsDeveloperModeStore(s.settings, w.deps.clock);
+      final wasOn = await t.runAsync(mode.read);
+      try {
+        step('RESTING_KAMERASUCHE suchen');
+        await _openDeveloperSettings(t);
+        await tapKey(t, 'about_ppg_camera_find');
+        await waitFor(
+          t,
+          () => find
+              .byKey(CameraFinderScreen.recommendedKey(second))
+              .evaluate()
+              .isNotEmpty,
+          'zweite Kamera empfohlen',
+          timeout: const Duration(seconds: 30),
+        );
+        expect(
+          find
+              .byKey(CameraFinderScreen.recommendedKey(const PpgCameraRef('0')))
+              .evaluate(),
+          isEmpty,
+          reason: 'Standardkamera ohne Finger nicht empfohlen',
+        );
+        expect(cam.previewOn, isTrue, reason: 'Vorschau laeuft');
+        step('RESTING_KAMERASUCHE uebernehmen');
+        await tapKey(t, 'camera_finder_apply');
+        await waitFor(
+          t,
+          () => !has('camera_finder_apply') && has('about_ppg_camera_find'),
+          'zurueck in den Entwicklereinstellungen',
+        );
+        expect(cam.previewOn, isFalse, reason: 'Vorschau gestoppt');
+        expect(cam.torchOn, isFalse, reason: 'Taschenlampe aus');
+        expect(await t.runAsync(choice.readAuto), second);
+        expect(
+          await t.runAsync(choice.readManual),
+          isNull,
+          reason: 'Uebernehmen setzt keine feste Wahl',
+        );
+        step('RESTING_KAMERASUCHE entwicklermodus_aus');
+        await t.runAsync(() => mode.set(false));
+        await back(t); // Entwicklereinstellungen -> Uebersicht
+        step('RESTING_KAMERASUCHE messung');
+        await tapKey(t, 'home_profile');
+        await waitFor(
+          t,
+          () => has('profile_resting_measure'),
+          'Profil mit Messung',
+        );
+        await tapKey(t, 'profile_resting_measure');
+        await waitFor(t, () => has('measure_start'), 'Messung bereit');
+        await tapKey(t, 'measure_mode_now');
+        await tapKey(t, 'measure_start');
+        await waitFor(
+          t,
+          () =>
+              has('measure_adopt') ||
+              has('measure_retry') ||
+              has('measure_reason'),
+          'Ergebnis der Messung',
+          timeout: const Duration(seconds: 60),
+        );
+        log('RESTING camera started=${cam.startedCameras.length}');
+        expect(cam.startedCameras, [
+          second,
+        ], reason: 'Suchergebnis gilt ohne Entwicklermodus');
+        expect(
+          has('measure_adopt'),
+          isTrue,
+          reason: 'zweite Kamera (guter Puls) liefert einen Wert',
+        );
+        step('RESTING_KAMERASUCHE verwerfen');
+        await tapKey(t, 'measure_discard');
+        await waitFor(t, () => !has('measure_start'), 'Messung geschlossen');
+        expect(cam.torchOn, isFalse, reason: 'Kamera wieder frei');
+      } finally {
+        // Die Sammlung teilt den Speicher: Wahl und Modus zuruecksetzen.
+        await t.runAsync(() async {
+          await choice.setAuto(null);
+          await choice.setManual(null);
+          await mode.set(wasOn ?? false);
+        });
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
 }
