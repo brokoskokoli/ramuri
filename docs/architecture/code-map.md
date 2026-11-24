@@ -70,7 +70,7 @@ Fachlogik ohne Flutter; Barrel `app/packages/core/lib/core.dart`.
 | `app/packages/core/lib/src/hints/` | Hinweise, Erklärungen und Erholungskarte. |
 | `app/packages/core/lib/src/load/` | Trainingsbelastung und Pausentage. |
 | `app/packages/core/lib/src/morning/` | Morgenmessung und Gurtvergleich. |
-| `app/packages/core/lib/src/plan/` | Planerstellung, Anpassung, Verschieben, Warnungen und Geh-Lauf-Programm. |
+| `app/packages/core/lib/src/plan/` | Planerstellung, Anpassung, Verschieben, Warnungen und Geh-Lauf-Programm; die Schreibreihe des Plans je Sitzung (`app/packages/core/lib/src/plan/plan_write_queue.dart`). |
 | `app/packages/core/lib/src/ppg/` | Kamera-PPG-Auswertung (Beschreibung in `app/packages/core/lib/src/ppg/ALGORITHMUS.md`). |
 | `app/packages/core/lib/src/prediction/` | Leistungsprognosen. |
 | `app/packages/core/lib/src/preprocessing/` | Vorverarbeitung der Messwerte: Lücken, Bewegung, Höhe, Puls. |
@@ -118,6 +118,7 @@ Heute geltende Regeln und wo sie geprüft werden. Weitere Regeln ergänzt die Ä
 | Netz nur im Kartenadapter (`app/packages/adapters/lib/src/map/`), Pakete nur laut `tool/net_allowed_packages.txt`. | `tool/check_net.py` mit Selbsttest `tool/check_net_test.py`, beide in `tool/gate.sh`. |
 | Keine neuen Zyklen zwischen Modulen in `core` (Ordner unter `app/packages/core/lib/src/`) bzw. zwischen Features der App (Ordner unter `app/lib/features/`); Kante ist jedes `import`, `export` oder `part` einer Datei des anderen Moduls. Die Zahl der Module in Zyklen darf nur sinken (Grundlinie `CORE_CYCLE_MODULES`, `APP_CYCLE_FEATURES` im Skript). | `tool/check_architecture.py` mit Selbsttest `tool/check_architecture_test.py`, beide in `tool/gate.sh` (auch `--fast`). |
 | Zeit nur über den Port `Clock` (`app/packages/core/lib/ports/clock.dart`); kein `DateTime.now()` in Fachlogik. | Keine maschinelle Prüfung; Tests setzen `FakeClock` bzw. `LocalFakeClock` (`app/test/helpers/local_clock.dart`). |
+| Jede Planänderung (Fassung, Zuordnung, Verschieben) aus der App läuft über die eine Schreibreihe der Sitzung (`PlanWriteQueue.of`), gemeinsam für alle Plan-Controller und den Erholungs-Auslöser; wer zusätzlich die Wertberechnung sperrt (`exclusive`), nimmt diese Sperre zuerst. `assignRun` schreibt nur, wenn die Einheit noch den erwarteten Lauf trägt (sonst „veraltet“). | `app/test/plan_write_queue_test.dart`; Vertragsfall der Zuordnung im Speicher-Vertrag (`app/packages/core/lib/testing/storage_contract_plan.dart`) gegen Fake und drift. |
 | Debug-Quellen (`app/lib/debug/`) nur aus `app/lib/main_debug.dart`, nie im Release-Build. | `tool/check_release_apk.sh` (Marker der Debug-Quellen fehlen im Release-APK), aus `tool/gate.sh`. |
 
 ## Große Dateien
