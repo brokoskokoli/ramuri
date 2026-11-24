@@ -1440,6 +1440,11 @@ void main() {
   });
 
   group('Laufende Signalstufe über die letzten 5 s (PAR-234)', () {
+    // Zeitlimit der Gruppe (longGroupTimeout): je Fall bis zu vier Aufnahmen
+    // über gut 30 s Sensorzeit Bild für Bild mit echter Auswertung
+    // (evaluatePpg) je Sekunde; im vollen Lauf unter Last sonst über 30 s.
+    final test = longTest;
+
     /// Spielt [src] bis [until] Sekunden ein und liefert je volle Sekunde
     /// (Sensorzeit) Stufe, Puls und die Auswertung des Stufenfensters.
     Future<
