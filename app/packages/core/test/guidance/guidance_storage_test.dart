@@ -37,12 +37,33 @@ class _Values implements ComputedValueStore {
   dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
 }
 
+/// Läufe: alle Kennungen sind GPS-Läufe, außer denen in [sport].
+class _Runs implements RunStore {
+  _Runs(this.sport);
+  final Set<int> sport;
+
+  @override
+  Future<StoredRun?> get(int runId) async => StoredRun(
+    id: runId,
+    state: RunState.finished,
+    startedAt: _day0,
+    mode: sport.contains(runId) ? RunMode.sport : RunMode.gps,
+    sport: sport.contains(runId) ? OtherSport.values.first : null,
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
 class _Session implements StorageSession, PlanStorage {
-  _Session(this.plans, this.values);
+  _Session(this.plans, this.values, [Set<int> sport = const {}])
+    : runs = _Runs(sport);
   @override
   final PlanRepository plans;
   @override
   final ComputedValueStore values;
+  @override
+  final RunStore runs;
 
   @override
   dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
@@ -227,10 +248,37 @@ void main() {
   group('Gehpausen-Beleg aus gespeicherten Läufen', () {
     Future<List<EasyRunExposure>> load(
       List<PlanUnit> units,
-      Map<int, Map<String, ComputedValue>> values,
-    ) => recentEasyRunExposures(
-      _Session(_Plan(units), _Values(values)),
+      Map<int, Map<String, ComputedValue>> values, {
+      Set<int> sport = const {},
+    }) => recentEasyRunExposures(
+      _Session(_Plan(units), _Values(values), sport),
       today: _day0,
+    );
+
+    test(
+      'ersetzte Sporteinheit (FR-0222) ist kein Beleg: der nächste Lauf rückt '
+      'nach',
+      () async {
+        final units = [
+          _unit(1, PlanUnitKind.easy, 11), // Sporteinheit, alles darüber
+          _unit(2, PlanUnitKind.easy, 12),
+          _unit(3, PlanUnitKind.easy, 13),
+          _unit(4, PlanUnitKind.easy, 14),
+        ];
+        final values = {
+          11: _zones([0, 0, 600, 0, 0]),
+          12: _zones([600, 0, 0, 0, 0]),
+          13: _zones([0, 0, 600, 0, 0]),
+          14: _zones([600, 0, 0, 0, 0]),
+        };
+        final r = await load(units, values, sport: {11});
+        expect([for (final e in r) e.mostlyAbove], [false, true, false]);
+        expect(easyRunsMostlyAboveUpper(r), isFalse);
+        // Gegenprobe: als Lauf zählte sie und kippte den Hinweis.
+        final asRun = await load(units, values);
+        expect([for (final e in asRun) e.mostlyAbove], [true, false, true]);
+        expect(easyRunsMostlyAboveUpper(asRun), isTrue);
+      },
     );
 
     test(

@@ -23,11 +23,14 @@ const String planMethod = 'weekly-time-course';
 /// (`generatePlan(countedMinutes:)`), ein intensiv gelaufener lockerer Lauf
 /// als harte Einheit der Woche (`generatePlan(intensiveRunDays:)`); bei „fix“
 /// tauscht die nächste harte Einheit den Tag (`applyRunSpacingSwap`).
-const int planMethodVersion = 7;
+/// 8: Eine andere Sportart, die eine lockere Einheit ersetzt (PAR-233), zählt
+/// mit Bewegungszeit und RPE für die Wochenprüfung (PAR-201); eine intensive
+/// andere Sportart zählt für den Abstand zu harten Einheiten (PAR-059).
+const int planMethodVersion = 8;
 
 /// Stand der Parameter (ADR-0010 Punkt 1: `parameter_version`). Steigt, wenn
 /// sich ein Wert in [PlanParameters] ändert.
-const int planParameterVersion = 3;
+const int planParameterVersion = 4;
 
 /// Alle Zahlen des Wochenzeit-Verlaufs, jede mit ihrer Regel. Nichts davon
 /// steht außerhalb dieser Klasse. Voreinstellung sind die Werte aus
@@ -83,6 +86,8 @@ class PlanParameters {
     this.completedIntensiveMinHighHrMinutes = 10,
     this.deviationTimeFactor = 2.0,
     this.deviationRpeSteps = 3,
+    this.replaceMinShare = 2 / 3,
+    this.replaceMaxPerWeek = 1,
     this.continuousRunMinutes = 30,
     this.peakFallbackShort = 35,
     this.peakFallbackTen = 65,
@@ -287,6 +292,14 @@ class PlanParameters {
   final int fatigueRuns;
   final int fatigueWindowRuns;
   final double fatigueReduction;
+
+  /// PAR-233: Die Bewegungszeit einer Sporteinheit, die eine lockere Einheit
+  /// ersetzt, ist mindestens dieser Anteil der geplanten Dauer (zwei Drittel).
+  final double replaceMinShare;
+
+  /// PAR-233: höchstens so viele ersetzte Einheiten je Planwoche (Montag bis
+  /// Sonntag).
+  final int replaceMaxPerWeek;
 
   /// PAR-236: so viele der letzten [underloadWindowRuns] lockeren Läufe mit
   /// Puls und RPE sind „hart nach Puls, leicht empfunden“ (2 von 3).

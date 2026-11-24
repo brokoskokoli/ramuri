@@ -7,6 +7,9 @@
 #   treadmill-plan  e2e_treadmill_test.dart TREADMILL_PLAN=true: gefuehrte Einheit aus dem Plan auf dem Laufband
 #                   in Echtzeit (~5 min Abschnitt); eigene Stufe wegen frischem Speicher ohne Ziel und der Dauer,
 #                   im Shard sammlung (der kuerzere), kein Prozessende
+#   sport-plan      e2e_other_sport_test.dart SPORT_PLAN=true: andere Sportart ersetzt die lockere Einheit des Tages
+#                   (FR-0222), zuerst zu intensiv (keine Zuordnung), dann locker in Echtzeit (~2,5 min); eigene Stufe
+#                   wegen frischem Speicher ohne Ziel, im Shard stufen (der kuerzere), kein Prozessende
 #   storage-a/-b    e2e_storage_test.dart PHASE=write, Prozessende, PHASE=read
 #   recover-a/-b    e2e_recover_test.dart PHASE=a (Lauf laeuft), Prozessende, PHASE=b
 #   m2-flow         e2e_m2_flow_test.dart: Plan, gefuehrte Einheit in Echtzeit (~5,5 min), Anpassung;
@@ -107,7 +110,7 @@ for f in app/integration_test/e2e_*_test.dart; do
 done
 
 shard_sammlung="sammlung treadmill-plan"
-shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness plan-adapt m3-flow"
+shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness plan-adapt m3-flow sport-plan"
 alle_stufen="$shard_sammlung $shard_stufen"
 # Zeitlimit je Stufe in s, fuer die gesamte Laufzeit von flutter test (Build, Install, Tests).
 # Herleitung: das Doppelte der laengsten gemessenen Dauer (Zeilen "STUFE ... dauer=") aus sechs gruenen Laeufen
@@ -117,17 +120,20 @@ alle_stufen="$shard_sammlung $shard_stufen"
 # plan-adapt (neu, noch ohne Messung) wie readiness: 5 min.
 # m3-flow: im PR #101 gemessen 82 s (API 31) und 83 s (API 36), doppelt 166 s, also 5 min; im Shard stufen, weil der kuerzer ist (auf main
 # zuletzt ca. 15 min Job gegen ca. 20 min fuer sammlung).
+# sport-plan (neu, noch ohne Messung): erwartet etwa 6 min (Build, Install, 1 min und 2,5 min Aufzeichnung),
+# doppelt 12 min, also 720 s.
 # Waechst eine Stufe deutlich, hier neu messen und nachziehen.
 grenze_s() {
   case "$1" in
     sammlung) echo 1500 ;;
     treadmill-plan) echo 780 ;;
+    sport-plan) echo 720 ;;
     storage-a) echo 660 ;;
     storage-b | recover-a | recover-b | m2-flow | readiness | plan-adapt | m3-flow) echo 300 ;;
   esac
 }
 # Stufen mit gefuehrter Einheit, die kurz vor Mitternacht den Tageswechsel abwarten (waitPastLateEvening).
-tageswechsel_stufen="m2-flow treadmill-plan"
+tageswechsel_stufen="m2-flow treadmill-plan sport-plan"
 # Obergrenze des Wartens in s: das Fenster dauert hoechstens 15 min (23:45-00:00), dazu 1 min Spielraum. Haengt
 # der Test im Warten oder bleibt die Uhr stehen, zaehlt die Zeit darueber wieder gegen das Zeitlimit.
 tageswechsel_max_s=960
@@ -400,5 +406,6 @@ stufe m2-flow 0 integration_test/e2e_m2_flow_test.dart
 stufe readiness 0 integration_test/e2e_readiness_test.dart
 stufe plan-adapt 0 integration_test/e2e_plan_adapt_test.dart
 stufe m3-flow 0 integration_test/e2e_m3_flow_test.dart
+stufe sport-plan 0 integration_test/e2e_other_sport_test.dart --dart-define=SPORT_PLAN=true
 [ "$ran" -gt 0 ] || { echo "keine Stufe gelaufen (Auswahl: '$auswahl')"; exit 1; }
 exit "$rc_all"

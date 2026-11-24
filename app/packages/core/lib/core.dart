@@ -130,6 +130,7 @@ export 'src/plan/plan_replace.dart';
 export 'src/plan/build_plan_inputs.dart';
 export 'src/plan/plan_adjust.dart';
 export 'src/plan/plan_auto_assign.dart';
+export 'src/plan/plan_sport_replacement.dart';
 export 'src/plan/plan_inputs.dart';
 export 'src/plan/plan_parameters.dart';
 export 'src/plan/plan_registry.dart';
