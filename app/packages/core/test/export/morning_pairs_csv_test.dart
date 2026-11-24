@@ -286,10 +286,10 @@ void main() {
     expect(csv, contains(block(4, '0', '1', '0')));
   });
 
-  test('frühere Verfahrensversionen 1 bis 4 exportieren und zählen wie die '
+  test('frühere Verfahrensversionen 1 bis 5 exportieren und zählen wie die '
       'aktuelle (DEC-0074 E7c)', () {
-    final versions = [1, 2, 3, 4, ppgMethodVersion];
-    expect(ppgMethodVersion, 5);
+    final versions = [1, 2, 3, 4, 5, ppgMethodVersion];
+    expect(ppgMethodVersion, 6);
     final csv = encodeMorningPairsCsv([
       for (var i = 0; i < versions.length; i++)
         MorningPair(
