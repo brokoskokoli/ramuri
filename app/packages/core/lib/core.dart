@@ -122,6 +122,7 @@ export 'src/plan/generate_plan.dart';
 export 'src/plan/goal_feasibility.dart';
 export 'src/plan/plan_change.dart';
 export 'src/plan/plan_course.dart';
+export 'src/plan/plan_deviation.dart';
 export 'src/plan/plan_goal_fingerprint.dart';
 export 'src/plan/plan_hints.dart';
 export 'src/plan/plan_move.dart';
