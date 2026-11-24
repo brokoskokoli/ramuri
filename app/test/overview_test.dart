@@ -124,6 +124,7 @@ void main() {
     expect(find.widgetWithText(AppBar, 'Entwicklereinstellungen'), findsOne);
     expect(key('about_dev_switch'), findsOneWidget);
     expect(key('about_ppg_camera_card'), findsOneWidget);
+    expect(key('dev_ppg_diag_card'), findsOneWidget);
     expect(key('about_pairs'), findsOneWidget);
 
     await tester.tap(key('about_dev_switch'));

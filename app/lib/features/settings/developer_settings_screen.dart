@@ -6,12 +6,13 @@ import '../../ui/ui.dart';
 import '../reminders/reminder_controller.dart';
 import 'belt_compare_screen.dart';
 import 'morning_pairs_section.dart';
+import 'ppg_camera_diagnostics_section.dart';
 import 'ppg_camera_section.dart';
 
 /// Seite „Entwicklereinstellungen“ (FR-0217): bündelt alles, was es nur im
 /// Entwicklermodus gibt – in dieser Reihenfolge Schalter „Entwicklermodus“,
-/// „Kamera für die Pulsmessung“ (FR-0220), „Messpaare“ und „Kamera gegen
-/// Gurt“. Erreichbar über die
+/// „Kamera für die Pulsmessung“ (FR-0220), „Kamera-Bildverarbeitung
+/// (Diagnose)“, „Messpaare“ und „Kamera gegen Gurt“. Erreichbar über die
 /// Übersicht (nur bei eingeschaltetem Modus) und den Verweis auf „Über“.
 ///
 /// Schaltet man den Modus hier aus, schließt sich die Seite; wer sie geöffnet
@@ -24,6 +25,7 @@ class DeveloperSettingsScreen extends StatefulWidget {
     this.clock,
     this.ppgCamera,
     this.cameraChoice,
+    this.cameraDiagnostics,
   });
 
   final DeveloperModeStore developerMode;
@@ -36,6 +38,10 @@ class DeveloperSettingsScreen extends StatefulWidget {
   /// (FR-0220); fehlt eines, entfällt die Karte.
   final PpgCamera? ppgCamera;
   final PpgCameraChoiceStore? cameraChoice;
+
+  /// Diagnose-Schalter der Kamera-Bildverarbeitung (FR-0217); ohne Angabe
+  /// entfällt die Karte.
+  final PpgCameraDiagnosticsStore? cameraDiagnostics;
 
   /// Zeitquelle für den Dateinamen des Exports; ohne Angabe die Systemzeit.
   final DateTime Function()? clock;
@@ -113,6 +119,16 @@ class _DeveloperSettingsScreenState extends State<DeveloperSettingsScreen> {
                 child: PpgCameraSection(
                   camera: widget.ppgCamera!,
                   choice: widget.cameraChoice!,
+                ),
+              ),
+            ],
+            if (widget.cameraDiagnostics != null) ...[
+              const SizedBox(height: 8),
+              RamuriCard(
+                key: const Key('dev_ppg_diag_card'),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: PpgCameraDiagnosticsSection(
+                  store: widget.cameraDiagnostics!,
                 ),
               ),
             ],
