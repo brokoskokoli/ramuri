@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
+import 'package:running_app/features/summary/warning_entry.dart';
 
 import 'helpers/local_clock.dart';
 
@@ -197,6 +198,30 @@ void main() {
         expect(notes, isNotEmpty);
         final first = await e.sigs();
         expect(await e.controller.recalculate(), PlanActionResult.done);
+        expect(await e.sigs(), first);
+      },
+    );
+
+    test(
+      'Warnsignal aus der Zusammenfassung rechnet mit den Läufen der '
+      'Woche: nach dem Aufheben bleibt die locker gewordene Einheit locker',
+      () async {
+        final e = await _Env.open(PlanAdaptationMode.adaptive);
+        final id = await e.tuesdayRun(minutes: 36, rpe: 7);
+        expect(await e.assignTuesday(id), PlanActionResult.done);
+        expect((await e.plans.unitOn(_day(16)))!.kind, PlanUnitKind.easy);
+        final first = await e.sigs();
+        final entry = warningEntry(
+          session: e.session,
+          clock: e.clock,
+          runId: id,
+        )!;
+        await entry(true);
+        expect((await e.plans.history()).last.trigger, PlanTrigger.feedback);
+        // Das Warnsignal macht den Rest der Woche zu Ruhetagen; nach dem
+        // Aufheben gilt wieder die Woche mit der locker gewordenen Einheit.
+        expect((await e.plans.unitOn(_day(16)))!.kind, PlanUnitKind.rest);
+        await entry(false);
         expect(await e.sigs(), first);
       },
     );
