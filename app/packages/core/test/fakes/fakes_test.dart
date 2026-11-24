@@ -252,7 +252,7 @@ void main() {
       expect(s.data.failAssignRun, isFalse);
       s.data.failAssignRun = true;
       await expectLater(
-        plans.assignRun(1, null),
+        plans.assignRun(1, null, expectedRunId: 5),
         throwsA(
           isA<StorageException>().having(
             (e) => e.failure,
@@ -263,7 +263,7 @@ void main() {
       );
       expect(s.data.planUnits[1]!.runId, 5);
       s.data.failAssignRun = false;
-      await plans.assignRun(1, null);
+      await plans.assignRun(1, null, expectedRunId: 5);
       expect(s.data.planUnits[1]!.runId, isNull);
     });
   });

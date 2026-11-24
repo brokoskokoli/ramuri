@@ -144,6 +144,16 @@ class PlanVersionDraft {
   String get summaryJson => jsonEncode(summary);
 }
 
+/// Ergebnis von [PlanRepository.assignRun].
+enum PlanAssignResult {
+  /// Geschrieben: Die Einheit trägt jetzt den neuen Lauf (oder keinen).
+  assigned,
+
+  /// Veraltet: Die Einheit trug nicht mehr den erwarteten Lauf; nichts
+  /// geschrieben.
+  stale,
+}
+
 /// Der gespeicherte Plan (ADR-0010 Punkt 11). Gelesen wird frei; geschrieben
 /// wird nur über [writeVersion] (aus dem Dienst `recalculatePlan`), über
 /// [assignRun], [confirmMove], [replaceUnit], [setRestDay] und
@@ -161,9 +171,16 @@ abstract interface class PlanRepository {
   /// Alle Fassungen, älteste zuerst.
   Future<List<PlanVersionRecord>> history();
 
-  /// Ordnet der Einheit einen Lauf zu, `null` hebt die Zuordnung auf.
-  /// Einheit oder Lauf fehlt: `notFound`.
-  Future<void> assignRun(int unitId, int? runId);
+  /// Ordnet der Einheit einen Lauf zu, `null` hebt die Zuordnung auf, aber
+  /// nur, wenn sie noch den Lauf [expectedRunId] trägt (`null`: offen; in
+  /// einer Transaktion geprüft und geschrieben). Trägt sie inzwischen einen
+  /// anderen: nichts geschrieben, [PlanAssignResult.stale]; der Aufrufer liest
+  /// neu. Einheit oder Lauf fehlt: `notFound`.
+  Future<PlanAssignResult> assignRun(
+    int unitId,
+    int? runId, {
+    required int? expectedRunId,
+  });
 
   /// Verschiebt die Einheit auf [newDay] und setzt `pinned` (OQ-0011);
   /// `fixed` aus `planMovedFixed` (`easyForHard` wird in einer anderen Woche

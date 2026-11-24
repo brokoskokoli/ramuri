@@ -81,7 +81,11 @@ class _FailingWrite implements PlanRepository {
   @override
   Future<List<PlanVersionRecord>> history() => _inner.history();
   @override
-  Future<void> assignRun(int u, int? r) => _inner.assignRun(u, r);
+  Future<PlanAssignResult> assignRun(
+    int u,
+    int? r, {
+    required int? expectedRunId,
+  }) => _inner.assignRun(u, r, expectedRunId: expectedRunId);
   @override
   Future<void> confirmMove(int u, DateTime d, {required DateTime today}) =>
       _inner.confirmMove(u, d, today: today);
@@ -136,7 +140,11 @@ class _RejectingWrite implements PlanRepository {
   @override
   Future<List<PlanVersionRecord>> history() => _inner.history();
   @override
-  Future<void> assignRun(int u, int? r) => _inner.assignRun(u, r);
+  Future<PlanAssignResult> assignRun(
+    int u,
+    int? r, {
+    required int? expectedRunId,
+  }) => _inner.assignRun(u, r, expectedRunId: expectedRunId);
   @override
   Future<void> confirmMove(int u, DateTime d, {required DateTime today}) =>
       _inner.confirmMove(u, d, today: today);
@@ -182,7 +190,7 @@ void main() {
           final earlier = await e.plans.unitsBetween(_day(0), _day(t - 1));
           for (final u in earlier) {
             final r = (await e.session.runs.create(startedAt: u.day)).id;
-            await e.plans.assignRun(u.id!, r);
+            await e.plans.assignRun(u.id!, r, expectedRunId: null);
           }
           if (replace && planned.isHard) {
             final check = checkPlanReplace(
@@ -318,7 +326,7 @@ void main() {
     final first = await _all(e.plans);
     // Heute ist Tag +7; eine künftige Einheit trägt einen Lauf.
     final withRun = first.firstWhere((u) => u.day.isAfter(_day(8)));
-    await e.plans.assignRun(withRun.id!, run);
+    await e.plans.assignRun(withRun.id!, run, expectedRunId: null);
     final frozenBefore = [
       for (final u in await _all(e.plans))
         if (u.day.isBefore(_day(7)) || u.runId != null) _sig(u),
@@ -428,7 +436,7 @@ void main() {
         final target = (await _all(e.plans))
             .firstWhere((u) => u.day.difference(_day(0)).inDays >= 70);
         final run = (await e.session.runs.create(startedAt: _now(0))).id;
-        await e.plans.assignRun(target.id!, run);
+        await e.plans.assignRun(target.id!, run, expectedRunId: null);
         // Niedrigere Wochengrenze: alle künftigen Einheiten ändern ihre Dauer.
         await e.goals.save(
           _goal(capMin: 100),

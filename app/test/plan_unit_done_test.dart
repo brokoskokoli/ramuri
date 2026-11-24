@@ -108,7 +108,7 @@ Future<StorageSession> _preopen(
 Future<void> _assign(StorageSession s, int runId) async {
   final plans = (s as PlanStorage).plans;
   final unit = (await plans.unitOn(_today))!;
-  await plans.assignRun(unit.id!, runId);
+  await plans.assignRun(unit.id!, runId, expectedRunId: null);
 }
 
 /// Lauf von 52 min / 9,1 km heute früh, zugeordnet; mit [rpe] und

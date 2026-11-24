@@ -52,7 +52,11 @@ class FakePlanRepository implements PlanRepository {
       (_d.planVersions.values.toList()..sort((a, b) => a.id.compareTo(b.id)));
 
   @override
-  Future<void> assignRun(int unitId, int? runId) async {
+  Future<PlanAssignResult> assignRun(
+    int unitId,
+    int? runId, {
+    required int? expectedRunId,
+  }) async {
     if (_d.failAssignRun) {
       throw const StorageException(StorageFailure.failed);
     }
@@ -60,9 +64,11 @@ class FakePlanRepository implements PlanRepository {
     if (u == null || (runId != null && !_d.runs.containsKey(runId))) {
       throw const StorageException(StorageFailure.notFound);
     }
+    if (u.runId != expectedRunId) return PlanAssignResult.stale;
     _d.planUnits[unitId] = runId == null
         ? u.copyWith(clearRun: true)
         : u.copyWith(runId: runId);
+    return PlanAssignResult.assigned;
   }
 
   @override
