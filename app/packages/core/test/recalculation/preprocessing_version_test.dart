@@ -131,6 +131,21 @@ void main() {
     expect(await s.pendingOffer(), isNull);
   });
 
+  test('Berechnung nach dem Lauf stempelt die Kette des Dienstes', () async {
+    final w = await RecalcWorld.create();
+    final id = await w.seedRun(DateTime.utc(2030, 2, 1, 8));
+    await ValueCalculationService(
+      session: w.session,
+      clock: w.clock,
+      preprocessingVersion: _raised,
+    ).calculateAfterRun(id);
+    expect(await _chains(w, id), {
+      vo2maxRunValueKey: '$_raised|$_raised',
+      trimpRunValueKey: '$_raised|$_raised',
+      highHeartRateTimeValueKey: '$_raised|$_raised',
+    });
+  });
+
   test('jede Stufe um 1 erhöht ergibt ein Angebot', () async {
     final w = await RecalcWorld.create();
     final id = await w.seedRun(DateTime.utc(2030, 2, 1, 8));
