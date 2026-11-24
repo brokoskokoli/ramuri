@@ -608,6 +608,21 @@ void main() {
     expect(_dayLabel(tester, 0), 'Montag, gelaufen');
     expect(_dayLabel(tester, 1), 'Dienstag, kein Lauf');
   });
+
+  testWidgets('nur eine Sporteinheit: Woche wie ohne Lauf, Fortschritt '
+      'ohne Lauf (FR-0221)', (tester) async {
+    final d = Device();
+    d.clock.set(DateTime(2026, 11, 11, 12));
+    final s = await _preopen(d);
+    await _sport(s, DateTime(2026, 11, 10, 8, 30), 30);
+    await _start(d, tester);
+    expect(text('home_week_km'), '0,00 km');
+    expect(key('home_week_partial'), findsNothing);
+    expect(_dayLabel(tester, 1), 'Dienstag, kein Lauf');
+    await tester.tap(key('home_statistics'));
+    await tester.pumpAndSettle();
+    expect(key('progress_week_no_runs'), findsOneWidget);
+  });
 }
 
 /// Speicher, dessen Läufe sich nicht lesen lassen, solange [failRuns] gilt.
