@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../recording/treadmill.dart';
 import 'export_run.dart';
 import 'fit_crc.dart';
 
@@ -68,6 +69,17 @@ const List<_Field> _beltRecordFields = [
   (6, _uint16), // speed (scale 1000, m/s)
 ];
 
+/// Record einer anderen Sportart (FR-0221): nur Zeit und Puls, keine
+/// Position, Höhe, Strecke, Geschwindigkeit und Schrittfrequenz.
+const List<_Field> _sportRecordFields = [
+  (253, _uint32), // timestamp
+  (3, _uint8), // heart_rate (bpm)
+];
+
+/// Feld `total_distance` in `lap` und `session`; bei einer anderen Sportart
+/// fehlt es in der Definition.
+const int _totalDistance = 9;
+
 /// Feld `cadence` (rpm; beim Laufen Doppelschritte je Minute). Nur in der
 /// `record`-Definition, wenn der Lauf eine Schrittfrequenz hat; Läufe ohne
 /// Schritte bleiben byte-gleich.
@@ -120,11 +132,43 @@ const int _eventTypeStop = 1;
 const int _eventTypeStopAll = 4;
 const int _lapTriggerManual = 0;
 const int _lapTriggerSessionEnd = 7;
+const int _sportGeneric = 0;
 const int _sportRunning = 1;
+const int _sportCycling = 2;
+const int _sportRowing = 15;
 const int _subSportGeneric = 0;
 const int _subSportTreadmill = 1;
 const int _sessionTriggerActivityEnd = 0;
 const int _activityManual = 0;
+
+/// FIT-Wert `sport` (Profil 21.40, Typ `sport`): Läufe running (1),
+/// Radfahren cycling (2), Rudern/Ergometer rowing (15), Seilspringen und
+/// Sonstiges generic (0) (FR-0221).
+int fitSport(OtherSport? sport) => switch (sport) {
+  null => _sportRunning,
+  OtherSport.cycling => _sportCycling,
+  OtherSport.rowing => _sportRowing,
+  OtherSport.rope || OtherSport.other => _sportGeneric,
+};
+
+/// FIT-Wert `sub_sport`: treadmill (1) beim Bandlauf, sonst generic (0).
+int fitSubSport(ExportRun run) =>
+    run.isTreadmill ? _subSportTreadmill : _subSportGeneric;
+
+/// Definition ohne [_totalDistance] bei einer anderen Sportart (FR-0221);
+/// [values] entsprechend gekürzt.
+(List<_Field>, List<int?>) _withoutDistance(
+  ExportRun run,
+  List<_Field> fields,
+  List<int?> values,
+) {
+  if (run.sport == null) return (fields, values);
+  final keep = [
+    for (var i = 0; i < fields.length; i++)
+      if (fields[i].$1 != _totalDistance) i,
+  ];
+  return ([for (final i in keep) fields[i]], [for (final i in keep) values[i]]);
+}
 
 /// FIT-Aktivitätsdatei (Protokoll 2.0, Profil 21.x,
 /// `docs/contracts/file-export.md`). Erwartet ein mit [exportSecond]
@@ -134,6 +178,8 @@ const int _activityManual = 0;
 /// Inhalt: `file_id`, je Abschnitt Timer-Ereignis `start` und `stop_all`,
 /// je Exportpunkt ein `record` (fehlende Werte als Invalid-Wert des Typs),
 /// je Runde ein `lap` am Rundenende, eine `session` und eine `activity`.
+/// Andere Sportart (FR-0221): `record` nur mit Zeit und Puls, `lap` und
+/// `session` ohne `total_distance`, Sportart nach [fitSport].
 /// Kopf- und Datei-CRC nach [fitCrc16].
 Uint8List encodeFit(ExportRun run) {
   final w = _FitWriter();
@@ -188,7 +234,12 @@ Uint8List encodeFit(ExportRun run) {
     for (final p in points) {
       item(
         run.lapIndexAt(p.time),
-        () => run.isTreadmill
+        () => run.sport != null
+            ? w.message(_recordMsg, _sportRecordFields, [
+                _time(p.time),
+                _heartRate(p.heartRateBpm),
+              ])
+            : run.isTreadmill
             ? w.message(_recordMsg, beltRecordFields, [
                 _time(p.time),
                 _heartRate(p.heartRateBpm),
@@ -220,14 +271,14 @@ Uint8List encodeFit(ExportRun run) {
 
   final timer = run.activeTimeWithin(run.startedAt, run.endedAt);
   final distance = distances.fold<double>(0, (a, b) => a + b);
-  w.message(_sessionMsg, _sessionFields, [
+  final (sessionFields, sessionValues) = _withoutDistance(run, _sessionFields, [
     0,
     end,
     _eventSession,
     _eventTypeStop,
     start,
-    _sportRunning,
-    run.isTreadmill ? _subSportTreadmill : _subSportGeneric,
+    fitSport(run.sport),
+    fitSubSport(run),
     _millis(run.endedAt.difference(run.startedAt)),
     _millis(timer),
     _centimeters(distance),
@@ -235,6 +286,7 @@ Uint8List encodeFit(ExportRun run) {
     run.laps.length,
     _sessionTriggerActivityEnd,
   ]);
+  w.message(_sessionMsg, sessionFields, sessionValues);
   w.message(_activityMsg, _activityFields, [
     end,
     _millis(timer),
@@ -248,7 +300,7 @@ Uint8List encodeFit(ExportRun run) {
 
 void _writeLap(_FitWriter w, ExportRun run, int index, double distance) {
   final lap = run.laps[index];
-  w.message(_lapMsg, _lapFields, [
+  final (fields, values) = _withoutDistance(run, _lapFields, [
     index,
     _time(lap.end),
     _eventLap,
@@ -258,8 +310,9 @@ void _writeLap(_FitWriter w, ExportRun run, int index, double distance) {
     _millis(run.activeTimeWithin(lap.start, lap.end)),
     _centimeters(distance),
     index == run.laps.length - 1 ? _lapTriggerSessionEnd : _lapTriggerManual,
-    _sportRunning,
+    fitSport(run.sport),
   ]);
+  w.message(_lapMsg, fields, values);
 }
 
 /// Index der letzten Runde, die vor [t] beginnt (für das Ende eines
