@@ -213,12 +213,12 @@ class ValueCalculationService {
     );
 
     final runs = await _finishedRuns();
-    final runValues = <int, ComputedValue>{runId: runValue};
-    for (final other in runs) {
-      if (other.id == runId) continue;
-      final stored = await _runValue(other.id);
-      if (stored != null) runValues[other.id] = stored.current;
-    }
+    final stored = await session.values.readRunValues({vo2maxRunValueKey});
+    final runValues = <int, ComputedValue>{
+      runId: runValue,
+      for (final other in runs)
+        if (other.id != runId) other.id: ?stored[other.id]?[vo2maxRunValueKey],
+    };
     final day = dayOfRun(run);
     final cache = <int, RunAnalysis>{runId: analysis};
     final values = await _dayValues(
@@ -607,11 +607,10 @@ class ValueCalculationService {
   Future<void> _refreshDays({String? from}) async {
     final now = clock.now();
     final runs = await _finishedRuns();
-    final runValues = <int, ComputedValue>{};
-    for (final r in runs) {
-      final stored = await _runValue(r.id);
-      if (stored != null) runValues[r.id] = stored.current;
-    }
+    final stored = await session.values.readRunValues({vo2maxRunValueKey});
+    final runValues = <int, ComputedValue>{
+      for (final r in runs) r.id: ?stored[r.id]?[vo2maxRunValueKey],
+    };
     if (runValues.isEmpty) return;
     final profile = await _profileBasis();
     final cache = <int, RunAnalysis>{};
@@ -675,12 +674,19 @@ class ValueCalculationService {
     Future<RunAnalysis> analysisOf(StoredRun r, HeartRateBasis _) async =>
         cache[r.id] ??= await analyzer.analyze(session, r, calculatedAt: now);
 
+    // Laufwerte aller Läufe in EINER Abfrage (nur die Schlüssel zählen, keine
+    // Abschnitte nötig).
+    final storedRuns = await session.values.readRunValues({
+      ...recalculatedRunValueKeys,
+      highHeartRateTimeValueKey,
+    });
     final runValues = <int, ComputedValue>{};
     final runOwners = <ValueOwner, List<ComputedValue>>{};
     final runCreates = <ValueOwner, List<ComputedValue>>{};
     for (final r in runs) {
-      final stored = await session.values.read(ValueOwner.run(r.id));
-      if (!hasRecalculatedRunValue(stored)) continue;
+      final stored = storedRuns[r.id]?.keys.toSet() ?? const <String>{};
+      if (!hasRecalculatedRunKey(stored)) continue;
+      final hasTrimp = stored.contains(trimpRunValueKey);
       final analysis = await analysisOf(r, profile);
       final high = buildHighHeartRateTimeValue(
         run: r,
@@ -693,16 +699,23 @@ class ValueCalculationService {
       );
       // Vorhanden: tauschen (hängt an HFmax wie der TRIMP); fehlt er (Lauf
       // von vor dieser Methode): anlegen.
-      if (stored.any((p) => p.original.key == highHeartRateTimeValueKey)) {
+      if (stored.contains(highHeartRateTimeValueKey)) {
         runOwners[ValueOwner.run(r.id)] = [high];
       } else {
         runCreates[ValueOwner.run(r.id)] = [high];
       }
-      if (await _runValue(r.id) == null) {
+      if (!stored.contains(vo2maxRunValueKey)) {
         // Lauf mit TRIMP, aber ohne Laufwert (VO2max): nur der TRIMP wird
         // getauscht, sonst bliebe er nach einem Profilwechsel im alten Modell
         // und ATL/CTL mischten Skalen (FR-0097, FR-0197).
-        final trimp = await _trimpSwap(r, analysis, profile, resolution, now);
+        final trimp = _trimpSwap(
+          r,
+          analysis,
+          profile,
+          resolution,
+          now,
+          hasTrimp: hasTrimp,
+        );
         if (trimp.isNotEmpty) {
           (runOwners[ValueOwner.run(r.id)] ??= []).addAll(trimp);
         }
@@ -715,16 +728,23 @@ class ValueCalculationService {
       runValues[r.id] = value;
       (runOwners[ValueOwner.run(r.id)] ??= []).addAll([
         value,
-        ...await _trimpSwap(r, analysis, profile, resolution, now),
+        ..._trimpSwap(
+          r,
+          analysis,
+          profile,
+          resolution,
+          now,
+          hasTrimp: hasTrimp,
+        ),
       ]);
     }
     final dayOwners = <ValueOwner, List<ComputedValue>>{};
     final days = _daysWithRun(runs);
+    // Tageswerte aller Tage in EINER Abfrage; alle Tagesschlüssel stehen in
+    // [dayValueKeys] (_DayPlan prüft das beim Schreiben).
+    final storedDays = await session.values.readDayValues(dayValueKeys);
     for (final day in days.toList()..sort()) {
-      final existing = {
-        for (final p in await session.values.read(ValueOwner.day(day)))
-          p.original.key,
-      };
+      final existing = storedDays[day]?.keys.toSet() ?? const <String>{};
       if (existing.isEmpty) continue;
       final values = await _dayValues(
         asOf: _asOf(day, runs, now),
@@ -749,15 +769,17 @@ class ValueCalculationService {
   /// TRIMP des Laufs mit der neuen Basis, wenn der Lauf schon einen gespeicherten
   /// TRIMP hat (FR-0006, OQ-0031: TRIMP hängt an HFmax; `original` bleibt).
   /// Zonenzeiten werden nie neu gerechnet (L11), ein Lauf ohne gespeicherten
-  /// TRIMP (vor dieser Entscheidung) bekommt keinen.
-  Future<List<ComputedValue>> _trimpSwap(
+  /// TRIMP (vor dieser Entscheidung) bekommt keinen. [hasTrimp]: hat der Lauf
+  /// einen gespeicherten TRIMP (auch „nicht verfügbar“)?
+  List<ComputedValue> _trimpSwap(
     StoredRun r,
     RunAnalysis analysis,
     HeartRateBasis profile,
     LoadProfileResolution resolution,
-    DateTime now,
-  ) async {
-    if (!await _hasTrimp(r.id) || !resolution.applicable) return const [];
+    DateTime now, {
+    required bool hasTrimp,
+  }) {
+    if (!hasTrimp || !resolution.applicable) return const [];
     return [
       for (final v in buildRunLoadValues(
         run: r,
@@ -788,18 +810,6 @@ class ValueCalculationService {
         .subtract(offset)
         .subtract(const Duration(microseconds: 1));
     return end.isAfter(now) ? now : end;
-  }
-
-  /// Hat der Lauf einen gespeicherten TRIMP (auch „nicht verfügbar“)?
-  Future<bool> _hasTrimp(int runId) async =>
-      (await session.values.read(ValueOwner.run(runId)))
-          .any((p) => p.original.key == trimpRunValueKey);
-
-  Future<ValuePair?> _runValue(int runId) async {
-    for (final p in await session.values.read(ValueOwner.run(runId))) {
-      if (p.original.key == vo2maxRunValueKey) return p;
-    }
-    return null;
   }
 
   /// Langzeitwert und aerobe Effizienz zum Zeitpunkt [asOf]. Die Basis eines
