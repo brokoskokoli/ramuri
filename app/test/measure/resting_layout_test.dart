@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'resting_measure_screen_test.dart' show Rig, goodLive, settle, unusable;
 
 // Alle Werte synthetisch. Prüft, dass auf 390x844 bei größerer Schrift (1,3
-// und 2,0) nichts überläuft (WP27 D2a Soll 4), in de und en, hell und dunkel.
+// und 2,0) nichts überläuft, in de und en, hell und dunkel.
 
 typedef _Scene = Future<Rig> Function(
   WidgetTester tester,

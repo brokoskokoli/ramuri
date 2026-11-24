@@ -285,7 +285,7 @@ void main() {
         expect(_key('readiness_detail_scale'), findsOneWidget);
         expect(_key('readiness_detail_level_word'), findsOneWidget);
         expect(_key('readiness_detail_drivers'), findsOneWidget);
-        // Befund 8: Ursache (7-Tage-Mittel) getrennt von Tatsache (Referenzmedian).
+        // Ursache (7-Tage-Mittel) getrennt von Tatsache (Referenzmedian).
         expect(
           _text('readiness_detail_drivers_basis'),
           contains(
@@ -459,7 +459,7 @@ void main() {
         final s = _marked();
         expect(s.result.markedFacts, isNotEmpty);
         await open(tester, s);
-        // Die markierte Tatsache steht schon im Text oben (Befund 2): genau
+        // Die markierte Tatsache steht schon im Text oben: genau
         // einmal, nicht noch einmal im Abschnitt Tatsachen.
         final l = de ? AppLocalizationsDe() : AppLocalizationsEn();
         final f = s.result.markedFacts.first;
@@ -469,7 +469,7 @@ void main() {
           find.textContaining(morningMarkText(l, f.mark)!),
           findsOneWidget,
         );
-        // Befund 3: die Sperre wird einmal gesagt (der Grund nennt sie schon).
+        // Die Sperre wird einmal gesagt (der Grund nennt sie schon).
         final lock = de
             ? 'geht in keine Zahl ein'
             : 'does not enter any number';

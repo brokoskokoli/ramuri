@@ -182,7 +182,7 @@ void main() {
       },
     );
 
-    // Balkenformel nach Detail.dc.html:119 (Runde 4): 8 s Unterschied sehen
+    // Balkenformel nach Detail.dc.html:119: 8 s Unterschied sehen
     // nicht nach viel aus; angebrochen mit absurder Pace steht auf 40 %.
     testWidgets('Balken: kleine Unterschiede flach, breite Spanne bis 40 %, '
         'angebrochen begrenzt', (tester) async {
@@ -589,7 +589,7 @@ void main() {
     expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
   });
 
-  // M1-Befund: Die Überschrift des Höhenprofils zeigte bei flachem Lauf
+  // Die Überschrift des Höhenprofils zeigte bei flachem Lauf
   // „0 m 0 m“ (zwei Nullen ohne Vorzeichen und ohne Trenner). Das Design setzt
   // „+48 m / −46 m“: der Schrägstrich trennt Anstieg und Gefälle.
   for (final lang in ['de', 'en']) {
@@ -629,7 +629,7 @@ void main() {
     }
   }
 
-  // Review 1, Befund 4 / Review 2, Soll 3: bei Schriftfaktor 2,0 lief der Kopf
+  // Bei Schriftfaktor 2,0 lief der Kopf
   // über. Große Werte passen nicht in eine Zeile: Die Gruppe muss umbrechen
   // (Wrap); eine Row liefe über.
   testWidgets('Höhenprofil-Kopf bei Faktor 2,0 bricht um statt überzulaufen', (

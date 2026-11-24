@@ -5,7 +5,7 @@ import 'package:running_app/features/measure/resting_measure_controller.dart';
 
 import '../measure/measure_support.dart';
 
-// WP27, Nachbesserung: Messungen mit der Fake-Kamera endeten bei hoher Last des
+// WP27: Messungen mit der Fake-Kamera endeten bei hoher Last des
 // Emulators als „unterbrochen“. Hier läuft der echte Controller mit seinem
 // Wächter-Timer und der Fake-Kamera unter simulierter Last: Die Uhr des Controllers
 // ist die Wanduhr (FakeClock, folgt der Testzeit), „Hänger“ der App sind Sprünge

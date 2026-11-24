@@ -437,7 +437,7 @@ void main() {
     });
   });
 
-  group('Nachbesserung Teil D', () {
+  group('Gerätewechsel, Lesefehler und Tageswerte', () {
     Future<Device> twoDevices(WidgetTester tester, List<String> order) async {
       final d = await started(tester);
       final start = DateTime.utc(2026, 6, 1, 8);

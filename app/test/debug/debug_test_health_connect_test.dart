@@ -121,7 +121,7 @@ void main() {
   );
 
   // Der HRV-Wert 20 min nach dem Ende der Nacht (06:30 Ortszeit) liegt vor 06:50 in der Zukunft
-  // und wird nicht gelesen: kein Fehler, aber 11 statt 12 gespeicherte Werte (E2E-Befund WP32).
+  // und wird nicht gelesen: kein Fehler, aber 11 statt 12 gespeicherte Werte.
   for (final (at, expected) in [
     (DateTime(2026, 11, 14, 5, 21), 11),
     (DateTime(2026, 11, 14, 9), 12),

@@ -535,7 +535,7 @@ void main() {
     });
   }
 
-  group('Heute schreibt nichts, Basisstufe (Nachbesserung Runde 2)', () {
+  group('Heute schreibt nichts, Basisstufe', () {
     testWidgets('Öffnen von Heute übernimmt keinen Belastungsfaktor', (
       tester,
     ) async {
@@ -638,7 +638,7 @@ void main() {
               contains(readinessFactText(l, f).replaceAll(RegExp(r'\.$'), '')),
             );
             // Nennt der Grund die Sperre (Kamera-HRV), steht bei der HRV-Tatsache
-            // nur die Markierung, sonst mit „geht in keine Zahl ein“ (Befund 3).
+            // nur die Markierung, sonst mit „geht in keine Zahl ein“.
             final named = f.kind == ReadinessFactKind.hrvDeviation;
             expect(
               text,

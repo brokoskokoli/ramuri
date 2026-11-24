@@ -11,7 +11,7 @@ import 'progress_cards_test.dart' show overview, stored;
 import 'statistics_test.dart' show openStats;
 import 'app_harness.dart';
 
-/// Layout der Fortschrittskarten gegen das Design (WP15 Nachbesserung 4):
+/// Layout der Fortschrittskarten gegen das Design:
 /// Positionen statt nur Texte.
 
 const _km = UnitFormatter(

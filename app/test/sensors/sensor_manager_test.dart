@@ -231,7 +231,7 @@ void main() {
   });
 
   testWidgets('Bevorzugung nach dem Verbinden: bevorzugtes wird Quelle, im '
-      'Lauf nicht mehr (E2E-Befund)', (t) async {
+      'Lauf nicht mehr', (t) async {
     final r = _Rig();
     await r.open();
     await r.connect(t, 'g1', name: 'Gurt 1');

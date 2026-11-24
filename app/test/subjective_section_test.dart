@@ -414,7 +414,7 @@ void main() {
     expect((s.rpe, s.wellbeing, s.complaints, s.note), (8, 5, 'Fuß', 'ok'));
   });
 
-  // Review 1, Befund 2: Zusammenfassung -> Details -> zurück. Die
+  // Zusammenfassung -> Details -> zurück. Die
   // Zusammenfassung darf weder den alten Stand zeigen noch schreiben.
   testWidgets(
     'Detail ändert RPE, zurück: Zusammenfassung zeigt und behält es',
@@ -466,7 +466,7 @@ void main() {
     },
   );
 
-  // Review 2, Soll 4: Zusammenfassung -> Details -> zurück; das Neuladen wird
+  // Zusammenfassung -> Details -> zurück; das Neuladen wird
   // angehalten. Zurück baut eine eigene Sitzung mit angehaltenem Lesen auf.
   Future<({_FlakySession session, SubjectiveService service, int runId})>
   reloadWorld(WidgetTester tester, {String? note}) async {
@@ -558,7 +558,7 @@ void main() {
     expect((s.rpe, s.wellbeing, s.note), (7, 2, 'anderswo'));
   });
 
-  // Review 1, Befund 3: Lesefehler ist fail-closed.
+  // Lesefehler ist fail-closed.
   testWidgets(
     'Lesefehler: keine Felder, nichts wird überschrieben, Wiederholen',
     (tester) async {

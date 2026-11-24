@@ -5,7 +5,7 @@ import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/recalculation/recalculation_controller.dart';
 
-/// Reihe der Neuberechnung (WP19 NB1): Ablehnen und Laden des Belastungsstands
+/// Reihe der Neuberechnung: Ablehnen und Laden des Belastungsstands
 /// laufen nicht parallel zu Bestätigen und den anderen Schreibern.
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 

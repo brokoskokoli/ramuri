@@ -9,10 +9,10 @@ import 'package:running_app/features/statistics/load_card.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
-/// Das angezeigte Faktor-Angebot ist das bestätigte (WP19 NB2b, Review 2
-/// Befund 5): nimmt der Belastungsstand ein Angebot zurück oder ersetzt es,
-/// erfährt der Controller der Neuberechnung davon; Bestätigen und Ablehnen
-/// wirken nie auf einen Wert, den die Karte nicht zeigt.
+/// Das angezeigte Faktor-Angebot ist das bestätigte: nimmt der
+/// Belastungsstand ein Angebot zurück oder ersetzt es, erfährt der Controller
+/// der Neuberechnung davon; Bestätigen und Ablehnen wirken nie auf einen
+/// Wert, den die Karte nicht zeigt.
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
 LoadFactorRecord _factor(double v) => LoadFactorRecord(

@@ -371,7 +371,7 @@ void main() {
   );
 
   testWidgets(
-    'Pause (App im Hintergrund, Route verdeckt): keine Karte, keine Anfrage; danach wieder da (S6)',
+    'Pause (App im Hintergrund, Route verdeckt): keine Karte, keine Anfrage; danach wieder da',
     (tester) async {
       addTearDown(
         () => tester.binding.handleAppLifecycleStateChanged(
@@ -408,7 +408,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      // find.byKey lässt Offstage-Teile aus: ohne skipOffstage: false fände der Test die Karte hier nie (N3).
+      // find.byKey lässt Offstage-Teile aus: ohne skipOffstage: false fände der Test die Karte hier nie.
       expect(
         find.byKey(const Key('route_map'), skipOffstage: false),
         findsNothing,
@@ -425,7 +425,7 @@ void main() {
   );
 
   testWidgets(
-    'Rückkehr aus dem Hintergrund bei verdeckter Route und gescheitertem Öffnen: keine Anfrage (S4)',
+    'Rückkehr aus dem Hintergrund bei verdeckter Route und gescheitertem Öffnen: keine Anfrage',
     (tester) async {
       addTearDown(
         () => tester.binding.handleAppLifecycleStateChanged(
@@ -468,7 +468,7 @@ void main() {
   );
 
   testWidgets(
-    'Dialog über der Seite: die Karte bleibt im Baum und wird nicht neu aufgebaut (N6)',
+    'Dialog über der Seite: die Karte bleibt im Baum und wird nicht neu aufgebaut',
     (tester) async {
       final w = _World(consent: ConsentState.granted);
       await tester.pumpWidget(_app(w, _route));
