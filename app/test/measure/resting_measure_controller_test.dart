@@ -105,8 +105,9 @@ void main() {
         expect(r.c.preparing, isTrue);
         expect(r.c.phase, RestingMeasurePhase.entry);
         // Während die Seite offen ist, startet kein zweiter Tipp.
-        await r.c.startNow();
-        await r.c.startRest();
+        unawaited(r.c.startNow());
+        unawaited(r.c.startRest());
+        await pump();
         expect(calls, 1);
         r.clock.advance(const Duration(seconds: 90));
         gate.complete(true);
