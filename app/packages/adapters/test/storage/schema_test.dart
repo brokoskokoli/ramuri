@@ -2125,105 +2125,107 @@ void main() {
       );
     }
 
-    test(
-      'echte Migration v18 -> v19 auf befüllter v18-Datenbank (alte Daten, '
-      'neue Version): jeder Laufwert (original und current) trägt die '
-      'Kettenversion von damals, Tageswerte NULL, kein Angebot zur '
-      'Neuberechnung, Original bleibt unveränderlich, Schema = Dump v19',
-      () async {
-        final verifier = SchemaVerifier(GeneratedHelper());
-        final v18 = await verifier.schemaAt(18);
-        // Synthetisch: ein beendeter Lauf mit VO2max, TRIMP und Zeit über
-        // 80 % HFmax in der heutigen Methode, dazu ein Tageswert.
-        const fitness = FitnessParameters.v4();
-        const vo2 = AcsmReserveVo2maxEstimator();
-        const trimp = EdwardsTrimp();
-        const high = HighHeartRateTime();
-        v18.rawDatabase.execute(
-          'INSERT INTO runs (id, state, started_at_us, ended_at_us, '
-          "ended_utc_offset_s, mode, sport) VALUES (7, 'finished', 1, "
-          "2000000, 3600, 'gps', NULL)",
-        );
-        var id = 0;
-        for (final (key, method, version) in [
-          (vo2maxRunValueKey, vo2.method, vo2.methodVersion),
-          (trimpRunValueKey, trimp.method, trimp.methodVersion),
-          (highHeartRateTimeValueKey, high.method, high.methodVersion),
-        ]) {
-          for (final role in ['original', 'current']) {
-            v18.rawDatabase.execute(
-              'INSERT INTO computed_values (id, run_id, value_key, role, '
-              'value_real, unit, computed_at_us, measurement_count, sources, '
-              'method, method_version, parameter_version, quality) VALUES '
-              "(?, 7, ?, ?, 40.5, 'u', 1, 3, '[]', ?, ?, ?, 'good')",
-              [++id, key, role, method, version, fitness.parameterVersion],
-            );
-          }
+    test('echte Migration v18 -> v19 auf befüllter v18-Datenbank (alte Daten, '
+        'neue Version): jeder Laufwert (original und current) trägt die '
+        'Kettenversion von damals, Tageswerte NULL, Angebot zur '
+        'Neuberechnung (Kettenstufe day), Original bleibt unveränderlich, Schema = Dump v19', () async {
+      final verifier = SchemaVerifier(GeneratedHelper());
+      final v18 = await verifier.schemaAt(18);
+      // Synthetisch: ein beendeter Lauf mit VO2max, TRIMP und Zeit über
+      // 80 % HFmax in der heutigen Methode, dazu ein Tageswert.
+      const fitness = FitnessParameters.v4();
+      const vo2 = AcsmReserveVo2maxEstimator();
+      const trimp = EdwardsTrimp();
+      const high = HighHeartRateTime();
+      v18.rawDatabase.execute(
+        'INSERT INTO runs (id, state, started_at_us, ended_at_us, '
+        "ended_utc_offset_s, mode, sport) VALUES (7, 'finished', 1, "
+        "2000000, 3600, 'gps', NULL)",
+      );
+      var id = 0;
+      for (final (key, method, version) in [
+        (vo2maxRunValueKey, vo2.method, vo2.methodVersion),
+        (trimpRunValueKey, trimp.method, trimp.methodVersion),
+        (highHeartRateTimeValueKey, high.method, high.methodVersion),
+      ]) {
+        for (final role in ['original', 'current']) {
+          v18.rawDatabase.execute(
+            'INSERT INTO computed_values (id, run_id, value_key, role, '
+            'value_real, unit, computed_at_us, measurement_count, sources, '
+            'method, method_version, parameter_version, quality) VALUES '
+            "(?, 7, ?, ?, 40.5, 'u', 1, 3, '[]', ?, ?, ?, 'good')",
+            [++id, key, role, method, version, fitness.parameterVersion],
+          );
         }
-        v18.rawDatabase.execute(
-          'INSERT INTO computed_values (id, day, value_key, role, '
-          'value_real, unit, computed_at_us, measurement_count, sources, '
-          'method, method_version, parameter_version, quality) VALUES '
-          "(?, '2030-01-01', 'day_x', 'original', 1.5, 'u', 1, 1, '[]', "
-          "'m', 1, 1, 'good')",
-          [++id],
-        );
-        final db = AppDatabase(v18.newConnection());
-        addTearDown(db.close);
-        await verifier.migrateAndValidate(db, 19);
-        final rows = await db
-            .customSelect(
-              'SELECT run_id, role, preprocessing_version FROM computed_values '
-              'ORDER BY id',
-            )
-            .get();
-        expect(
-          [
-            for (final r in rows)
-              '${r.data['run_id']}:${r.data['role']}:'
-                  '${r.data['preprocessing_version']}',
+      }
+      v18.rawDatabase.execute(
+        'INSERT INTO computed_values (id, day, value_key, role, '
+        'value_real, unit, computed_at_us, measurement_count, sources, '
+        'method, method_version, parameter_version, quality) VALUES '
+        "(?, '2030-01-01', 'day_x', 'original', 1.5, 'u', 1, 1, '[]', "
+        "'m', 1, 1, 'good')",
+        [++id],
+      );
+      final db = AppDatabase(v18.newConnection());
+      addTearDown(db.close);
+      await verifier.migrateAndValidate(db, 19);
+      final rows = await db
+          .customSelect(
+            'SELECT run_id, role, preprocessing_version FROM computed_values '
+            'ORDER BY id',
+          )
+          .get();
+      expect(
+        [
+          for (final r in rows)
+            '${r.data['run_id']}:${r.data['role']}:'
+                '${r.data['preprocessing_version']}',
+        ],
+        [
+          for (var i = 0; i < 3; i++) ...[
+            '7:original:$legacyPreprocessingChainVersion',
+            '7:current:$legacyPreprocessingChainVersion',
           ],
-          [
-            for (var i = 0; i < 3; i++) ...[
-              '7:original:$legacyPreprocessingChainVersion',
-              '7:current:$legacyPreprocessingChainVersion',
-            ],
-            'null:original:null',
+          'null:original:null',
+        ],
+      );
+      await _expectAborted(
+        _exec(
+          db,
+          "UPDATE computed_values SET preprocessing_version = 'x' "
+          'WHERE id = 1',
+        ),
+        'original value is immutable',
+      );
+      // Über den Port: die Kette steht am Wert. Seit der Kettenstufe `day`
+      // (Tag des Laufbeginns, PAR-237) ist sie nicht mehr die heutige, also
+      // bietet der Start eine Neuberechnung an.
+      final session = EncryptedStorageSession(db);
+      final read = await session.values.read(const ValueOwner.run(7));
+      expect(
+        {
+          for (final p in read) ...[
+            p.original.preprocessingVersion,
+            p.current.preprocessingVersion,
           ],
-        );
-        await _expectAborted(
-          _exec(
-            db,
-            "UPDATE computed_values SET preprocessing_version = 'x' "
-            'WHERE id = 1',
-          ),
-          'original value is immutable',
-        );
-        // Über den Port: die Kette steht am Wert, und weil sie die heutige
-        // ist, gibt es beim Start kein Angebot.
-        final session = EncryptedStorageSession(db);
-        final read = await session.values.read(const ValueOwner.run(7));
-        expect(
-          {
-            for (final p in read) ...[
-              p.original.preprocessingVersion,
-              p.current.preprocessingVersion,
-            ],
-          },
-          {legacyPreprocessingChainVersion},
-        );
-        expect(preprocessingChainVersion(), legacyPreprocessingChainVersion);
-        final clock = FakeClock(DateTime.utc(2030, 1, 2));
-        final service = RecalculationService(
-          session: session,
-          clock: clock,
-          calculation: ValueCalculationService(session: session, clock: clock),
-        );
-        addTearDown(service.dispose);
-        expect(await service.checkVersions(), isNull);
-        expect(await service.pendingOffer(), isNull);
-      },
-    );
+        },
+        {legacyPreprocessingChainVersion},
+      );
+      expect(
+        preprocessingChainVersion(),
+        '$legacyPreprocessingChainVersion.day$runDayMethodVersion',
+      );
+      final clock = FakeClock(DateTime.utc(2030, 1, 2));
+      final service = RecalculationService(
+        session: session,
+        clock: clock,
+        calculation: ValueCalculationService(session: session, clock: clock),
+      );
+      addTearDown(service.dispose);
+      expect((await service.checkVersions())?.causes, {
+        RecalculationCause.algorithmVersion,
+      });
+    });
 
     test('Dump Version 19 liegt vor, genau achtzehn Schritte (1 -> 2 bis 18 -> 19)', () async {
       final db = await openDb();

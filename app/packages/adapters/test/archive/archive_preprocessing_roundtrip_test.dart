@@ -211,7 +211,8 @@ void main() {
   });
 
   test('Archiv mit Schema 18 ohne Spalte: Laufwerte tragen die Kette von '
-      'damals, kein Angebot', () async {
+      'damals; die Tageszuordnung ist seitdem neu (Stufe day, PAR-237), '
+      'also ein Angebot', () async {
     final path = await _asSchema18(
       await export(legacyPreprocessingChainVersion),
       '${work.path}/s18.runarchv',
@@ -223,6 +224,9 @@ void main() {
         'current:$legacyPreprocessingChainVersion',
       ],
     ]);
-    expect(await check(target), isNull);
+    expect(preprocessingChainVersion(), isNot(legacyPreprocessingChainVersion));
+    expect((await check(target))?.causes, {
+      RecalculationCause.algorithmVersion,
+    });
   });
 }
