@@ -372,5 +372,76 @@ void main() {
       expect(c.single.kind, PinnedConflictKind.spacing);
       expect(c.single.day, _day(17));
     });
+
+    /// Bestätigte harte Einheit am Donnerstag, am Mittwoch eine andere
+    /// Sportart (FR-0221) ohne Einheit mit RPE 3 und [highHr] Minuten ab
+    /// 80 % HFmax: die Abstandskonflikte zum Mittwoch bei „fix“.
+    Future<List<PinnedConflict>> sportBeforeHard(double highHr) async {
+      final e = await _Env.open(PlanAdaptationMode.fixed);
+      final wed = (await e.plans.unitOn(_day(16)))!;
+      await e.controller.open();
+      expect(
+        await e.controller.confirmMove(wed.id!, _day(17)),
+        PlanActionResult.done,
+      );
+      e.clock.set(DateTime(2026, 12, 2, 20));
+      final start = DateTime(2026, 12, 2, 7);
+      final r = await e.session.runs.create(
+        startedAt: start,
+        mode: RunMode.sport,
+        sport: OtherSport.rope,
+      );
+      final end = start.add(const Duration(minutes: 30));
+      await e.session.runs.setState(
+        r.id,
+        RunState.finished,
+        endedAt: end,
+        endedUtcOffset: end.timeZoneOffset,
+      );
+      await e.session.subjective.save(r.id, RunSubjective(rpe: 3));
+      await e.session.values.createOriginals(ValueOwner.run(r.id), [
+        ComputedValue(
+          key: highHeartRateTimeValueKey,
+          value: highHr,
+          unit: minutesUnit,
+          computedAt: end.toUtc(),
+          measurementCount: 600,
+          sources: const ['strap'],
+          method: HighHeartRateTime.methodId,
+          methodVersion: 1,
+          parameterVersion: 1,
+          quality: ValueQuality.good,
+        ),
+      ]);
+      e.figures.add(
+        RunFigures(
+          runId: r.id,
+          endedAt: end.toUtc(),
+          day: _iso(_day(16)),
+          isRunning: false,
+          movingTime: const Duration(minutes: 30),
+        ),
+      );
+      expect(await e.controller.recalculate(), PlanActionResult.done);
+      return e.controller.state.hints!.pinnedConflicts
+          .where((x) => x.otherDay == _day(16))
+          .toList();
+    }
+
+    test(
+      'intensive Sporteinheit (10 min ab 80 % HFmax) am Vortag der '
+      'bestätigten harten Einheit: Abstandskonflikt (PAR-233, PAR-060)',
+      () async {
+        final c = await sportBeforeHard(10);
+        expect(c, hasLength(1));
+        expect(c.single.kind, PinnedConflictKind.spacing);
+        expect(c.single.day, _day(17));
+      },
+    );
+
+    test('lockere Sporteinheit (9,9 min ab 80 % HFmax) am Vortag: '
+        'kein Abstandskonflikt', () async {
+      expect(await sportBeforeHard(9.9), isEmpty);
+    });
   });
 }
