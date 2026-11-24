@@ -1,0 +1,373 @@
+import 'dart:typed_data';
+
+import 'package:core/core.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/plan/plan_controller.dart';
+import 'package:running_app/features/plan/plan_data_reader.dart';
+
+import 'helpers/local_clock.dart';
+
+// Unterforderung in der App (PAR-236, FR-0216): Der Controller zeigt beim
+// ersten Muster den Hinweis „HFmax prüfen“, bei erneutem Muster aus späteren
+// Läufen die Frage „Plan etwas steigern?“; nur „Ja, steigern“ ändert den
+// Plan. Synthetische Daten: Ziel, Plan und Läufe sind ausgedacht.
+
+final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i + 5));
+
+final _d0 = DateTime.utc(2026, 11, 16); // Montag
+DateTime _day(int n) => _d0.add(Duration(days: n));
+
+String _iso(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
+
+// Lauftage Dienstag, Mittwoch, Freitag, Sonntag.
+TrainingGoal _goal() => TrainingGoal(
+  type: GoalType.distance,
+  distance: GoalDistance.tenKilometers,
+  targetDate: DateTime(2027, 6, 1),
+  runDays: const {2, 3, 5, 7},
+  maxSessionSeconds: 7200,
+  weeklyCapSeconds: 240 * 60.0,
+  createdAt: DateTime.utc(2026, 11, 1),
+  hardSessionEnabled: true,
+  canRun30: ContinuousRun30.yes,
+);
+
+class _Env {
+  _Env(this.session, this.clock, {this.readiness});
+
+  final StorageSession session;
+  final LocalFakeClock clock;
+  final Future<PlanReadinessDay?> Function(DateTime day)? readiness;
+
+  PlanRepository get plans => (session as PlanStorage).plans;
+
+  /// Neuer Controller wie nach einem Neustart der App.
+  PlanController controller() => PlanController(
+    session: session,
+    clock: clock,
+    reader: PlanDataReader(session: session, clock: clock),
+    readinessToday: readiness,
+  );
+
+  /// Plan ab Montag [_d0] (Wochenzeit 120 min, Rechnung ab Tag 14), Schalter
+  /// [mode], Uhr am Montag (Tag 14) früh.
+  static Future<_Env> open(
+    PlanAdaptationMode mode, {
+    Future<PlanReadinessDay?> Function(DateTime day)? readiness,
+  }) async {
+    final session = await FakeStorage().open(_key);
+    final e = _Env(
+      session,
+      LocalFakeClock(DateTime(2026, 11, 30, 6)),
+      readiness: readiness,
+    );
+    await (session as GoalStorage).goals.save(_goal(), today: _day(0));
+    await recalculatePlan(
+      plans: e.plans,
+      settings: session.settings,
+      trigger: PlanTrigger.create,
+      today: _day(0),
+      now: DateTime.utc(2026, 11, 16, 5),
+      inputs: PlanInputs.forNewGoal(
+        _goal(),
+        _day(0),
+      ).copyWith(startWeeklyMinutes: 120),
+    );
+    await SettingsPlanAdaptationStore(session.settings)
+        .set(mode, at: DateTime.utc(2026, 11, 16, 5));
+    await recalculatePlan(
+      plans: e.plans,
+      settings: session.settings,
+      trigger: PlanTrigger.manual,
+      today: _day(14),
+      now: DateTime.utc(2026, 11, 30, 5),
+      markChecked: false,
+    );
+    return e;
+  }
+
+  /// Wochenprüfung für heute als erledigt markieren (sonst rechnet das
+  /// Öffnen am Montag die Woche neu; nicht Teil dieser Regel).
+  Future<void> checked() => session.settings.set(
+    planLastCheckDayKey,
+    _iso(calendarDay(clock.now())),
+    at: clock.now(),
+  );
+
+  /// Lauf am Tag [n] (Ende 7:40 Uhr Ortszeit), der lockeren Einheit dieses
+  /// Tags zugeordnet, mit RPE [rpe] und [highHr] Minuten bei mindestens 80 %
+  /// HFmax; die Uhr steht danach auf 8 Uhr dieses Tags.
+  Future<void> run(int n, {int? rpe = 3, double? highHr = 12}) async {
+    final unit = (await plans.unitOn(_day(n)))!;
+    expect(unit.kind, isIn([PlanUnitKind.easy, PlanUnitKind.long]));
+    final start = DateTime(_day(n).year, _day(n).month, _day(n).day, 7);
+    final r = await session.runs.create(startedAt: start);
+    final end = start.add(const Duration(minutes: 40));
+    await session.runs.setState(
+      r.id,
+      RunState.finished,
+      endedAt: end,
+      endedUtcOffset: end.timeZoneOffset,
+    );
+    if (rpe != null) {
+      await session.subjective.save(r.id, RunSubjective(rpe: rpe));
+    }
+    if (highHr != null) {
+      await session.values.createOriginals(ValueOwner.run(r.id), [
+        ComputedValue(
+          key: highHeartRateTimeValueKey,
+          value: highHr,
+          unit: minutesUnit,
+          computedAt: end.toUtc(),
+          measurementCount: 600,
+          sources: const ['strap'],
+          method: HighHeartRateTime.methodId,
+          methodVersion: 1,
+          parameterVersion: 1,
+          quality: ValueQuality.good,
+        ),
+      ]);
+    }
+    await plans.assignRun(unit.id!, r.id);
+    clock.advance(
+      DateTime(start.year, start.month, start.day, 8).difference(clock.now()),
+    );
+  }
+
+  /// Öffnet die Plan-Seite mit einem neuen Controller und gibt ihn zurück.
+  Future<PlanController> opened() async {
+    await checked();
+    final c = controller();
+    await c.open();
+    return c;
+  }
+
+  Future<String?> stage() => session.settings.get(planUnderloadStageKey);
+
+  Future<List<String>> sigs() async => [
+    for (final u in await plans.unitsBetween(_day(14), planFarFuture))
+      '${_iso(u.day)}|${u.kind.name}|${u.minutes}',
+  ];
+
+  Future<int> weekMinutes(int monday) async => (await plans.unitsBetween(
+    _day(monday),
+    _day(monday + 6),
+  )).fold<int>(0, (a, u) => a + u.minutes);
+}
+
+/// Erstes Muster (Dienstag, Freitag): Hinweis offen, Seite geladen.
+Future<PlanController> _toHint(_Env e) async {
+  await e.run(15);
+  await e.run(18);
+  final c = await e.opened();
+  expect(c.state.underloadPrompt, PlanUnderloadPrompt.hint);
+  return c;
+}
+
+/// Hinweis mit „Passt so“ beantwortet, erneutes Muster aus späteren Läufen
+/// (Sonntag, Dienstag): Frage offen.
+Future<PlanController> _toQuestion(_Env e) async {
+  final c = await _toHint(e);
+  expect(await c.answerUnderloadHint(), PlanActionResult.done);
+  await e.run(20);
+  await e.run(22);
+  final q = await e.opened();
+  expect(q.state.underloadPrompt, PlanUnderloadPrompt.question);
+  return q;
+}
+
+void main() {
+  group('Ablauf (PAR-236)', () {
+    test('erstes Muster → Hinweis ohne Planänderung; Hinweis beantwortet → '
+        'nicht wieder; erneutes Muster aus späteren Läufen → Frage', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      final one = await e.opened();
+      expect(one.state.underloadPrompt, isNull, reason: '1 Lauf: kein Muster');
+      await e.run(18);
+      final before = await e.sigs();
+      final versions = (await e.plans.history()).length;
+      final c = await e.opened();
+      expect(c.state.underloadPrompt, PlanUnderloadPrompt.hint);
+      expect(await e.sigs(), before);
+      expect((await e.plans.history()).length, versions);
+
+      expect(await c.answerUnderloadHint(), PlanActionResult.done);
+      expect(c.state.underloadPrompt, isNull);
+      expect(await e.stage(), 'hintDone');
+      // Dieselben Läufe ergeben kein neues Muster.
+      expect((await e.opened()).state.underloadPrompt, isNull);
+      // Ein späterer Lauf reicht noch nicht (1 von 1 nach dem Hinweis).
+      await e.run(20);
+      expect((await e.opened()).state.underloadPrompt, isNull);
+      await e.run(22);
+      final q = await e.opened();
+      expect(q.state.underloadPrompt, PlanUnderloadPrompt.question);
+      expect(await e.sigs(), isNot(isEmpty));
+    });
+
+    test(
+      'Neustart zeigt Hinweis bzw. Frage nach der Antwort nicht erneut',
+      () async {
+        final e = await _Env.open(PlanAdaptationMode.adaptive);
+        final c = await _toHint(e);
+        // Unbeantwortet bleibt der Hinweis auch nach einem Neustart.
+        expect(
+          (await e.opened()).state.underloadPrompt,
+          PlanUnderloadPrompt.hint,
+        );
+        expect(await c.answerUnderloadHint(), PlanActionResult.done);
+        expect((await e.opened()).state.underloadPrompt, isNull);
+        await e.run(20);
+        await e.run(22);
+        final q = await e.opened();
+        expect(q.state.underloadPrompt, PlanUnderloadPrompt.question);
+        expect(await q.answerUnderloadQuestion(false), PlanActionResult.done);
+        expect((await e.opened()).state.underloadPrompt, isNull);
+        expect(await e.stage(), 'declined');
+      },
+    );
+
+    test('HFmax geändert → Zählung beginnt neu', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      final c = await _toHint(e);
+      expect(await c.answerUnderloadHint(), PlanActionResult.done);
+      await e.run(20);
+      // HFmax im Profil geändert: der Lauf vom Sonntag zählt nicht mehr.
+      final saved = await ProfileService(
+        e.session.profile,
+        e.clock,
+        settings: e.session.settings,
+      ).save(const ProfileRecord(maxHeartRateBpm: 191));
+      expect(saved.saved, isTrue);
+      e.clock.advance(const Duration(minutes: 1));
+      await e.run(22);
+      expect((await e.opened()).state.underloadPrompt, isNull);
+      await e.run(25);
+      expect(
+        (await e.opened()).state.underloadPrompt,
+        PlanUnderloadPrompt.question,
+      );
+    });
+  });
+
+  group('Antwort auf die Frage (PAR-236, PAR-193)', () {
+    test('Ja → neue Fassung (feedback, Grund underload), nächste Woche '
+        'länger; danach Frage erst nach neuem Muster', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      final q = await _toQuestion(e);
+      final next = await e.weekMinutes(28);
+      expect(await q.answerUnderloadQuestion(true), PlanActionResult.done);
+      final last = (await e.plans.history()).last;
+      expect(last.trigger, PlanTrigger.feedback);
+      expect(last.reason, planReasonUnderload);
+      expect(await e.weekMinutes(28), greaterThan(next));
+      expect(q.state.underloadPrompt, isNull);
+      expect(await e.stage(), 'accepted');
+      expect((await e.opened()).state.underloadPrompt, isNull);
+    });
+
+    test('Nein → keine Änderung; Frage erst nach neuem Muster aus Läufen '
+        'nach dem Nein', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      final q = await _toQuestion(e);
+      final before = await e.sigs();
+      final versions = (await e.plans.history()).length;
+      expect(await q.answerUnderloadQuestion(false), PlanActionResult.done);
+      expect(await e.sigs(), before);
+      expect((await e.plans.history()).length, versions);
+      expect((await e.opened()).state.underloadPrompt, isNull);
+      await e.run(25);
+      expect((await e.opened()).state.underloadPrompt, isNull);
+      await e.run(27);
+      expect(
+        (await e.opened()).state.underloadPrompt,
+        PlanUnderloadPrompt.question,
+      );
+    });
+
+    test('ohne offene Frage: abgelehnt, nichts geändert', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      final c = await e.opened();
+      final before = await e.sigs();
+      expect(await c.answerUnderloadQuestion(true), PlanActionResult.rejected);
+      expect(await c.answerUnderloadHint(), PlanActionResult.rejected);
+      expect(await e.sigs(), before);
+      expect(await e.stage(), isNull);
+    });
+  });
+
+  group('weder Hinweis noch Frage (PAR-236, FR-0216, FR-0203)', () {
+    test('bei „fix“', () async {
+      final e = await _Env.open(PlanAdaptationMode.fixed);
+      await e.run(15);
+      await e.run(18);
+      final c = await e.opened();
+      expect(c.state.underloadPrompt, isNull);
+      expect(await e.stage(), isNull);
+    });
+
+    test('„fix“ nach offenem Hinweis blendet ihn aus', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await _toHint(e);
+      await SettingsPlanAdaptationStore(e.session.settings)
+          .set(PlanAdaptationMode.fixed, at: e.clock.now());
+      expect((await e.opened()).state.underloadPrompt, isNull);
+    });
+
+    test('bei gemeldetem Warnsignal', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      await e.run(18);
+      final w = e.controller();
+      expect(await w.reportWarning(), PlanActionResult.done);
+      final c = await e.opened();
+      expect(c.state.warning, isNotNull);
+      expect(c.state.underloadPrompt, isNull);
+      expect(await e.stage(), isNull);
+    });
+
+    test('bei Korrektur nach unten in dieser Woche (PAR-201)', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      await e.run(18);
+      // Fassung der Wochenprüfung mit Grund `noIncrease`, Anker diese Woche.
+      final last = (await e.plans.history()).last;
+      await recalculatePlan(
+        plans: e.plans,
+        settings: e.session.settings,
+        trigger: PlanTrigger.weekly,
+        today: calendarDay(e.clock.now()),
+        now: e.clock.now(),
+        reason: 'noIncrease',
+        inputs: last.inputs.copyWith(anchor: _day(14), startWeeklyMinutes: 100),
+      );
+      expect(
+        planCorrectedDownThisWeek(
+          await e.plans.history(),
+          calendarDay(e.clock.now()),
+        ),
+        isTrue,
+      );
+      final c = await e.opened();
+      expect(c.state.underloadPrompt, isNull);
+      expect(await e.stage(), isNull);
+    });
+
+    test('bei Readiness nach PAR-173', () async {
+      final e = await _Env.open(
+        PlanAdaptationMode.adaptive,
+        readiness: (day) async =>
+            PlanReadinessDay(day: day, band: ReadinessBand.recoveryAdvised),
+      );
+      await e.run(15);
+      await e.run(18);
+      final c = await e.opened();
+      expect(c.state.underloadPrompt, isNull);
+      expect(await e.stage(), isNull);
+    });
+  });
+}
