@@ -329,6 +329,68 @@ void main() {
     s.c.dispose();
   });
 
+  test('Standardkamera verwenden: nur ohne Empfehlung und ohne Tipp, '
+      'setzt das Suchergebnis auf die Standardkamera', () async {
+    final s = await _setup();
+    expect(s.c.canApplyDefault, isFalse); // vor dem Laden
+    await s.c.load();
+    await pumpEventQueue();
+    expect(s.c.defaultCamera, _std);
+    expect(s.c.canApplyDefault, isTrue);
+    for (var i = 0; i < 10; i++) {
+      s.cam.emitPreview(_frame(_second, i * 0.1));
+    }
+    await pumpEventQueue();
+    expect(s.c.recommendation, _second);
+    expect(s.c.canApplyDefault, isFalse);
+    expect(await s.c.applyDefault(), isNull);
+    expect(s.choice.writes, isEmpty);
+    s.c.dispose();
+
+    final t = await _setup();
+    await t.c.load();
+    await pumpEventQueue();
+    expect(await t.c.applyDefault(), _std);
+    expect(t.choice.writes, ['auto:0']);
+    expect(t.cam.previewOn, isFalse);
+    expect(t.cam.torchOn, isFalse);
+    t.c.dispose();
+  });
+
+  test('Standardkamera verwenden auch nach Ende mit Fehler', () async {
+    final s = await _setup();
+    await s.c.load();
+    await pumpEventQueue();
+    await s.cam.abortPreview(PpgCameraStopReason.error);
+    await pumpEventQueue();
+    expect(s.c.phase, CameraFinderPhase.stopped);
+    expect(s.c.canApplyDefault, isTrue);
+    expect(await s.c.applyDefault(), _std);
+    expect(s.choice.writes, ['auto:0']);
+    s.c.dispose();
+  });
+
+  test('Standardkamera nicht nutzbar: kein Standardknopf', () async {
+    final s = await _setup(
+      cameras: const [
+        PpgCameraInfo(
+          ref: _std,
+          isDefault: true,
+          unusable: PpgCameraUnusable.noFlash,
+        ),
+        PpgCameraInfo(ref: _second, frameRate: 30),
+        PpgCameraInfo(ref: PpgCameraRef('2'), frameRate: 30),
+      ],
+    );
+    await s.c.load();
+    await pumpEventQueue();
+    expect(s.c.defaultCamera, isNull);
+    expect(s.c.canApplyDefault, isFalse);
+    expect(await s.c.applyDefault(), isNull);
+    expect(s.choice.writes, isEmpty);
+    s.c.dispose();
+  });
+
   test('nur eine nutzbare Kamera: keine Vorschau', () async {
     final s = await _setup(cameras: [_cameras.first, _cameras.last]);
     await s.c.load();

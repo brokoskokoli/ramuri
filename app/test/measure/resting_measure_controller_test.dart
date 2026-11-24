@@ -22,7 +22,11 @@ class Rig {
   late FailingSettingsStore settings;
   late FailingProfileStore store;
 
-  static Future<Rig> make({PpgEvaluate? evaluate, ProfileRecord? start}) async {
+  static Future<Rig> make({
+    PpgEvaluate? evaluate,
+    ProfileRecord? start,
+    Future<bool> Function()? beforeStart,
+  }) async {
     final cam = HoldingCamera();
     final session = await FakeStorage().open(testKey);
     final clock = FakeClock(DateTime.utc(2026, 11, 10, 7, 0));
@@ -39,6 +43,7 @@ class Rig {
       signal: signal,
       evaluate: evaluate ?? evalFinalOnly,
       autoTick: false,
+      beforeStart: beforeStart,
     );
     return (Rig._(cam, session, clock, profile, signal, c)
       ..settings = settings
@@ -56,6 +61,73 @@ class Rig {
 }
 
 void main() {
+  group('vor dem Start (Kamerasuche, FR-0220)', () {
+    test('Abbruch: keine Ruhephase, keine Messung, keine Kamera', () async {
+      var calls = 0;
+      final r = await Rig.make(
+        beforeStart: () async {
+          calls++;
+          return false;
+        },
+      );
+      await r.c.startRest();
+      expect(r.c.phase, RestingMeasurePhase.entry);
+      await r.c.startNow();
+      expect(r.c.phase, RestingMeasurePhase.entry);
+      expect(calls, 2);
+      expect(r.cam.permissionRequests, 0);
+      expect(r.cam.startCount, 0);
+      expect(r.c.preparing, isFalse);
+    });
+
+    test('Fehler im Hook: kein Start', () async {
+      final r = await Rig.make(beforeStart: () async => throw StateError('x'));
+      await r.c.startNow();
+      expect(r.c.phase, RestingMeasurePhase.entry);
+      expect(r.cam.startCount, 0);
+      expect(r.c.preparing, isFalse);
+    });
+
+    test(
+      'Zeit auf der Seite zählt nicht zur Ruhephase; Doppelstart ignoriert',
+      () async {
+        final gate = Completer<bool>();
+        var calls = 0;
+        final r = await Rig.make(
+          beforeStart: () {
+            calls++;
+            return gate.future;
+          },
+        );
+        r.c.setRestMinutes(2);
+        final rest = r.c.startRest();
+        await pump();
+        expect(r.c.preparing, isTrue);
+        expect(r.c.phase, RestingMeasurePhase.entry);
+        // Während die Seite offen ist, startet kein zweiter Tipp.
+        await r.c.startNow();
+        await r.c.startRest();
+        expect(calls, 1);
+        r.clock.advance(const Duration(seconds: 90));
+        gate.complete(true);
+        await rest;
+        expect(r.c.preparing, isFalse);
+        expect(r.c.phase, RestingMeasurePhase.resting);
+        r.c.tick();
+        expect(r.c.restRemaining, const Duration(minutes: 2));
+        expect(r.cam.startCount, 0);
+      },
+    );
+
+    test('Freigabe: sofort messen beginnt die Aufnahme', () async {
+      final r = await Rig.make(beforeStart: () async => true);
+      await r.c.startNow();
+      await pump();
+      expect(r.c.phase, RestingMeasurePhase.measuring);
+      expect(r.cam.startCount, 1);
+    });
+  });
+
   group('Ruhephase', () {
     test('Vorgabe 5 min, einstellbar von 1 bis 15 min', () async {
       final r = await Rig.make();
