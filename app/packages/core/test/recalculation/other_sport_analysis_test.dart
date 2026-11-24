@@ -261,7 +261,7 @@ void main() {
     // Eine Sporteinheit hat nie Positionen aus der Aufzeichnung; ein Archiv
     // oder eine Fremdquelle könnte welche mitbringen. Auch dann gibt es keine
     // Strecke und keine Pace.
-    Future<int> sportWithPositions(RecalcWorld w) async {
+    Future<int> sportWithPositions(RecalcWorld w, {double speed = 3}) async {
       final id = await seedSport(w, _t0, _series([(1800, 150)]));
       await w.session.rawData.append(
         id,
@@ -271,7 +271,7 @@ void main() {
               RawPosition(
                 time: _t0.add(Duration(seconds: s)),
                 source: 'gps',
-                latitude: 10 + s * 3 / 111195,
+                latitude: 10 + s * speed / 111195,
                 longitude: 20,
                 accuracyMeters: 5,
               ),
@@ -290,6 +290,17 @@ void main() {
       expect(o.averagePaceSecondsPerKm, isNull);
       expect(o.bestPaceSecondsPerKm, isNull);
       expect(o.movingTime, const Duration(minutes: 30));
+    });
+
+    test('Positionen auf der Stelle: keine Stillstandserkennung', () async {
+      final w = await RecalcWorld.create();
+      final id = await sportWithPositions(w, speed: 0);
+      // Historie aus den Rohdaten und Berechnung nach dem Ende.
+      expect((await overview(w, id)).movingTime, const Duration(minutes: 30));
+      await w.calc().calculateAfterRun(id);
+      expect((await overview(w, id)).movingTime, const Duration(minutes: 30));
+      // 150 bpm = 79 % von 190: Gewicht 3, 30 min.
+      expect((await values(w, id))[trimpRunValueKey]!.value, closeTo(90, 0.1));
     });
 
     test('mit Positionen: keine Strecke in der Historie', () async {
