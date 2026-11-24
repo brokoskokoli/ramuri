@@ -416,6 +416,52 @@ void cameraTests() {
     },
   );
 
+  testWidgets(
+    'Kamera suchen: öffnet die Kamerasuche; nach „Als feste Wahl setzen“ zeigt die '
+    'Liste die neue Wahl',
+    (tester) async {
+      final s = await _cameraSetup();
+      await _pumpCamera(tester, s);
+      expect(key('about_ppg_camera_find'), findsOneWidget);
+      expect(find.text('Kamera suchen'), findsOneWidget);
+      await tester.ensureVisible(key('about_ppg_camera_find'));
+      await tester.tap(key('about_ppg_camera_find'));
+      await tester.pumpAndSettle();
+      expect(find.text('Kamera finden'), findsOneWidget);
+      // Nur die nutzbaren Kameras (ohne Blitz nicht).
+      expect(s.camera.previewWith.single, const [
+        PpgCameraRef('0'),
+        PpgCameraRef('0', '2'),
+      ]);
+      expect(s.camera.previewOn, isTrue);
+      // Finger auf der zweiten Kamera (erfundene Zahlen).
+      for (var i = 0; i < 5; i++) {
+        for (final (ref, r, g) in const [
+          (PpgCameraRef('0'), 150.0, 140.0),
+          (PpgCameraRef('0', '2'), 200.0, 40.0),
+        ]) {
+          s.camera.emitPreview(
+            PpgPreviewFrame(
+              camera: ref,
+              t: i * 0.1,
+              r: r,
+              g: g,
+              exposureNs: 8333333,
+              iso: 100,
+            ),
+          );
+        }
+      }
+      await tester.pumpAndSettle();
+      await tester.tap(key('camera_finder_manual'));
+      await tester.pumpAndSettle();
+      expect(find.text('Kamera finden'), findsNothing);
+      expect(s.camera.previewOn, isFalse);
+      expect(await s.choice.readManual(), const PpgCameraRef('0', '2'));
+      expect(_selected(tester, const PpgCameraRef('0', '2')), isTrue);
+    },
+  );
+
   testWidgets('Kamera: Bildrate je nutzbarer Kamera im Untertitel', (
     tester,
   ) async {

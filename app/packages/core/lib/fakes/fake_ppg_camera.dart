@@ -165,7 +165,8 @@ class FakePpgCamera implements PpgCamera {
         torchOn = true;
         c.add(PpgPreviewStarted(previewMode));
       },
-      onCancel: () => _releasePreview(c),
+      // `async`: `cancel()` endet in der Zone des Aufrufers (FakeAsync in Widget-Tests).
+      onCancel: () async => _releasePreview(c),
     );
     _preview = c;
     return c.stream;
