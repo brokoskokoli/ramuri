@@ -58,11 +58,21 @@ class RunPorts {
 
 /// Laufart für den Dienst (ADR-0005 Nachtrag WP25). [gps] startet mit Diensttyp
 /// `location` und verlangt das Standortrecht, [treadmill] mit `health` und
-/// verlangt ACTIVITY_RECOGNITION (kein Standort nötig). [wire] ist der Wert im
-/// Kanal `ramuri/recording_service`.
+/// verlangt ACTIVITY_RECOGNITION (kein Standort nötig). [sport] (andere
+/// Sportart, FR-0221) startet mit `connectedDevice` und verlangt weder Standort
+/// noch ACTIVITY_RECOGNITION. [wire] ist der Wert im Kanal
+/// `ramuri/recording_service`.
 enum RecordingServiceMode {
   gps('gps'),
-  treadmill('treadmill');
+  treadmill('treadmill'),
+  sport('sport');
+
+  /// Dienstmodus zur Art des Laufs.
+  static RecordingServiceMode of(RunMode mode) => switch (mode) {
+    RunMode.gps => gps,
+    RunMode.treadmill => treadmill,
+    RunMode.sport => sport,
+  };
 
   const RecordingServiceMode(this.wire);
   final String wire;

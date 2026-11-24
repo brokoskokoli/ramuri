@@ -115,10 +115,10 @@ Future<void> runAndFinish(
 
 /// Sitzung, deren Rohdaten sich nicht lesen lassen (Zusammenfassung fällt
 /// zurück).
-class _ReadFailSession implements StorageSession {
-  _ReadFailSession(this.s);
+class ReadFailSession implements StorageSession {
+  ReadFailSession(this.s);
   final StorageSession s;
-  late final _FailingRead raw = _FailingRead(s.rawData);
+  late final FailingRead raw = FailingRead(s.rawData);
   @override
   RawDataStore get rawData => raw;
   @override
@@ -151,8 +151,8 @@ class _ReadFailSession implements StorageSession {
   Future<void> close() => s.close();
 }
 
-class _FailingRead implements RawDataStore {
-  _FailingRead(this.inner);
+class FailingRead implements RawDataStore {
+  FailingRead(this.inner);
   final RawDataStore inner;
   bool fail = false;
   @override
@@ -163,18 +163,18 @@ class _FailingRead implements RawDataStore {
       : inner.read(runId);
 }
 
-class _ReadFailStorage implements Storage {
-  _ReadFailStorage(this.inner);
+class ReadFailStorage implements Storage {
+  ReadFailStorage(this.inner);
   final Storage inner;
-  late _ReadFailSession session;
+  late ReadFailSession session;
   @override
   Future<StorageSession> open(Uint8List key) async =>
-      session = _ReadFailSession(await inner.open(key));
+      session = ReadFailSession(await inner.open(key));
 }
 
 /// Hält das Schreiben des Merkers „Werte nach dem Lauf noch berechnen“ fest,
 /// bis [release] kommt: die Berechnung nach dem Lauf steht dann mittendrin.
-class _HoldSession extends _ReadFailSession {
+class _HoldSession extends ReadFailSession {
   _HoldSession(super.s);
   final reached = Completer<void>();
   final release = Completer<void>();
@@ -326,7 +326,7 @@ void main() {
       tester,
     ) async {
       final d = Device();
-      final storage = _ReadFailStorage(d.storage);
+      final storage = ReadFailStorage(d.storage);
       d.storageOverride = storage;
       await d.start(tester, const Locale('de'));
       await d.skipSetup(tester);
@@ -598,7 +598,7 @@ void main() {
       tester,
     ) async {
       final d = Device();
-      final storage = _ReadFailStorage(d.storage);
+      final storage = ReadFailStorage(d.storage);
       d.storageOverride = storage;
       await d.start(tester, const Locale('de'));
       await d.skipSetup(tester);

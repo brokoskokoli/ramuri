@@ -44,6 +44,7 @@ class RecordingServiceController<R>(private val fx: ServiceEffects<R>) {
         fineLocationGranted: Boolean,
         mode: RecordingMode = RecordingMode.GPS,
         activityRecognitionGranted: Boolean = false,
+        bluetoothConnectGranted: Boolean = false,
     ) {
         if (running) {
             fx.success(result)
@@ -51,7 +52,13 @@ class RecordingServiceController<R>(private val fx: ServiceEffects<R>) {
         }
         // Vor startForegroundService: danach lässt sich ein Scheitern von
         // startForeground nicht mehr abfangen (siehe RecordingLifecycle.mayStart).
-        if (RecordingLifecycle.mayStart(mode, fineLocationGranted, activityRecognitionGranted).isFailure) {
+        val allowed = RecordingLifecycle.mayStart(
+            mode,
+            fineLocationGranted,
+            activityRecognitionGranted,
+            bluetoothConnectGranted,
+        )
+        if (allowed.isFailure) {
             if (mode == RecordingMode.TREADMILL) {
                 // Eigener Grund, damit die Oberfläche das Recht erklären kann (FR-0195 entsprechend).
                 fx.error(result, "start_denied", "activity_recognition")
