@@ -47,12 +47,14 @@ class PpgPreviewLogicTest {
         assertEquals(listOf(other to "no_flash", PpgPreviewRef("9", null) to "no_camera"), plan.failed)
     }
 
-    @Test fun sharedSessionOnlyForPhysicalCamerasOfOneLogicalCamera() {
+    @Test fun sharedSessionOnlyForCamerasOfOneLogicalCamera() {
         assertTrue(PpgPreviewLogic.canShareSession(listOf(p2, p3)))
         assertTrue(PpgPreviewLogic.canShareSession(listOf(std)))
         assertTrue(PpgPreviewLogic.canShareSession(emptyList()))
-        // Logische Kamera selbst neben ihrer physischen: kein gemeinsamer Ausgang je Kamera.
-        assertFalse(PpgPreviewLogic.canShareSession(listOf(std, p2)))
+        // Logische Kamera selbst neben ihren physischen: eine Sitzung versuchen, das Gerät entscheidet.
+        assertTrue(PpgPreviewLogic.canShareSession(listOf(std, p2)))
+        assertTrue(PpgPreviewLogic.canShareSession(listOf(std, p2, p3)))
+        assertFalse(PpgPreviewLogic.canShareSession(listOf(std, std)))
         // Getrennte Kamera-IDs nie gleichzeitig.
         assertFalse(PpgPreviewLogic.canShareSession(listOf(p2, PpgPreviewRef("1", "4"))))
         assertFalse(PpgPreviewLogic.canShareSession(listOf(std, other)))
@@ -62,7 +64,8 @@ class PpgPreviewLogicTest {
     @Test fun modeSimultaneousOnlyWhenSharedAndConfirmed() {
         assertEquals("simultaneous", PpgPreviewLogic.previewMode(listOf(p2, p3), sessionSupported = true))
         assertEquals("alternating", PpgPreviewLogic.previewMode(listOf(p2, p3), sessionSupported = false))
-        assertEquals("alternating", PpgPreviewLogic.previewMode(listOf(std, p2), sessionSupported = true))
+        assertEquals("simultaneous", PpgPreviewLogic.previewMode(listOf(std, p2, p3), sessionSupported = true))
+        assertEquals("alternating", PpgPreviewLogic.previewMode(listOf(std, p2, p3), sessionSupported = false))
         assertEquals("alternating", PpgPreviewLogic.previewMode(listOf(std, other), sessionSupported = true))
         assertEquals("simultaneous", PpgPreviewLogic.previewMode(listOf(std), sessionSupported = false))
     }

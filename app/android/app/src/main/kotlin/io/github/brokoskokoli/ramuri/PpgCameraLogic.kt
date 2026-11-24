@@ -901,14 +901,15 @@ object PpgPreviewLogic {
     }
 
     /**
-     * Gleichzeitiger Betrieb kommt nur in Frage, wenn alle Kameras physische Kameras derselben
-     * logischen Kamera sind (eine Sitzung, je ein Ausgang mit setPhysicalCameraId); getrennte
+     * Gleichzeitiger Betrieb kommt nur in Frage, wenn alle Kameras zu derselben logischen Kamera
+     * gehören (gleiche cameraId): eine Sitzung, die logische Kamera selbst mit einem Ausgang ohne,
+     * ihre physischen Kameras je mit einem Ausgang mit setPhysicalCameraId. Ob das Gerät die
+     * Kombination trägt, entscheidet isSessionConfigurationSupported ([previewMode]). Getrennte
      * Kamera-IDs werden nie gleichzeitig geöffnet. Eine einzelne Kamera braucht keinen Wechsel.
      */
     fun canShareSession(live: List<PpgPreviewRef>): Boolean = when {
         live.size <= 1 -> true
-        else -> live.all { it.physicalCameraId != null && it.cameraId == live[0].cameraId } &&
-            live.map { it.physicalCameraId }.toSet().size == live.size
+        else -> live.all { it.cameraId == live[0].cameraId } && live.toSet().size == live.size
     }
 
     /**

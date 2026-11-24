@@ -23,8 +23,9 @@ import io.flutter.view.TextureRegistry
 
 /**
  * Kamerasuche (FR-0220, PAR-227; ADR-0011, Nachtrag 2026-11-24): Live-Vorschau mehrerer Rückkameras
- * mit Taschenlampe. Gleichzeitig, wenn alle Kameras physische Kameras derselben logischen Kamera sind
- * und das Gerät die Sitzung bestätigt (isSessionConfigurationSupported), sonst im Wechsel je
+ * mit Taschenlampe. Gleichzeitig, wenn alle Kameras zu derselben logischen Kamera gehören (die logische
+ * selbst und ihre physischen Kameras, eine Sitzung) und das Gerät die Sitzung bestätigt
+ * (isSessionConfigurationSupported), sonst im Wechsel je
  * PpgPreviewLogic.PREVIEW_TURN_NS. Je Kamera ein kleiner YUV-Ausgang: R, G der Bildmitte
  * (PpgFrameStats), Belichtungszeit und ISO aus dem CaptureResult gehen als Zahlen an Dart; das Bild wird
  * nativ verkleinert in eine Flutter-Texture (SurfaceProducer) gezeichnet und sofort verworfen – keine
