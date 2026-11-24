@@ -381,7 +381,9 @@ class DebugTestPpgCamera implements PpgCamera {
           await Future<void>.delayed(delay);
         }
       },
-      onCancel: () {
+      // `async`: die Rückgabe von `cancel()` läuft in der Zone des Aufrufers (sonst die
+      // Null-Future der Root-Zone, die im FakeAsync eines Widget-Tests nie fertig wird).
+      onCancel: () async {
         cancelled = true;
         if (identical(_preview, c)) _preview = null;
         previewOn = false;
