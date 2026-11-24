@@ -89,6 +89,17 @@ void main() {
       expect(w.state.frames, 2);
     });
 
+    test('fallende Sensorzeit (neue Zählung) beginnt das Fenster neu', () {
+      final w = PpgCameraFinderWindow(_info(_a))
+        ..add(_f(1.0))
+        ..add(_f(1.4))
+        ..add(_f(0.5, r: 50, g: 100)); // kein Finger, Zeit kleiner als zuvor
+      // Nur das neue Bild zählt; alte Bilder mischen sich nicht ins Fenster.
+      expect(w.state.frames, 1);
+      expect(w.state.fingerDetected, isFalse);
+      expect(w.state.meanRed, 50);
+    });
+
     test('Lichtmenge aus Bildern mit Angaben, ohne Angaben null', () {
       final w = PpgCameraFinderWindow(_info(_a))
         ..add(_f(0, exposureNs: null))
