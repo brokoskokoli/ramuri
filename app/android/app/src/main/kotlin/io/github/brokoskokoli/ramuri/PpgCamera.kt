@@ -98,7 +98,7 @@ object PpgCamera {
     )
 
     /** Rückkameras samt physischen Kameras (FR-0220, PpgCameraLogic.listCameras). Braucht kein Kamera-Recht. */
-    private fun cameraEntries(manager: CameraManager): List<PpgCameraEntry> {
+    internal fun cameraEntries(manager: CameraManager): List<PpgCameraEntry> {
         val cache = HashMap<String, PpgCameraProps?>()
         return PpgCameraLogic.listCameras(manager.cameraIdList.toList()) { id ->
             cache.getOrPut(id) { props(manager, id) }

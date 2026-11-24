@@ -44,6 +44,8 @@ class RunningApplication : Application() {
         StepSensor.register(messenger, this)
         // ADR-0011: Kamera für das Kamera-PPG; das Recht fragt MainActivity erst beim Messbeginn.
         PpgCamera.register(messenger, this)
+        // FR-0220: Kamerasuche mit Live-Vorschau als Texture (ADR-0011, Nachtrag 2026-11-24).
+        PpgCameraPreview.register(messenger, this, engine.renderer)
         // WP27: Ton oder Vibration am Ende der Ruhephase.
         RestingSignal.register(messenger, this)
         // WP24: Sprachausgabe der geführten Einheit, eigener Kanal neben dem Aufzeichnungsdienst.
