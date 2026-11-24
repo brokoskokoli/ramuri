@@ -211,6 +211,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                     context,
                     (_) => DeveloperSettingsScreen(
                       developerMode: _developerMode,
+                      appVersion: appVersion,
                       ppgCamera: PpgCameraScope.maybeOf(context),
                       cameraChoice: _cameraChoice,
                       cameraDiagnostics: _cameraDiagnostics,
