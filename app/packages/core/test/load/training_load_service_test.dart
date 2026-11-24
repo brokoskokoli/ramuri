@@ -278,8 +278,9 @@ void main() {
     test('sRPE-Faktor bei 20 Läufen und zusätzlichen Sporteinheiten '
         'unverändert', () async {
       await seedFactorRuns(2.0, n: 20);
-      // Sporteinheiten mit RPE und einem anderen Verhältnis (4,0).
-      for (var i = 0; i < 6; i++) {
+      // Neuere Sporteinheiten mit RPE und einem anderen Verhältnis (4,0),
+      // mehr als Läufe: zählten sie, wäre der Faktor 4,0.
+      for (var i = 0; i < 24; i++) {
         await addRun(
           ago(20).add(Duration(hours: 8 + 12 * i)),
           trimp: trimpValue(4.0 * 30 * 5),
