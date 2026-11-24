@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
+import '../../error_counter.dart';
 import '../reminders/reminder_controller.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_buttons.dart';
@@ -39,6 +40,7 @@ class DataScreen extends StatelessWidget {
     final settings = AppSettingsScope.of(context);
     final navigator = Navigator.of(context);
     final reminders = ReminderScope.read(context);
+    final errors = ErrorCounterScope.maybeOf(context);
     final result = await confirmAndDeleteAll(
       context,
       session,
@@ -48,6 +50,9 @@ class DataScreen extends StatelessWidget {
         result != DeletionResult.deletedNotErased) {
       return;
     }
+    // SEC-0004: Die gespeicherten Fehlerzähler sind mit der Datenbank weg;
+    // noch nicht gespeicherte kommen nicht wieder hinein (FR-0223).
+    errors?.dropPending();
     // FR-0174: Nach dem Löschen keine Erinnerung mehr.
     await reminders?.cancelAll();
     try {

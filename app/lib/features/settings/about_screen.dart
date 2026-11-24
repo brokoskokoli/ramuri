@@ -88,6 +88,7 @@ class _AboutScreenState extends State<AboutScreen> {
       MaterialPageRoute(
         builder: (_) => DeveloperSettingsScreen(
           developerMode: widget.developerMode,
+          appVersion: widget.appVersion,
           morning: widget.morning,
           clock: widget.clock,
           ppgCamera: widget.ppgCamera,

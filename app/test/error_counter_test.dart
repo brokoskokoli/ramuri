@@ -136,9 +136,17 @@ void main() {
             'type': '_ValueError',
             'place': 'package:running_app/features/x.dart',
             'count': 1,
+            'first': '2026-01-01',
+            'last': '2026-01-01',
           },
           // Der Test selbst ist keine Datei der App.
-          {'type': 'StateError', 'place': unknownErrorPlace, 'count': 1},
+          {
+            'type': 'StateError',
+            'place': unknownErrorPlace,
+            'count': 1,
+            'first': '2026-01-01',
+            'last': '2026-01-01',
+          },
         ]);
         final raw = storage.data.settings[SettingKeys.errorCounts]!;
         expect(raw, isNot(contains('4711')));
@@ -430,6 +438,118 @@ void main() {
       expect(start.state, isA<StorageReady>());
       final entries = await _stored(storage, deps.errors);
       expect(entries.single.type, 'StateError');
+    });
+  });
+
+  group('Tage, Lesen, Zurücksetzen (FR-0223)', () {
+    test(
+      'erster und letzter lokaler Tag: erster bleibt, letzter rückt vor',
+      () async {
+        final storage = FakeStorage();
+        final clock = FakeClock(
+          DateTime.utc(2026, 11, 3, 23, 30),
+          utcOffset: const Duration(hours: 2),
+        );
+        final c = ErrorCounter()
+          ..attach(FakeSettingsStore(storage.data), clock);
+        c.record(StateError(_value), null);
+        var e = (await _stored(storage, c)).single;
+        expect((e.firstDay, e.lastDay), ('2026-11-04', '2026-11-04'));
+        clock.advanceTo(DateTime.utc(2026, 11, 9, 12));
+        c.record(StateError(_value), null);
+        e = (await _stored(storage, c)).single;
+        expect(
+          (e.count, e.firstDay, e.lastDay),
+          (2, '2026-11-04', '2026-11-09'),
+        );
+      },
+    );
+
+    test(
+      'Eintrag ohne Tage (ältere Fassung) lesbar; Zählen setzt die Tage',
+      () async {
+        final storage = FakeStorage();
+        storage.data.settings[SettingKeys.errorCounts] =
+            '[{"type":"StateError","place":"unknown","count":3}]';
+        final old = decodeErrorCounts(
+          storage.data.settings[SettingKeys.errorCounts],
+        ).single;
+        expect((old.count, old.firstDay, old.lastDay), (3, null, null));
+        final c = ErrorCounter()
+          ..attach(
+            FakeSettingsStore(storage.data),
+            FakeClock(DateTime.utc(2026, 11, 5, 10)),
+          );
+        c.record(StateError(_value), null);
+        final e = (await _stored(storage, c)).single;
+        expect(
+          (e.count, e.firstDay, e.lastDay),
+          (4, '2026-11-05', '2026-11-05'),
+        );
+      },
+    );
+
+    test('Tage gespeichert und wieder gelesen, ohne Nachricht', () async {
+      final (c, storage) = _attached();
+      c.record(_ValueError(), _appStack('package:running_app/x.dart'));
+      await c.idle;
+      final text = storage.data.settings[SettingKeys.errorCounts]!;
+      expect(text, contains('"first":"2026-01-01"'));
+      expect(text, isNot(contains('4711')));
+    });
+
+    test('read: gespeicherte und noch nicht gespeicherte Zähler', () async {
+      final storage = FakeStorage();
+      final c = ErrorCounter()..record(StateError(_value), null);
+      expect((await c.read()).single.count, 1);
+      c.attach(FakeSettingsStore(storage.data), FakeClock(DateTime.utc(2026)));
+      c.record(StateError(_value), null);
+      expect((await c.read()).single.count, 2);
+    });
+
+    test(
+      'read: nicht lesbarer Stand wirft, danach zählt der Zähler weiter',
+      () async {
+        final c = ErrorCounter()
+          ..attach(_FailingSettings(), FakeClock(DateTime.utc(2026)));
+        await expectLater(c.read(), throwsA(isA<StateError>()));
+        final storage = FakeStorage();
+        c.attach(
+          FakeSettingsStore(storage.data),
+          FakeClock(DateTime.utc(2026)),
+        );
+        c.record(StateError(_value), null);
+        expect((await _stored(storage, c)).single.count, 1);
+      },
+    );
+
+    test('reset: leert gespeicherte und noch nicht gespeicherte', () async {
+      final storage = FakeStorage();
+      final c = ErrorCounter()
+        ..attach(_FailingSettings(), FakeClock(DateTime.utc(2026)));
+      c.record(StateError(_value), null);
+      await c.idle;
+      storage.data.settings[SettingKeys.errorCounts] = encodeErrorCounts([
+        const ErrorCount(type: 'RangeError', place: 'p', count: 9),
+      ]);
+      c.attach(FakeSettingsStore(storage.data), FakeClock(DateTime.utc(2026)));
+      await c.reset();
+      expect(await c.read(), isEmpty);
+      expect(await _stored(storage, c), isEmpty);
+    });
+
+    test('reset: Schreiben scheitert → wirft', () async {
+      final c = ErrorCounter()
+        ..attach(_FailingSettings(), FakeClock(DateTime.utc(2026)));
+      await expectLater(c.reset(), throwsA(isA<StateError>()));
+    });
+
+    test('dropPending verwirft nur Ungespeichertes', () async {
+      final c = ErrorCounter()..record(StateError(_value), null);
+      c.dropPending();
+      final storage = FakeStorage();
+      c.attach(FakeSettingsStore(storage.data), FakeClock(DateTime.utc(2026)));
+      expect(await _stored(storage, c), isEmpty);
     });
   });
 
