@@ -19,9 +19,7 @@ import 'high_heart_rate_value.dart';
 import 'run_analysis.dart';
 import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'run_load_values.dart';
-import '../run_day/run_day.dart';
-
-export '../run_day/run_day.dart';
+import '../calendar/run_day.dart';
 
 /// Die Werte, die nach einem Lauf entstehen.
 class RunCalculationResult {

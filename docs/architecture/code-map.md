@@ -61,6 +61,7 @@ Fachlogik ohne Flutter; Barrel `app/packages/core/lib/core.dart`.
 | `app/packages/core/lib/fakes/` | Fakes zu den Ports für Tests und Debug-Build. |
 | `app/packages/core/lib/testing/` | Speicher-Vertrag (`app/packages/core/lib/testing/storage_contract.dart`): dieselben Tests laufen gegen den Fake und gegen die drift-Umsetzung. |
 | `app/packages/core/lib/src/archive/` | Format, Export und Import des Gesamtarchivs. |
+| `app/packages/core/lib/src/calendar/` | Tageszuordnung (Blattmodul, importiert kein anderes Modul unter `src/`): ISO-Tag `isoDay` und Tag eines Laufs `dayOfRun` (Ortstag seines Starts, PAR-237) mit den zugehörigen Tagesfunktionen in `app/packages/core/lib/src/calendar/run_day.dart`. |
 | `app/packages/core/lib/src/consent/` | Einwilligungen, Widerruf und eingewilligte Quellen. |
 | `app/packages/core/lib/src/export/` | Dateiexporte GPX, TCX, FIT und CSV. |
 | `app/packages/core/lib/src/fitness/` | Zonen, VO₂max, aerobe Effizienz, TRIMP und Algorithmen-Register (`app/packages/core/lib/src/fitness/algorithm_registry.dart`). |
@@ -79,7 +80,6 @@ Fachlogik ohne Flutter; Barrel `app/packages/core/lib/core.dart`.
 | `app/packages/core/lib/src/recalculation/` | Analyse eines Laufs und Neuberechnung abgeleiteter Werte. |
 | `app/packages/core/lib/src/recording/` | Aufzeichnung, Startprüfung, Wiederanlauf und Laufband. |
 | `app/packages/core/lib/src/reminders/` | Regeln der Erinnerungen. |
-| `app/packages/core/lib/src/run_day/` | Tag eines Laufs: Ortstag seines Starts (PAR-237), ohne Abhängigkeit zu anderen Modulen. |
 | `app/packages/core/lib/src/sensors/` | Auswertung der Pulsdaten und Wahl der Pulsquelle. |
 | `app/packages/core/lib/src/settings/` | Einstellungen als Werte. |
 | `app/packages/core/lib/src/statistics/` | Historie, Perioden, Bestzeiten und Kilometer-Splits. |
@@ -117,6 +117,7 @@ Heute geltende Regeln und wo sie geprüft werden. Weitere Regeln ergänzt die Ä
 | `core` ist frei von Flutter, `dart:ui` und `adapters`. | Schritt „core flutterfrei“ in `tool/gate.sh` (Abhängigkeits-Walk und Übersetzung außerhalb des Workspace). |
 | Netz nur im Kartenadapter (`app/packages/adapters/lib/src/map/`), Pakete nur laut `tool/net_allowed_packages.txt`. | `tool/check_net.py` mit Selbsttest `tool/check_net_test.py`, beide in `tool/gate.sh`. |
 | Keine neuen Zyklen zwischen Modulen in `core` (Ordner unter `app/packages/core/lib/src/`) bzw. zwischen Features der App (Ordner unter `app/lib/features/`); Kante ist jedes `import`, `export` oder `part` einer Datei des anderen Moduls. Die Zahl der Module in Zyklen darf nur sinken (Grundlinie `CORE_CYCLE_MODULES`, `APP_CYCLE_FEATURES` im Skript). | `tool/check_architecture.py` mit Selbsttest `tool/check_architecture_test.py`, beide in `tool/gate.sh` (auch `--fast`). |
+| Blattmodule in `core` importieren kein anderes Modul unter `app/packages/core/lib/src/` (auch nicht über Dateien direkt in `src/`): `calendar/` (Tageszuordnung). | `tool/check_architecture.py` (Liste `CORE_LEAF_MODULES`) mit Selbsttest `tool/check_architecture_test.py`. |
 | Zeit nur über den Port `Clock` (`app/packages/core/lib/ports/clock.dart`); kein `DateTime.now()` in Fachlogik. | Keine maschinelle Prüfung; Tests setzen `FakeClock` bzw. `LocalFakeClock` (`app/test/helpers/local_clock.dart`). |
 | Debug-Quellen (`app/lib/debug/`) nur aus `app/lib/main_debug.dart`, nie im Release-Build. | `tool/check_release_apk.sh` (Marker der Debug-Quellen fehlen im Release-APK), aus `tool/gate.sh`. |
 

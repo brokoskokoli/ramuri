@@ -10,7 +10,7 @@ import '../preprocessing/run_preprocessor.dart';
 import '../recalculation/run_analysis.dart';
 import '../recording/belt_track.dart';
 import '../recalculation/run_load_values.dart';
-import '../recalculation/value_calculation_service.dart' show dayOfRun;
+import '../calendar/run_day.dart' show dayOfRun;
 import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'best_pace.dart';
 import 'offload.dart';

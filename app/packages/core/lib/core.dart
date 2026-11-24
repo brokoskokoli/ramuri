@@ -69,6 +69,7 @@ export 'src/archive/archive_reader.dart';
 export 'src/archive/archive_restore.dart';
 export 'src/archive/archive_schema.dart';
 export 'src/archive/framed_archive_cipher.dart';
+export 'src/calendar/run_day.dart';
 export 'src/consent/consent_service.dart';
 export 'src/consent/consent_sources.dart';
 export 'src/consent/consented_source.dart';
