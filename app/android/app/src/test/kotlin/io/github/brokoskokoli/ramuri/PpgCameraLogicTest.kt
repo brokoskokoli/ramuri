@@ -573,4 +573,179 @@ class PpgCameraLogicTest {
         )
         for ((name, result) in cases) assertEquals(name, PpgExposureLock.AeLock, result)
     }
+
+    // --- Diagnose der Bildverarbeitung (ADR-0011, Nachtrag 2026-11-21) ---
+
+    private fun isp(v: Double) = DoubleArray(PpgDiagnostics.ISP_VALUES) { v }
+
+    private fun matched(): Pair<PpgIspMatcher<String>, MutableList<Pair<String, DoubleArray?>>> {
+        val out = mutableListOf<Pair<String, DoubleArray?>>()
+        return PpgIspMatcher<String>(capacity = 4) { _, f, v -> out += f to v } to out
+    }
+
+    @Test fun eachFrameGetsTheResultWithItsOwnTimestamp() {
+        val (m, out) = matched()
+        m.onResult(1, isp(1.0))
+        m.onResult(2, isp(2.0))
+        m.onResult(3, isp(3.0))
+        m.onFrame(2, "b2")
+        m.onFrame(3, "b3")
+        m.onFrame(4, "b4")
+        // Ein Ergebnis eines späteren Bildes: Bild 4 hat keines bekommen.
+        m.onResult(5, isp(5.0))
+        assertEquals(listOf("b2", "b3", "b4"), out.map { it.first })
+        assertEquals(2.0, out[0].second!![0], 0.0)
+        assertEquals(3.0, out[1].second!![0], 0.0)
+        assertNull("Bild 4 nicht gemeldet, nie der Wert eines anderen Bildes", out[2].second)
+    }
+
+    @Test fun aLateResultIsMatchedToItsFrameWhileInTheBuffer() {
+        val (m, out) = matched()
+        m.onFrame(10, "b10")
+        m.onFrame(11, "b11")
+        assertTrue("wartet auf das Ergebnis", out.isEmpty())
+        m.onResult(10, isp(10.0))
+        m.onResult(11, isp(11.0))
+        assertEquals(listOf("b10", "b11"), out.map { it.first })
+        assertEquals(10.0, out[0].second!![0], 0.0)
+        assertEquals(11.0, out[1].second!![0], 0.0)
+    }
+
+    @Test fun aFrameWhoseResultNeverComesIsNotReportedOnceTheBufferIsFull() {
+        val (m, out) = matched()
+        for (ts in 1L..5L) m.onFrame(ts, "b$ts")
+        assertEquals("ältestes Bild geht ohne Werte weiter", listOf("b1"), out.map { it.first })
+        assertNull(out[0].second)
+        m.onResult(2, isp(2.0))
+        assertEquals(2.0, out[1].second!![0], 0.0)
+    }
+
+    @Test fun packTurnsMissingValuesIntoNaN() {
+        val values = MutableList<Number?>(19) { it }
+        values[16] = 3.5f
+        values[18] = null
+        val p = PpgDiagnostics.pack(values)
+        assertEquals(19, p.size)
+        assertEquals(15.0, p[15], 0.0)
+        assertEquals(3.5, p[16], 0.0)
+        assertTrue(p[18].isNaN())
+    }
+
+    private val allOffered = PpgIspProps(
+        noiseReductionModes = listOf(0, 1, 2),
+        edgeModes = listOf(0, 1),
+        awbModes = listOf(0, 1),
+        awbLockAvailable = true,
+        manualPostProcessing = true,
+        tonemapModes = listOf(0, 1, 2),
+        shadingModes = listOf(0, 1),
+    )
+    private val all = PpgDiagnostic.entries.toSet()
+
+    @Test fun everyOfferedSwitchSetsItsKey() {
+        val nr = PpgDiagnostics.diagnosticSettings(setOf(PpgDiagnostic.NOISE_REDUCTION_OFF), allOffered)
+        assertEquals(PpgDiagnosticSettings(noiseReductionMode = CameraMetadata.NOISE_REDUCTION_MODE_OFF), nr)
+        val edge = PpgDiagnostics.diagnosticSettings(setOf(PpgDiagnostic.EDGE_OFF), allOffered)
+        assertEquals(PpgDiagnosticSettings(edgeMode = CameraMetadata.EDGE_MODE_OFF), edge)
+        val tone = PpgDiagnostics.diagnosticSettings(setOf(PpgDiagnostic.TONEMAP_LINEAR), allOffered)
+        assertEquals(CameraMetadata.TONEMAP_MODE_CONTRAST_CURVE, tone.tonemapMode)
+        assertEquals(listOf(0f, 0f, 1f, 1f), tone.tonemapCurve!!.toList())
+        val shading = PpgDiagnostics.diagnosticSettings(setOf(PpgDiagnostic.SHADING_OFF), allOffered)
+        assertEquals(PpgDiagnosticSettings(shadingMode = CameraMetadata.SHADING_MODE_OFF), shading)
+        val awb = PpgDiagnostics.diagnosticSettings(setOf(PpgDiagnostic.AWB_FIXED), allOffered)
+        assertEquals(PpgDiagnosticSettings(awb = PpgAwbVariant.MATRIX), awb)
+        assertEquals(PpgDiagnostic.entries, PpgDiagnostics.diagnosticSettings(all, allOffered).applied)
+    }
+
+    @Test fun aSwitchTheCameraDoesNotOfferSetsNothing() {
+        val without = PpgIspProps(
+            noiseReductionModes = listOf(1, 2),
+            edgeModes = listOf(1),
+            awbModes = listOf(1),
+            awbLockAvailable = false,
+            manualPostProcessing = true,
+            tonemapModes = listOf(1, 2),
+            shadingModes = listOf(1, 2),
+        )
+        assertEquals(PpgDiagnosticSettings.NONE, PpgDiagnostics.diagnosticSettings(all, without))
+        assertTrue(PpgDiagnostics.diagnosticSettings(all, without).applied.isEmpty())
+    }
+
+    @Test fun missingCharacteristicsSetNothing() {
+        assertEquals(PpgDiagnosticSettings.NONE, PpgDiagnostics.diagnosticSettings(all, PpgIspProps()))
+    }
+
+    @Test fun allSwitchesOffAddNoKeys() {
+        assertEquals(PpgDiagnosticSettings.NONE, PpgDiagnostics.diagnosticSettings(emptySet(), allOffered))
+        assertTrue(PpgDiagnosticSettings.NONE.applied.isEmpty())
+        assertNull(PpgDiagnosticSettings.NONE.tonemapCurve)
+    }
+
+    @Test fun whiteBalanceFallsBackToTheLockWithoutManualPostProcessingOrAwbOff() {
+        val req = setOf(PpgDiagnostic.AWB_FIXED)
+        val noMpp = allOffered.copy(manualPostProcessing = false)
+        assertEquals(PpgAwbVariant.LOCK, PpgDiagnostics.diagnosticSettings(req, noMpp).awb)
+        val noOff = allOffered.copy(awbModes = listOf(1, 2))
+        assertEquals(PpgAwbVariant.LOCK, PpgDiagnostics.diagnosticSettings(req, noOff).awb)
+        val nothing = noOff.copy(awbLockAvailable = null)
+        assertNull("weder (a) noch (b) angeboten", PpgDiagnostics.diagnosticSettings(req, nothing).awb)
+    }
+
+    @Test fun fixedWhiteBalanceTakesTheFirstConvergedResult() {
+        val f = PpgAwbFixer<String, String>()
+        val searching = CameraMetadata.CONTROL_AWB_STATE_SEARCHING
+        val converged = CameraMetadata.CONTROL_AWB_STATE_CONVERGED
+        assertNull(f.offer(ns(10.0), searching, "g0", "m0"))
+        assertNull("ohne Verstärkungen zählt es nicht", f.offer(ns(10.1), converged, null, "m1"))
+        assertEquals("g2" to "m2", f.offer(ns(10.2), converged, "g2", "m2"))
+        assertNull("nur einmal", f.offer(ns(10.3), converged, "g3", "m3"))
+    }
+
+    @Test fun fixedWhiteBalanceTakesTheResultAtHalfASecondAtTheLatest() {
+        val f = PpgAwbFixer<String, String>()
+        val searching = CameraMetadata.CONTROL_AWB_STATE_SEARCHING
+        assertNull(f.offer(ns(10.0), searching, "g0", "m0"))
+        assertNull(f.offer(ns(10.49), searching, "g1", "m1"))
+        assertEquals("g2" to "m2", f.offer(ns(10.5), searching, "g2", "m2"))
+    }
+
+    @Test fun startedReportsExactlyTheAppliedSwitches() {
+        val sink = Sink(mutableListOf())
+        val c = PpgController(Hw(mutableListOf()), sink, ispFrames = true)
+        val applied = PpgDiagnostics.diagnosticSettings(
+            setOf(PpgDiagnostic.EDGE_OFF, PpgDiagnostic.AWB_FIXED, PpgDiagnostic.SHADING_OFF),
+            allOffered.copy(shadingModes = listOf(1)),
+        )
+        c.started(60, "0", null, applied)
+        assertEquals(listOf("edge_off", "awb_fixed"), sink.events[0]["diagnostics"])
+        assertEquals("matrix", sink.events[0]["awbVariant"])
+    }
+
+    @Test fun withoutSwitchesStartedHasNoDiagnostics() {
+        val sink = Sink(mutableListOf())
+        PpgController(Hw(mutableListOf()), sink).started(30, "0")
+        assertFalse(sink.events[0].containsKey("diagnostics"))
+        assertFalse(sink.events[0].containsKey("awbVariant"))
+    }
+
+    @Test fun frameCarriesIspValuesOnlyOnRequest() {
+        val sink = Sink(mutableListOf())
+        val c = PpgController(Hw(mutableListOf()), sink, ispFrames = true)
+        c.frame(ns(1.0), stats, null, isp(7.0))
+        c.frame(ns(1.1), stats, null, null)
+        assertEquals(7.0, (sink.events[0]["isp"] as DoubleArray)[3], 0.0)
+        assertTrue((sink.events[1]["isp"] as DoubleArray).all { it.isNaN() })
+        val plain = Sink(mutableListOf())
+        val r = PpgController(Hw(mutableListOf()), plain)
+        r.frame(ns(1.0), stats, null, isp(7.0))
+        assertFalse("ohne Anforderung (Ruhepuls) keine ISP-Werte", plain.events[0].containsKey("isp"))
+    }
+
+    @Test fun diagnosticsFromTheStartArgument() {
+        assertEquals(
+            setOf(PpgDiagnostic.NOISE_REDUCTION_OFF, PpgDiagnostic.TONEMAP_LINEAR),
+            PpgDiagnostic.fromWire(listOf("noise_reduction_off", "tonemap_linear", "unbekannt", 3)),
+        )
+        assertTrue(PpgDiagnostic.fromWire(null).isEmpty())
+    }
 }
