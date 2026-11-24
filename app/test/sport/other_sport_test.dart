@@ -13,6 +13,7 @@ import 'package:running_app/features/run/other_sport.dart';
 import 'package:running_app/features/run/run_controller.dart';
 import 'package:running_app/features/run/run_ports.dart';
 import 'package:running_app/features/settings/unit_format.dart';
+import 'package:running_app/features/summary/run_charts.dart';
 import 'package:running_app/features/summary/subjective_section.dart';
 import 'package:running_app/ui/ui.dart';
 
@@ -343,9 +344,11 @@ void main() {
         'sum_altitude',
         'sum_altitude_none',
         'sum_other_sport_underestimated',
+        'detail_route_none',
       ]) {
         expect(key(k), findsNothing, reason: k);
       }
+      expect(find.byType(RunRouteSection), findsNothing);
       expect(key('sum_other_sport_rope_hint'), findsOneWidget);
     });
 
