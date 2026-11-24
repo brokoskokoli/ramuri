@@ -59,9 +59,19 @@ class _PpgCameraSectionState extends State<PpgCameraSection> {
     });
   }
 
+  /// Speichert die Wahl. Scheitert das Speichern, erscheint
+  /// `settingsSaveFailed` (ohne Kennung, SEC-0009) und die bisherige Wahl
+  /// bleibt markiert.
   Future<void> _select(String? key) async {
     final ref = PpgCameraRef.parse(key);
-    await widget.choice.setManual(ref);
+    final messenger = ScaffoldMessenger.of(context);
+    final failed = AppLocalizations.of(context).settingsSaveFailed;
+    try {
+      await widget.choice.setManual(ref);
+    } on StorageException {
+      messenger.showSnackBar(SnackBar(content: Text(failed)));
+      return;
+    }
     if (!mounted) return;
     setState(() => _manual = ref);
   }

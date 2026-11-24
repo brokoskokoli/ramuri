@@ -44,8 +44,18 @@ class _PpgCameraDiagnosticsSectionState
     setState(() => _on = on);
   }
 
+  /// Speichert den Schalter. Scheitert das Speichern, erscheint
+  /// `settingsSaveFailed` (ohne Werte, SEC-0009) und der Schalter zeigt
+  /// weiter den gespeicherten Stand.
   Future<void> _set(PpgCameraDiagnostic d, bool value) async {
-    await widget.store.set(d, on: value);
+    final messenger = ScaffoldMessenger.of(context);
+    final failed = AppLocalizations.of(context).settingsSaveFailed;
+    try {
+      await widget.store.set(d, on: value);
+    } on StorageException {
+      messenger.showSnackBar(SnackBar(content: Text(failed)));
+      return;
+    }
     if (!mounted) return;
     setState(
       () => _on = {...?_on}
