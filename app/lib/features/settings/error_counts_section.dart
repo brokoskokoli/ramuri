@@ -54,7 +54,10 @@ class _ErrorCountsSectionState extends State<ErrorCountsSection> {
       );
     }
     if (!mounted) return;
-    setState(() => _entries = _load());
+    final entries = _load();
+    setState(() {
+      _entries = entries;
+    });
   }
 
   @override
