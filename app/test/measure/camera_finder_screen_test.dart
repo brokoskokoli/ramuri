@@ -43,6 +43,7 @@ Future<void> _open(
   _S s, {
   String locale = 'de',
   bool dev = true,
+  CameraFinderPurpose purpose = CameraFinderPurpose.developer,
 }) async {
   await tester.pumpWidget(
     localizedApp(
@@ -58,7 +59,9 @@ Future<void> _open(
                     camera: s.cam,
                     choice: s.choice,
                     developerMode: dev,
-                    allowManual: dev,
+                    allowManual:
+                        dev && purpose == CameraFinderPurpose.developer,
+                    purpose: purpose,
                   ),
                 ),
               );
@@ -216,8 +219,157 @@ void main() {
     await _open(tester, s, dev: false);
     expect(find.byKey(CameraFinderScreen.numbersKey(_second)), findsNothing);
     expect(find.byKey(const Key('camera_finder_manual')), findsNothing);
+    expect(find.textContaining('Bilder/s'), findsNothing);
     await _close(tester);
   });
+
+  for (final (purpose, label) in [
+    (CameraFinderPurpose.settings, 'Übernehmen'),
+    (CameraFinderPurpose.measurement, 'Weiter'),
+  ]) {
+    testWidgets(
+      'für Nutzer (${purpose.name}): Erklärung, „$label“, keine Zahlen '
+      'und keine Bildrate; Tipp übernimmt die Kamera',
+      (tester) async {
+        final s = await _setup();
+        await _open(tester, s, dev: false, purpose: purpose);
+        expect(
+          find.text(
+            'Dein Handy hat mehrere Kameras. Lege den Finger über Blitz und '
+            'Kamera – die beleuchtete Kamera ist markiert.',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(CameraFinderScreen.numbersKey(_second)),
+          findsNothing,
+        );
+        expect(find.textContaining('Bilder/s'), findsNothing);
+        expect(find.byKey(const Key('camera_finder_manual')), findsNothing);
+        expect(find.byKey(const Key('camera_finder_default')), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('camera_finder_apply')),
+            matching: find.text(label),
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(_image(_std));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('camera_finder_apply')));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(s.results, [_std]);
+        expect(await s.choice.readAuto(), _std);
+        expect(await s.choice.readManual(), isNull);
+        expect(s.cam.torchOn, isFalse);
+      },
+    );
+  }
+
+  testWidgets('für Nutzer ohne Empfehlung und ohne Tipp: „Standardkamera '
+      'verwenden“; nach Tipp wieder „Weiter“', (tester) async {
+    final s = await _setup();
+    s.cam.setScenario(_second, DebugPpgScenario.noFinger);
+    await _open(
+      tester,
+      s,
+      dev: false,
+      purpose: CameraFinderPurpose.measurement,
+    );
+    expect(find.byKey(const Key('camera_finder_apply')), findsNothing);
+    expect(find.text('Standardkamera verwenden'), findsOneWidget);
+    await tester.tap(_image(_second));
+    await tester.pump();
+    expect(find.byKey(const Key('camera_finder_default')), findsNothing);
+    expect(find.text('Weiter'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('camera_finder_apply')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(s.results, [_second]);
+    expect(await s.choice.readAuto(), _second);
+    expect(s.cam.torchOn, isFalse);
+  });
+
+  testWidgets('für Nutzer ohne Empfehlung: „Standardkamera verwenden“ '
+      'speichert die Standardkamera', (tester) async {
+    final s = await _setup();
+    s.cam.setScenario(_second, DebugPpgScenario.noFinger);
+    await _open(
+      tester,
+      s,
+      dev: false,
+      purpose: CameraFinderPurpose.measurement,
+    );
+    await tester.tap(find.byKey(const Key('camera_finder_default')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(s.results, [_std]);
+    expect(await s.choice.readAuto(), _std);
+    expect(s.cam.torchOn, isFalse);
+  });
+
+  for (final (purpose, shown) in [
+    (CameraFinderPurpose.measurement, true),
+    (CameraFinderPurpose.settings, true),
+    (CameraFinderPurpose.developer, false),
+  ]) {
+    testWidgets('nach Ende der Vorschau (${purpose.name}): '
+        '„Standardkamera verwenden“ ${shown ? 'angeboten' : 'fehlt'}', (
+      tester,
+    ) async {
+      final session = await FakeStorage().open(Uint8List(32));
+      final clock = FakeClock(DateTime.utc(2026, 11, 24));
+      final choice = SettingsPpgCameraChoiceStore(session.settings, clock);
+      final cam = FakePpgCamera()
+        ..cameraList = const [
+          PpgCameraInfo(ref: _std, isDefault: true, frameRate: 60),
+          PpgCameraInfo(ref: _second, frameRate: 30),
+        ];
+      final results = <PpgCameraRef?>[];
+      await tester.pumpWidget(
+        localizedApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                key: const Key('open'),
+                onPressed: () async => results.add(
+                  await Navigator.of(context).push<PpgCameraRef>(
+                    MaterialPageRoute(
+                      builder: (_) => CameraFinderScreen(
+                        camera: cam,
+                        choice: choice,
+                        purpose: purpose,
+                      ),
+                    ),
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('open')));
+      await tester.pumpAndSettle();
+      await cam.abortPreview(PpgCameraStopReason.busy);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('camera_finder_stopped')), findsOneWidget);
+      expect(
+        find.byKey(const Key('camera_finder_default')),
+        shown ? findsOneWidget : findsNothing,
+      );
+      expect(find.byKey(const Key('camera_finder_apply')), findsNothing);
+      if (!shown) return;
+      await tester.tap(find.byKey(const Key('camera_finder_default')));
+      await tester.pumpAndSettle();
+      expect(results, [_std]);
+      expect(await choice.readAuto(), _std);
+    });
+  }
 
   testWidgets(
     'Zurück: Vorschau gestoppt, Taschenlampe aus, nichts gespeichert',

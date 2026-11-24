@@ -10,6 +10,7 @@ import '../health/health_connect_screen.dart';
 import '../health/health_connect_scope.dart';
 import '../map/map_consent_scope.dart';
 import '../map/map_settings_card.dart';
+import '../measure/resting_measure_launcher.dart' show PpgCameraScope;
 import '../recalculation/recalculation_card.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../../ui/ramuri_card.dart';
@@ -17,6 +18,7 @@ import '../../ui/section_heading.dart';
 import 'app_settings.dart';
 import 'guidance_section.dart';
 import 'load_settings_section.dart';
+import 'ppg_camera_measure_section.dart';
 
 /// Einstellungen: Einheit für Strecken (reine Anzeige) und die Neuberechnung.
 /// Sensoren, Zonen, Berechtigungen und Daten liegen in der Übersicht.
@@ -86,6 +88,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final map = MapConsentScope.of(context);
     final health = HealthConnectScope.of(context);
     final reminders = ReminderScope.maybeOf(context);
+    final camera = PpgCameraScope.maybeOf(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: ListView(
@@ -127,6 +130,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
+          if (camera != null)
+            PpgCameraMeasureSection(
+              camera: camera,
+              settings: session.settings,
+              clock: widget.clock,
+            ),
           GuidanceSection(session: session, clock: widget.clock),
           if (reminders != null) ReminderSection(controller: reminders),
           if (map != null) ...[

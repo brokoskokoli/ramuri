@@ -258,6 +258,7 @@ class RestingMeasureController extends ChangeNotifier {
     this.searchWindow = false,
     this.cameraChoice,
     this.cameraDiagnostics,
+    this.beforeStart,
     PpgBestEvaluate? evaluateBest,
     PpgRecordingCheckRun? check,
   }) : _evaluate = evaluate ?? _evaluateInIsolate,
@@ -276,6 +277,11 @@ class RestingMeasureController extends ChangeNotifier {
   final Future<({Set<PpgCameraDiagnostic> diagnostics, bool ispFrames})>
   Function()?
   cameraDiagnostics;
+
+  /// Vor Ruhephase bzw. sofortiger Messung (FR-0220): zeigt bei Bedarf die Kamerasuche und
+  /// liefert, ob die Messung beginnt. `false` (oder ein Fehler): kein Start, der Einstieg
+  /// bleibt. Die Zeit darin zählt nicht zur Ruhephase. Ohne Angabe beginnt sie sofort.
+  final Future<bool> Function()? beforeStart;
 
   /// Die Kamera, die zuletzt gestartet wurde ([PpgCameraStarted.camera]); `null`
   /// vor dem Start.
@@ -466,9 +472,11 @@ class RestingMeasureController extends ChangeNotifier {
     _notify();
   }
 
-  /// Startet die Ruhephase. Noch keine Kamera und kein Kamera-Recht.
-  void startRest() {
-    if (_phase != RestingMeasurePhase.entry) return;
+  /// Startet die Ruhephase. Noch keine Kamera und kein Kamera-Recht (außer in der
+  /// Kamerasuche davor, [beforeStart]).
+  Future<void> startRest() async {
+    if (_phase != RestingMeasurePhase.entry || _preparing) return;
+    if (beforeStart != null && !await _prepare()) return;
     _phase = RestingMeasurePhase.resting;
     _restStart = clock.monotonic();
     _restRemaining = Duration(minutes: _restMinutes);
@@ -480,8 +488,29 @@ class RestingMeasureController extends ChangeNotifier {
 
   /// Misst sofort, ohne Ruhephase.
   Future<void> startNow() async {
-    if (_phase != RestingMeasurePhase.entry) return;
+    if (_phase != RestingMeasurePhase.entry || _preparing) return;
+    if (beforeStart != null && !await _prepare()) return;
     await _begin(restElapsed: null);
+  }
+
+  bool _preparing = false;
+
+  /// Läuft [beforeStart] gerade (Kamerasuche offen).
+  bool get preparing => _preparing;
+
+  /// Ruft [beforeStart] auf; `true` = Start. Ohne [beforeStart] rufen die Starts das nicht
+  /// auf und beginnen im selben Takt.
+  Future<bool> _prepare() async {
+    final gate = beforeStart!;
+    _preparing = true;
+    bool go;
+    try {
+      go = await gate();
+    } catch (_) {
+      go = false;
+    }
+    _preparing = false;
+    return go && !_disposed && _phase == RestingMeasurePhase.entry;
   }
 
   /// Beendet die Ruhephase vorzeitig und misst („Ich bin schon entspannt“).
