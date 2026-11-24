@@ -18,6 +18,7 @@ const Map<String, String> parExceptions = {
   'PAR-196': 'Regler in Stunden je Woche ohne festen Startwert.',
   'PAR-203': 'Regel ohne Zahl (alles änderbar).',
   'PAR-231': 'Zuordnungsregel ohne Zahl.',
+  'PAR-232': 'Regel ohne Zahl (Bewegungszeit einer anderen Sportart).',
   'PAR-049': 'Grundsatz zu Texten, keine Zahl.',
   'PAR-050': 'Verbot der 10-%-Regel als Sicherheitsregel; die Zahl ist kein Parameter.',
   'PAR-059': 'Abstand als „voller Kalendertag“ ohne Zahl; minGapDays = 2 ist der Tagesabstand dazu.',
