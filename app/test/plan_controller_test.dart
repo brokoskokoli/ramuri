@@ -2370,7 +2370,7 @@ void main() {
       });
     });
 
-    test('Neustart nach langer Pause ordnet den Lauf des Tages zu', () async {
+    test('Lauf über Mitternacht am Starttag beendet die lange Pause', () async {
       // Lange Pause (PAR-181) mit anstehendem neuem Einstieg.
       final e = await _Env.open();
       e.clock.set(localAt(_day(-80)));
@@ -2378,10 +2378,10 @@ void main() {
       e.clock.set(_now);
       await _finishedRun(e.session, 70);
       await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      expect(await e.controller.newStartPossible(), isTrue);
       // Ein Lauf, der heute nach Ortszeit des Laufs (UTC+14) um 22:00
-      // beginnt und nach Mitternacht endet: Die Pausenprüfung zählt ihn
-      // für morgen (Tag des Laufendes), die Pause besteht also heute
-      // noch; für den Plan zählt der Starttag (PAR-231), also heute.
+      // beginnt und nach Mitternacht endet, zählt am Starttag (PAR-237):
+      // Die Pause endet heute, ein Neustart steht nicht mehr an.
       final start = _today.add(const Duration(hours: 8));
       final r = await e.session.runs.create(startedAt: start);
       await e.session.runs.setState(
@@ -2390,12 +2390,7 @@ void main() {
         endedAt: start.add(const Duration(hours: 3)),
         endedUtcOffset: const Duration(hours: 14),
       );
-      expect(await e.controller.newStartPossible(), isTrue);
-      expect(
-        await e.controller.restartAfterLongPause(_goal(days: {1, 3, 5})),
-        PlanActionResult.done,
-      );
-      expect((await e.controller.unitOn(_today))!.runId, r.id);
+      expect(await e.controller.newStartPossible(), isFalse);
     });
   });
 }
