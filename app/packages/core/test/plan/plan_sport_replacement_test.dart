@@ -155,6 +155,16 @@ void main() {
           ),
           isNull,
         );
+        // Ersatz am Montag der Folgewoche sperrt den Sonntag davor nicht
+        // (Wochenwechsel Sonntag/Montag um Mitternacht).
+        expect(
+          check(
+            unit: _unit(1, DateTime.utc(2026, 11, 15)),
+            others: [monday],
+            sportIds: ids,
+          ),
+          isNull,
+        );
         // Ein Lauf an einer anderen Einheit der Woche zählt nicht als Ersatz.
         expect(
           check(unit: _unit(1, wed), others: [monday], sportIds: {100}),
