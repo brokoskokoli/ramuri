@@ -420,7 +420,8 @@ release_rechte() {
 # Zonen: westlich von UTC mit Sommerzeit, weit östlich auf der Südhalbkugel (Sommerzeit gegenläufig) und UTC.
 # Fehlen die Zonendaten, fiele TZ still auf UTC zurück; der Test "TZ wirkt" in core/test/health macht das rot.
 GATE_TZ_ZONES="America/Los_Angeles Pacific/Auckland UTC"
-GATE_TZ_CORE_TESTS="test/health test/readiness test/recording test/reminders"
+GATE_TZ_CORE_TESTS="test/health test/readiness test/recording test/reminders test/recalculation/run_day_test.dart
+  test/statistics/run_day_statistics_test.dart"
 # Plan und „Heute“ (Ortstag des Plans, der Karte „Heute“, des Laufstarts und der Erinnerungen, FR-0174): die Tests
 # setzen Ortszeit und eine Uhr im Versatz der Prozesszone (app/test/helpers/local_clock.dart), wie die Systemuhr.
 GATE_TZ_APP_TESTS="test/system_clock_test.dart test/readiness_home_test.dart test/readiness_detail_test.dart test/manual_training_test.dart
