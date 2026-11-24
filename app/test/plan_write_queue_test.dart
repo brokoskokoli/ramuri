@@ -174,7 +174,7 @@ void main() {
         log.add('3');
         return 3;
       });
-      await Future<void>.delayed(Duration.zero);
+      await pumpEventQueue(times: 1);
       expect(log, ['1 an']);
       gate.complete();
       expect(await first, 1);
@@ -207,9 +207,7 @@ void main() {
     // Runden der Ereignisschleife): Ohne gemeinsame Reihe läse ein anderer
     // Schreiber in dieser Lücke den alten Stand.
     e.storage.data.beforePlanWrite = () async {
-      for (var i = 0; i < 20; i++) {
-        await Future<void>.delayed(Duration.zero);
-      }
+      await pumpEventQueue(times: 20);
     };
     final c1 = e.controller();
     final c2 = e.controller();
@@ -284,7 +282,7 @@ void main() {
       final opened = c.open();
       // Die Seite lädt schon, die Zuordnung wartet auf die Sperre.
       for (var i = 0; i < 1000 && c.state.phase != PlanLoadPhase.ready; i++) {
-        await Future<void>.delayed(Duration.zero);
+        await pumpEventQueue(times: 1);
       }
       expect(c.state.phase, PlanLoadPhase.ready);
       expect(e.storage.data.planAssignWrites, 0);
