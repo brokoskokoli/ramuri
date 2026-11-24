@@ -324,6 +324,7 @@ void main() {
       await beat(d, tester, 300);
       await finish(tester);
       expect(key('subjective_rpe_label'), findsOneWidget);
+      expect(key('sum_other_sport'), findsOneWidget);
       expect(text('sum_other_sport_name'), 'Seilspringen');
       expect(text('run_time'), isNot(contains('nicht')));
       expect(text('run_moving_time'), isNot(contains('nicht')));
