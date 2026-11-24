@@ -681,22 +681,24 @@ class PlanController extends ChangeNotifier {
     return first;
   }
 
-  /// Beendete Läufe mit Ortstag (Tag des Laufendes, [dayOfRun]) in
+  /// Beendete Läufe mit Ortstag (Tag des Laufbeginns, [dayOfRun], PAR-237) in
   /// `from <= Tag <= to`, für den Kalender (FR-0171) und die Prüfung beim
   /// Verschieben: [PlanCalendarRun.intensive] nach PAR-058
   /// ([PlanParameters.completedIntensive]) aus der Zeit bei mindestens 80 %
   /// HFmax (Laufwert [highHeartRateTimeValueKey]) oder der RPE-Angabe; ohne
   /// verfügbaren Wert zählt nur die RPE-Angabe.
   ///
-  /// Liest nur die Läufe, deren Ende höchstens den größten UTC-Versatz
-  /// ([maxRunEndUtcOffset]) außerhalb des Zeitraums liegt, und nur deren
-  /// subjektive Angaben und Laufwerte (Befund E2-6).
+  /// Liest nur die Läufe, deren Ende im Zeitraum samt Puffer liegt
+  /// ([runDayQueryBounds]: größter UTC-Versatz, hinten der Folgetag für einen
+  /// Lauf über Mitternacht), und nur deren subjektive Angaben und Laufwerte
+  /// (Befund E2-6).
   Future<List<PlanCalendarRun>> runsBetween(DateTime from, DateTime to) async {
     final f = planDay(from), t = planDay(to);
     final result = <PlanCalendarRun>[];
+    final bounds = runDayQueryBounds(f, t);
     for (final r in await session.runs.finishedBetween(
-      f.subtract(maxRunEndUtcOffset),
-      t.add(const Duration(days: 1) + maxRunEndUtcOffset),
+      bounds.from,
+      bounds.to,
     )) {
       final p = DateTime.parse(dayOfRun(r));
       final day = DateTime.utc(p.year, p.month, p.day);

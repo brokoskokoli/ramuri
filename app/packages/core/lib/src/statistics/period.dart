@@ -6,7 +6,7 @@ enum PeriodKind { run, week, month, custom }
 
 /// Auswertungszeitraum nach FR-0044: einzelner Lauf, Kalenderwoche, Monat oder
 /// frei gewählter Zeitraum. Tage sind lokale Kalendertage als `JJJJ-MM-TT`
-/// (K21), beide Enden eingeschlossen; Rechnen mit Tagen kennt keine
+/// (ein Lauf am Ortstag seines Starts, PAR-237), beide Enden eingeschlossen; Rechnen mit Tagen kennt keine
 /// Sommerzeit. Ein Jahr ist in der Spec nicht vorgesehen.
 class StatisticsPeriod {
   const StatisticsPeriod._(
