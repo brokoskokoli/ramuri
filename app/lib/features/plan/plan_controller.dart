@@ -321,15 +321,14 @@ class PlanController extends ChangeNotifier {
     if (lock == null) return;
     // Sperre zuerst, dann die Schreibreihe (wie nach dem Lauf-Ende), nie
     // umgekehrt: sonst warteten beide aufeinander.
-    var assigned = 0;
     try {
-      await lock(() async {
-        assigned = await _serial(_autoAssignQuietly);
-      });
+      await lock(() => _serial(_autoAssignQuietly));
     } on Object {
       // Das nächste Öffnen holt die Zuordnung nach.
     }
-    if (assigned > 0) await _serial(_load);
+    // Neu laden, auch ohne eigene Zuordnung: Während des Wartens auf die
+    // Sperre kann eine andere Stelle (Lauf-Ende) zugeordnet haben.
+    await _serial(_load);
   }
 
   /// Lädt den Stand neu (ohne Prüfung).
@@ -546,6 +545,9 @@ class PlanController extends ChangeNotifier {
     markChecked: markChecked,
     readiness: readiness,
     runs: await reader.runFacts(today),
+    // Die Wiederholung nach einer Ablehnung liest erst die neueste Fassung
+    // ([_recalculate]); der Dienst wiederholt nicht noch einmal.
+    retryRejected: false,
   );
 
   /// Eingaben der Rechnung für [trigger]: beim Anlegen (oder ohne Fassung)
