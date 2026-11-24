@@ -444,7 +444,7 @@ void main() {
   });
 
   group(
-    'Neusperre der Belichtung nach Helligkeitssprung (PAR-236, PAR-237)',
+    'Neusperre der Belichtung nach Helligkeitssprung (PAR-245, PAR-246)',
     () {
       RestingMeasureController search(
         Rig r, {

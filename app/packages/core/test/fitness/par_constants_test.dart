@@ -764,17 +764,17 @@ final Map<String, List<Object>> parCodeValues = {
     ..._doc(
       [3],
       'Version, ab der PAR-230 gilt; die aktuelle Version (ppgMethodVersion) '
-      'ist seit der Neusperre der Belichtung (PAR-236, PAR-237) 6.',
+      'ist seit der Neusperre der Belichtung (PAR-245, PAR-246) 6.',
     ),
   ],
-  'PAR-236': [
+  'PAR-245': [
     ..._doc(
       [20, 0.5, 1.5],
       'Kotlin-Konstanten in PpgCameraLogic.kt, geprüft in PpgCameraLogicTest.',
     ),
     ppgMethodVersion,
   ],
-  'PAR-237': [
+  'PAR-246': [
     ..._doc([
       5,
     ], 'Kotlin-Konstante CALM_RELATIVE, geprüft in PpgCameraLogicTest.'),

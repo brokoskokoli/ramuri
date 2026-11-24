@@ -491,7 +491,7 @@ void main() {
       );
     });
   });
-  group('Neusperre der Belichtung (PAR-237, PAR-211 bis PAR-215)', () {
+  group('Neusperre der Belichtung (PAR-246, PAR-211 bis PAR-215)', () {
     /// Gut bis 20 s, dann Sprung (nicht auswertbar) bis zur Neusperre bei [relock], danach gut.
     List<PpgFrame> jumpThenRelock(double relock, double to) => [
       ...frames(good(), to: 20),

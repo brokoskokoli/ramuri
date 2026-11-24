@@ -170,7 +170,7 @@ class FakePpgCamera implements PpgCamera {
   /// Sperre der Belichtung bei Sensorzeit [t] (`null` wie bei einer älteren Gegenseite).
   void emitLocked([double? t]) => _controller?.add(PpgCameraExposureLocked(t));
 
-  /// Beginn des Neu-Einschwingens nach einem Helligkeitssprung bei Sensorzeit [t] (PAR-237).
+  /// Beginn des Neu-Einschwingens nach einem Helligkeitssprung bei Sensorzeit [t] (PAR-246).
   void emitRelocking(double t) => _controller?.add(PpgCameraRelocking(t));
 
   /// Abbruch mit Grund (Kamera belegt, getrennt, Hintergrund ...): Torch aus, Strom endet.

@@ -319,7 +319,7 @@ class PpgCameraLogicTest {
         assertEquals(1, log.count { it == "event:locked" })
     }
 
-    // --- Neusperre nach Helligkeitssprung (PAR-236, PAR-237) ---
+    // --- Neusperre nach Helligkeitssprung (PAR-245, PAR-246) ---
 
     /** Bilder mit 30 fps von 0 bis [until] s; liefert (Schritt, Sensorzeit) aller Schritte außer NONE. */
     private fun watchRun(until: Double, red: (Double) -> Double): List<Pair<PpgExposureWatch.Step, Double>> {

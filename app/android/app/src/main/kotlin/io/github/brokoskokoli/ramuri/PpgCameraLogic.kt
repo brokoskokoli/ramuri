@@ -12,13 +12,13 @@ object PpgCameraLogic {
     /** Einschwingen: Belichtung und Weißabgleich werden 2,5 s nach Aufnahmebeginn gesperrt (ALGORITHMUS.md Abschn. 2). */
     const val AE_LOCK_AT_SECONDS = 2.5
 
-    /** Helligkeitssprung nach der Sperre: Rot-Sekundenmittel weicht um mehr als 20 % vom Bezug ab (PAR-236). */
+    /** Helligkeitssprung nach der Sperre: Rot-Sekundenmittel weicht um mehr als 20 % vom Bezug ab (PAR-245). */
     const val JUMP_RELATIVE = 0.20
 
-    /** Ruhe nach dem Sprung: zwei aufeinanderfolgende Rot-Sekundenmittel weichen um höchstens 5 % ab (PAR-237). */
+    /** Ruhe nach dem Sprung: zwei aufeinanderfolgende Rot-Sekundenmittel weichen um höchstens 5 % ab (PAR-246). */
     const val CALM_RELATIVE = 0.05
 
-    /** Bezug nach jeder Sperre: Mittel von Rot der Bilder 0,5 bis 1,5 s nach der Sperre (PAR-236). */
+    /** Bezug nach jeder Sperre: Mittel von Rot der Bilder 0,5 bis 1,5 s nach der Sperre (PAR-245). */
     const val REFERENCE_FROM_SECONDS = 0.5
     const val REFERENCE_TO_SECONDS = 1.5
 
@@ -335,7 +335,7 @@ class PpgCaptureInfo(
 interface PpgHardware {
     fun lockExposure()
 
-    /** Zurück auf die Automatik der ersten Phase (AE an, ohne Sperre), für die Neusperre (PAR-237). */
+    /** Zurück auf die Automatik der ersten Phase (AE an, ohne Sperre), für die Neusperre (PAR-246). */
     fun unlockExposure()
     fun torchOff()
     fun closeSession()
@@ -408,7 +408,7 @@ class PpgThreadGuard(private val quit: () -> Unit) {
 }
 
 /**
- * Wann die Belichtung gesperrt und wann sie neu eingeschwungen wird (PAR-236, PAR-237), nur aus Sensorzeit
+ * Wann die Belichtung gesperrt und wann sie neu eingeschwungen wird (PAR-245, PAR-246), nur aus Sensorzeit
  * [frame] `t` (Sekunden seit dem ersten Bild) und Rot-Mittel `r` je Bild:
  * - Einschwingen: [PpgCameraLogic.AE_LOCK_AT_SECONDS] nach Beginn (bzw. nach dem Beginn des
  *   Neu-Einschwingens) wird gesperrt ([Step.LOCK]).
@@ -576,7 +576,7 @@ class PpgController(
         saturatedSum += stats.saturated
         val step = watch.frame(t, stats.r)
         if (step == PpgExposureWatch.Step.RELOCK) {
-            // Neu einschwingen nach einem Helligkeitssprung (PAR-237); die Sperre folgt 2,5 s später.
+            // Neu einschwingen nach einem Helligkeitssprung (PAR-246); die Sperre folgt 2,5 s später.
             attempt { hw.unlockExposure() }
             sink.event(mapOf("type" to "relocking", "t" to t))
         }

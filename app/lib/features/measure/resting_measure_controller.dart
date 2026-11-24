@@ -213,7 +213,7 @@ typedef PpgEvaluate = Future<PpgMeasurement> Function(
 
 /// Endergebnis der Aufnahme mit Fenstersuche ([evaluatePpgBestWindow]) auf genau
 /// den übergebenen Bildern; [relockedAt] ist die Sensorzeit der letzten Neusperre
-/// der Belichtung (PAR-237), `null` ohne Neusperre.
+/// der Belichtung (PAR-246), `null` ohne Neusperre.
 typedef PpgBestEvaluate = Future<PpgWindowedMeasurement> Function(
   List<PpgFrame> frames, {
   double? relockedAt,
@@ -320,7 +320,7 @@ class RestingMeasureController extends ChangeNotifier {
   bool _cameraStarted = false;
   double? _lastImageT;
 
-  // Neusperre der Belichtung (PAR-237): Sensorzeit der letzten Neusperre (während
+  // Neusperre der Belichtung (PAR-246): Sensorzeit der letzten Neusperre (während
   // des Neu-Einschwingens vorläufig die früheste mögliche), ob das Einschwingen
   // gerade läuft, Zahl der Neusperren (verwirft eine Prüfung über einen älteren
   // Stand) und ob eine im festen Fenster lag (Ruhepuls-Messung).
@@ -379,7 +379,7 @@ class RestingMeasureController extends ChangeNotifier {
   double get elapsedSeconds => _elapsed;
 
   /// Das Einschwingen (vor dem Messfenster) läuft noch: zu Beginn und nach einem
-  /// Helligkeitssprung von `relocking` bis 2,5 s nach der neuen Sperre (PAR-237).
+  /// Helligkeitssprung von `relocking` bis 2,5 s nach der neuen Sperre (PAR-246).
   bool get settling => _relocking || _elapsed < _startMin;
 
   /// Frühester Beginn eines Fensters (Fenstersuche) bzw. der Live-Auswertung.
@@ -735,7 +735,7 @@ class RestingMeasureController extends ChangeNotifier {
     }
   }
 
-  /// Helligkeitssprung und Ruhe erkannt, die Belichtung schwingt neu ein (PAR-237):
+  /// Helligkeitssprung und Ruhe erkannt, die Belichtung schwingt neu ein (PAR-246):
   /// Fenster vor 2,5 s nach der neuen Sperre entfallen sofort (vorläufig ab der
   /// frühesten möglichen Sperre), die Anzeige zeigt wieder „Einschwingen“. Im
   /// festen Fenster der Ruhepuls-Messung macht das die Messung unbrauchbar.
@@ -806,7 +806,7 @@ class RestingMeasureController extends ChangeNotifier {
     final relocks = _relocks;
     try {
       final r = await _check(snapshot, relockedAt: _relockedAt);
-      // Kam inzwischen eine Neusperre, gilt das Ergebnis nicht mehr (PAR-237).
+      // Kam inzwischen eine Neusperre, gilt das Ergebnis nicht mehr (PAR-246).
       if (run != _run ||
           _phase != RestingMeasurePhase.measuring ||
           _evaluating ||
@@ -925,7 +925,7 @@ class RestingMeasureController extends ChangeNotifier {
         windowEnd = r.windowEndSeconds;
         stretch = r.goodStretchSeconds;
       } else if (_relockInWindow) {
-        // Neusperre im festen Fenster (PAR-237): unbrauchbar statt verfälscht.
+        // Neusperre im festen Fenster (PAR-246): unbrauchbar statt verfälscht.
         m = const PpgMeasurement(
           quality: PpgQuality.unusable,
           reasons: [PpgQualityReason.tooManyDisturbances],

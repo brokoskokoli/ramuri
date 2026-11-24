@@ -542,7 +542,7 @@ object PpgCamera {
         }
 
         /**
-         * Neu einschwingen nach einem Helligkeitssprung (PAR-237): zurück auf die Automatik der ersten
+         * Neu einschwingen nach einem Helligkeitssprung (PAR-246): zurück auf die Automatik der ersten
          * Phase im selben Builder (Torch, Fokus, Stabilisierung, Antibanding und Diagnose-Schalter bleiben).
          * Setzt beide Arten der Sperre zurück: AE wieder an (die manuellen Werte gelten dann nicht) und
          * ohne AE-Sperre; der Weißabgleich wieder frei, außer der Diagnose-Schalter sperrt ihn ab Start.

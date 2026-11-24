@@ -105,7 +105,7 @@ int _compare(_Candidate a, _Candidate b) {
 /// ganze Aufnahme); das gewählte Fenster wird danach mit `evaluatePpg` einzeln ausgewertet.
 /// [live]: laufende Aufnahme: Der Filterrand nach dem Fenster muss schon aufgenommen sein, und auch
 /// ohne Kandidatenfenster wird für die Anzeige des guten Stücks analysiert.
-/// [relockedAt]: Sensorzeit der letzten Neusperre der Belichtung (PAR-237); dann zählen nur Bilder ab
+/// [relockedAt]: Sensorzeit der letzten Neusperre der Belichtung (PAR-246); dann zählen nur Bilder ab
 /// Fensterbeginn minus Filtervorlauf nach [ppgSearchStartMin], also ab der Neusperre.
 _Scan _scan(List<PpgFrame> frames, {required bool live, double? relockedAt}) {
   if (!frames.every(ppgFrameIsValid)) {
