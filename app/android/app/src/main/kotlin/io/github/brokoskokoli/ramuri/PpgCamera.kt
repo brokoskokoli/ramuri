@@ -541,6 +541,21 @@ object PpgCamera {
             session?.setRepeatingRequest(b.build(), captureCallback, handler)
         }
 
+        /**
+         * Neu einschwingen nach einem Helligkeitssprung (PAR-237): zurück auf die Automatik der ersten
+         * Phase im selben Builder (Torch, Fokus, Stabilisierung, Antibanding und Diagnose-Schalter bleiben).
+         * Setzt beide Arten der Sperre zurück: AE wieder an (die manuellen Werte gelten dann nicht) und
+         * ohne AE-Sperre; der Weißabgleich wieder frei, außer der Diagnose-Schalter sperrt ihn ab Start.
+         * Die neue Sperre kommt danach mit lockExposure.
+         */
+        override fun unlockExposure() = cameraThread.run {
+            val b = request ?: return@run
+            b.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+            b.set(CaptureRequest.CONTROL_AE_LOCK, false)
+            b.set(CaptureRequest.CONTROL_AWB_LOCK, diagnostics.awb == PpgAwbVariant.LOCK)
+            session?.setRepeatingRequest(b.build(), captureCallback, handler)
+        }
+
         override fun torchOff() = cameraThread.run {
             val b = request ?: return@run
             b.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
