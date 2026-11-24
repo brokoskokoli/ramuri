@@ -45,7 +45,8 @@ final Set<String> runLoadValueKeys = Set.unmodifiable({
 /// Schnappschuss an jeden Wert geschrieben). [loadProfile] ist das aufgelöste
 /// Belastungsprofil (FR-0197); `null` = Edwards. Ist es nicht anwendbar, steht
 /// der TRIMP „nicht verfügbar“ mit Grund, nie mit einem anderen Modell
-/// gerechnet (kein stiller Wechsel).
+/// gerechnet (kein stiller Wechsel). [preprocessingVersion] ist die
+/// Kettenversion der Vorverarbeitung an jedem Wert (ADR-0004).
 List<ComputedValue> buildRunLoadValues({
   required StoredRun run,
   required RunPreprocessing? pre,
@@ -53,6 +54,7 @@ List<ComputedValue> buildRunLoadValues({
   required FitnessParameters fitness,
   required Set<String> sources,
   required DateTime computedAt,
+  required String preprocessingVersion,
   LoadProfileResolution? loadProfile,
 }) {
   final snapshot = snapshotOf(basis);
@@ -71,6 +73,7 @@ List<ComputedValue> buildRunLoadValues({
       value: reason == null ? value : null,
       unavailableReason: reason,
       heartRateBasis: snapshot,
+      preprocessingVersion: preprocessingVersion,
       unit: unit,
       computedAt: computedAt,
       dataFrom: run.startedAt,
