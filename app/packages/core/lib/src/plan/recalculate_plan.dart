@@ -5,6 +5,7 @@ import '../../ports/storage_warning.dart';
 import '../goals/training_goal.dart';
 import 'generate_plan.dart';
 import 'plan_change.dart';
+import 'plan_deviation.dart';
 import 'plan_goal_fingerprint.dart';
 import 'plan_hints.dart';
 import 'plan_inputs.dart';
@@ -94,6 +95,16 @@ class PlanRecalculation {
 /// nichts, und eine Lockerung ab heute entfällt. Eine gelockerte Einheit vor
 /// heute zählt weiter als harte Einheit ihrer Woche. Das Warnsignal liegt
 /// darüber (Vorrang, K58).
+///
+/// Abweichung von der Einheit (PAR-235, FR-0216): [runs] sind die beendeten
+/// Läufe ab dem Sonntag vor der Woche von [today] ([PlanRunFacts]). Bei
+/// „adaptiv“ zählt eine erledigte Einheit dieser Woche mit „deutlich mehr“
+/// ([detectPlanDeviation]) mit ihrer echten Bewegungszeit
+/// (`generatePlan(countedMinutes:)`), eine locker geplante und intensiv
+/// gelaufene als harte Einheit der Woche (`generatePlan(intensiveRunDays:)`).
+/// Bei „fix“ tauscht nur die nächste harte Einheit den Tag
+/// ([applyRunSpacingSwap]). Die Begründungen stehen im `summary`
+/// ([planRunNotesKey]). Ohne [runs] gilt die geplante Dauer.
 Future<PlanRecalculation> recalculatePlan({
   required PlanRepository plans,
   required SettingsStore settings,
@@ -106,6 +117,7 @@ Future<PlanRecalculation> recalculatePlan({
   WarningStore? warning,
   bool markChecked = true,
   Iterable<PlanReadinessDay> readiness = const [],
+  Iterable<PlanRunFacts> runs = const [],
 }) async {
   Future<PlanRecalculation> once() => _recalculateOnce(
     plans: plans,
@@ -119,6 +131,7 @@ Future<PlanRecalculation> recalculatePlan({
     warning: warning,
     markChecked: markChecked,
     readiness: readiness,
+    runs: runs,
   );
   try {
     return await once();
@@ -140,6 +153,7 @@ Future<PlanRecalculation> _recalculateOnce({
   WarningStore? warning,
   bool markChecked = true,
   Iterable<PlanReadinessDay> readiness = const [],
+  Iterable<PlanRunFacts> runs = const [],
 }) async {
   final todayDay = planDay(today);
   final goal = await plans.currentGoal();
@@ -206,6 +220,31 @@ Future<PlanRecalculation> _recalculateOnce({
             if (u.pinned) u,
         ];
 
+  // Abweichung von der Einheit (PAR-235): nur bei „adaptiv“ ändern Umfang
+  // und Art, nur die erledigten Einheiten der Woche von heute.
+  final monday = _mondayOf(todayDay);
+  final runById = {for (final r in runs) r.runId: r};
+  final countedMinutes = <DateTime, int>{};
+  final intensiveRunDays = <DateTime>{};
+  if (mode == PlanAdaptationMode.adaptive) {
+    for (final u in frozen) {
+      final day = planDay(u.day);
+      final run = runById[u.runId];
+      if (run == null ||
+          day.isBefore(monday) ||
+          !day.isBefore(monday.add(const Duration(days: 7)))) {
+        continue;
+      }
+      final d = detectPlanDeviation(u, run, parameters: parameters);
+      final moving = run.movingSeconds;
+      if (d.muchMore && moving != null) {
+        final actual = (moving / 60).round();
+        if (actual > u.minutes) countedMinutes[day] = actual;
+      }
+      if (d.intensiveInsteadOfEasy) intensiveRunDays.add(day);
+    }
+  }
+
   // Automatische Auslöser ändern im bereits geplanten Zeitraum weder Tage
   // noch Zahl der Läufe (ADR-0010 Punkt 8); neue Wochen am Ende sind frei.
   final automatic = _isAutomatic(trigger) && base.isNotEmpty;
@@ -214,14 +253,58 @@ Future<PlanRecalculation> _recalculateOnce({
     use,
     frozen,
     todayDay,
-    pinnedUnits: automatic ? base : pinned,
+    pinnedUnits: automatic
+        ? _easeHeldHard(base, intensiveRunDays, todayDay)
+        : pinned,
     heldDays: automatic ? {for (final u in base) planDay(u.day)} : null,
     heldUntil: automatic ? _heldUntil(base) : null,
     easedHardDays: {for (final e in pastEased) e.day},
+    countedMinutes: countedMinutes,
+    intensiveRunDays: intensiveRunDays,
     parameters: parameters,
   );
   if (automatic) {
     generated = _keepSchedule(generated, base);
+  }
+  // Begründungen nur für Einheiten, die nach dem Festhalten der Tage noch so
+  // dastehen.
+  var runNotes = [
+    for (final n in generated.runNotes)
+      if (generated.units.any(
+        (u) => planDay(u.day) == n.day && u.kind == n.kind,
+      ))
+        n,
+  ];
+  if (mode == PlanAdaptationMode.fixed) {
+    final swap = applyRunSpacingSwap(
+      units: generated.units,
+      intensiveRunDays: planIntensiveRunDays(
+        runs,
+        todayDay,
+        parameters: parameters,
+      ),
+      today: todayDay,
+      others: frozen,
+      parameters: parameters,
+    );
+    generated = generated.copyWith(units: swap.units);
+    // Ein Tausch einer früheren Fassung steht nach dem Festhalten der Tage
+    // schon so da: Seine Begründung bleibt, solange die Einheit gleich ist.
+    final lastNotes = last == null
+        ? const <PlanRunNote>[]
+        : planRunNotesFromSummary(last.summary);
+    runNotes = [
+      ...swap.notes,
+      for (final n in lastNotes)
+        if (n.change == PlanRunChange.swapped &&
+            !n.day.isBefore(todayDay) &&
+            n.day.isBefore(monday.add(const Duration(days: 7))) &&
+            !swap.notes.any((s) => s.day == n.day) &&
+            generated.units.any(
+              (u) => planDay(u.day) == n.day && u.kind == n.kind,
+            ))
+          n,
+    ];
   }
   if (bridge.isNotEmpty) {
     generated = generated.copyWith(
@@ -296,6 +379,8 @@ Future<PlanRecalculation> _recalculateOnce({
         if (held != null) planWarningKey: [for (final h in held) h.toJson()],
         if (eased.isNotEmpty)
           planRecoveryKey: [for (final e in eased) e.toJson()],
+        if (runNotes.isNotEmpty)
+          planRunNotesKey: [for (final n in runNotes) n.toJson()],
         planHintsKey: planHintsToJson(generated),
         if (keepsGoalPending
                 ? last.summary[planGoalFingerprintKey]
@@ -374,6 +459,46 @@ PlanUnit _eased(
     parameters: parameters,
   );
   return c.unit?.copyWith(pinned: u.pinned, fixed: u.fixed) ?? u;
+}
+
+/// Die gehaltenen Tage [base] eines automatischen Auslösers, in denen die
+/// offene harte Einheit der Woche von [today] locker wird, weil ein lockerer
+/// Lauf der Woche intensiv war ([intensiveRunDays], PAR-235): Sie geht als
+/// lockerer Termin in die Rechnung, damit der lockere Lauf auf ihrem Tag
+/// bleibt. Eine vom Nutzer festgelegte Art bleibt.
+List<PlanUnit> _easeHeldHard(
+  List<PlanUnit> base,
+  Set<DateTime> intensiveRunDays,
+  DateTime today,
+) {
+  if (intensiveRunDays.isEmpty) return base;
+  final monday = _mondayOf(today);
+  final end = monday.add(const Duration(days: 7));
+  return [
+    for (final u in base)
+      if (u.isHard &&
+          u.runId == null &&
+          !u.fixed.keepsKind &&
+          !planDay(u.day).isBefore(monday) &&
+          planDay(u.day).isBefore(end))
+        PlanUnit(
+          id: u.id,
+          day: u.day,
+          kind: PlanUnitKind.easy,
+          phase: u.phase,
+          weekIndex: u.weekIndex,
+          minutes: u.minutes,
+          segments: [
+            PlanSegment(kind: PlanSegmentKind.easy, minutes: u.minutes),
+          ],
+          pinned: u.pinned,
+          fixed: u.fixed,
+          method: u.method,
+          methodVersion: u.methodVersion,
+        )
+      else
+        u,
+  ];
 }
 
 /// Alles außer Anlegen, Zieländerung und ausdrücklicher Neuberechnung.

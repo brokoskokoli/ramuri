@@ -39,10 +39,12 @@ RunFigures figures(
   List<int>? zonesSec,
   int? belowSec,
   int hour = 12,
+  bool sport = false,
 }) => RunFigures(
   runId: id,
   endedAt: DateTime.parse('${day}T${hour.toString().padLeft(2, '0')}:00:00Z'),
   day: day,
+  isRunning: !sport,
   distanceMeters: km == null ? null : km * 1000,
   movingTime: movingSec == null ? null : Duration(seconds: movingSec),
   totalTime: movingSec == null ? null : Duration(seconds: movingSec + 60),

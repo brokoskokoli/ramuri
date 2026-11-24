@@ -253,6 +253,7 @@ class PpgCameraLogicTest {
 
     private class Hw(val log: MutableList<String>, val failTorch: Boolean = false) : PpgHardware {
         override fun lockExposure() { log += "lock" }
+        override fun unlockExposure() { log += "unlock" }
         override fun torchOff() { log += "torchOff"; if (failTorch) throw IllegalStateException("zu") }
         override fun closeSession() { log += "closeSession" }
         override fun closeDevice() { log += "closeDevice" }
@@ -316,6 +317,123 @@ class PpgCameraLogicTest {
         for (t in listOf(3.0, 4.0)) c.frame(ns(t), stats)
         assertEquals(1, log.count { it == "lock" })
         assertEquals(1, log.count { it == "event:locked" })
+    }
+
+    // --- Neusperre nach Helligkeitssprung (PAR-245, PAR-246) ---
+
+    /** Bilder mit 30 fps von 0 bis [until] s; liefert (Schritt, Sensorzeit) aller Schritte außer NONE. */
+    private fun watchRun(until: Double, red: (Double) -> Double): List<Pair<PpgExposureWatch.Step, Double>> {
+        val w = PpgExposureWatch()
+        val out = mutableListOf<Pair<PpgExposureWatch.Step, Double>>()
+        var i = 0
+        while (true) {
+            val t = i / 30.0
+            if (t > until) break
+            val s = w.frame(t, red(t))
+            if (s != PpgExposureWatch.Step.NONE) out += s to t
+            i++
+        }
+        return out
+    }
+
+    private fun steps(run: List<Pair<PpgExposureWatch.Step, Double>>, s: PpgExposureWatch.Step) =
+        run.filter { it.first == s }.map { it.second }
+
+    /** Sekunde, die das Bild bei [t] abschließt (Sprung bzw. Ruhe werden mit dem ersten Bild danach erkannt). */
+    private fun closedSecond(t: Double) = Math.floor(t + 1e-9).toLong() - 1
+
+    @Test fun steadyRedWithThreePercentNoiseNeverJumps() {
+        // ±3 % je Bild und langsam ±3 % über die Sekunden.
+        val run = watchRun(120.0) { t ->
+            val frame = if (Math.round(t * 30) % 2 == 0L) 1.03 else 0.97
+            140.0 * frame * (1 + 0.03 * Math.sin(t / 7))
+        }
+        assertEquals(listOf(PpgExposureWatch.Step.LOCK), run.map { it.first })
+        assertEquals(2.5, run.single().second, 1e-9)
+    }
+
+    @Test fun jumpAtTwentyCalmAtTwentyFourThenRelockAndLockTwoAndAHalfSecondsLater() {
+        val run = watchRun(60.0) { t ->
+            when {
+                t < 20 -> 140.0
+                t < 21 -> 250.0
+                t < 22 -> 180.0
+                t < 23 -> 230.0
+                else -> 250.0
+            }
+        }
+        val jumps = steps(run, PpgExposureWatch.Step.JUMP)
+        assertEquals("ein Sprung", 1, jumps.size)
+        assertEquals("Sprung in Sekunde 20", 20L, closedSecond(jumps.single()))
+        val relock = steps(run, PpgExposureWatch.Step.RELOCK)
+        assertEquals("eine Neusperre", 1, relock.size)
+        assertEquals("ruhig mit Sekunde 24 (23 und 24 gleich)", 24L, closedSecond(relock.single()))
+        assertEquals(25.0, relock.single(), 1e-9)
+        val locks = steps(run, PpgExposureWatch.Step.LOCK)
+        assertEquals(2, locks.size)
+        assertEquals(2.5, locks[0], 1e-9)
+        assertEquals("Sperre 2,5 s nach dem Neu-Einschwingen", 27.5, locks[1], 1e-9)
+        // Neuer Bezug 250: danach kein Sprung mehr.
+        assertTrue(run.none { it.first != PpgExposureWatch.Step.LOCK && it.second > 27.5 })
+    }
+
+    @Test fun darkerByTwentyFivePercentIsAJump() {
+        val run = watchRun(40.0) { t -> if (t < 20) 140.0 else 105.0 }
+        assertEquals(listOf(20L), steps(run, PpgExposureWatch.Step.JUMP).map(::closedSecond))
+        // Danach gleich bleibend: ruhig mit Sekunde 21, neu eingeschwungen.
+        assertEquals(listOf(21L), steps(run, PpgExposureWatch.Step.RELOCK).map(::closedSecond))
+    }
+
+    @Test fun brighterByFourteenPercentIsNoJump() {
+        val run = watchRun(60.0) { t -> if (t < 20) 140.0 else 160.0 }
+        assertEquals(listOf(PpgExposureWatch.Step.LOCK), run.map { it.first })
+    }
+
+    @Test fun continuouslyJumpingRedNeverRelocks() {
+        // Ab 20 s wechselt das Sekundenmittel jede Sekunde um mehr als 5 %.
+        val run = watchRun(120.0) { t -> if (t < 20) 140.0 else if (Math.floor(t).toLong() % 2 == 0L) 250.0 else 200.0 }
+        assertEquals(1, steps(run, PpgExposureWatch.Step.JUMP).size)
+        assertTrue("keine Neusperre", steps(run, PpgExposureWatch.Step.RELOCK).isEmpty())
+        assertEquals(1, steps(run, PpgExposureWatch.Step.LOCK).size)
+    }
+
+    @Test fun fiveJumpsWithCalmBetweenGiveFiveRelocks() {
+        // Alle 15 s ab 10 s ein Wechsel zwischen 140 und 250, dazwischen ruhig: keine Höchstzahl.
+        val run = watchRun(84.0) { t -> if (t < 10 || Math.floor((t - 10) / 15).toLong() % 2 == 1L) 140.0 else 250.0 }
+        val relocks = steps(run, PpgExposureWatch.Step.RELOCK)
+        assertEquals(listOf(11L, 26L, 41L, 56L, 71L), relocks.map { closedSecond(it) })
+        assertEquals(6, steps(run, PpgExposureWatch.Step.LOCK).size)
+        assertEquals(5, steps(run, PpgExposureWatch.Step.JUMP).size)
+    }
+
+    @Test fun referenceIsTheMeanHalfASecondToOneAndAHalfAfterTheLock() {
+        // Bis 3,0 s dunkel (zählt nicht), 3,0 bis 4,0 s 140, danach 160: +14 % zum Bezug, kein Sprung.
+        val run = watchRun(30.0) { t -> if (t < 3.0) 60.0 else if (t <= 4.0) 140.0 else 160.0 }
+        assertEquals(listOf(PpgExposureWatch.Step.LOCK), run.map { it.first })
+        // Gleicher Verlauf mit 105 danach: −25 %, Sprung in der ersten vollen Sekunde nach dem Bezug.
+        val dark = watchRun(30.0) { t -> if (t < 3.0) 60.0 else if (t <= 4.0) 140.0 else 105.0 }
+        assertEquals(listOf(4L), steps(dark, PpgExposureWatch.Step.JUMP).map(::closedSecond))
+    }
+
+    @Test fun controllerRelocksUnlocksAndReportsSensorTimes() {
+        val log = mutableListOf<String>()
+        val sink = Sink(log)
+        val c = PpgController(Hw(log), sink)
+        fun red(r: Double) = PpgStats(r, 40.0, DoubleArray(16) { r }, DoubleArray(16) { 40.0 })
+        // 25 Bilder je Sekunde in ganzen 40 ms, damit die Sekundengrenzen genau getroffen werden.
+        for (i in 0..1000) {
+            val t = i * 0.04
+            c.frame(1_000_000_000_000L + i * 40_000_000L, red(if (t < 20) 140.0 else 250.0))
+        }
+        val control = sink.events.filter { it["type"] == "locked" || it["type"] == "relocking" }
+        assertEquals(listOf("locked", "relocking", "locked"), control.map { it["type"] })
+        // Erstes Bild ab 2,5 s ist das bei 2,52 s; ruhig mit Sekunde 21, Bild bei 22,0 s; Sperre ab 24,5 s.
+        assertEquals(2.52, control[0]["t"] as Double, 1e-6)
+        assertEquals(22.0, control[1]["t"] as Double, 1e-6)
+        assertEquals(24.52, control[2]["t"] as Double, 1e-6)
+        assertEquals(listOf("lock", "unlock", "lock"), log.filter { it == "lock" || it == "unlock" })
+        // Neu einschwingen vor der Meldung; Sperre vor ihrer Meldung.
+        assertTrue(log.indexOf("unlock") < log.indexOf("event:relocking"))
     }
 
     @Test fun abortTurnsTorchOffThenClosesSessionAndDeviceThenEndsStream() {

@@ -43,6 +43,7 @@ Eine Neuberechnung kann ausgelöst werden durch: abgeschlossenen Lauf, ausgefall
 - [ ] Jeder genannte Auslöser kann eine Neuberechnung des Plans auslösen.
 - [ ] Eine Neuberechnung wegen eines veränderten Erholungszustands ändert nur die intensive Einheit an dessen Tag (PAR-173, OQ-0058).
 - [ ] Der Auslöser „veränderter Erholungszustand“ (Teil „3 (Erholung)“) gilt nur, wenn der Plan auf „adaptiv“ steht (FR-0216, K61); die übrigen Auslöser gelten immer.
+- [ ] Eine deutlich längere oder härtere Einheit löst bei „adaptiv“ eine Neuberechnung der laufenden Woche aus (PAR-235).
 
 ### FR-0158 — Mindestens wöchentliche Überprüfung
 - **Status:** Approved | **Phase:** 2, 3 (Erholung)
@@ -139,6 +140,7 @@ Am Trainingsplan wählt der Nutzer, ob Gesundheitsdaten den Plan verändern: „
 - [ ] Wochenprüfung, Rückmeldung und Pausenregeln aus Phase 2 wirken bei „fix“ und „adaptiv“ gleich.
 - [ ] Ein gemeldetes Warnsignal führt bei „fix“ und „adaptiv“ zu FR-0203.
 - [ ] Bei „adaptiv“ wird die intensive Einheit nach PAR-173 gelockert; der Wechsel des Schalters ändert bereits absolvierte Einheiten nicht.
+- [ ] Auf Abweichungen vom Plan reagiert der Plan nur bei „adaptiv“ mit Umfang und Art (PAR-235); bei „fix“ wird höchstens die nächste intensive Einheit nach hinten getauscht.
 
 ## Planungsregeln
 

@@ -211,6 +211,39 @@ class PlanDataReader {
     );
   }
 
+  /// Die beendeten Läufe (ohne andere Sportart, DEC-0056) mit Ortstag von
+  /// `minGapDays - 1` Tagen vor dem Montag der Woche von [today] bis
+  /// [today], so wie sie die Regel der Abweichung braucht (PAR-235): die
+  /// Läufe der laufenden Woche und die, zu denen ihre harte Einheit Abstand
+  /// halten muss (PAR-059). RPE aus der Rückmeldung, Zeit bei mindestens
+  /// 80 % HFmax aus dem Laufwert [highHeartRateTimeValueKey] (PAR-058).
+  Future<List<PlanRunFacts>> runFacts(DateTime today) async {
+    final t = planDay(today);
+    final monday = t.subtract(Duration(days: t.weekday - DateTime.monday));
+    final from = monday.subtract(Duration(days: parameters.minGapDays - 1));
+    final inWindow = [
+      for (final r in await _runs())
+        if (_parseDay(r.day) case final d?
+            when !d.isBefore(from) && !d.isAfter(t))
+          (r, d),
+    ];
+    if (inWindow.isEmpty) return const [];
+    final subjective = await session.subjective.readAll();
+    final values = await session.values.readRunValues({
+      highHeartRateTimeValueKey,
+    });
+    return [
+      for (final (r, d) in inWindow)
+        PlanRunFacts(
+          runId: r.runId,
+          day: d,
+          movingSeconds: r.movingTime?.inSeconds,
+          rpe: subjective[r.runId]?.subjective.rpe,
+          highHrMinutes: values[r.runId]?[highHeartRateTimeValueKey]?.value,
+        ),
+    ];
+  }
+
   bool _before(RunFigures r, DateTime monday) {
     final d = _parseDay(r.day);
     return d != null && d.isBefore(monday);

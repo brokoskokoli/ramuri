@@ -149,6 +149,7 @@ class RunOverview {
     runId: run.id,
     endedAt: run.endedAt!,
     day: dayOfRun(run),
+    isRunning: run.mode.isRunning,
     distanceMeters: distanceMeters,
     movingTime: movingTime,
     totalTime: totalTime,
