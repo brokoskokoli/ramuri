@@ -347,7 +347,7 @@ Gespeichert wird eine solche Einheit als Lauf mit der Art `sport` und der Sporta
 - [ ] Nach einem Prozessende setzt der Wiederanlauf die Einheit mit derselben Sportart fort (FR-0193).
 - [ ] RPE wird wie nach einem Lauf abgefragt.
 - [ ] Exportiert wird ohne Strecke als TCX und FIT; GPX ist nicht verfügbar.
-- [ ] Hinweise zur Sportart (ersetzt nicht das Laufen, Belastung von Wade und Achillessehne, Brustgurt empfohlen, Unterschätzung bei Rad und Rudern) erscheinen beim Start.
+- [ ] Hinweise zur Sportart (ersetzt nicht das Laufen, Belastung von Wade und Achillessehne, Brustgurt empfohlen, Unterschätzung bei Rad und Rudern) zeigt die App; wo und wann, legt die Oberfläche der Sportart fest.
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
