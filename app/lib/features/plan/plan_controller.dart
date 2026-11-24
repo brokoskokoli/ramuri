@@ -437,18 +437,12 @@ class PlanController extends ChangeNotifier {
         }
       }
     }
-    final r = await recalculatePlan(
-      plans: _plans,
-      settings: session.settings,
+    final r = await _write(
       trigger: trigger,
       today: today,
-      now: clock.now(),
       reason: reason,
       inputs: inputs,
-      parameters: parameters,
-      warning: _warning,
       readiness: readiness,
-      runs: await reader.runFacts(today),
       // `manual` bewertet die Woche nicht (ADR-0010 Nachtrag WP24, K63): Der
       // Prüftag bleibt, sonst fiele die fällige Wochenbewertung weg.
       markChecked:
@@ -459,6 +453,32 @@ class PlanController extends ChangeNotifier {
     if (r.wasWritten) onChanged?.call();
     return r.wasWritten;
   }
+
+  /// Schreibt die Neuberechnung ([recalculatePlan]) mit den Läufen der
+  /// Woche für die Regel der Abweichung (PAR-235, [PlanDataReader.runFacts]):
+  /// Jede Fassung des Controllers rechnet mit ihnen, sonst fielen Kürzung,
+  /// Lockerung und Tausch beim nächsten Rechnen zurück.
+  Future<PlanRecalculation> _write({
+    required PlanTrigger trigger,
+    required DateTime today,
+    String? reason,
+    PlanInputs? inputs,
+    bool markChecked = true,
+    Iterable<PlanReadinessDay> readiness = const [],
+  }) async => recalculatePlan(
+    plans: _plans,
+    settings: session.settings,
+    trigger: trigger,
+    today: today,
+    now: clock.now(),
+    reason: reason,
+    inputs: inputs,
+    parameters: parameters,
+    warning: _warning,
+    markChecked: markChecked,
+    readiness: readiness,
+    runs: await reader.runFacts(today),
+  );
 
   /// Eingaben der Rechnung für [trigger]: beim Anlegen (oder ohne Fassung)
   /// die frischen aus [buildPlanInputs], sonst die der letzten Fassung mit den
@@ -1212,17 +1232,11 @@ class PlanController extends ChangeNotifier {
       raise = result.raiseGoalSignal;
       final next = result.inputs;
       if (next != null) {
-        final w = await recalculatePlan(
-          plans: _plans,
-          settings: session.settings,
+        final w = await _write(
           trigger: PlanTrigger.feedback,
           markChecked: false, // bewertet die Woche (PAR-201) nicht
           today: today,
-          now: clock.now(),
           inputs: next,
-          parameters: parameters,
-          warning: _warning,
-          runs: await reader.runFacts(today),
         );
         _fresh = w.generated;
         _lastChange = w.summary;
@@ -1304,18 +1318,12 @@ class PlanController extends ChangeNotifier {
       );
     }
     if (next != null) {
-      final r = await recalculatePlan(
-        plans: _plans,
-        settings: session.settings,
+      final r = await _write(
         // Der gewählte Einstieg ist eine Zieländerung des Nutzers (Stand neu):
         // `goalChange` hält sie fest, sonst bliebe sie ausstehend.
         trigger: chosen ? PlanTrigger.goalChange : PlanTrigger.pause,
         today: today,
-        now: clock.now(),
         inputs: next,
-        parameters: parameters,
-        warning: _warning,
-        runs: await reader.runFacts(today),
       );
       _fresh = r.generated;
       _lastChange = r.summary;
@@ -1437,18 +1445,12 @@ class PlanController extends ChangeNotifier {
       proposal.suggestion,
       from: walkRunRepeatFrom(today, proposal.lastDay),
     ).copyWith(today: today);
-    final r = await recalculatePlan(
-      plans: _plans,
-      settings: session.settings,
+    final r = await _write(
       trigger: PlanTrigger.manual,
       reason: walkRunRepeatReason,
       markChecked: false, // bewertet die Woche nicht
       today: today,
-      now: clock.now(),
       inputs: inputs,
-      parameters: parameters,
-      warning: _warning,
-      runs: await reader.runFacts(today),
     );
     _fresh = r.generated;
     _lastChange = r.summary;
