@@ -283,7 +283,7 @@ void main() {
       expect(await count(db, 'manual_trainings'), 1);
     });
 
-    test('Migration läuft über die App-Strategie (Version 4 -> 16) auf verschlüsselter Datei', () async {
+    test('Migration läuft über die App-Strategie (Version 4 -> 17) auf verschlüsselter Datei', () async {
       // Schema 4 aus dem Dump aufbauen: zwei Tabellen der App weglassen.
       final s0 = await EncryptedStorage(path).open(testKey());
       final db0 = (s0 as EncryptedStorageSession).database;
@@ -328,7 +328,7 @@ void main() {
             .data
             .values
             .single,
-        16,
+        17,
       );
       await db1.validateDatabaseSchema();
     });
