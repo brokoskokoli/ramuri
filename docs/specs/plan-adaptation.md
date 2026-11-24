@@ -141,6 +141,7 @@ Am Trainingsplan wählt der Nutzer, ob Gesundheitsdaten den Plan verändern: „
 - [ ] Ein gemeldetes Warnsignal führt bei „fix“ und „adaptiv“ zu FR-0203.
 - [ ] Bei „adaptiv“ wird die intensive Einheit nach PAR-173 gelockert; der Wechsel des Schalters ändert bereits absolvierte Einheiten nicht.
 - [ ] Auf Abweichungen vom Plan reagiert der Plan nur bei „adaptiv“ mit Umfang und Art (PAR-235); bei „fix“ wird höchstens die nächste intensive Einheit nach hinten getauscht.
+- [ ] Bei „adaptiv“ kann die App bei Unterforderung eine Steigerung anbieten (PAR-236); bei „fix“ nie.
 
 ## Planungsregeln
 
