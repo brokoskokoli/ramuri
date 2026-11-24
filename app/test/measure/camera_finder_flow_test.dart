@@ -119,7 +119,7 @@ class _Env {
 
 Future<void> _settle(WidgetTester t) async {
   for (var i = 0; i < 4; i++) {
-    await t.runAsync(() => Future<void>.delayed(Duration.zero));
+    await t.runAsync(() => Future<void>(() {}));
     await t.pump();
   }
   // Ein Takt der Vorschau (Debug-Quelle: 0,1 s).
