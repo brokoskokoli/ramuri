@@ -482,4 +482,84 @@ void main() {
       }
     });
   });
+  group('Kamerasuche (FR-0220, PAR-227)', () {
+    const std = PpgCameraRef('0');
+    const second = PpgCameraRef('0', '2');
+    const noFlash = PpgCameraRef('1');
+
+    /// Bis zur Sensorzeit [until] sammeln (Wanduhr fest auf [until], also ein Durchlauf),
+    /// dann abbestellen.
+    Future<List<PpgPreviewEvent>> collect(
+      DebugTestPpgCamera cam,
+      double until,
+    ) async {
+      final events = <PpgPreviewEvent>[];
+      final done = Completer<void>();
+      late final StreamSubscription<PpgPreviewEvent> sub;
+      sub = cam.preview(const [std, second, noFlash]).listen((e) {
+        events.add(e);
+        if (e is PpgPreviewFrame && e.t >= until && !done.isCompleted) {
+          done.complete();
+        }
+      });
+      await done.future;
+      expect(cam.previewOn, isTrue);
+      expect(cam.torchOn, isTrue);
+      await sub.cancel();
+      expect(cam.previewOn, isFalse);
+      expect(cam.torchOn, isFalse);
+      return events;
+    }
+
+    DebugTestPpgCamera camera({required bool alternating, required double t}) =>
+        DebugTestPpgCamera(
+            wallClock: () => Duration(milliseconds: (t * 1000).round()),
+          )
+          ..previewAlternating = alternating
+          ..setScenario(std, DebugPpgScenario.noFinger)
+          ..setScenario(second, DebugPpgScenario.goodPulse);
+
+    test('gleichzeitig: Bilder beider nutzbarer Kameras, Fläche rot bzw. grau, '
+        'Kamera ohne Blitz mit Grund', () async {
+      final e = await collect(camera(alternating: false, t: 1), 1);
+      expect(e.first, isA<PpgPreviewStarted>());
+      expect((e.first as PpgPreviewStarted).mode, PpgPreviewMode.simultaneous);
+      final failed = e.whereType<PpgPreviewCameraFailed>().single;
+      expect(failed.camera, noFlash);
+      expect(failed.reason, PpgCameraStopReason.noFlash);
+      expect(e.whereType<PpgPreviewTurn>(), isEmpty);
+      final frames = e.whereType<PpgPreviewFrame>().toList();
+      final a = frames.where((f) => f.camera == std).toList();
+      final b = frames.where((f) => f.camera == second).toList();
+      // Je Takt ein Bild beider Kameras (das letzte Paar evtl. erst halb gesammelt).
+      expect(a.length - b.length, inInclusiveRange(0, 1));
+      expect(a.length, greaterThanOrEqualTo(10));
+      expect(frames.any((f) => f.camera == noFlash), isFalse);
+      // Finger: rot (R/G 5), kein Finger: grau (R/G < 1,5).
+      expect(b.first.r / b.first.g, 5);
+      expect(a.first.r / a.first.g, lessThan(ppgMinRedGreenRatio));
+      expect(a.first.exposureNs, isNotNull);
+      expect(a.first.iso, isNotNull);
+    });
+
+    test(
+      'im Wechsel: Reihenfolge der Anfrage, je Kamera 1,5 s, dann von vorn',
+      () async {
+        final e = await collect(camera(alternating: true, t: 3.2), 3.2);
+        expect((e.first as PpgPreviewStarted).mode, PpgPreviewMode.alternating);
+        final turns = [for (final t in e.whereType<PpgPreviewTurn>()) t.camera];
+        expect(turns, const [std, second, std]);
+        PpgCameraRef? live;
+        for (final x in e) {
+          if (x is PpgPreviewTurn) live = x.camera;
+          if (x is PpgPreviewFrame) {
+            // Nur die Kamera, die dran ist, liefert Bilder; Wechsel bei 1,5 s und 3,0 s.
+            expect(x.camera, live);
+            final k = (x.t / ppgCameraFinderTurnSeconds + 1e-9).floor() % 2;
+            expect(x.camera, k == 0 ? std : second, reason: 't ${x.t}');
+          }
+        }
+      },
+    );
+  });
 }
