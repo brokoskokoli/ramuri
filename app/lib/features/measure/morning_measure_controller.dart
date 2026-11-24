@@ -81,6 +81,8 @@ class MorningMeasureController extends ChangeNotifier {
     PpgRecordingCheckRun? check,
     this.developerMode,
     Future<PpgCameraRef?> Function()? cameraChoice,
+    Future<({Set<PpgCameraDiagnostic> diagnostics, bool ispFrames})> Function()?
+    cameraDiagnostics,
     bool autoTick = true,
     this.validationState = ppgValidationState,
     this.marksFor,
@@ -93,6 +95,7 @@ class MorningMeasureController extends ChangeNotifier {
          check: check,
          searchWindow: true,
          cameraChoice: cameraChoice,
+         cameraDiagnostics: cameraDiagnostics,
          autoTick: autoTick,
        ) {
     engine.setPosture(RestingPosture.lying);
@@ -343,6 +346,9 @@ class MorningMeasureController extends ChangeNotifier {
               details: r.cameraDetails,
               camera: r.camera,
               cameras: r.camera == null ? const [] : await _cameraList(),
+              ispFrames: r.ispFrames,
+              diagnostics: r.cameraDiagnostics,
+              awbVariant: r.awbVariant,
             )
           : null;
       if (!m.isUsable) {
