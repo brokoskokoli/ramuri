@@ -155,6 +155,7 @@ void main() {
 
     step('SPORT verlauf');
     await tapKey(t, 'run_done_close');
+    await _closePlanAnswer(t, s);
     await waitFor(t, () => has('home_history'), 'Heute');
     await tapKey(t, 'home_history');
     await waitFor(t, () => has('history_title'), 'Verlauf');
@@ -311,6 +312,37 @@ Future<void> _planSport(WidgetTester t, Duration moving) async {
   await tapKey(t, 'subjective_rpe_3');
   await waitFor(t, () => has('sum_other_sport'), 'Zusammenfassung');
   await tapKey(t, 'run_done_close');
+}
+
+/// Nach einer freien Sporteinheit fragt oder antwortet die App genau dann,
+/// wenn der Plan heute eine Einheit hat (FR-0222): Frage mit "Nein"
+/// beantworten bzw. Grund bestaetigen. Ohne Einheit heute kommt nichts.
+Future<void> _closePlanAnswer(WidgetTester t, StorageSession s) async {
+  if (s is! PlanStorage) return;
+  final now = DateTime.now();
+  final day = DateTime.utc(now.year, now.month, now.day);
+  final unit = await t.runAsync(() => (s as PlanStorage).plans.unitOn(day));
+  if (unit == null) return;
+  final answer = find.byWidgetPredicate((w) {
+    final k = w.key;
+    return k is ValueKey<String> &&
+        (k.value == 'other_sport_assign_ask' ||
+            k.value == 'other_sport_replaced' ||
+            k.value.startsWith('other_sport_not_assigned_'));
+  });
+  await waitFor(
+    t,
+    () => answer.evaluate().isNotEmpty,
+    'Antwort zur Einheit des Tages',
+  );
+  final k = (answer.evaluate().first.widget.key! as ValueKey<String>).value;
+  logPub('SPORT plan_antwort=$k');
+  await tapDialog(
+    t,
+    k == 'other_sport_assign_ask'
+        ? 'other_sport_assign_no'
+        : 'other_sport_dialog_ok',
+  );
 }
 
 /// Der Dialog [key] zeigt den Text [text] in der Sprache der App.
