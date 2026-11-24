@@ -379,9 +379,9 @@ class PpgCameraLogicTest {
 
     @Test fun darkerByTwentyFivePercentIsAJump() {
         val run = watchRun(40.0) { t -> if (t < 20) 140.0 else 105.0 }
-        assertEquals(20L, closedSecond(steps(run, PpgExposureWatch.Step.JUMP).single()))
+        assertEquals(listOf(20L), steps(run, PpgExposureWatch.Step.JUMP).map(::closedSecond))
         // Danach gleich bleibend: ruhig mit Sekunde 21, neu eingeschwungen.
-        assertEquals(21L, closedSecond(steps(run, PpgExposureWatch.Step.RELOCK).single()))
+        assertEquals(listOf(21L), steps(run, PpgExposureWatch.Step.RELOCK).map(::closedSecond))
     }
 
     @Test fun brighterByFourteenPercentIsNoJump() {
@@ -412,7 +412,7 @@ class PpgCameraLogicTest {
         assertEquals(listOf(PpgExposureWatch.Step.LOCK), run.map { it.first })
         // Gleicher Verlauf mit 105 danach: −25 %, Sprung in der ersten vollen Sekunde nach dem Bezug.
         val dark = watchRun(30.0) { t -> if (t < 3.0) 60.0 else if (t <= 4.0) 140.0 else 105.0 }
-        assertEquals(4L, closedSecond(steps(dark, PpgExposureWatch.Step.JUMP).single()))
+        assertEquals(listOf(4L), steps(dark, PpgExposureWatch.Step.JUMP).map(::closedSecond))
     }
 
     @Test fun controllerRelocksUnlocksAndReportsSensorTimes() {
