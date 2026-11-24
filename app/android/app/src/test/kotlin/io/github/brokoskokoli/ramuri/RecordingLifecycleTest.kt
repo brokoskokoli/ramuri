@@ -51,6 +51,39 @@ class RecordingLifecycleTest {
         assertEquals(0, withBt and ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
     }
 
+    @Test fun sportNeedsOnlyBluetoothConnectNeitherLocationNorActivityRecognition() {
+        // Andere Sportart (FR-0221): kein Standort, kein Schrittzähler; der Puls kommt vom Gurt.
+        for (fine in listOf(false, true)) {
+            for (activity in listOf(false, true)) {
+                val denied = RecordingLifecycle.mayStart(RecordingMode.SPORT, fine, activity, false)
+                assertTrue(denied.isFailure)
+                assertEquals("bluetooth_connect_denied", denied.exceptionOrNull()?.message)
+            }
+        }
+        assertTrue(RecordingLifecycle.mayStart(RecordingMode.SPORT, false, false, true).isSuccess)
+        // Die anderen Arten bleiben unberührt von BLUETOOTH_CONNECT.
+        assertTrue(RecordingLifecycle.mayStart(RecordingMode.GPS, false, true, true).isFailure)
+        assertTrue(RecordingLifecycle.mayStart(RecordingMode.TREADMILL, true, false, true).isFailure)
+    }
+
+    @Test fun sportStartTypeIsConnectedDeviceNeverLocationOrHealth() {
+        for (bt in listOf(false, true)) {
+            val type = RecordingLifecycle.startType(bt, RecordingMode.SPORT)
+            assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE, type)
+            assertEquals(0, type and ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            assertEquals(0, type and ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
+        }
+    }
+
+    @Test fun sportServiceEntersForegroundWithConnectedDevice() {
+        val types = mutableListOf<Int>()
+        val lc = RecordingLifecycle(FakeLock(), { true }, {}, RecordingMode.SPORT) { types.add(it) }
+        assertTrue(lc.start().isSuccess)
+        assertEquals(listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE), types)
+        assertTrue(lc.retype())
+        assertEquals(1, types.size)
+    }
+
     @Test fun gpsStartTypeNeverContainsHealth() {
         for (bt in listOf(false, true)) {
             assertEquals(0, RecordingLifecycle.startType(bt) and ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
@@ -76,6 +109,7 @@ class RecordingLifecycleTest {
         assertEquals(RecordingMode.GPS, RecordingMode.fromWire(null))
         assertEquals(RecordingMode.GPS, RecordingMode.fromWire("gps"))
         assertEquals(RecordingMode.TREADMILL, RecordingMode.fromWire("treadmill"))
+        assertEquals(RecordingMode.SPORT, RecordingMode.fromWire("sport"))
         assertEquals(null, RecordingMode.fromWire("swim"))
     }
 
