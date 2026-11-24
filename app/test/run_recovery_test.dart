@@ -68,11 +68,12 @@ class _Runs implements RunStore {
   Future<StoredRun> create({
     required DateTime startedAt,
     RunMode mode = RunMode.gps,
+    OtherSport? sport,
   }) {
     if (o.failCreate) {
       return Future.error(const StorageException(StorageFailure.failed));
     }
-    return inner.create(startedAt: startedAt, mode: mode);
+    return inner.create(startedAt: startedAt, mode: mode, sport: sport);
   }
 
   @override

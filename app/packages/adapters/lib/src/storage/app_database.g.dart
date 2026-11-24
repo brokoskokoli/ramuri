@@ -278,9 +278,18 @@ class Runs extends Table with TableInfo<Runs, Run> {
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    $customConstraints:
-        'NOT NULL DEFAULT \'gps\' CHECK (mode IN (\'gps\', \'treadmill\'))',
+    $customConstraints: 'NOT NULL DEFAULT \'gps\' CHECK (mode IN (\'gps\', \'treadmill\', \'sport\'))',
     defaultValue: const CustomExpression('\'gps\''),
+  );
+  static const VerificationMeta _sportMeta = const VerificationMeta('sport');
+  late final GeneratedColumn<String> sport = GeneratedColumn<String>(
+    'sport',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (sport IN (\'rope\', \'cycling\', \'rowing\', \'other\'))',
   );
   @override
   List<GeneratedColumn> get $columns => [
@@ -290,6 +299,7 @@ class Runs extends Table with TableInfo<Runs, Run> {
     endedAtUs,
     endedUtcOffsetS,
     mode,
+    sport,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -346,6 +356,12 @@ class Runs extends Table with TableInfo<Runs, Run> {
         mode.isAcceptableOrUnknown(data['mode']!, _modeMeta),
       );
     }
+    if (data.containsKey('sport')) {
+      context.handle(
+        _sportMeta,
+        sport.isAcceptableOrUnknown(data['sport']!, _sportMeta),
+      );
+    }
     return context;
   }
 
@@ -379,6 +395,10 @@ class Runs extends Table with TableInfo<Runs, Run> {
         DriftSqlType.string,
         data['${effectivePrefix}mode'],
       )!,
+      sport: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sport'],
+      ),
     );
   }
 
@@ -387,6 +407,10 @@ class Runs extends Table with TableInfo<Runs, Run> {
     return Runs(attachedDatabase, alias);
   }
 
+  @override
+  List<String> get customConstraints => const [
+    'CHECK((mode = \'sport\')=(sport IS NOT NULL))',
+  ];
   @override
   bool get dontWriteConstraints => true;
 }
@@ -407,7 +431,12 @@ class Run extends DataClass implements Insertable<Run> {
 
   /// Seit Version 10 (WP25, FR-0196, K57): Art des Laufs. Läufe aus früheren
   /// Versionen sind GPS-Läufe (Vorgabe). Nach dem Anlegen nicht mehr geändert.
+  /// Seit Version 18 (FR-0221) auch 'sport' (andere Sportart mit Puls).
   final String mode;
+
+  /// Seit Version 18 (FR-0221): Sportart, gesetzt genau bei mode = 'sport'.
+  /// Läufe aus früheren Versionen haben NULL. Nach dem Anlegen nicht geändert.
+  final String? sport;
   const Run({
     required this.id,
     required this.state,
@@ -415,6 +444,7 @@ class Run extends DataClass implements Insertable<Run> {
     this.endedAtUs,
     this.endedUtcOffsetS,
     required this.mode,
+    this.sport,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -429,6 +459,9 @@ class Run extends DataClass implements Insertable<Run> {
       map['ended_utc_offset_s'] = Variable<int>(endedUtcOffsetS);
     }
     map['mode'] = Variable<String>(mode);
+    if (!nullToAbsent || sport != null) {
+      map['sport'] = Variable<String>(sport);
+    }
     return map;
   }
 
@@ -444,6 +477,9 @@ class Run extends DataClass implements Insertable<Run> {
           ? const Value.absent()
           : Value(endedUtcOffsetS),
       mode: Value(mode),
+      sport: sport == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sport),
     );
   }
 
@@ -459,6 +495,7 @@ class Run extends DataClass implements Insertable<Run> {
       endedAtUs: serializer.fromJson<int?>(json['ended_at_us']),
       endedUtcOffsetS: serializer.fromJson<int?>(json['ended_utc_offset_s']),
       mode: serializer.fromJson<String>(json['mode']),
+      sport: serializer.fromJson<String?>(json['sport']),
     );
   }
   @override
@@ -471,6 +508,7 @@ class Run extends DataClass implements Insertable<Run> {
       'ended_at_us': serializer.toJson<int?>(endedAtUs),
       'ended_utc_offset_s': serializer.toJson<int?>(endedUtcOffsetS),
       'mode': serializer.toJson<String>(mode),
+      'sport': serializer.toJson<String?>(sport),
     };
   }
 
@@ -481,6 +519,7 @@ class Run extends DataClass implements Insertable<Run> {
     Value<int?> endedAtUs = const Value.absent(),
     Value<int?> endedUtcOffsetS = const Value.absent(),
     String? mode,
+    Value<String?> sport = const Value.absent(),
   }) => Run(
     id: id ?? this.id,
     state: state ?? this.state,
@@ -490,6 +529,7 @@ class Run extends DataClass implements Insertable<Run> {
         ? endedUtcOffsetS.value
         : this.endedUtcOffsetS,
     mode: mode ?? this.mode,
+    sport: sport.present ? sport.value : this.sport,
   );
   Run copyWithCompanion(RunsCompanion data) {
     return Run(
@@ -503,6 +543,7 @@ class Run extends DataClass implements Insertable<Run> {
           ? data.endedUtcOffsetS.value
           : this.endedUtcOffsetS,
       mode: data.mode.present ? data.mode.value : this.mode,
+      sport: data.sport.present ? data.sport.value : this.sport,
     );
   }
 
@@ -514,14 +555,22 @@ class Run extends DataClass implements Insertable<Run> {
           ..write('startedAtUs: $startedAtUs, ')
           ..write('endedAtUs: $endedAtUs, ')
           ..write('endedUtcOffsetS: $endedUtcOffsetS, ')
-          ..write('mode: $mode')
+          ..write('mode: $mode, ')
+          ..write('sport: $sport')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, state, startedAtUs, endedAtUs, endedUtcOffsetS, mode);
+  int get hashCode => Object.hash(
+    id,
+    state,
+    startedAtUs,
+    endedAtUs,
+    endedUtcOffsetS,
+    mode,
+    sport,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -531,7 +580,8 @@ class Run extends DataClass implements Insertable<Run> {
           other.startedAtUs == this.startedAtUs &&
           other.endedAtUs == this.endedAtUs &&
           other.endedUtcOffsetS == this.endedUtcOffsetS &&
-          other.mode == this.mode);
+          other.mode == this.mode &&
+          other.sport == this.sport);
 }
 
 class RunsCompanion extends UpdateCompanion<Run> {
@@ -541,6 +591,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
   final Value<int?> endedAtUs;
   final Value<int?> endedUtcOffsetS;
   final Value<String> mode;
+  final Value<String?> sport;
   const RunsCompanion({
     this.id = const Value.absent(),
     this.state = const Value.absent(),
@@ -548,6 +599,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     this.endedAtUs = const Value.absent(),
     this.endedUtcOffsetS = const Value.absent(),
     this.mode = const Value.absent(),
+    this.sport = const Value.absent(),
   });
   RunsCompanion.insert({
     this.id = const Value.absent(),
@@ -556,6 +608,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     this.endedAtUs = const Value.absent(),
     this.endedUtcOffsetS = const Value.absent(),
     this.mode = const Value.absent(),
+    this.sport = const Value.absent(),
   }) : state = Value(state),
        startedAtUs = Value(startedAtUs);
   static Insertable<Run> custom({
@@ -565,6 +618,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     Expression<int>? endedAtUs,
     Expression<int>? endedUtcOffsetS,
     Expression<String>? mode,
+    Expression<String>? sport,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -573,6 +627,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
       if (endedAtUs != null) 'ended_at_us': endedAtUs,
       if (endedUtcOffsetS != null) 'ended_utc_offset_s': endedUtcOffsetS,
       if (mode != null) 'mode': mode,
+      if (sport != null) 'sport': sport,
     });
   }
 
@@ -583,6 +638,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     Value<int?>? endedAtUs,
     Value<int?>? endedUtcOffsetS,
     Value<String>? mode,
+    Value<String?>? sport,
   }) {
     return RunsCompanion(
       id: id ?? this.id,
@@ -591,6 +647,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
       endedAtUs: endedAtUs ?? this.endedAtUs,
       endedUtcOffsetS: endedUtcOffsetS ?? this.endedUtcOffsetS,
       mode: mode ?? this.mode,
+      sport: sport ?? this.sport,
     );
   }
 
@@ -615,6 +672,9 @@ class RunsCompanion extends UpdateCompanion<Run> {
     if (mode.present) {
       map['mode'] = Variable<String>(mode.value);
     }
+    if (sport.present) {
+      map['sport'] = Variable<String>(sport.value);
+    }
     return map;
   }
 
@@ -626,7 +686,8 @@ class RunsCompanion extends UpdateCompanion<Run> {
           ..write('startedAtUs: $startedAtUs, ')
           ..write('endedAtUs: $endedAtUs, ')
           ..write('endedUtcOffsetS: $endedUtcOffsetS, ')
-          ..write('mode: $mode')
+          ..write('mode: $mode, ')
+          ..write('sport: $sport')
           ..write(')'))
         .toString();
   }
@@ -20099,6 +20160,7 @@ typedef $RunsCreateCompanionBuilder = RunsCompanion Function({
   Value<int?> endedAtUs,
   Value<int?> endedUtcOffsetS,
   Value<String> mode,
+  Value<String?> sport,
 });
 typedef $RunsUpdateCompanionBuilder = RunsCompanion Function({
   Value<int> id,
@@ -20107,6 +20169,7 @@ typedef $RunsUpdateCompanionBuilder = RunsCompanion Function({
   Value<int?> endedAtUs,
   Value<int?> endedUtcOffsetS,
   Value<String> mode,
+  Value<String?> sport,
 });
 
 final class $RunsReferences extends BaseReferences<_$AppDatabase, Runs, Run> {
@@ -20476,6 +20539,11 @@ class $RunsFilterComposer extends Composer<_$AppDatabase, Runs> {
 
   ColumnFilters<String> get mode => $composableBuilder(
     column: $table.mode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sport => $composableBuilder(
+    column: $table.sport,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -20942,6 +21010,11 @@ class $RunsOrderingComposer extends Composer<_$AppDatabase, Runs> {
     column: $table.mode,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sport => $composableBuilder(
+    column: $table.sport,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
@@ -20973,6 +21046,9 @@ class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
 
   GeneratedColumn<String> get mode =>
       $composableBuilder(column: $table.mode, builder: (column) => column);
+
+  GeneratedColumn<String> get sport =>
+      $composableBuilder(column: $table.sport, builder: (column) => column);
 
   Expression<T> lapsRefs<T extends Object>(
     Expression<T> Function($LapsAnnotationComposer a) f,
@@ -21452,6 +21528,7 @@ class $RunsTableManager
                 Value<int?> endedAtUs = const Value.absent(),
                 Value<int?> endedUtcOffsetS = const Value.absent(),
                 Value<String> mode = const Value.absent(),
+                Value<String?> sport = const Value.absent(),
               }) => RunsCompanion(
                 id: id,
                 state: state,
@@ -21459,6 +21536,7 @@ class $RunsTableManager
                 endedAtUs: endedAtUs,
                 endedUtcOffsetS: endedUtcOffsetS,
                 mode: mode,
+                sport: sport,
               ),
           createCompanionCallback:
               ({
@@ -21468,6 +21546,7 @@ class $RunsTableManager
                 Value<int?> endedAtUs = const Value.absent(),
                 Value<int?> endedUtcOffsetS = const Value.absent(),
                 Value<String> mode = const Value.absent(),
+                Value<String?> sport = const Value.absent(),
               }) => RunsCompanion.insert(
                 id: id,
                 state: state,
@@ -21475,6 +21554,7 @@ class $RunsTableManager
                 endedAtUs: endedAtUs,
                 endedUtcOffsetS: endedUtcOffsetS,
                 mode: mode,
+                sport: sport,
               ),
           withReferenceMapper: (p0) => p0
               .map(

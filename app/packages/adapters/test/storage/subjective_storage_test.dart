@@ -227,7 +227,7 @@ void main() {
   });
 
   group('Migration von Schema 4 mit Bestandsdaten', () {
-    test('Daten bleiben, neue Tabellen leer und benutzbar, Schema = Dump v12', () async {
+    test('Daten bleiben, neue Tabellen leer und benutzbar, Schema = Dump v18', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v4 = await verifier.schemaAt(4);
       v4.rawDatabase
@@ -250,7 +250,10 @@ void main() {
         ..execute("INSERT INTO settings VALUES ('units', 'km', 1)");
       final db = AppDatabase(v4.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 12);
+      // Bis zum aktuellen Stand: Schritt 9 legt `runs.mode` mit der Definition
+      // der App an (samt 'sport'), die Zwischenstände 10–17 gleichen dem Dump
+      // daher nicht; erst Schritt 17 baut `runs` passend um.
+      await verifier.migrateAndValidate(db, 18);
 
       expect(await count(db, 'runs'), 1);
       final pre = await db
@@ -283,7 +286,7 @@ void main() {
       expect(await count(db, 'manual_trainings'), 1);
     });
 
-    test('Migration läuft über die App-Strategie (Version 4 -> 17) auf verschlüsselter Datei', () async {
+    test('Migration läuft über die App-Strategie (Version 4 -> 18) auf verschlüsselter Datei', () async {
       // Schema 4 aus dem Dump aufbauen: zwei Tabellen der App weglassen.
       final s0 = await EncryptedStorage(path).open(testKey());
       final db0 = (s0 as EncryptedStorageSession).database;
@@ -313,7 +316,7 @@ void main() {
       await exec(db0, 'DROP TABLE health_sleep_sessions');
       // Schema 10 (WP25): Laufbandeinstellungen und Spalte runs.mode.
       await exec(db0, 'DROP TABLE treadmill_settings');
-      await exec(db0, 'ALTER TABLE runs DROP COLUMN mode');
+      await rebuildRunsBeforeMode((sql) => exec(db0, sql), withOffset: true);
       await exec(db0, 'PRAGMA user_version = 4');
       await s0.close();
 
@@ -328,7 +331,7 @@ void main() {
             .data
             .values
             .single,
-        17,
+        18,
       );
       await db1.validateDatabaseSchema();
     });

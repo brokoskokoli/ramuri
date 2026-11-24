@@ -261,6 +261,7 @@ class ValueCalculationService {
           computedAt: now,
           lapCount: (await session.markers.laps(runId)).length,
           belt: analysis.belt,
+          isRunning: run.mode.isRunning,
         ),
       );
       // Angaben zum Lauf, die schon vor der Berechnung gemacht wurden: sRPE
@@ -802,8 +803,9 @@ class ValueCalculationService {
     for (final r in await _finishedRuns()) {
       final end = r.endedAt!;
       if (end.isBefore(from) || end.isAfter(asOf)) continue;
-      // Bandläufe nicht: das Tempo ist eingestellt, nicht gemessen (FR-0196).
-      if (r.mode == RunMode.treadmill) continue;
+      // Nur GPS-Läufe: beim Band ist das Tempo eingestellt, nicht gemessen
+      // (FR-0196); eine andere Sportart hat kein Tempo (FR-0221).
+      if (r.mode != RunMode.gps) continue;
       final stored = runValues[r.id];
       // Ein Laufwert braucht eine Basis (nach Schlüssel, nicht nach Inhalt):
       // fehlt sie am Wert, ist sie unbekannt und wird nie ersetzt.

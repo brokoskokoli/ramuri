@@ -33,6 +33,7 @@ StoredRun _run(
   int minutes = 30,
   Duration? offset = _cet,
   RunState state = RunState.finished,
+  OtherSport? sport,
 }) {
   final start = _d(day)
       .add(Duration(hours: hour, minutes: minute))
@@ -45,6 +46,8 @@ StoredRun _run(
         ? start.add(Duration(minutes: minutes))
         : null,
     endedUtcOffset: state == RunState.finished ? offset : null,
+    mode: sport == null ? RunMode.gps : RunMode.sport,
+    sport: sport,
   );
 }
 
@@ -84,6 +87,26 @@ void main() {
       // Der Plan beginnt heute (Mi); der Lauf lief vor dem Anlegen.
       final units = [_u(1, 2), _u(2, 4)];
       expect(_assign(units, [_run(7, 2)]), [_a(1, 7)]);
+    });
+
+    test('andere Sportart (FR-0221): nie einer Einheit zugeordnet, der Lauf '
+        'desselben Tags schon', () {
+      final units = [_u(1, 2)];
+      for (final s in OtherSport.values) {
+        expect(_assign(units, [_run(7, 2, sport: s)]), isEmpty);
+      }
+      final runs = [_run(7, 2, hour: 7, sport: OtherSport.rope), _run(8, 2)];
+      expect(
+        _assign(
+          units,
+          runs,
+          moving: {
+            7: const Duration(minutes: 60),
+            8: const Duration(minutes: 20),
+          },
+        ),
+        [_a(1, 8)],
+      );
     });
 
     test('Lauf gestern, Plan heute: keine Einheit gestern, nichts '

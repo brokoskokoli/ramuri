@@ -25,7 +25,12 @@ CREATE TABLE runs (
   ended_utc_offset_s INTEGER CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800),
   -- Seit Version 10 (WP25, FR-0196, K57): Art des Laufs. Läufe aus früheren
   -- Versionen sind GPS-Läufe (Vorgabe). Nach dem Anlegen nicht mehr geändert.
-  mode TEXT NOT NULL DEFAULT 'gps' CHECK (mode IN ('gps', 'treadmill'))
+  -- Seit Version 18 (FR-0221) auch 'sport' (andere Sportart mit Puls).
+  mode TEXT NOT NULL DEFAULT 'gps' CHECK (mode IN ('gps', 'treadmill', 'sport')),
+  -- Seit Version 18 (FR-0221): Sportart, gesetzt genau bei mode = 'sport'.
+  -- Läufe aus früheren Versionen haben NULL. Nach dem Anlegen nicht geändert.
+  sport TEXT CHECK (sport IN ('rope', 'cycling', 'rowing', 'other')),
+  CHECK ((mode = 'sport') = (sport IS NOT NULL))
 );
 
 CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs

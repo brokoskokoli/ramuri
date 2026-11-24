@@ -70,6 +70,9 @@ void main() {
             // Vertrag archive.md 4.3: Läufe aus Schema 9 und früher haben kein
             // `mode`, der Leser setzt 'gps' (Schema 10 bringt die Spalte mit).
             if (section == 'runs') row.putIfAbsent('mode', () => 'gps');
+            // Vertrag archive.md 4.3: Läufe bis Schema 17 haben kein `sport`,
+            // der Leser setzt null (Schema 18 bringt die Spalte mit).
+            if (section == 'runs') row.putIfAbsent('sport', () => null);
             // Vertrag archive.md 4.3: Trainings aus Schema 11 und früher haben
             // kein `hc_id`, der Leser setzt null (Schema 12 bringt die Spalte mit).
             if (section == 'manual_trainings') {

@@ -20,10 +20,17 @@ void main() {
     service = HintService(session: w.session, clock: w.clock);
   });
 
-  Future<int> addRun(int daysAgo, {int? rpe, int? wellbeing}) async {
+  Future<int> addRun(
+    int daysAgo, {
+    int? rpe,
+    int? wellbeing,
+    OtherSport? sport,
+  }) async {
     final end = ago(daysAgo).add(const Duration(hours: 9));
     final run = await w.session.runs.create(
       startedAt: end.subtract(const Duration(minutes: 30)),
+      mode: sport == null ? RunMode.gps : RunMode.sport,
+      sport: sport,
     );
     await w.session.runs.setState(
       run.id,
@@ -95,6 +102,15 @@ void main() {
         hcId: 'ex-2',
       ),
     );
+    expect(await service.pauseQuestion(), isNull);
+  });
+
+  test('Pausenfrage: eine Sporteinheit (FR-0221) zählt als Training', () async {
+    await addRun(30);
+    await addRun(10, sport: OtherSport.cycling);
+    final q = (await service.pauseQuestion())!;
+    expect(q.lastTrainingDay, ago(10));
+    await addRun(2, sport: OtherSport.rope);
     expect(await service.pauseQuestion(), isNull);
   });
 

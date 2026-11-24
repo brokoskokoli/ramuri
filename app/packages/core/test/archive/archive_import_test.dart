@@ -383,7 +383,8 @@ void main() {
           if (e.value.isNotEmpty)
             e.key: e.key == 'runs'
                 ? [
-                    for (final r in e.value) {...r, 'mode': 'gps'},
+                    for (final r in e.value)
+                      {...r, 'mode': 'gps', 'sport': null},
                   ]
                 : e.value,
       });
@@ -516,12 +517,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 17: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 18: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 18);
+        final lines = valid()..[0] = _manifest(schema: 19);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":18,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":19,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -703,7 +704,7 @@ void main() {
         });
         await c.run(await _archive(l));
         expect(c.sink.rows['runs'], [
-          {...run(), 'mode': 'gps'},
+          {...run(), 'mode': 'gps', 'sport': null},
         ]);
       },
     );
@@ -1388,8 +1389,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 17 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 18, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 18 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 19, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -1868,6 +1869,84 @@ void main() {
       'speed_mps': speed,
       'incline_percent': incline,
     };
+
+    test(
+      'Schema 18: runs.sport am Zeilenende; Schema 17 liest sich mit null; '
+      'sport in Schema 17, fehlend in Schema 18 oder falscher Typ: beschädigt',
+      () async {
+        expect(archiveSectionsFor(18).first.columns.last.name, 'sport');
+        expect([
+          for (final c in archiveSectionsFor(17).first.columns) c.name,
+        ], isNot(contains('sport')));
+        Map<String, Object?> run(int id, String mode, String? sport) =>
+            _row(archiveSections[0], id, schema: 18)
+              ..['mode'] = mode
+              ..['sport'] = sport;
+        await c.run(
+          await file(
+            v2(
+              schema: 18,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'runs': [
+                  run(1, 'gps', null),
+                  run(2, 'sport', 'rope'),
+                  run(3, 'sport', 'cycling'),
+                  run(4, 'sport', 'rowing'),
+                  run(5, 'sport', 'other'),
+                ],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        expect(
+          [for (final r in c.sink.rows['runs']!) '${r['mode']}:${r['sport']}'],
+          [
+            'gps:null',
+            'sport:rope',
+            'sport:cycling',
+            'sport:rowing',
+            'sport:other',
+          ],
+        );
+        // Schema 17 kennt die Spalte nicht: der Leser setzt null.
+        c = _Case(dir);
+        await c.run(
+          await file(
+            v2(
+              schema: 17,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'runs': [
+                  _row(archiveSections[0], 1, schema: 17)
+                    ..['mode'] = 'treadmill',
+                ],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['runs']!.single['sport'], isNull);
+        expect(c.sink.rows['runs']!.single['mode'], 'treadmill');
+        for (final (schema, bad) in <(int, Map<String, Object?>)>[
+          (17, run(1, 'sport', 'rope')),
+          (18, run(1, 'gps', null)..remove('sport')),
+          (18, run(1, 'sport', null)..['sport'] = 3),
+        ]) {
+          c = _Case(dir);
+          await rejectsV2(
+            v2(
+              schema: schema,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'runs': [bad],
+              },
+            ),
+          );
+        }
+      },
+    );
 
     test(
       'Schema 10: mode und treadmill_settings, Steigung unbekannt (null)',
@@ -2758,9 +2837,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 18: neueres Archiv', () async {
+    test('Schema 19: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":18,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":19,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

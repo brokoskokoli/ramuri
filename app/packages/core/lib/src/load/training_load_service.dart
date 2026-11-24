@@ -167,7 +167,9 @@ class TrainingLoadService {
           trimp.method == model.method &&
           trimp.methodVersion == model.methodVersion) {
         units.add(LoadUnit.run(day: day, trimp: trimp.value));
-        if (srpe != null && rpe != null) {
+        // Der Faktor (PAR-087) kommt nur aus Läufen; eine andere Sportart
+        // (FR-0221) zählt mit ihrem TRIMP nur für die Belastung.
+        if (run.mode.isRunning && srpe != null && rpe != null) {
           factorRuns.add(
             FactorRun(
               time: run.endedAt!,

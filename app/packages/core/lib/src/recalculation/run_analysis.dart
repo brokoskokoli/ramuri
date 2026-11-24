@@ -13,6 +13,7 @@ import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recording/belt_track.dart';
+import '../recording/sport_moving_time.dart';
 
 /// Schlüssel der gespeicherten Werte (`ComputedValue.key`).
 const String vo2maxRunValueKey = 'vo2max_run';
@@ -263,13 +264,22 @@ class RunAnalyzer {
                 resumedAt: pre.movement.resumedAt,
               ),
             );
-      selection = Vo2maxSectionSelector(parameters: fitness).select(
-        run: pre,
-        basis: basis,
-        runStart: run.startedAt,
-        until: end,
-        belt: belt,
-      );
+      // Keine Laufwerte für eine andere Sportart (FR-0221, DEC-0056): keine
+      // Abschnitte, also keine VO₂max und keine aerobe Effizienz.
+      selection = run.mode.isRunning
+          ? Vo2maxSectionSelector(parameters: fitness).select(
+              run: pre,
+              basis: basis,
+              runStart: run.startedAt,
+              until: end,
+              belt: belt,
+            )
+          : SectionSelection(
+              parameterVersion: fitness.parameterVersion,
+              basis: basis,
+              sections: const [],
+              excluded: const [],
+            );
     }
     final estimate = const AcsmReserveVo2maxEstimator().estimate(
       selection: selection,
@@ -359,5 +369,23 @@ RunPreprocessing replayRunPreprocessing({
   for (final e in indexed) {
     e.$2.apply();
   }
-  return pre.result(at: end);
+  final result = pre.result(at: end);
+  // Andere Sportart (FR-0221): Bewegungszeit nach PAR-232, also die
+  // Aufzeichnungszeit ohne Pause-Taste und Unterbrechung, ohne Autopause und
+  // Stillstandserkennung. Zonen, TRIMP und Pulsabdeckung folgen dieser Zeit
+  // wie beim Lauf.
+  final spans = sportMovingIntervalsOfRun(run, end, gaps);
+  if (spans == null) return result;
+  final m = result.movement;
+  return result.withMovement(
+    MovementResult(
+      parameterVersion: m.parameterVersion,
+      totalTime: m.totalTime,
+      movingTime: spans.fold(Duration.zero, (a, s) => a + s.duration),
+      movingIntervals: spans,
+      autoPauseState: AutoPauseState.moving,
+      manuallyPaused: m.manuallyPaused,
+      resumedAt: m.resumedAt,
+    ),
+  );
 }

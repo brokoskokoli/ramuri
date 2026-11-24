@@ -4,7 +4,7 @@ title: Aufzeichnung von Laufeinheiten
 status: Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0031, FR-0032, FR-0033, FR-0034, FR-0035, FR-0036, FR-0037, FR-0038, FR-0039, FR-0193, FR-0194, FR-0195, FR-0196, FR-0202, FR-0204, FR-0210, FR-0218]
+related_requirements: [FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0031, FR-0032, FR-0033, FR-0034, FR-0035, FR-0036, FR-0037, FR-0038, FR-0039, FR-0193, FR-0194, FR-0195, FR-0196, FR-0202, FR-0204, FR-0210, FR-0218, FR-0221]
 ---
 
 # Aufzeichnung von Laufeinheiten
@@ -327,6 +327,27 @@ In Phase 2 gibt es einen Laufbandmodus, in dem der Nutzer die aktuelle Geschwind
 - [ ] Die Bewegungszeit läuft, solange die eingestellte Geschwindigkeit über 0 liegt; die Autopause entfällt.
 - [ ] Exportiert wird ohne GPS-Strecke als TCX und FIT, GPX ist nicht verfügbar (OQ-0042).
 - [ ] Für die aerobe Effizienz gilt die GPS-Regel PAR-025; Laufbandläufe fließen deshalb derzeit nicht ein.
+
+### FR-0221 — Andere Sportart mit Puls aufzeichnen
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-003 (Maintainer 2026-11-20)
+- **Verwandt:** FR-0092, FR-0095, FR-0193, FR-0196, FR-0197, FR-0199, PAR-232, DEC-0056
+
+Neben GPS-Lauf und Laufband kann der Nutzer eine andere Sportart aufzeichnen: Seilspringen, Radfahren, Rudern/Ergometer oder Sonstiges. Aufgezeichnet wird nur der Puls eines verbundenen Sensors, ohne Standort und ohne Strecke. Die Belastung wird wie beim Lauf aus dem Puls gerechnet, mit derselben Herzfrequenzbasis und demselben Belastungsprofil, ohne Korrektur je Sportart.
+
+Gespeichert wird eine solche Einheit als Lauf mit der Art `sport` und der Sportart (`runs.sport`: `rope`, `cycling`, `rowing`, `other`; Datenmodell und Archiv: `docs/architecture/data-model.md`, `docs/contracts/archive.md`).
+
+**Akzeptanzkriterien:**
+- [ ] Der Start geht nur mit verbundenem Pulssensor; sonst erklärt die App den Grund und bietet den Nachtrag an (FR-0199).
+- [ ] Die Aufzeichnung braucht keine Standortberechtigung und nimmt weder Positionen noch Schritte an.
+- [ ] Die Bewegungszeit folgt PAR-232; TRIMP, Zonenzeit und Pulsabdeckung entstehen wie beim Lauf (FR-0092, FR-0197).
+- [ ] Es gibt keine Strecke, Pace, Splits, Kadenz, VO₂max, aerobe Effizienz, Bestwerte, Prognose und Referenzvorschläge.
+- [ ] Die Einheit zählt nicht für Trainingsstand (PAR-192), längste Einheit, lockeres Tempo (PAR-205), Wochenstrecke und Wochenminuten des Plans.
+- [ ] Die Einheit zählt für Tageswert, ATL/CTL/TSB (FR-0095) und das Pausenende; der sRPE-Faktor (PAR-087) bleibt aus Läufen.
+- [ ] Nach einem Prozessende setzt der Wiederanlauf die Einheit mit derselben Sportart fort (FR-0193).
+- [ ] RPE wird wie nach einem Lauf abgefragt.
+- [ ] Exportiert wird ohne Strecke als TCX und FIT; GPX ist nicht verfügbar.
+- [ ] Hinweise zur Sportart (ersetzt nicht das Laufen, Belastung von Wade und Achillessehne, Brustgurt empfohlen, Unterschätzung bei Rad und Rudern) zeigt die App; wo und wann, legt die Oberfläche der Sportart fest.
 
 ## Offene Fragen
 <!-- BEGIN OQ -->

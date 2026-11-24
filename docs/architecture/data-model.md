@@ -6,7 +6,7 @@
 |---|---|---|
 | Profil | Basiswerte aus der Felderliste | FR-0002 |
 | Bekanntes Gerät | Gerät, Bevorzugung | FR-0013, FR-0014 |
-| Lauf | Zeiten (Bewegung, gesamt), Strecke, Runden, Zusammenfassung, subjektive Angaben | FR-0037, FR-0038, FR-0052 |
+| Lauf | Art (GPS, Laufband, andere Sportart mit Sportart), Zeiten (Bewegung, gesamt), Strecke, Runden, Zusammenfassung, subjektive Angaben | FR-0037, FR-0038, FR-0052, FR-0196, FR-0221 |
 | Messreihe | Zeitstempel, Wert, Quellgerät, Zustand des Werts | FR-0020, FR-0046, FR-0057 |
 | Bewerteter Abschnitt | Teil eines Laufs mit Qualitätsbewertung | FR-0048, FR-0073 |
 | Fitnesswert | Wert plus Zeitpunkt, Datenzeitraum, Anzahl Messungen, Quellen, Methode, Version, Qualitätsstufe; ursprünglicher und neu berechneter Wert | FR-0053, FR-0058 |
@@ -20,6 +20,14 @@
 | Einwilligung | Datenquelle oder Empfänger, Zustand | SEC-0001, SEC-0002, SEC-0007 |
 | Externe Verknüpfung | Strava-Verbindung, Upload-Status je Lauf | FR-0185, FR-0188, FR-0190 |
 
+## Art eines Laufs (`runs.mode`, `runs.sport`)
+
+Seit Schema 18 (`schema.drift`, Archivabschnitt 1, [Archivvertrag](../contracts/archive.md)):
+
+- **`mode`:** `gps` (GPS-Lauf), `treadmill` (Laufband, FR-0196) oder `sport` (andere Sportart, FR-0221). Läufe aus älteren Schemata behalten ihren Wert.
+- **`sport`:** die Sportart bei `mode` = `sport`: `rope` (Seilspringen), `cycling` (Radfahren), `rowing` (Rudern/Ergometer) oder `other` (Sonstiges); bei `gps` und `treadmill` immer `null`. Ein CHECK über beide Spalten lehnt jede andere Kombination ab; die Migration auf Schema 18 ändert keine Daten (`sport` = `null`).
+- **Verwendung:** Eine Einheit mit `sport` hat keine Positionen, Schritte, Strecke und Laufwerte; ihr Puls, ihre Pausen und ihre Belastung stehen wie beim Lauf in den übrigen Tabellen (FR-0221, PAR-232).
+
 ## Schritte eines Laufs (`raw_steps`)
 
 Speicherung der Schrittfrequenz des Smartphones (FR-0202, FR-0183); Tabelle `raw_steps` (`schema.drift`), Archivabschnitt 7 ([Archivvertrag](../contracts/archive.md)).
@@ -29,6 +37,7 @@ Speicherung der Schrittfrequenz des Smartphones (FR-0202, FR-0183); Tabelle `raw
 - **`source`:** `phone`. **`state`:** `present`.
 - **Dichte:** höchstens ein Wert je Anzeigetakt; kommen mehrere Meldungen vor dem nächsten Schreiben, bleibt nur der neueste Zählerstand (verlustfrei, weil kumuliert).
 - **Laufband:** gilt genauso für Läufe im Laufbandmodus (FR-0196).
+- **Andere Sportart:** eine Einheit mit `mode` = `sport` (FR-0221) speichert keine Schritte; sie hat keine Kadenz.
 - **Verwendung:** Die Schrittfrequenz im Export rechnet der Dateiexport aus dem Zuwachs des Zählers ([Dateiexport-Vertrag](../contracts/file-export.md), Regel 11). Löschen eines Laufs und „Alles löschen“ entfernen die Werte (SEC-0004); Archiv und Reimport enthalten sie.
 
 ## Datenhoheit

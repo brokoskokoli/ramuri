@@ -54,9 +54,12 @@ void main() {
     ComputedValue? trimp,
     int? rpe,
     Duration? offset,
+    OtherSport? sport,
   }) async {
     final run = await w.session.runs.create(
       startedAt: end.subtract(const Duration(minutes: 30)),
+      mode: sport == null ? RunMode.gps : RunMode.sport,
+      sport: sport,
     );
     await w.session.runs.setState(
       run.id,
@@ -227,6 +230,67 @@ void main() {
       final r = await service.load();
       expect(r.series.days.last.day.isAfter(today), isFalse);
       expect(r.series.summary.lastUnitDay, ago(1));
+    });
+  });
+
+  group('Andere Sportart (FR-0221, FR-0095, PAR-087)', () {
+    test(
+      'Tag mit einer Sporteinheit: ihr TRIMP im Tageswert und in ATL/CTL',
+      () async {
+        await seedFactorRuns(2.0);
+        await addRun(
+          ago(1).add(const Duration(hours: 9)),
+          trimp: trimpValue(80),
+          sport: OtherSport.rope,
+        );
+        final r = await service.load();
+        final d = dayOf(r, ago(1));
+        expect(d.load, 80);
+        expect(d.flags, isNot(contains(LoadDayFlag.converted)));
+        expect(r.series.days.last.day, ago(1));
+        // ATL/CTL gleich wie mit einem Lauf mit demselben TRIMP am selben Tag.
+        w = await RecalcWorld.create();
+        final asRun = TrainingLoadService(
+          session: w.session,
+          clock: w.clock,
+          calculation: w.calc(),
+          recalculation: w.recalc(),
+        );
+        await seedFactorRuns(2.0);
+        final without = await asRun.load();
+        await addRun(
+          ago(1).add(const Duration(hours: 9)),
+          trimp: trimpValue(80),
+        );
+        final rr = dayOf(await asRun.load(), ago(1));
+        expect(d.atl, isNotNull);
+        expect(d.atl, rr.atl);
+        expect(d.ctl, rr.ctl);
+        expect(d.tsb, rr.tsb);
+        // Ohne die Einheit hat der Tag keine Last und andere ATL/CTL.
+        final w0 = dayOf(without, ago(1));
+        expect(w0.load, isNull);
+        expect(w0.atl, isNot(d.atl));
+        expect(w0.ctl, isNot(d.ctl));
+      },
+    );
+
+    test('sRPE-Faktor bei 20 Läufen und zusätzlichen Sporteinheiten '
+        'unverändert', () async {
+      await seedFactorRuns(2.0, n: 20);
+      // Neuere Sporteinheiten mit RPE und einem anderen Verhältnis (4,0),
+      // mehr als Läufe: zählten sie, wäre der Faktor 4,0.
+      for (var i = 0; i < 24; i++) {
+        await addRun(
+          ago(20).add(Duration(hours: 8 + 12 * i)),
+          trimp: trimpValue(4.0 * 30 * 5),
+          rpe: 5,
+          sport: OtherSport.values[i % OtherSport.values.length],
+        );
+      }
+      final r = await service.load();
+      expect(r.factor.value, closeTo(2.0, 1e-9));
+      expect(r.factor.runCount, 20);
     });
   });
 
@@ -407,6 +471,29 @@ void main() {
       expect(dayOf(r, DateTime.utc(2030, 2, 21)).load, 40);
       expect(dayOf(r, DateTime.utc(2030, 2, 20)).load, isNull);
       expect(dayOf(r, DateTime.utc(2030, 2, 19)).load, 10);
+    });
+
+    test('Sporteinheit über Mitternacht zählt am lokalen Endtag wie ein Lauf '
+        '(FR-0071, FR-0221)', () async {
+      // 23:40 bis 00:10 Ortszeit (+2 h): Ende 22:10 UTC am 20.2. = 21.2. lokal.
+      for (final sport in OtherSport.values) {
+        await addRun(
+          DateTime.utc(2030, 2, 20, 22, 10),
+          trimp: trimpValue(10),
+          offset: const Duration(hours: 2),
+          sport: sport,
+        );
+      }
+      // Derselbe Zeitraum als Lauf eine Woche vorher.
+      await addRun(
+        DateTime.utc(2030, 2, 13, 22, 10),
+        trimp: trimpValue(40),
+        offset: const Duration(hours: 2),
+      );
+      final r = await service.load();
+      expect(dayOf(r, DateTime.utc(2030, 2, 21)).load, 40);
+      expect(dayOf(r, DateTime.utc(2030, 2, 20)).load, isNull);
+      expect(dayOf(r, DateTime.utc(2030, 2, 14)).load, 40);
     });
 
     test('Heute ist der lokale Tag der Uhr (Versatz)', () async {

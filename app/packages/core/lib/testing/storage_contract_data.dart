@@ -644,6 +644,46 @@ Future<void> _runMode(StorageContractHarness h) async {
     {g.id: RunMode.gps},
     'nicht beendete',
   );
+  // Andere Sportart (FR-0221): Sportart genau bei RunMode.sport.
+  for (final sport in OtherSport.values) {
+    final o = await s.runs.create(
+      startedAt: at(10),
+      mode: RunMode.sport,
+      sport: sport,
+    );
+    expectEq(o.sport, sport, 'angelegt ${sport.wire}');
+    final read = (await s.runs.get(o.id))!;
+    expectEq(
+      '${read.mode.wire}:${read.sport?.wire}',
+      'sport:${sport.wire}',
+      'gelesen ${sport.wire}',
+    );
+    await s.runs.setState(o.id, RunState.finished, endedAt: at(70));
+    expectEq((await s.runs.get(o.id))!.sport, sport, 'nach Ende ${sport.wire}');
+  }
+  expectEq((await s.runs.get(g.id))!.sport, null, 'gps ohne Sportart');
+  expectEq((await s.runs.get(t.id))!.sport, null, 'Band ohne Sportart');
+  final count = (await s.runs.list()).length;
+  await expectFails(
+    () => s.runs.create(startedAt: at(11), mode: RunMode.sport),
+    StorageFailure.rejected,
+    'sport ohne Sportart',
+  );
+  await expectFails(
+    () => s.runs.create(startedAt: at(11), sport: OtherSport.rope),
+    StorageFailure.rejected,
+    'Sportart bei gps',
+  );
+  await expectFails(
+    () => s.runs.create(
+      startedAt: at(11),
+      mode: RunMode.treadmill,
+      sport: OtherSport.cycling,
+    ),
+    StorageFailure.rejected,
+    'Sportart bei treadmill',
+  );
+  expectEq((await s.runs.list()).length, count, 'nichts angelegt');
   await s.close();
 }
 

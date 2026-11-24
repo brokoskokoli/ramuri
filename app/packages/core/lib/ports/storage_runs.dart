@@ -13,6 +13,7 @@ class StoredRun {
     this.endedAt,
     this.endedUtcOffset,
     this.mode = RunMode.gps,
+    this.sport,
   });
 
   final int id;
@@ -30,15 +31,20 @@ class StoredRun {
 
   /// Art des Laufs (ab Schema 10; frühere Läufe sind `gps`).
   final RunMode mode;
+
+  /// Sportart, genau bei [RunMode.sport] gesetzt (ab Schema 18, FR-0221).
+  final OtherSport? sport;
 }
 
 /// Läufe anlegen, Zustand ändern, lesen.
 abstract interface class RunStore {
-  /// Legt einen Lauf im Zustand `active` an. [mode] ist danach nicht mehr
-  /// änderbar.
+  /// Legt einen Lauf im Zustand `active` an. [mode] und [sport] sind danach
+  /// nicht mehr änderbar. [sport] ist genau bei [RunMode.sport] Pflicht und
+  /// sonst verboten (`rejected`, [requireRunSport]).
   Future<StoredRun> create({
     required DateTime startedAt,
     RunMode mode = RunMode.gps,
+    OtherSport? sport,
   });
 
   /// Ändert den Zustand. [endedAt] ist genau bei `finished` Pflicht und sonst
@@ -117,6 +123,14 @@ abstract interface class RunMarkerStore {
 
   /// Nach Beginn sortiert.
   Future<List<StoredGap>> gaps(int runId);
+}
+
+/// Prüft Art und Sportart vor dem Anlegen (Adapter und Fake rufen dieselbe
+/// Regel): `rejected`, wenn [sport] nicht genau bei [RunMode.sport] steht.
+void requireRunSport(RunMode mode, OtherSport? sport) {
+  if (!runModeMatchesSport(mode, sport)) {
+    throw const StorageException(StorageFailure.rejected);
+  }
 }
 
 /// Größter erlaubter UTC-Versatz der Ortszeit zum Laufende ([requireRunEnd]).

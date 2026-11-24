@@ -35,11 +35,12 @@ class AppDatabase extends _$AppDatabase {
   /// `physical_camera_id`, `focal_length_mm`, FR-0220).
   /// Version 16: gewählte Morgenmessung des Tages (`morning_measurements.chosen`,
   /// PAR-160K). Version 17: Diagnose der Bildverarbeitung im Rohsignal
-  /// (`morning_raw_signals.isp_frames`, `diag_*`, FR-0217). Jede spätere Änderung erhöht die
+  /// (`morning_raw_signals.isp_frames`, `diag_*`, FR-0217). Version 18: andere
+  /// Sportart (`runs.mode` 'sport', `runs.sport`, FR-0221). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -295,7 +296,63 @@ class AppDatabase extends _$AppDatabase {
       await m.addColumn(t, t.diagShadingOff);
       await m.addColumn(t, t.diagAwbVariant);
     },
+    // 17 -> 18: andere Sportart (FR-0221). `runs.mode` erlaubt 'sport', neue
+    // Spalte `runs.sport` (NULL für alle bestehenden Läufe). SQLite kann den
+    // CHECK nicht ändern: Die Tabelle wird umgebaut, Ids, Werte und der
+    // AUTOINCREMENT-Zähler bleiben. Die Fremdschlüssel sind dabei aus
+    // ([_withoutForeignKeys]); ohne das löschte das Entfernen der alten Tabelle
+    // alle Kindzeilen (ON DELETE CASCADE) mit.
+    17: (Migrator m) async {
+      await m.drop(runsOffsetInsert);
+      await m.drop(runsOffsetUpdate);
+      // Altes Verhalten von RENAME: Verweise in Kindtabellen und Triggern
+      // anderer Tabellen bleiben auf `runs` und zeigen danach auf die neue
+      // Tabelle.
+      await customStatement('PRAGMA legacy_alter_table = ON');
+      await customStatement('ALTER TABLE runs RENAME TO runs_old');
+      await customStatement('PRAGMA legacy_alter_table = OFF');
+      await m.create(runs);
+      await customStatement(
+        'INSERT INTO runs (id, state, started_at_us, ended_at_us, '
+        'ended_utc_offset_s, mode, sport) '
+        'SELECT id, state, started_at_us, ended_at_us, ended_utc_offset_s, '
+        'mode, NULL FROM runs_old ORDER BY id',
+      );
+      await customStatement("DELETE FROM sqlite_sequence WHERE name = 'runs'");
+      await customStatement(
+        "UPDATE sqlite_sequence SET name = 'runs' WHERE name = 'runs_old'",
+      );
+      await customStatement('DROP TABLE runs_old');
+      await m.create(runsOffsetInsert);
+      await m.create(runsOffsetUpdate);
+    },
   };
+
+  /// Schritte, die eine Tabelle mit Kindzeilen umbauen und deshalb ohne
+  /// Fremdschlüssel laufen müssen (`PRAGMA foreign_keys` wirkt nur außerhalb
+  /// einer Transaktion).
+  static const _rebuildsWithChildren = {17};
+
+  static bool _rebuilds(int from, int to) =>
+      _rebuildsWithChildren.any((v) => v >= from && v < to);
+
+  /// Führt [body] mit ausgeschalteten Fremdschlüsseln aus, wenn ein Schritt
+  /// zwischen [from] und [to] eine Elterntabelle umbaut. Vor dem Ende der
+  /// Transaktion prüft `foreign_key_check` alle Verweise (Fehler bricht ab),
+  /// danach sind die Fremdschlüssel in jedem Fall wieder an.
+  Future<void> _withoutForeignKeys(
+    int from,
+    int to,
+    Future<void> Function() body,
+  ) async {
+    if (!_rebuilds(from, to)) return body();
+    await customStatement('PRAGMA foreign_keys = OFF');
+    try {
+      await body();
+    } finally {
+      await customStatement('PRAGMA foreign_keys = ON');
+    }
+  }
 
   Future<int?> _sequenceOf(String table) async {
     final rows = await customSelect(
@@ -318,23 +375,36 @@ class AppDatabase extends _$AppDatabase {
       try {
         // Alle Schritte in einer Transaktion: Scheitert einer, bleibt nichts
         // von den früheren zurück, und "Erneut versuchen" startet sauber.
-        await transaction(() async {
-          for (var v = from; v < to; v++) {
-            final step = migrationSteps[v];
-            if (step == null) {
+        await _withoutForeignKeys(
+          from,
+          to,
+          () => transaction(() async {
+            for (var v = from; v < to; v++) {
+              final step = migrationSteps[v];
+              if (step == null) {
+                throw const ConnectionSetupFailure(
+                  StorageFailure.migrationFailed,
+                );
+              }
+              await step(m);
+            }
+            // Ohne Fremdschlüssel umgebaut: Jeder Verweis muss noch stimmen.
+            if (_rebuilds(from, to) &&
+                (await customSelect(
+                  'PRAGMA foreign_key_check',
+                ).get()).isNotEmpty) {
               throw const ConnectionSetupFailure(
                 StorageFailure.migrationFailed,
               );
             }
-            await step(m);
-          }
-          // Die Version gehört in dieselbe Transaktion: drift schreibt sie
-          // erst nach beforeOpen (drift 2.35.3 engines.dart), also nach dem
-          // Commit. Ein Abbruch dazwischen würde die Schritte wiederholen
-          // (etwa doppelte Spalte) und die Datei dauerhaft "migrationFailed"
-          // machen. `to` ist eine Ganzzahl der App, kein Nutzerwert.
-          await customStatement('PRAGMA user_version = $to');
-        });
+            // Die Version gehört in dieselbe Transaktion: drift schreibt sie
+            // erst nach beforeOpen (drift 2.35.3 engines.dart), also nach dem
+            // Commit. Ein Abbruch dazwischen würde die Schritte wiederholen
+            // (etwa doppelte Spalte) und die Datei dauerhaft "migrationFailed"
+            // machen. `to` ist eine Ganzzahl der App, kein Nutzerwert.
+            await customStatement('PRAGMA user_version = $to');
+          }),
+        );
       } catch (_) {
         // Jeder Fehler eines Schritts ist ein Migrationsfehler, ohne Ursache:
         // Sie könnte Statement und Parameter tragen. Die Ausnahme verlässt den
