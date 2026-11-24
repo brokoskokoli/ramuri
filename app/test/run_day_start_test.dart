@@ -1,8 +1,9 @@
 // Ein Lauf über Mitternacht steht in Kalender (FR-0171), Plan-Einheit
-// (PAR-231) und Kalender ohne Einheit am Tag seines Starts (PAR-237). Die
-// Läufe tragen den Versatz 0, ihre Tage sind UTC-Mitternacht wie die
-// Plan-Tage; die Uhr ist eine Ortszeit-Testuhr, so gilt der Test in jeder
-// Zone der Zeitzonen-Matrix.
+// (PAR-231), Kalender ohne Einheit, Verlauf und Startseite am Tag seines
+// Starts (PAR-237). Im Kalender tragen die Läufe den Versatz 0, ihre Tage
+// sind UTC-Mitternacht wie die Plan-Tage; Verlauf und Startseite rechnen in
+// Ortszeit mit dem Versatz der Prozesszone. Die Uhr ist eine
+// Ortszeit-Testuhr, so gilt der Test in jeder Zone der Zeitzonen-Matrix.
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -14,6 +15,7 @@ import 'package:running_app/features/settings/app_settings.dart';
 import 'package:running_app/offload_scope.dart';
 
 import 'app_harness.dart';
+import 'history_summary_test.dart' show seedRun, showAllRuns, started;
 
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
@@ -138,6 +140,57 @@ void main() {
     // Lauf ohne Einheit am Starttag (Donnerstag), nicht am Freitag.
     expect(inDay('12', 'Lauf ohne Plan'), findsOneWidget);
     expect(inDay('13', 'Lauf ohne Plan'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Verlauf: Lauf Sonntag 23:30 bis Montag 00:40 steht in der '
+      'Woche des Sonntags (FR-0212, PAR-237)', (tester) async {
+    final d = await started(tester);
+    d.clock.set(DateTime(2026, 6, 17, 12)); // Mittwoch, Woche ab 15. Juni
+    final id = await seedRun(
+      d.session,
+      DateTime(2026, 6, 14, 23, 30),
+      minutes: 70,
+    );
+    await tester.tap(key('home_history'));
+    await tester.pumpAndSettle();
+    await showAllRuns(tester);
+    expect(find.text('LETZTE WOCHE'), findsOneWidget);
+    expect(find.text('DIESE WOCHE'), findsNothing);
+    expect(
+      tester.getTopLeft(find.text('LETZTE WOCHE')).dy,
+      lessThan(tester.getTopLeft(key('history_run_$id')).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Startseite: Lauf Sonntag 23:30 bis Montag 00:40 zählt nicht '
+      'in der Woche ab Montag, letzter Lauf am Sonntag (FR-0209, PAR-237)', (
+    tester,
+  ) async {
+    final d = Device();
+    d.clock.set(DateTime(2026, 6, 15, 12)); // Montag
+    // Schlüssel, den die App beim ersten Start erzeugt (app_harness).
+    final s = await d.storage.open(Uint8List.fromList(List.filled(32, 7)));
+    await s.settings.set(SettingKeys.setupDone, '1', at: DateTime.utc(2026));
+    await seedRun(s, DateTime(2026, 6, 14, 23, 30), minutes: 70);
+    await d.start(tester, const Locale('de'));
+    final km = key('home_week_km').evaluate().single.widget as Text;
+    expect(
+      km.data!.replaceAll('\u2060', '').replaceAll('\u00A0', ' '),
+      '0,00 km',
+    );
+    expect(
+      tester.widget<Semantics>(key('week_day_0')).properties.label,
+      'Montag, kein Lauf',
+    );
+    expect(
+      find.descendant(
+        of: key('home_last_run'),
+        matching: find.textContaining('14. Juni'),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }
