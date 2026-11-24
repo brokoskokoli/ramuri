@@ -35,6 +35,7 @@ class ProfileForm extends StatefulWidget {
     required this.onSaved,
     this.coefficients,
     this.restingMeasure,
+    this.focusMaxHeartRate = false,
   });
 
   final ProfileService service;
@@ -50,6 +51,10 @@ class ProfileForm extends StatefulWidget {
   /// (keine Kamera in der Umgebung) bleibt nur die manuelle Eingabe.
   final RestingMeasureLauncher? restingMeasure;
 
+  /// Nach dem Laden das Feld HFmax fokussieren (Einstieg „HFmax prüfen“ der
+  /// Unterforderung, PAR-236).
+  final bool focusMaxHeartRate;
+
   @override
   State<ProfileForm> createState() => _ProfileFormState();
 }
@@ -61,6 +66,7 @@ class _ProfileFormState extends State<ProfileForm> {
   final _resting = TextEditingController();
   final _restingFocus = FocusNode();
   final _max = TextEditingController();
+  final _maxFocus = FocusNode();
   final _weekly = TextEditingController();
   final _usual = TextEditingController();
   int _days = 0;
@@ -130,6 +136,11 @@ class _ProfileFormState extends State<ProfileForm> {
       _days = p.trainingDaysMask ?? 0;
       _loaded = true;
     });
+    if (widget.focusMaxHeartRate) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _maxFocus.requestFocus();
+      });
+    }
   }
 
   /// Öffnet die Messung. Nach der Übernahme steht der gespeicherte Wert im
@@ -165,6 +176,7 @@ class _ProfileFormState extends State<ProfileForm> {
   @override
   void dispose() {
     _restingFocus.dispose();
+    _maxFocus.dispose();
     for (final c in _all) {
       c.dispose();
     }
@@ -516,6 +528,7 @@ class _ProfileFormState extends State<ProfileForm> {
                 l10n.profileMaxHr,
                 l10n,
                 field: ProfileField.maxHeartRate,
+                focusNode: _maxFocus,
               ),
               _heartRateInfo(l10n),
             ],
