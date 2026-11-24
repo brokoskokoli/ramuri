@@ -100,11 +100,24 @@ class _Env {
   /// Lauf am Tag [n] (Ende 7:40 Uhr Ortszeit), der lockeren Einheit dieses
   /// Tags zugeordnet, mit RPE [rpe] und [highHr] Minuten bei mindestens 80 %
   /// HFmax; die Uhr steht danach auf 8 Uhr dieses Tags.
-  Future<void> run(int n, {int? rpe = 3, double? highHr = 12}) async {
+  /// Mit [sport] ist es eine andere Sportart (FR-0221), die die Einheit
+  /// ersetzt (FR-0222).
+  Future<void> run(
+    int n, {
+    int? rpe = 3,
+    double? highHr = 12,
+    bool sport = false,
+  }) async {
     final unit = (await plans.unitOn(_day(n)))!;
     expect(unit.kind, isIn([PlanUnitKind.easy, PlanUnitKind.long]));
     final start = DateTime(_day(n).year, _day(n).month, _day(n).day, 7);
-    final r = await session.runs.create(startedAt: start);
+    final r = sport
+        ? await session.runs.create(
+            startedAt: start,
+            mode: RunMode.sport,
+            sport: OtherSport.rope,
+          )
+        : await session.runs.create(startedAt: start);
     final end = start.add(const Duration(minutes: 40));
     await session.runs.setState(
       r.id,
@@ -234,6 +247,17 @@ void main() {
         ended.subtract(const Duration(microseconds: 1)),
       );
       expect(before.map((r) => r.endedAt), [ended]);
+    });
+
+    test('ersetzte Sporteinheit (FR-0222) zählt nicht für das Muster, '
+        'nur Läufe', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      await e.run(18, sport: true, highHr: 0);
+      final reader = PlanDataReader(session: e.session, clock: e.clock);
+      final runs = await reader.underloadRuns(null);
+      expect(runs, hasLength(1));
+      expect(runs.single.endedAt.day, _day(15).day);
     });
 
     test('Läufe ohne Puls oder ohne RPE zählen nicht mit', () async {

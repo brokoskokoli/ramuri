@@ -266,7 +266,8 @@ class PlanDataReader {
     ];
   }
 
-  /// Die einer Einheit zugeordneten, beendeten Läufe, die nach [from] endeten
+  /// Die einer Einheit zugeordneten, beendeten Läufe (ohne andere Sportart),
+  /// die nach [from] endeten
   /// (ohne [from]: alle), für das Muster der Unterforderung
   /// (PAR-236, [planUnderloadPattern]): Art der Einheit, RPE aus der
   /// Rückmeldung und Zeit bei mindestens 80 % HFmax aus dem Laufwert
@@ -287,7 +288,9 @@ class PlanDataReader {
     )) {
       final kind = kinds[r.id];
       final ended = r.endedAt;
-      if (kind == null || ended == null) continue;
+      // Nur Läufe: Eine Sporteinheit, die nach PAR-233 eine lockere Einheit
+      // ersetzt, zählt nicht für das Muster (FR-0222).
+      if (kind == null || ended == null || !r.mode.isRunning) continue;
       if (from != null && !ended.isAfter(from)) continue;
       double? highHr;
       for (final v in await session.values.read(ValueOwner.run(r.id))) {
