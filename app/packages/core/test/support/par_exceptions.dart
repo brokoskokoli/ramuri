@@ -20,6 +20,7 @@ const Map<String, String> parExceptions = {
   'PAR-231': 'Zuordnungsregel ohne Zahl.',
   'PAR-232': 'Regel ohne Zahl (Bewegungszeit einer anderen Sportart).',
   'PAR-233': 'Werte in Worten (zwei Drittel, eine je Woche); Grenzen in test/plan/plan_sport_replacement_test.dart.',
+  'PAR-237': 'Festlegung ohne Zahl (Tag eines Laufs = Ortstag des Starts); Regel in test/recalculation/run_day_test.dart.',
   'PAR-049': 'Grundsatz zu Texten, keine Zahl.',
   'PAR-050': 'Verbot der 10-%-Regel als Sicherheitsregel; die Zahl ist kein Parameter.',
   'PAR-059': 'Abstand als „voller Kalendertag“ ohne Zahl; minGapDays = 2 ist der Tagesabstand dazu.',

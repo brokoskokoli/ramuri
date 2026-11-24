@@ -65,6 +65,11 @@ final Map<String, RegExp> negated = {
   'readinessNumberNote': RegExp(
     r'Sie ist keine Diagnose|It is not a diagnosis',
   ),
+  // FR-0223: Knopf und Rückfrage des Diagnose-Exports; „Diagnose“ meint die
+  // Datei mit Fehlerzählern der App, keine Aussage über die Gesundheit. Nur
+  // genau diese beiden Texte.
+  'devErrorsShare': RegExp(r'^(Diagnose teilen|Share diagnostics)$'),
+  'devErrorsShareTitle': RegExp(r'^(Diagnose teilen\?|Share diagnostics\?)$'),
   // FR-0217: Titel der Entwickler-Karte; „Diagnose“ meint die Fehlersuche an
   // der Kamera-Bildverarbeitung, keine Aussage über die Gesundheit. Nur genau
   // dieser Titel.

@@ -461,7 +461,37 @@ Future<void> connect(WidgetTester t, List<String> ids, String prefer) async {
   await back(t);
 }
 
-Future<void> startRun(WidgetTester t) async {
+/// Erste Frist fuer „GPS gut“ (start_gps_good) nach dem Oeffnen der
+/// Start-Seite; danach oeffnet [startRun] die Seite einmal neu.
+const gpsErsteFrist = Duration(seconds: 30);
+
+/// Zweite Frist nach dem Neuoeffnen. Gesamt [gpsErsteFrist] + diese = 90 s,
+/// innerhalb des Zeitlimits jeder Stufe mit Laufstart (grenze_s in
+/// tool/ci_e2e.sh, mindestens 300 s).
+const gpsZweiteFrist = Duration(seconds: 60);
+
+/// Bekannte Schluessel der Start-Seite zu Sperre und GPS-Zustand
+/// (run_flow_screen.dart): Sperrtexte, ihre Tasten und die GPS-Anzeige.
+final startPageKeys = <String>[
+  for (final b in StartBlock.values) 'run_block_${b.name}',
+  'run_block_ask',
+  'run_block_location_settings',
+  'run_block_settings',
+  'run_block_recheck',
+  'start_gps_good',
+  'start_gps_searching',
+  'start_gps_blocked',
+];
+
+/// Die davon gerade sichtbaren (im Baum), in fester Reihenfolge; nur
+/// Schluesselnamen, keine Werte.
+List<String> visibleStartKeys() => [
+  for (final k in startPageKeys)
+    if (has(k)) k,
+];
+
+/// Oeffnet die Start-Seite von Heute aus und waehlt die Laufart GPS.
+Future<void> _openStartPage(WidgetTester t) async {
   await tapKey(t, 'home_start_run');
   await waitFor(
     t,
@@ -484,19 +514,57 @@ Future<void> startRun(WidgetTester t) async {
     );
   }
   await waitFor(t, () => has('run_start_ready'), 'Start-Seite bereit');
-  // Das Recht setzt tool/ci_e2e.sh von aussen (pm grant) kurz nach dem
-  // Installieren; die Start-Seite prueft es beim Oeffnen. Kam der Grant
-  // spaeter, laesst "Erneut pruefen" (run_block_recheck) die App ihn sehen.
-  final end = DateTime.now().add(const Duration(seconds: 60));
+}
+
+/// Wartet bis [frist] auf start_gps_good; tippt dabei „Erneut pruefen“, wenn
+/// sichtbar. Ergebnis: erreicht.
+Future<bool> _gpsGoodWithin(WidgetTester t, Duration frist) async {
+  final end = DateTime.now().add(frist);
   while (!has('start_gps_good')) {
-    if (DateTime.now().isAfter(end)) {
-      fail('GPS gut nicht erreicht (Emulator-Fix)');
-    }
+    if (DateTime.now().isAfter(end)) return false;
     if (has('run_block_recheck')) {
       await tapKey(t, 'run_block_recheck');
     }
     await pumpFor(t, const Duration(seconds: 1));
   }
+  return true;
+}
+
+/// Wartet auf der offenen Start-Seite auf „GPS gut“. Nach [erste] ohne Erfolg
+/// verlaesst sie die Seite einmal (Zurueck) und oeffnet sie neu, damit die
+/// Seite den Standortstrom neu abonniert; danach bis [zweite]. Scheitert auch
+/// das, nennt die Meldung die sichtbaren Schluessel aus [startPageKeys]
+/// (Recht, Sperre, Suche), nie Standortwerte.
+Future<void> _waitGpsGood(
+  WidgetTester t,
+  Duration erste,
+  Duration zweite,
+) async {
+  if (await _gpsGoodWithin(t, erste)) return;
+  logPub('gps_neu_oeffnen sichtbar=${visibleStartKeys().join(',')}');
+  await back(t);
+  await _openStartPage(t);
+  if (await _gpsGoodWithin(t, zweite)) return;
+  final sichtbar = visibleStartKeys();
+  fail(
+    'GPS gut nicht erreicht (Emulator-Fix); sichtbar: '
+    '${sichtbar.isEmpty ? 'keiner' : sichtbar.join(', ')}',
+  );
+}
+
+/// Startet von Heute aus einen GPS-Lauf: Start-Seite, Warten auf „GPS gut“
+/// (Fristen [gpsErste] und [gpsZweite], siehe [_waitGpsGood]; kuerzer nur im
+/// Selbsttest test/e2e_gps_wait_test.dart), dann Start bis zur Laufseite.
+Future<void> startRun(
+  WidgetTester t, {
+  Duration gpsErste = gpsErsteFrist,
+  Duration gpsZweite = gpsZweiteFrist,
+}) async {
+  await _openStartPage(t);
+  // Das Recht setzt tool/ci_e2e.sh von aussen (pm grant) kurz nach dem
+  // Installieren; die Start-Seite prueft es beim Oeffnen. Kam der Grant
+  // spaeter, laesst "Erneut pruefen" (run_block_recheck) die App ihn sehen.
+  await _waitGpsGood(t, gpsErste, gpsZweite);
   await tapKey(t, 'run_start_ready');
   await waitFor(t, () => has('run_time'), 'Laufseite');
 }

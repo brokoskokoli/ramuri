@@ -50,9 +50,10 @@ class _CountingValues implements ComputedValueStore {
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
+    Set<String> removeDays = const {},
   }) {
     writes++;
-    return inner.writeAll(create: create, swap: swap);
+    return inner.writeAll(create: create, swap: swap, removeDays: removeDays);
   }
 
   @override

@@ -294,10 +294,11 @@ class FailingValues implements ComputedValueStore {
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
+    Set<String> removeDays = const {},
   }) {
     writeAlls++;
     if (failWriteAll) throw const StorageException(StorageFailure.failed);
-    return inner.writeAll(create: create, swap: swap);
+    return inner.writeAll(create: create, swap: swap, removeDays: removeDays);
   }
 
   @override
@@ -345,7 +346,8 @@ class SwapSignalValues implements ComputedValueStore {
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
-  }) => inner.writeAll(create: create, swap: swap);
+    Set<String> removeDays = const {},
+  }) => inner.writeAll(create: create, swap: swap, removeDays: removeDays);
   @override
   Future<List<ValuePair>> read(ValueOwner owner) => inner.read(owner);
   @override

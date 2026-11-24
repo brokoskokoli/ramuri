@@ -445,13 +445,13 @@ void main() {
     await _run(s, DateTime.utc(2026, 6, 10, 9), const Duration(hours: 2));
     await _run(
       s,
-      DateTime.utc(2026, 6, 14, 22, 10),
+      DateTime.utc(2026, 6, 14, 22, 30),
       const Duration(hours: 2),
       20,
     );
     await _start(d, tester);
     expect(text('home_date'), 'Montag, 15. Juni');
-    // Neue Woche (Mo 15.): nur der Lauf von 00:10 Ortszeit zählt.
+    // Neue Woche (Mo 15.): nur der Lauf ab 00:10 Ortszeit zählt.
     expect(text('home_week_km'), '3,60 km');
     expect(_dayLabel(tester, 0), 'Montag, gelaufen');
     expect(_dayLabel(tester, 6), 'Sonntag, kein Lauf');

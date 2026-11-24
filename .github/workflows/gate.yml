@@ -50,17 +50,22 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          # Gradle-Abhängigkeiten und Plugins zwischenspeichern, damit nicht jeder Job sie neu lädt. Der Schlüssel
-          # deckt die Gradle-Dateien, die Flutter-Version (pubspec.yaml) und die Plugin-Versionen (pubspec.lock) ab.
-          # Caches eines Zweigs sind für main nicht lesbar; nightly/release ohne Cache. Nur die Stufen mit Gradle
-          # (android, release) laden und speichern ihn; die übrigen würden ihn nur umsonst herunterladen.
-          cache: ${{ (matrix.stage == 'android' || matrix.stage == 'release') && 'gradle' || '' }}
-          cache-dependency-path: |
-            app/android/**/*.gradle.kts
-            app/android/gradle.properties
-            app/android/gradle/wrapper/gradle-wrapper.properties
-            app/pubspec.yaml
-            app/pubspec.lock
+      # Gradle-Abhängigkeiten und Plugins zwischenspeichern, damit nicht jeder Job sie neu lädt. Nur die Stufen
+      # mit Gradle (android, release) laden und speichern ihn; die übrigen würden ihn nur umsonst herunterladen.
+      # Schlüssel je Stufe (gradle-gate-<stufe>-<hash>): android führt nur den Debug-Unit-Test aus, release baut
+      # die Release-APK und braucht weitere Abhängigkeiten (z. B. R8). Mit einem gemeinsamen Schlüssel speichert
+      # nur die zuerst fertige Stufe, und der anderen fehlen ihre Abhängigkeiten bis zum nächsten Schlüssel.
+      # Der Hash deckt die Gradle-Dateien, die Flutter-Version (pubspec.yaml) und die Plugin-Versionen
+      # (pubspec.lock) ab. Caches eines Zweigs sind für main nicht lesbar; nightly/release ohne Cache.
+      - name: Gradle-Cache laden
+        id: gradle-cache
+        if: matrix.stage == 'android' || matrix.stage == 'release'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-gate-${{ matrix.stage }}-${{ hashFiles('app/android/**/*.gradle.kts', 'app/android/gradle.properties', 'app/android/gradle/wrapper/gradle-wrapper.properties', 'app/pubspec.yaml', 'app/pubspec.lock') }}
       - name: Flutter einrichten
         if: hashFiles('app/pubspec.yaml') != ''
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
@@ -90,6 +95,16 @@ jobs:
         run: sh tool/gate.sh --stage "$STAGE"
         env:
           STAGE: ${{ matrix.stage }}
+      # Nur nach grüner Stufe und ohne exakten Treffer beim Laden: ein roter Build speichert keinen halben Stand,
+      # ein Treffer lädt nichts erneut hoch.
+      - name: Gradle-Cache speichern
+        if: success() && (matrix.stage == 'android' || matrix.stage == 'release') && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
       # Gespeichert wird nur ein neuer Inhalt (Schlüssel mit Hash der Dateien); unverändert = Treffer, kein Upload.
       # Speichern mehrere Stufen denselben neuen Inhalt, gewinnt die erste; die anderen melden nur eine Warnung.
       - name: sqlite3mc nach dem Build

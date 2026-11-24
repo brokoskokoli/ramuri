@@ -23,8 +23,9 @@ class StoredRun {
   /// Nur bei [RunState.finished] gesetzt.
   final DateTime? endedAt;
 
-  /// UTC-Versatz der Ortszeit zum Laufende (Zeitzone zum Laufzeitpunkt; der
-  /// lokale Kalendertag des Laufendes ist `endedAt + endedUtcOffset`). `null` =
+  /// UTC-Versatz der Ortszeit zum Laufende (Zeitzone zum Laufzeitpunkt). Er
+  /// gilt auch für den Beginn: der Tag eines Laufs ist der Ortstag
+  /// `startedAt + endedUtcOffset` (PAR-237, `dayOfRun`). `null` =
   /// unbekannt (Läufe aus Schema 1, oder beim Beenden nicht genannt). Nur bei
   /// [RunState.finished].
   final Duration? endedUtcOffset;

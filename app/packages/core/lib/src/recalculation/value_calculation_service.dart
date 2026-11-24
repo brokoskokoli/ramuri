@@ -19,6 +19,9 @@ import 'high_heart_rate_value.dart';
 import 'run_analysis.dart';
 import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'run_load_values.dart';
+import '../run_day/run_day.dart';
+
+export '../run_day/run_day.dart';
 
 /// Die Werte, die nach einem Lauf entstehen.
 class RunCalculationResult {
@@ -49,11 +52,23 @@ class ValueSnapshot {
     required this.runValues,
     required this.dayValues,
     this.runCreates = const {},
+    this.dayCreates = const {},
+    this.removedDays = const {},
   });
 
   final Map<ValueOwner, List<ComputedValue>> runValues;
   final Map<ValueOwner, List<ComputedValue>> dayValues;
   final Map<ValueOwner, List<ComputedValue>> runCreates;
+
+  /// Tageswerte, die neu angelegt werden: Tage mit einem Lauf mit Laufwert,
+  /// die noch keine haben (z. B. der Starttag eines Laufs über Mitternacht
+  /// nach der neuen Tageszuordnung, PAR-237).
+  final Map<ValueOwner, List<ComputedValue>> dayCreates;
+
+  /// Tage mit gespeicherten Tageswerten, aber ohne beendeten Lauf ([dayOfRun]):
+  /// ihre Tageswerte entfallen (z. B. der Endtag eines Laufs über
+  /// Mitternacht, PAR-237).
+  final Set<String> removedDays;
 
   /// Läufe mit getauschten oder neu angelegten Werten.
   int get runCount => {...runValues.keys, ...runCreates.keys}.length;
@@ -79,20 +94,6 @@ const Set<String> recalculatedRunValueKeys = {
   trimpRunValueKey,
 };
 
-/// ISO-Datum (UTC) `JJJJ-MM-TT` eines Zeitpunkts.
-String isoDay(DateTime t) {
-  final u = t.toUtc();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${u.year.toString().padLeft(4, '0')}-${two(u.month)}-${two(u.day)}';
-}
-
-/// Besitzertag der Tageswerte eines Laufs: der LOKALE Kalendertag des
-/// Laufendes, also `endedAt + endedUtcOffset`. Fehlt der Versatz (alter Lauf,
-/// unbekannt), gilt der UTC-Tag. Die EINE Stelle für Speichern, Neuberechnung
-/// und Löschen.
-String dayOfRun(StoredRun run) =>
-    isoDay(run.endedAt!.toUtc().add(run.endedUtcOffset ?? Duration.zero));
-
 /// Rechnet VO₂max-Laufwert, Langzeitwert und aerobe Effizienz aus den
 /// gespeicherten Rohdaten (FR-0066 bis FR-0087), dazu die Laufwerte für Zonen
 /// und TRIMP ([buildRunLoadValues]), und speichert sie als
@@ -100,10 +101,11 @@ String dayOfRun(StoredRun run) =>
 /// Abschnitten (FR-0073) und der verwendeten Herzfrequenzbasis (OQ-0065).
 /// Netzwerkfrei (SEC-0006), Zeit nur über [Clock].
 ///
-/// Tageswerte (Langzeitwert, aerobe Effizienz) gehören dem lokalen
-/// Kalendertag des Laufendes ([dayOfRun]); sie gelten für das Ende dieses
-/// Tages (mit dem Versatz des zuletzt endenden Laufs des Tages), für den
-/// heutigen Tag für jetzt. Gibt es für den Tag schon einen Wert, wird sein
+/// Tageswerte (Langzeitwert, aerobe Effizienz) gehören dem Tag des Laufs,
+/// dem Ortstag seines Beginns ([dayOfRun], PAR-237); sie gelten für das Ende
+/// dieses Tages (mit dem Versatz des zuletzt endenden Laufs des Tages, bei
+/// einem Lauf über Mitternacht für dessen Ende), für den heutigen Tag für
+/// jetzt. Gibt es für den Tag schon einen Wert, wird sein
 /// `current` getauscht, das `original` ist dann der erste Wert des Tages.
 ///
 /// Herzfrequenzbasis der aeroben Effizienz: jeder Lauf mit gespeichertem
@@ -222,6 +224,8 @@ class ValueCalculationService {
     final day = dayOfRun(run);
     final cache = <int, RunAnalysis>{runId: analysis};
     final values = await _dayValues(
+      day: day,
+      runs: runs,
       asOf: _asOf(day, runs, now),
       computedAt: now,
       runValues: runValues,
@@ -241,6 +245,8 @@ class ValueCalculationService {
     }.where((d) => select(d, day)).toList()..sort();
     for (final d in later) {
       final dayValues = await _dayValues(
+        day: d,
+        runs: runs,
         asOf: _asOf(d, runs, now),
         computedAt: now,
         runValues: runValues,
@@ -439,7 +445,7 @@ class ValueCalculationService {
   }
 
   /// Rechnet die offenen Läufe [runs] ([calculateAfterRun]) in der
-  /// Reihenfolge ihres Endes: Jeder Lauf rechnet die späteren Tage nur bis vor
+  /// Reihenfolge ihres Tages ([dayOfRun]), am selben Tag ihres Endes: Jeder Lauf rechnet die späteren Tage nur bis vor
   /// den Tag des nächsten (der rechnet sie ohnehin), so wird jeder spätere Tag
   /// höchstens einmal neu gerechnet. Scheitert ein Lauf nach einem gelungenen,
   /// rechnet der nächste gelungene die Tage ab dem Tag des gescheiterten mit;
@@ -452,7 +458,7 @@ class ValueCalculationService {
     required CalculationFailures counter,
     required Future<void> Function(int runId) onComputed,
   }) async {
-    final toCalculate = [...runs]..sort(_byEnd);
+    final toCalculate = [...runs]..sort(_byDay);
     Object? failure;
     // Tag, ab dem (einschließlich) Tageswerte nach einem gescheiterten Lauf
     // noch einen früher gerechneten Laufwert brauchen.
@@ -502,7 +508,9 @@ class ValueCalculationService {
     return (computed: computed, failure: failure);
   }
 
-  static int _byEnd(StoredRun a, StoredRun b) {
+  static int _byDay(StoredRun a, StoredRun b) {
+    final d = dayOfRun(a).compareTo(dayOfRun(b));
+    if (d != 0) return d;
     final c = a.endedAt!.compareTo(b.endedAt!);
     return c != 0 ? c : a.id.compareTo(b.id);
   }
@@ -627,6 +635,8 @@ class ValueCalculationService {
     };
     for (final day in days.toList()..sort()) {
       final values = await _dayValues(
+        day: day,
+        runs: runs,
         asOf: _asOf(day, runs, now),
         computedAt: now,
         runValues: runValues,
@@ -652,7 +662,9 @@ class ValueCalculationService {
 
   /// Rechnet alle Läufe mit gespeichertem Laufwert und deren Tageswerte mit
   /// der aktuellen Profilbasis neu, ohne etwas zu speichern (Zwischenstand der
-  /// Neuberechnung). Tageswerte nur für Tage, die schon einen haben.
+  /// Neuberechnung). Tageswerte für Tage, die schon einen haben, und für Tage
+  /// mit einem Lauf mit Laufwert ([ValueSnapshot.dayCreates]); Tageswerte an
+  /// Tagen ohne Lauf entfallen ([ValueSnapshot.removedDays], PAR-237).
   ///
   /// [loadProfile]: das Belastungsprofil, mit dem der TRIMP gerechnet wird
   /// (Wechsel nach Bestätigung, OQ-0053); ohne Angabe das aktive. Ist das
@@ -743,14 +755,24 @@ class ValueCalculationService {
       ]);
     }
     final dayOwners = <ValueOwner, List<ComputedValue>>{};
+    final dayCreates = <ValueOwner, List<ComputedValue>>{};
     final days = _daysWithRun(runs);
+    // Tage mit einem Lauf mit Laufwert: fehlen dort Tageswerte (der Lauf
+    // gehörte nach der alten Tageszuordnung einem anderen Tag), werden sie
+    // angelegt.
+    final daysWithValue = {
+      for (final r in runs)
+        if (runValues.containsKey(r.id)) dayOfRun(r),
+    };
     // Tageswerte aller Tage in EINER Abfrage; alle Tagesschlüssel stehen in
     // [dayValueKeys] (_DayPlan prüft das beim Schreiben).
     final storedDays = await session.values.readDayValues(dayValueKeys);
     for (final day in days.toList()..sort()) {
       final existing = storedDays[day]?.keys.toSet() ?? const <String>{};
-      if (existing.isEmpty) continue;
+      if (existing.isEmpty && !daysWithValue.contains(day)) continue;
       final values = await _dayValues(
+        day: day,
+        runs: runs,
         asOf: _asOf(day, runs, now),
         computedAt: now,
         runValues: runValues,
@@ -762,11 +784,17 @@ class ValueCalculationService {
           if (existing.contains(v.key)) v,
       ];
       if (swappable.isNotEmpty) dayOwners[ValueOwner.day(day)] = swappable;
+      if (existing.isEmpty) dayCreates[ValueOwner.day(day)] = values.all;
     }
     return ValueSnapshot(
       runValues: runOwners,
       dayValues: dayOwners,
       runCreates: runCreates,
+      dayCreates: dayCreates,
+      removedDays: {
+        for (final day in storedDays.keys)
+          if (!days.contains(day)) day,
+      },
     );
   }
 
@@ -801,7 +829,8 @@ class ValueCalculationService {
 
   /// Zeitpunkt, für den der Tageswert des lokalen Tages [day] gilt: Ende des
   /// Tages (mit dem Versatz des zuletzt endenden Laufs des Tages; unbekannt:
-  /// UTC), für den heutigen Tag jetzt.
+  /// UTC), bei einem Lauf des Tages über Mitternacht (PAR-237) dessen Ende,
+  /// für den heutigen Tag jetzt.
   DateTime _asOf(String day, List<StoredRun> runs, DateTime now) {
     StoredRun? last;
     for (final r in runs) {
@@ -809,25 +838,38 @@ class ValueCalculationService {
       if (last == null || r.endedAt!.isAfter(last.endedAt!)) last = r;
     }
     final offset = last?.endedUtcOffset ?? Duration.zero;
-    final end = DateTime.parse('${day}T00:00:00Z')
+    var end = DateTime.parse('${day}T00:00:00Z')
         .add(const Duration(days: 1))
         .subtract(offset)
         .subtract(const Duration(microseconds: 1));
+    if (last != null && last.endedAt!.isAfter(end)) end = last.endedAt!;
     return end.isAfter(now) ? now : end;
   }
 
-  /// Langzeitwert und aerobe Effizienz zum Zeitpunkt [asOf]. Die Basis eines
-  /// Laufs im Fenster ist die an seinem Laufwert in [runValues] gespeicherte;
-  /// ohne Laufwert [fallback]; ist sie unbekannt, entfällt die Effizienz.
+  /// Langzeitwert und aerobe Effizienz des Tages [day] zum Zeitpunkt [asOf].
+  /// Es zählen die Läufe aus [runs] bis zu diesem Tag (Tag des Laufs nach
+  /// [dayOfRun], PAR-237), ein Lauf über Mitternacht also schon an seinem
+  /// Starttag. Die Basis eines Laufs im Fenster ist die an seinem Laufwert in
+  /// [runValues] gespeicherte; ohne Laufwert [fallback]; ist sie unbekannt,
+  /// entfällt die Effizienz.
   Future<_DayValues> _dayValues({
+    required String day,
+    required List<StoredRun> runs,
     required DateTime asOf,
     required DateTime computedAt,
     required Map<int, ComputedValue> runValues,
     required HeartRateBasis fallback,
     required Future<RunAnalysis> Function(StoredRun, HeartRateBasis) analysisOf,
   }) async {
+    final upToDay = {
+      for (final r in runs)
+        if (dayOfRun(r).compareTo(day) <= 0) r.id,
+    };
     final long = longTerm.compute(
-      runs: [for (final v in runValues.values) ?toAdvancedValue(v)],
+      runs: [
+        for (final MapEntry(key: id, value: v) in runValues.entries)
+          if (upToDay.contains(id)) ?toAdvancedValue(v),
+      ],
       p: fitness,
       now: asOf,
     );
@@ -843,9 +885,9 @@ class ValueCalculationService {
     final sources = <String>{};
     final bases = <HeartRateBasis>[];
     var unknown = false;
-    for (final r in await _finishedRuns()) {
+    for (final r in runs) {
       final end = r.endedAt!;
-      if (end.isBefore(from) || end.isAfter(asOf)) continue;
+      if (end.isBefore(from) || !upToDay.contains(r.id)) continue;
       // Nur GPS-Läufe: beim Band ist das Tempo eingestellt, nicht gemessen
       // (FR-0196); eine andere Sportart hat kein Tempo (FR-0221).
       if (r.mode != RunMode.gps) continue;

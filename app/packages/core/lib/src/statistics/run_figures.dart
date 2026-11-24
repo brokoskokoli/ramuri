@@ -38,7 +38,7 @@ class RunFigures {
   final int runId;
   final DateTime endedAt;
 
-  /// Lokaler Kalendertag des Laufendes, `JJJJ-MM-TT` (K21, `dayOfRun`).
+  /// Tag des Laufs, `JJJJ-MM-TT`: Ortstag seines Starts (PAR-237, `dayOfRun`).
   final String day;
 
   /// Lauf (GPS oder Laufband) statt Sporteinheit (FR-0221): Nur Läufe zählen

@@ -1,4 +1,5 @@
 import '../../ports/storage_runs.dart';
+import '../run_day/run_day.dart' show runStartLocalDay;
 import 'plan_unit.dart';
 import 'weekly_time.dart' show planDay;
 
@@ -15,13 +16,7 @@ class PlanRunCandidate {
   /// Kandidat aus einem gespeicherten Lauf; `null`, wenn er nicht beendet
   /// ist. [movingTime] ist die Bewegungszeit aus der Kurzfassung (GPS und
   /// Laufband gleich); fehlt sie, zählt die Dauer von Beginn bis Ende.
-  /// [fallbackOffset] gilt nur, wenn am Lauf kein UTC-Versatz steht (alte
-  /// Läufe).
-  static PlanRunCandidate? of(
-    StoredRun run, {
-    required Duration? movingTime,
-    required Duration fallbackOffset,
-  }) {
+  static PlanRunCandidate? of(StoredRun run, {required Duration? movingTime}) {
     final end = run.endedAt;
     if (run.state != RunState.finished || end == null) return null;
     // Eine andere Sportart (FR-0221) zählt für den Plan nur über den Ersatz
@@ -29,7 +24,7 @@ class PlanRunCandidate {
     if (!run.mode.isRunning) return null;
     return PlanRunCandidate(
       runId: run.id,
-      day: planRunStartDay(run, fallbackOffset: fallbackOffset),
+      day: planRunStartDay(run),
       startedAt: run.startedAt,
       movingTime: movingTime ?? end.difference(run.startedAt),
     );
@@ -43,13 +38,10 @@ class PlanRunCandidate {
   final Duration movingTime;
 }
 
-/// Ortstag des Laufbeginns: Beginn plus der am Lauf gespeicherte
-/// UTC-Versatz (Zeitzone des Laufs, nicht die des Geräts jetzt). Ein Lauf
-/// über Mitternacht zählt für den Starttag.
-DateTime planRunStartDay(StoredRun run, {required Duration fallbackOffset}) {
-  final local = run.startedAt.toUtc().add(run.endedUtcOffset ?? fallbackOffset);
-  return DateTime.utc(local.year, local.month, local.day);
-}
+/// Ortstag des Laufbeginns (PAR-231, PAR-237): dieselbe Rechnung wie für
+/// alle anderen Tage eines Laufs ([runStartLocalDay]); ohne gespeicherten
+/// UTC-Versatz (alte Läufe) der UTC-Tag wie bei `dayOfRun`.
+DateTime planRunStartDay(StoredRun run) => runStartLocalDay(run);
 
 /// Eine Zuordnung, die [planAutoAssignments] vorschlägt.
 class PlanRunAssignment {

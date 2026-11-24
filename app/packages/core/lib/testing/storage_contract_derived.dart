@@ -798,5 +798,61 @@ Future<void> _writeAll(StorageContractHarness h) async {
   final p = (await s.values.read(d)).single;
   expectEq(p.original.value, 1.0, 'original bleibt');
   expectEq(p.current.value, 7.0, 'current getauscht');
+
+  // Tage entfernen (neue Tageszuordnung, PAR-237): original und current samt
+  // Abschnitten weg, in derselben Transaktion wie Anlegen und Tauschen.
+  const gone = ValueOwner.day('2030-01-05');
+  const moved = ValueOwner.day('2030-01-04');
+  await s.values.createOriginals(gone, [
+    sampleValue('a', 2, sections: sampleValueSections()),
+    sampleValue('b', 3),
+  ]);
+  final runsBefore = (await s.values.read(r1)).map(describePair).join();
+  // Tausch an einem entfernten Tag: notFound, nichts entfernt.
+  await expectFails(
+    () => s.values.writeAll(
+      swap: {
+        gone: [sampleValue('a', 8)],
+      },
+      removeDays: {'2030-01-05'},
+    ),
+    StorageFailure.notFound,
+    'Tausch an entferntem Tag',
+  );
+  expectEq((await s.values.read(gone)).length, 2, 'nichts entfernt');
+  // Anlegen scheitert: auch das Entfernen gilt nicht.
+  await expectFails(
+    () => s.values.writeAll(
+      create: {
+        r1: [sampleValue('a', 9)],
+      },
+      removeDays: {'2030-01-05'},
+    ),
+    StorageFailure.rejected,
+    'Anlegen scheitert',
+  );
+  expectEq((await s.values.read(gone)).length, 2, 'nichts entfernt (2)');
+  await s.values.writeAll(
+    create: {
+      moved: [sampleValue('a', 4)],
+      gone: [sampleValue('b', 5)],
+    },
+    swap: {
+      d: [sampleValue('a', 6)],
+    },
+    removeDays: {'2030-01-05', '2030-01-06'},
+  );
+  final again = (await s.values.read(gone)).single;
+  expectEq(again.original.key, 'b', 'entfernter Tag neu angelegt');
+  expectEq(again.original.value, 5.0, 'neues original');
+  expectEq((await s.values.read(moved)).single.current.value, 4.0, 'angelegt');
+  expectEq((await s.values.read(d)).single.current.value, 6.0, 'getauscht');
+  expectEq(
+    (await s.values.read(r1)).map(describePair).join(),
+    runsBefore,
+    'Laufwerte unberührt',
+  );
+  final days = await s.values.readDayValues({'a', 'b'});
+  expectEq(days['2030-01-05']?.keys.toSet(), {'b'}, 'nur der neue Wert');
   await s.close();
 }
