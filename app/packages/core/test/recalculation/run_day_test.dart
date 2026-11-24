@@ -224,5 +224,25 @@ void main() {
       );
       expect(await w.recalc().checkVersions(), isNull);
     });
+
+    test('aktueller Tageswert an einem Tag ohne Lauf (etwa aus einem '
+        'Archiv) löst kein Angebot aus', () async {
+      final w = await RecalcWorld.create();
+      final id = await w.seedRun(DateTime.utc(2030, 2, 18, 8));
+      await w.calc().calculateAfterRun(id);
+      expect(await w.recalc().checkVersions(), isNull);
+      final current = await w.session.values.read(
+        const ValueOwner.day('2030-02-18'),
+      );
+      expect(current, isNotEmpty);
+      await w.session.values.writeAll(
+        create: {
+          const ValueOwner.day('2030-02-25'): [
+            for (final p in current) p.original,
+          ],
+        },
+      );
+      expect(await w.recalc().checkVersions(), isNull);
+    });
   });
 }
