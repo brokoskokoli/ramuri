@@ -151,6 +151,24 @@ abstract final class SettingKeys {
   /// Behandlung wie [ppgCameraManual].
   static const String ppgCameraAuto = 'ppg.camera_auto';
 
+  /// Diagnose-Schalter der Kamera-Bildverarbeitung (FR-0217), je Schalter
+  /// `ppg.diag.<name>` mit dem Namen aus `PpgCameraDiagnostic.wire`: `1` = an;
+  /// fehlt der Eintrag oder ist er leer, aus (Vorgabe). Gerätezustand wie
+  /// [ppgCameraManual], nicht im Archiv; „Alles löschen“ setzt sie zurück.
+  static const String ppgDiagNoiseReductionOff = 'ppg.diag.noise_reduction_off';
+
+  /// Siehe [ppgDiagNoiseReductionOff].
+  static const String ppgDiagEdgeOff = 'ppg.diag.edge_off';
+
+  /// Siehe [ppgDiagNoiseReductionOff].
+  static const String ppgDiagAwbFixed = 'ppg.diag.awb_fixed';
+
+  /// Siehe [ppgDiagNoiseReductionOff].
+  static const String ppgDiagTonemapLinear = 'ppg.diag.tonemap_linear';
+
+  /// Siehe [ppgDiagNoiseReductionOff].
+  static const String ppgDiagShadingOff = 'ppg.diag.shading_off';
+
   /// Morgenfenster der Morgenmessung (PAR-160K) als `H-H` in ganzen Stunden Ortszeit, etwa
   /// `4-11`; fehlt der Eintrag oder ist er ungültig, gilt 4-11. Nutzereinstellung, kommt ins Archiv.
   static const String morningWindow = 'morning.window';

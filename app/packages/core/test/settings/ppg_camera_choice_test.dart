@@ -133,6 +133,100 @@ void main() {
     });
   });
 
+  group('SettingsPpgCameraDiagnosticsStore (FR-0217)', () {
+    late StorageSession session;
+    late SettingsPpgCameraDiagnosticsStore store;
+    setUp(() async {
+      session = await FakeStorage().open(Uint8List(32));
+      store = SettingsPpgCameraDiagnosticsStore(
+        session.settings,
+        FakeClock(DateTime.utc(2026, 11, 18, 7)),
+      );
+    });
+
+    test('Vorgabe aus; je Schalter setzen und löschen, getrennt', () async {
+      expect(await store.read(), isEmpty);
+      for (final d in PpgCameraDiagnostic.values) {
+        await store.set(d, on: true);
+        expect(await store.read(), {d});
+        expect(await session.settings.get('ppg.diag.${d.wire}'), '1');
+        await store.set(d, on: false);
+        expect(await store.read(), isEmpty);
+      }
+      await store.set(PpgCameraDiagnostic.edgeOff, on: true);
+      await store.set(PpgCameraDiagnostic.shadingOff, on: true);
+      expect(await store.read(), {
+        PpgCameraDiagnostic.edgeOff,
+        PpgCameraDiagnostic.shadingOff,
+      });
+    });
+
+    test('Schlüssel ppg.diag.*; unbekannter Wert gilt als aus', () async {
+      expect(
+        [
+          for (final d in PpgCameraDiagnostic.values)
+            ppgDiagnosticSettingKey(d),
+        ],
+        [
+          'ppg.diag.noise_reduction_off',
+          'ppg.diag.edge_off',
+          'ppg.diag.awb_fixed',
+          'ppg.diag.tonemap_linear',
+          'ppg.diag.shading_off',
+        ],
+      );
+      await session.settings.set(
+        SettingKeys.ppgDiagEdgeOff,
+        'true',
+        at: DateTime.utc(2026),
+      );
+      expect(await store.read(), isEmpty);
+    });
+
+    test('Alles löschen setzt alle zurück', () async {
+      for (final d in PpgCameraDiagnostic.values) {
+        await store.set(d, on: true);
+      }
+      await session.deleteAll();
+      expect(await store.read(), isEmpty);
+    });
+
+    test('kein Archivinhalt', () {
+      for (final d in PpgCameraDiagnostic.values) {
+        expect(
+          archiveExcludedSettingKeys,
+          contains(ppgDiagnosticSettingKey(d)),
+          reason: d.name,
+        );
+      }
+    });
+
+    test('Morgenmessung fordert nur im Entwicklermodus an', () async {
+      await store.set(PpgCameraDiagnostic.noiseReductionOff, on: true);
+      var dev = false;
+      var r = await morningCameraDiagnostics(
+        developerMode: () async => dev,
+        store: store,
+      );
+      expect(r.diagnostics, isEmpty);
+      expect(r.ispFrames, isFalse);
+      dev = true;
+      r = await morningCameraDiagnostics(
+        developerMode: () async => dev,
+        store: store,
+      );
+      expect(r.diagnostics, {PpgCameraDiagnostic.noiseReductionOff});
+      expect(r.ispFrames, isTrue);
+      // Lesefehler: Vorgabe, die Messung läuft wie ohne Diagnose.
+      r = await morningCameraDiagnostics(
+        developerMode: () async => throw StateError('x'),
+        store: store,
+      );
+      expect(r.diagnostics, isEmpty);
+      expect(r.ispFrames, isFalse);
+    });
+  });
+
   group('choosePpgCamera', () {
     late StorageSession session;
     late SettingsPpgCameraChoiceStore store;
