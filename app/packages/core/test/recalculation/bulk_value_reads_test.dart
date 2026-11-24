@@ -18,31 +18,42 @@ class _CountingValues implements ComputedValueStore {
   int dayReads = 0;
   int runBulkReads = 0;
   int dayBulkReads = 0;
+  int writes = 0;
 
   void reset() {
     runReads = 0;
     dayReads = 0;
     runBulkReads = 0;
     dayBulkReads = 0;
+    writes = 0;
   }
 
   @override
-  Future<void> createOriginals(ValueOwner owner, List<ComputedValue> values) =>
-      inner.createOriginals(owner, values);
+  Future<void> createOriginals(ValueOwner owner, List<ComputedValue> values) {
+    writes++;
+    return inner.createOriginals(owner, values);
+  }
 
   @override
-  Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) =>
-      inner.swapCurrent(owner, values);
+  Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) {
+    writes++;
+    return inner.swapCurrent(owner, values);
+  }
 
   @override
-  Future<void> swapCurrentAll(Map<ValueOwner, List<ComputedValue>> changes) =>
-      inner.swapCurrentAll(changes);
+  Future<void> swapCurrentAll(Map<ValueOwner, List<ComputedValue>> changes) {
+    writes++;
+    return inner.swapCurrentAll(changes);
+  }
 
   @override
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
-  }) => inner.writeAll(create: create, swap: swap);
+  }) {
+    writes++;
+    return inner.writeAll(create: create, swap: swap);
+  }
 
   @override
   Future<List<ValuePair>> read(ValueOwner owner) {
@@ -198,5 +209,94 @@ void main() {
 
     expect(x.values.runReads, 0, reason: 'Einzelabfragen auf Laufwerte');
     expect(x.values.runBulkReads, 1, reason: 'Sammelabfrage auf Laufwerte');
+  });
+
+  test('refreshAfterDelete: Tageswerte mit einer Sammelabfrage, ohne '
+      'Einzelabfrage; getauscht am Tag mit, angelegt am Tag ohne Tageswerte', () async {
+    final x = await _World.create();
+    // Ein späterer Lauf ohne Werte wird gelöscht; übrig bleiben Läufe mit
+    // Laufwert an Tag 1 (mit Tageswerten) und Tag 2 (ohne).
+    final extra = await x.w.seedRun(DateTime.utc(2030, 2, 20, 8), bpm: 160);
+    await x.w.session.deleteRun(extra);
+    final before = await x.w.session.values.read(
+      const ValueOwner.day(_World.day1),
+    );
+    expect(before, isNotEmpty);
+    expect(
+      await x.w.session.values.read(const ValueOwner.day(_World.day2)),
+      isEmpty,
+    );
+
+    await x.calc().refreshAfterDelete();
+
+    expect(x.values.dayReads, 0, reason: 'Einzelabfragen auf Tageswerte');
+    expect(x.values.dayBulkReads, 1, reason: 'Sammelabfrage auf Tageswerte');
+    expect(x.values.writes, 1, reason: 'eine Transaktion');
+    // Tag 1: dieselben Schlüssel, `original` unverändert, `current` getauscht.
+    final after1 = await x.w.session.values.read(
+      const ValueOwner.day(_World.day1),
+    );
+    expect(
+      [for (final p in after1) p.original.key],
+      [for (final p in before) p.original.key],
+    );
+    for (final p in after1) {
+      final old = before.singleWhere((b) => b.original.key == p.original.key);
+      expect(p.original.computedAt, old.original.computedAt);
+      expect(p.current.computedAt, x.w.clock.now());
+      expect(p.current.computedAt, isNot(old.original.computedAt));
+    }
+    // Tag 2: neu angelegt (`original` ist der neue Wert).
+    final after2 = await x.w.session.values.read(
+      const ValueOwner.day(_World.day2),
+    );
+    expect(after2, isNotEmpty);
+    for (final p in after2) {
+      expect(p.original.computedAt, x.w.clock.now());
+      expect(p.current.computedAt, x.w.clock.now());
+    }
+  });
+
+  test('refreshAfterDelete ohne verbliebenen Lauf mit Laufwert: keine '
+      'Abfrage auf Tageswerte, nichts geschrieben', () async {
+    final x = await _World.create();
+    await x.w.session.deleteRun(x.full);
+    await x.w.session.deleteRun(x.noHigh);
+    x.values.reset();
+
+    await x.calc().refreshAfterDelete();
+
+    expect(x.values.dayReads, 0, reason: 'Einzelabfragen auf Tageswerte');
+    expect(x.values.dayBulkReads, 0, reason: 'Sammelabfrage auf Tageswerte');
+    expect(x.values.writes, 0, reason: 'Schreibzugriffe');
+  });
+
+  test('calculateAfterRun mit späteren Tagen: Tageswerte mit einer '
+      'Sammelabfrage, ohne Einzelabfrage', () async {
+    final x = await _World.create();
+    // Lauf vor Tag 1; Tag 1 (mit Tageswerten) und Tag 2 liegen danach.
+    final earlier = await x.w.seedRun(DateTime.utc(2030, 2, 8, 8), bpm: 160);
+    final before = await x.w.session.values.read(
+      const ValueOwner.day(_World.day1),
+    );
+    expect(before, isNotEmpty);
+
+    await x.calc().calculateAfterRun(earlier);
+
+    expect(x.values.dayReads, 0, reason: 'Einzelabfragen auf Tageswerte');
+    expect(x.values.dayBulkReads, 1, reason: 'Sammelabfrage auf Tageswerte');
+    // Der spätere Tag mit Tageswerten wird getauscht, nicht neu angelegt.
+    final after1 = await x.w.session.values.read(
+      const ValueOwner.day(_World.day1),
+    );
+    for (final p in after1) {
+      final old = before.singleWhere((b) => b.original.key == p.original.key);
+      expect(p.original.computedAt, old.original.computedAt);
+      expect(p.current.computedAt, x.w.clock.now());
+    }
+    expect(
+      await x.w.session.values.read(const ValueOwner.day('2030-02-08')),
+      isNotEmpty,
+    );
   });
 }

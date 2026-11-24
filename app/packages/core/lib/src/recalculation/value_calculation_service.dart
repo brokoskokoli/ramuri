@@ -230,8 +230,10 @@ class ValueCalculationService {
           cache[r.id] ??= await _analyzer(basis)
               .analyze(session, r, calculatedAt: now),
     );
-    final plan = _DayPlan();
-    await plan.add(session, day, values.all);
+    // Tageswerte des Tags und aller späteren Tage in EINER Abfrage; geschrieben
+    // wird erst am Ende, alle Entscheidungen sehen also denselben Stand.
+    final plan = _DayPlan(await session.values.readDayValues(dayValueKeys));
+    plan.add(day, values.all);
     final select = refreshDay ?? (d, runDay) => d.compareTo(runDay) > 0;
     final later = <String>{
       for (final r in runs)
@@ -247,7 +249,7 @@ class ValueCalculationService {
             cache[r.id] ??= await _analyzer(basis)
                 .analyze(session, r, calculatedAt: now),
       );
-      await plan.add(session, d, dayValues.all);
+      plan.add(d, dayValues.all);
     }
     // Zonenzeiten und TRIMP mit den Zonengrenzen und der Basis zum Laufende;
     // Zonenzeiten werden nie neu gerechnet (L11), TRIMP nur bei geänderter
@@ -614,7 +616,9 @@ class ValueCalculationService {
     if (runValues.isEmpty) return;
     final profile = await _profileBasis();
     final cache = <int, RunAnalysis>{};
-    final plan = _DayPlan();
+    // Tageswerte aller Tage in EINER Abfrage (erst nach dem Ausstieg ohne
+    // Laufwert); geschrieben wird erst am Ende.
+    final plan = _DayPlan(await session.values.readDayValues(dayValueKeys));
     final days = <String>{
       for (final r in runs)
         if (runValues.containsKey(r.id) &&
@@ -631,7 +635,7 @@ class ValueCalculationService {
             cache[r.id] ??= await _analyzer(basis)
                 .analyze(session, r, calculatedAt: now),
       );
-      await plan.add(session, day, values.all);
+      plan.add(day, values.all);
     }
     await session.values.writeAll(create: plan.create, swap: plan.swap);
   }
@@ -913,23 +917,26 @@ class _DayValues {
 
 /// Sammelt, was zu schreiben ist: je Tag neu anlegen (kein Wert vorhanden)
 /// oder tauschen (vorhanden).
+///
+/// [stored]: die gespeicherten Tageswerte aller Tage aus EINER Sammelabfrage
+/// mit [dayValueKeys] (`readDayValues`), gelesen vor dem Schreiben. Ein Tag,
+/// der darin fehlt, hat keine Tageswerte; seine Werte werden angelegt.
+/// `original` und `current` tragen denselben Schlüssel, und jeder Schlüssel,
+/// der hier geschrieben wird, steht in [dayValueKeys] (Prüfung in [add]).
 class _DayPlan {
+  _DayPlan(this.stored);
+
+  final Map<String, Map<String, ComputedValue>> stored;
   final create = <ValueOwner, List<ComputedValue>>{};
   final swap = <ValueOwner, List<ComputedValue>>{};
 
-  Future<void> add(
-    StorageSession session,
-    String day,
-    List<ComputedValue> values,
-  ) async {
+  void add(String day, List<ComputedValue> values) {
     assert(
       values.every((v) => dayValueKeys.contains(v.key)),
       'Tagesschlüssel fehlt in dayValueKeys (Export, run_analysis.dart)',
     );
     final owner = ValueOwner.day(day);
-    final existing = {
-      for (final p in await session.values.read(owner)) p.original.key,
-    };
+    final existing = stored[day]?.keys.toSet() ?? const <String>{};
     final toSwap = [
       for (final v in values)
         if (existing.contains(v.key)) v,

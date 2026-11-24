@@ -100,6 +100,8 @@ class PlanParameters {
     this.fatigueRuns = 2,
     this.fatigueWindowRuns = 3,
     this.fatigueReduction = 0.10,
+    this.underloadRuns = 2,
+    this.underloadWindowRuns = 3,
     this.pauseMinDays = 7,
     this.pauseLongDays = 14,
     this.pauseNewStartDays = 56,
@@ -285,6 +287,13 @@ class PlanParameters {
   final int fatigueRuns;
   final int fatigueWindowRuns;
   final double fatigueReduction;
+
+  /// PAR-236: so viele der letzten [underloadWindowRuns] lockeren Läufe mit
+  /// Puls und RPE sind „hart nach Puls, leicht empfunden“ (2 von 3).
+  final int underloadRuns;
+
+  /// PAR-236: Fenster der lockeren Läufe mit Puls und RPE (die letzten 3).
+  final int underloadWindowRuns;
 
   /// PAR-202: Pause ab 7 Tagen; ab 14 Tagen die zweite Stufe; ab 56 Tagen
   /// neuer Start (PAR-192).

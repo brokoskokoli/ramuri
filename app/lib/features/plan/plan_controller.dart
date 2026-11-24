@@ -105,6 +105,7 @@ class PlanViewState {
       feedbackDue = false,
       changeNotice = null,
       walkRunProposal = null,
+      underloadPrompt = null,
       adaptation = PlanAdaptationMode.fixed;
 
   const PlanViewState.failed()
@@ -120,6 +121,7 @@ class PlanViewState {
       feedbackDue = false,
       changeNotice = null,
       walkRunProposal = null,
+      underloadPrompt = null,
       adaptation = PlanAdaptationMode.fixed;
 
   const PlanViewState.ready({
@@ -134,6 +136,7 @@ class PlanViewState {
     this.feedbackDue = false,
     this.changeNotice,
     this.walkRunProposal,
+    this.underloadPrompt,
     this.adaptation = PlanAdaptationMode.fixed,
   }) : phase = PlanLoadPhase.ready;
 
@@ -193,6 +196,11 @@ class PlanViewState {
   /// Vorschlag „Woche wiederholen“ in der Geh-Lauf-Phase (PAR-140); die App
   /// fragt, der Nutzer entscheidet. Nicht unter Warnsignal.
   final WalkRunWeekProposal? walkRunProposal;
+
+  /// Offener Hinweis bzw. offene Frage der Unterforderung (PAR-236): nur bei
+  /// „adaptiv“, ohne Warnsignal, ohne Korrektur nach unten in dieser Woche
+  /// (PAR-201) und ohne Readiness nach PAR-173; sonst `null`.
+  final PlanUnderloadPrompt? underloadPrompt;
 
   bool get hasPlan => version != null;
 
@@ -292,6 +300,11 @@ class PlanController extends ChangeNotifier {
     } on Object {
       // Die Prüfung holt der nächste Start nach; die Seite zeigt den
       // gespeicherten Plan.
+    }
+    try {
+      await _advanceUnderload();
+    } on Object {
+      // Ohne lesbaren Stand bleibt die Stufe; das nächste Öffnen prüft neu.
     }
     // Läufe der Woche bis heute zählen für ihre offenen Einheiten (PAR-231).
     await _autoAssignQuietly();
@@ -619,8 +632,16 @@ class PlanController extends ChangeNotifier {
       );
       if (proposal != null && declined == proposal.lastDay) proposal = null;
     }
+    PlanUnderloadPrompt? underload;
+    if (version != null) {
+      final u = await _underloadState();
+      if (u.prompt != null && !await _underloadBlocked(history, warning)) {
+        underload = u.prompt;
+      }
+    }
     return PlanViewState.ready(
       adaptation: await _adaptation.read(),
+      underloadPrompt: underload,
       changeNotice: notice,
       walkRunProposal: proposal,
       warning: warning,
@@ -1545,6 +1566,163 @@ class PlanController extends ChangeNotifier {
       markChecked: false,
     );
   }
+
+  /// Gespeicherter Zustand der Unterforderung (PAR-236).
+  Future<PlanUnderloadState> _underloadState() async =>
+      PlanUnderloadState.parse(
+        await session.settings.get(planUnderloadStageKey),
+        await session.settings.get(planUnderloadSinceKey),
+      );
+
+  Future<void> _saveUnderload(PlanUnderloadState state) async {
+    final now = clock.now();
+    await session.settings.set(planUnderloadStageKey, state.stageText, at: now);
+    final since = state.sinceText;
+    if (since != null) {
+      await session.settings.set(planUnderloadSinceKey, since, at: now);
+    }
+  }
+
+  /// Weder Hinweis noch Frage der Unterforderung (PAR-236): bei „fix“
+  /// (FR-0216), bei einem gemeldeten Warnsignal (FR-0203), wenn PAR-201 in
+  /// dieser Woche nach unten korrigiert hat, oder wenn die Readiness von heute
+  /// in einem Band nach PAR-173 liegt. Ein Fehler beim Lesen sperrt
+  /// (fail-closed).
+  Future<bool> _underloadBlocked(
+    List<PlanVersionRecord> history,
+    WarningSignal? warning,
+  ) async {
+    if (await _adaptation.read() != PlanAdaptationMode.adaptive) return true;
+    if (warning != null) return true;
+    final today = _today();
+    if (planCorrectedDownThisWeek(history, today)) return true;
+    // Anders als die Lockerung ([_readinessOn]) unterscheidet die Sperre
+    // „kein Wert“ (nicht gesperrt) von „Fehler“ (gesperrt).
+    final load = readinessToday;
+    if (load == null) return false;
+    try {
+      final r = await load(today);
+      return r != null && planDay(r.day) == today && r.eases;
+    } on Object {
+      return true;
+    }
+  }
+
+  /// Schritt der Unterforderung beim Öffnen (PAR-236): Muster aus den Läufen
+  /// nach der letzten Stufe bzw. nach der letzten Änderung der HFmax
+  /// ([planUnderloadCountFrom]); erstes Muster → Hinweis, erneutes → Frage
+  /// ([planUnderloadAdvance]). Ändert den Plan nicht.
+  Future<void> _advanceUnderload() async {
+    final goal = await _goals.goal();
+    if (goal == null) return;
+    final history = await _plans.history();
+    if (history.isEmpty) return;
+    final state = await _underloadState();
+    final changed = DateTime.tryParse(
+      await session.settings.get(profileHrMaxChangedAtKey) ?? '',
+    )?.toUtc();
+    final runs = await reader.underloadRuns(
+      planUnderloadCountFrom(state, changed),
+    );
+    final pattern = planUnderloadPattern(runs, parameters: parameters);
+    if (!pattern) return;
+    // Sperre erst nach dem Muster prüfen: ohne Muster liest das Öffnen keine
+    // Readiness (FR-0158, Wochenprüfung nur wenn fällig).
+    final blocked = await _underloadBlocked(history, await _warning?.read());
+    var canRaise = false;
+    if (state.stage != PlanUnderloadStage.none) {
+      final today = _today();
+      final built = await reader.read(goal: goal, today: today);
+      canRaise =
+          applyPlanUnderloadRaise(
+            goal: goal,
+            inputs: _inputsFor(PlanTrigger.feedback, built, history.last),
+            today: today,
+            parameters: parameters,
+          ) !=
+          null;
+    }
+    final next = planUnderloadAdvance(
+      state: state,
+      pattern: pattern,
+      blocked: blocked,
+      canRaise: canRaise,
+      now: clock.now(),
+    );
+    if (next != null) await _saveUnderload(next);
+  }
+
+  /// Antwort auf den Hinweis „HFmax prüfen“ bzw. „Passt so“ (PAR-236): Der
+  /// Hinweis erscheint nicht wieder; die Zählung für die Frage läuft ab dem
+  /// Hinweis weiter. Ohne offenen Hinweis: `rejected`.
+  Future<PlanActionResult> answerUnderloadHint() => _act(() async {
+    final state = await _underloadState();
+    if (state.stage != PlanUnderloadStage.hint) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    await _saveUnderload(
+      PlanUnderloadState(
+        stage: PlanUnderloadStage.hintDone,
+        since: state.since,
+      ),
+    );
+  });
+
+  /// Antwort auf „Plan etwas steigern?“ (PAR-236). „Ja, steigern“: einmalig
+  /// ein zusätzlicher Schritt nach PAR-193 ([applyPlanUnderloadRaise]), neue
+  /// Fassung mit Auslöser `feedback` und Grund `underload`. „Nein“: keine
+  /// Änderung. Die Antwort wird erst nach dem Schreiben gespeichert;
+  /// danach zählen nur Läufe nach der Antwort. Ohne offene Frage oder ohne
+  /// mögliche Steigerung: `rejected`.
+  Future<PlanActionResult> answerUnderloadQuestion(bool raise) =>
+      _act(() async {
+        final state = await _underloadState();
+        if (state.stage != PlanUnderloadStage.question) {
+          throw const StorageException(StorageFailure.rejected);
+        }
+        if (raise) {
+          final goal = await _goals.goal();
+          if (goal == null) {
+            throw const StorageException(StorageFailure.notFound);
+          }
+          final history = await _plans.history();
+          if (history.isEmpty) {
+            throw const StorageException(StorageFailure.notFound);
+          }
+          if (await _underloadBlocked(history, await _warning?.read())) {
+            throw const StorageException(StorageFailure.rejected);
+          }
+          final today = _today();
+          final built = await reader.read(goal: goal, today: today);
+          final next = applyPlanUnderloadRaise(
+            goal: goal,
+            inputs: _inputsFor(PlanTrigger.feedback, built, history.last),
+            today: today,
+            parameters: parameters,
+          );
+          if (next == null) {
+            throw const StorageException(StorageFailure.rejected);
+          }
+          final w = await _write(
+            trigger: PlanTrigger.feedback,
+            reason: planReasonUnderload,
+            markChecked: false, // bewertet die Woche (PAR-201) nicht
+            today: today,
+            inputs: next,
+          );
+          _fresh = w.generated;
+          _lastChange = w.summary;
+          if (w.wasWritten) onChanged?.call();
+        }
+        await _saveUnderload(
+          PlanUnderloadState(
+            stage: raise
+                ? PlanUnderloadStage.accepted
+                : PlanUnderloadStage.declined,
+            since: clock.now().toUtc(),
+          ),
+        );
+      });
 
   /// Readiness von [day] aus [readinessToday]; ohne Quelle oder bei einem
   /// Fehler `null` (keine Lockerung).

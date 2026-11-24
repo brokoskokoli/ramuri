@@ -6,6 +6,12 @@ import 'profile_parameters.dart';
 import 'profile_validation.dart';
 import 'resting_hr_origin.dart';
 
+/// Einstellungsschlüssel: Zeitpunkt (UTC, ISO 8601) der letzten Änderung der
+/// wirksamen HFmax (eingetragen oder aus dem Geburtsjahr genähert). Kein
+/// Gesundheitswert; nach einer Änderung beginnt die Zählung der
+/// Unterforderung neu (PAR-236).
+const String profileHrMaxChangedAtKey = 'profile.hr_max_changed_at';
+
 /// Ergebnis von [ProfileService.save].
 class ProfileSaveResult {
   const ProfileSaveResult({required this.saved, required this.validation});
@@ -19,7 +25,9 @@ class ProfileSaveResult {
 /// Alle Felder dürfen leer sein; ein leeres Profil sperrt nichts.
 class ProfileService {
   /// Mit [settings] entfernt jedes Speichern, das den Ruhepuls ändert, dessen
-  /// Kamera-Herkunft (Haltung, Zeitpunkt, Quelle; FR-0214, ADR-0011 Punkt 8).
+  /// Kamera-Herkunft (Haltung, Zeitpunkt, Quelle; FR-0214, ADR-0011 Punkt 8),
+  /// und jedes Speichern, das die wirksame HFmax ändert, setzt
+  /// [profileHrMaxChangedAtKey].
   ProfileService(
     this._store,
     this._clock, {
@@ -55,8 +63,18 @@ class ProfileService {
       await RestingHrOrigin.clear(settings, at: _clock.now());
     }
     await _store.save(profile);
+    if (settings != null && _maxBpm(before!) != _maxBpm(profile)) {
+      await settings.set(
+        profileHrMaxChangedAtKey,
+        _clock.now().toUtc().toIso8601String(),
+        at: _clock.now(),
+      );
+    }
     return ProfileSaveResult(saved: true, validation: v);
   }
+
+  int? _maxBpm(ProfileRecord p) =>
+      resolveHeartRate(p, currentYear: _year).basis.maxBpm;
 
   /// HFmax und abhängige Werte des gespeicherten Profils.
   Future<ResolvedHeartRate> resolve({int? externalRestingBpm}) async =>

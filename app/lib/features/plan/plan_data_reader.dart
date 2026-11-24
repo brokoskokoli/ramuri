@@ -244,6 +244,47 @@ class PlanDataReader {
     ];
   }
 
+  /// Die einer Einheit zugeordneten, beendeten Läufe, die nach [from] endeten
+  /// (ohne [from]: alle), für das Muster der Unterforderung
+  /// (PAR-236, [planUnderloadPattern]): Art der Einheit, RPE aus der
+  /// Rückmeldung und Zeit bei mindestens 80 % HFmax aus dem Laufwert
+  /// [highHeartRateTimeValueKey] (PAR-058). Gesundheitsdaten: nie loggen.
+  Future<List<PlanUnderloadRun>> underloadRuns(DateTime? from) async {
+    final kinds = <int, PlanUnitKind>{
+      for (final u in await _plans.unitsBetween(
+        DateTime.utc(1, 1, 1),
+        planFarFuture,
+      ))
+        if (u.runId case final int id) id: u.kind,
+    };
+    if (kinds.isEmpty) return const [];
+    final result = <PlanUnderloadRun>[];
+    for (final r in await session.runs.finishedBetween(
+      from ?? DateTime.utc(1, 1, 1),
+      clock.now().add(const Duration(days: 1)),
+    )) {
+      final kind = kinds[r.id];
+      final ended = r.endedAt;
+      if (kind == null || ended == null) continue;
+      if (from != null && !ended.isAfter(from)) continue;
+      double? highHr;
+      for (final v in await session.values.read(ValueOwner.run(r.id))) {
+        if (v.current.key == highHeartRateTimeValueKey) {
+          highHr = v.current.value;
+        }
+      }
+      result.add(
+        PlanUnderloadRun(
+          kind: kind,
+          endedAt: ended.toUtc(),
+          rpe: (await session.subjective.read(r.id))?.subjective.rpe,
+          highHrMinutes: highHr,
+        ),
+      );
+    }
+    return result;
+  }
+
   bool _before(RunFigures r, DateTime monday) {
     final d = _parseDay(r.day);
     return d != null && d.isBefore(monday);
