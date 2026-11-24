@@ -36,17 +36,31 @@ class PlanDataReader {
     offload: offload,
   ).load();
 
-  Future<List<RunFigures>> _runs() async {
+  /// Alle beendeten Einheiten mit Kennzahlen, Läufe und andere Sportart.
+  Future<List<RunFigures>> _figures() async {
     final custom = loadRuns;
     if (custom != null) return custom();
-    final overviews = await runOverviews();
-    // Nur Läufe: Eine andere Sportart (FR-0221) zählt nicht für Trainingsstand,
-    // lockeres Tempo und Wochenzeit; für den Plan zählt sie nur über den
-    // Ersatz einer lockeren Einheit (DEC-0056).
     return [
-      for (final o in overviews)
-        if (!o.readFailed && o.run.mode.isRunning) o.toFigures(),
+      for (final o in await runOverviews())
+        if (!o.readFailed) o.toFigures(),
     ];
+  }
+
+  /// Nur Läufe: Eine andere Sportart (FR-0221) zählt nie für Trainingsstand,
+  /// lockeres Tempo und längste Einheit; für Wochenzeit und RPE-Regel zählt
+  /// sie nur als ersetzte lockere Einheit (PAR-233, DEC-0056).
+  Future<List<RunFigures>> _runs() async => [
+    for (final r in await _figures())
+      if (r.isRunning) r,
+  ];
+
+  /// Kennzahlen der Sporteinheit [runId] (`null` ohne oder bei einem Lauf),
+  /// für die Prüfung des Ersatzes (PAR-233).
+  Future<RunFigures?> sportFigures(int runId) async {
+    for (final r in await _figures()) {
+      if (r.runId == runId) return r.isRunning ? null : r;
+    }
+    return null;
   }
 
   /// Eingaben für [goal] am Ortstag [today]. Die Zuordnung „locker“/„andere“
@@ -139,21 +153,27 @@ class PlanDataReader {
 
   /// Belege der Wochenprüfung (PAR-201) am Ortstag [today] für die Woche vor
   /// der von [today]: Minuten aller Läufe dieser Woche (zugeordnete und
-  /// freie), die geplanten Minuten der Woche (`null` ohne gespeicherte
-  /// Einheiten), die RPE der lockeren Läufe (zugeordnet zu lockerer oder
-  /// langer Einheit, ältester zuerst, `null` ohne Angabe) und gemeldete
+  /// freie) und der Sporteinheiten, die eine lockere Einheit ersetzen
+  /// (PAR-233, Bewegungszeit), die geplanten Minuten der Woche (`null` ohne
+  /// gespeicherte Einheiten), die RPE der lockeren Läufe (zugeordnet zu
+  /// lockerer oder langer Einheit, auch ersetzte, ältester zuerst, `null`
+  /// ohne Angabe) und gemeldete
   /// Ermüdung (PAR-188: Befinden 1 oder 2 beim letzten Lauf, höchstens
   /// 3 Tage alt).
   Future<WeekEvidence> weekEvidence(DateTime today) async {
     final t = planDay(today);
     final thisMonday = t.subtract(Duration(days: t.weekday - DateTime.monday));
     final lastMonday = thisMonday.subtract(const Duration(days: 7));
-    final runs = await _runs();
     final units = await _plans.unitsBetween(
       DateTime.utc(1, 1, 1),
       planFarFuture,
     );
     final easyIds = plannedRunIds(units).easy;
+    // Eine andere Sportart zählt nur als ersetzte lockere Einheit (PAR-233).
+    final runs = [
+      for (final r in await _figures())
+        if (r.isRunning || easyIds.contains(r.runId)) r,
+    ];
     final subjective = await session.subjective.readAll();
 
     var done = 0.0;
@@ -211,7 +231,9 @@ class PlanDataReader {
     );
   }
 
-  /// Die beendeten Läufe (ohne andere Sportart, DEC-0056) mit Ortstag von
+  /// Die beendeten Läufe und Sporteinheiten (eine intensive andere Sportart
+  /// zählt für den Abstand, PAR-233; zugeordnet ist sie nur einer lockeren
+  /// Einheit) mit Ortstag von
   /// `minGapDays - 1` Tagen vor dem Montag der Woche von [today] bis
   /// [today], so wie sie die Regel der Abweichung braucht (PAR-235): die
   /// Läufe der laufenden Woche und die, zu denen ihre harte Einheit Abstand
@@ -222,7 +244,7 @@ class PlanDataReader {
     final monday = t.subtract(Duration(days: t.weekday - DateTime.monday));
     final from = monday.subtract(Duration(days: parameters.minGapDays - 1));
     final inWindow = [
-      for (final r in await _runs())
+      for (final r in await _figures())
         if (_parseDay(r.day) case final d?
             when !d.isBefore(from) && !d.isAfter(t))
           (r, d),

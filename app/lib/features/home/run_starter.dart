@@ -104,6 +104,13 @@ class RunStarter {
         ),
       ),
     );
+    // Andere Sportart (FR-0221): eigener Weg nach PAR-233, nie PAR-231.
+    final sportId = finishedId;
+    if (sportId != null && await _isSport(sportId)) {
+      await _settleSport(navigator, started, sportId, day, unitId != null);
+      changes.changed();
+      return;
+    }
     PlanActionResult? result;
     try {
       if (unitId != null) {
@@ -139,6 +146,184 @@ class RunStarter {
     }
     changes.changed();
   }
+
+  Future<bool> _isSport(int runId) async {
+    try {
+      final run = await session.runs.get(runId);
+      return run != null && !run.mode.isRunning;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Nach einer beendeten anderen Sportart (FR-0222, PAR-233): Über
+  /// „Einheit starten“ ([fromUnit]) hakt sie die gemerkte Einheit ab, wenn
+  /// PAR-233 es erlaubt; frei fragt die App nach der offenen Einheit des
+  /// Tags. Abgehakt: Hinweis „Ersetzt den Ausdauerreiz …“; nicht erlaubt:
+  /// ein Satz mit dem Grund. Ohne Plan an dem Tag sagt die App nichts.
+  /// Geprüft wird nach der Wertberechnung (Zeit ab 80 % HFmax, PAR-058).
+  Future<void> _settleSport(
+    NavigatorState navigator,
+    PlanStartedUnitStore started,
+    int runId,
+    String day,
+    bool fromUnit,
+  ) async {
+    SportReplacementBlock? block;
+    var ask = false;
+    PlanUnit? unit;
+    try {
+      await recalculation.exclusive(() async {
+        final mark = fromUnit ? await started.read() : null;
+        unit = mark != null
+            ? await startedPlanUnit(session, mark)
+            : await openPlanUnitOn(session, day);
+        if (unit == null && !fromUnit && !await _hasPlanUnitOn(day)) return;
+        final plan = PlanController(session: session, clock: clock);
+        try {
+          block = await plan.sportReplacementBlock(unit, runId);
+        } finally {
+          plan.dispose();
+        }
+        if (block != null) {
+          if (fromUnit) await started.forget();
+          return;
+        }
+        ask = !fromUnit;
+      });
+    } on Object {
+      return;
+    }
+    if (!navigator.mounted) return;
+    if (block case final b?) {
+      await _sportDialog(navigator, reason: b);
+      return;
+    }
+    if (unit == null) return;
+    if (ask && await _askAssign(navigator) != true) return;
+    PlanActionResult result;
+    try {
+      if (fromUnit) {
+        result =
+            await started.settle(
+              serialize: recalculation.exclusive,
+              runId: runId,
+              forgetWithoutRun: true,
+            ) ??
+            PlanActionResult.failed;
+      } else {
+        final target = unit!;
+        result = await recalculation.exclusive(
+          () => assignRunToUnit(
+            session: session,
+            clock: clock,
+            unitId: target.id!,
+            day: day,
+            runId: runId,
+          ),
+        );
+      }
+    } on Object {
+      result = PlanActionResult.failed;
+    }
+    if (!navigator.mounted) return;
+    if (result == PlanActionResult.done ||
+        result == PlanActionResult.savedNotPlanned) {
+      await _sportDialog(navigator);
+    } else if (navigator.mounted) {
+      var assigned = false;
+      if (result == PlanActionResult.failed) {
+        try {
+          assigned = await planRunAssignedOn(session, day, runId);
+        } on Object {
+          assigned = false;
+        }
+      }
+      if (assigned) {
+        await _sportDialog(navigator);
+      }
+      if (!navigator.mounted) return;
+      _showAssignResult(
+        navigator.context,
+        ScaffoldMessenger.of(navigator.context),
+        result,
+        assigned: assigned,
+      );
+    }
+  }
+
+  /// Hat der Plan am Ortstag [day] eine Einheit (auch erledigt oder
+  /// Ruhetag)? Ohne sagt die App nach einer freien Sporteinheit nichts.
+  Future<bool> _hasPlanUnitOn(String day) async {
+    if (session is! PlanStorage) return false;
+    final unit = await (session as PlanStorage).plans.unitOn(
+      DateTime.parse('${day}T00:00:00Z'),
+    );
+    return unit != null;
+  }
+
+  Future<bool?> _askAssign(NavigatorState navigator) => showDialog<bool>(
+    context: navigator.context,
+    builder: (context) {
+      final l = AppLocalizations.of(context);
+      return AlertDialog(
+        key: const Key('other_sport_assign_ask'),
+        title: Text(l.otherSportAssignAskTitle),
+        content: Text(l.otherSportAssignAskBody),
+        actions: [
+          TextButton(
+            key: const Key('other_sport_assign_no'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l.otherSportAssignNo),
+          ),
+          FilledButton(
+            key: const Key('other_sport_assign_yes'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l.otherSportAssignYes),
+          ),
+        ],
+      );
+    },
+  );
+
+  /// Ohne [reason]: abgehakt, mit dem Hinweis aus FR-0222; sonst der Grund.
+  Future<void> _sportDialog(
+    NavigatorState navigator, {
+    SportReplacementBlock? reason,
+  }) => showDialog<void>(
+    context: navigator.context,
+    builder: (context) {
+      final l = AppLocalizations.of(context);
+      final text = switch (reason) {
+        null => l.otherSportReplacedHint,
+        SportReplacementBlock.tooIntensive => l.otherSportBlockTooIntensive,
+        SportReplacementBlock.tooShort => l.otherSportBlockTooShort,
+        SportReplacementBlock.alreadyReplaced =>
+          l.otherSportBlockAlreadyReplaced,
+        SportReplacementBlock.noEasyUnit => l.otherSportBlockNoEasyUnit,
+      };
+      return AlertDialog(
+        key: Key(
+          reason == null
+              ? 'other_sport_replaced'
+              : 'other_sport_not_assigned_${reason.name}',
+        ),
+        title: Text(
+          reason == null
+              ? l.otherSportReplacedTitle
+              : l.otherSportNotAssignedTitle,
+        ),
+        content: Text(text),
+        actions: [
+          TextButton(
+            key: const Key('other_sport_dialog_ok'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(MaterialLocalizations.of(context).okButtonLabel),
+          ),
+        ],
+      );
+    },
+  );
 
   /// Nach jedem beendeten Lauf (PAR-231): Läufe zählen ohne Rückfrage für
   /// die offene Einheit ihres Ortstags, ab dem Sonntag der Vorwoche oder dem

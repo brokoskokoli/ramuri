@@ -723,7 +723,7 @@ class PlanController extends ChangeNotifier {
     return result;
   }
 
-  /// Ortstage der intensiven Läufe (PAR-058, ohne andere Sportart, DEC-0056),
+  /// Ortstage der intensiven Läufe und Sporteinheiten (PAR-058, PAR-233),
   /// zu denen die harte Einheit der Woche von [today] Abstand halten muss
   /// (PAR-059), wie [planIntensiveRunDays]; über [runsBetween], damit die
   /// Seite nicht auf die Kennzahlen aller Läufe wartet.
@@ -734,7 +734,7 @@ class PlanController extends ChangeNotifier {
         monday.subtract(Duration(days: parameters.minGapDays - 1)),
         today,
       ))
-        if (r.running && r.intensive) r.day,
+        if (r.intensive) r.day,
     };
   }
 
@@ -969,7 +969,62 @@ class PlanController extends ChangeNotifier {
     }
   }
 
+  /// Darf die Sporteinheit [runId] (FR-0221) die Einheit [unit] ersetzen
+  /// (PAR-233, [planSportReplacementBlock])? `null`: ja; sonst der Grund.
+  /// Ohne Plan oder ohne offene Einheit: [SportReplacementBlock.noEasyUnit].
+  /// Liest Puls, RPE und Zeit ab 80 % HFmax der Einheit; nie loggen.
+  Future<SportReplacementBlock?> sportReplacementBlock(
+    PlanUnit? unit,
+    int runId,
+  ) => _serial(() => _sportBlock(unit, runId));
+
+  Future<SportReplacementBlock?> _sportBlock(PlanUnit? unit, int runId) async {
+    final sport = await reader.sportFigures(runId);
+    if (sport == null) return SportReplacementBlock.noEasyUnit;
+    if (unit == null || unit.runId != null && unit.runId != runId) {
+      return SportReplacementBlock.noEasyUnit;
+    }
+    final units = await _plans.unitsBetween(DateTime.utc(2000), planFarFuture);
+    final sportIds = <int>{
+      for (final r in await session.runs.list())
+        if (!r.mode.isRunning) r.id,
+    };
+    double? highHr;
+    for (final v in await session.values.read(ValueOwner.run(runId))) {
+      if (v.current.key == highHeartRateTimeValueKey) highHr = v.current.value;
+    }
+    final percents = await ReserveZoneSettings.load(session.settings);
+    return planSportReplacementBlock(
+      unit: unit,
+      sport: sport,
+      units: units,
+      sportRunIds: sportIds,
+      rpe: (await session.subjective.read(runId))?.subjective.rpe,
+      highHrMinutes: highHr,
+      heartRate: resolveHeartRate(
+        await session.profile.read(),
+        currentYear: clock.now().year,
+      ).basis,
+      zoneBounds: [for (final p in percents) p / 100],
+      parameters: parameters,
+    );
+  }
+
   Future<void> _assignAndRecalculate(int unitId, int? runId) async {
+    // Eine andere Sportart ersetzt nur eine lockere Einheit nach PAR-233.
+    if (runId != null &&
+        !((await session.runs.get(runId))?.mode.isRunning ?? true)) {
+      PlanUnit? unit;
+      for (final u in await _plans.unitsBetween(
+        DateTime.utc(2000),
+        planFarFuture,
+      )) {
+        if (u.id == unitId) unit = u;
+      }
+      if (await _sportBlock(unit, runId) != null) {
+        throw const StorageException(StorageFailure.rejected);
+      }
+    }
     await _plans.assignRun(unitId, runId);
     _fresh = null;
     onChanged?.call();
