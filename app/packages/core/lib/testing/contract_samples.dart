@@ -123,6 +123,9 @@ ComputedValue sampleValue(
   UnavailableReason? reason,
   HeartRateBasis? basis,
 
+  /// Kettenversion der Vorverarbeitung (nur an Laufwerten).
+  String? chain,
+
   /// Nur für Fehlerfälle: kein Grund, obwohl der Wert fehlt.
   bool withoutReason = false,
 }) => ComputedValue(
@@ -145,6 +148,7 @@ ComputedValue sampleValue(
   parameterVersion: 2,
   quality: quality,
   sections: sections,
+  preprocessingVersion: chain,
 );
 
 /// Zwei Abschnitte: ein verwendeter und ein abgelehnter mit Gründen.
@@ -188,7 +192,7 @@ String describeRun(StoredRun? r) => r == null
     : '${r.id}|${r.state.name}|${us(r.startedAt)}|${us(r.endedAt)}|${r.endedUtcOffset?.inSeconds}';
 
 String describeValue(ComputedValue v) =>
-    '${v.key}|${v.value}|${v.unavailableReason?.name}|basis=${v.heartRateBasis == null ? null : '${v.heartRateBasis!.maxBpm}/${v.heartRateBasis!.restingBpm}/${v.heartRateBasis!.maxIsEstimated}'}|${v.unit}|${us(v.computedAt)}|${us(v.dataFrom)}|${us(v.dataTo)}|${v.measurementCount}|${v.sources}|${v.method}|${v.methodVersion}|${v.parameterVersion}|${v.quality.name}|sections=${v.sections.map(describeSection).toList()}';
+    '${v.key}|${v.value}|${v.unavailableReason?.name}|basis=${v.heartRateBasis == null ? null : '${v.heartRateBasis!.maxBpm}/${v.heartRateBasis!.restingBpm}/${v.heartRateBasis!.maxIsEstimated}'}|${v.unit}|${us(v.computedAt)}|${us(v.dataFrom)}|${us(v.dataTo)}|${v.measurementCount}|${v.sources}|${v.method}|${v.methodVersion}|${v.parameterVersion}|${v.quality.name}|chain=${v.preprocessingVersion}|sections=${v.sections.map(describeSection).toList()}';
 
 String describePair(ValuePair p) =>
     'O(${describeValue(p.original)}) C(${describeValue(p.current)})';

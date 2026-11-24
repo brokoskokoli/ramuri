@@ -79,8 +79,12 @@ class RunAnalysis {
   DateTime get endedAt => run.endedAt!;
 
   /// Der VO₂max-Laufwert mit den Angaben aus FR-0053 und allen bewerteten
-  /// Abschnitten (FR-0073), auch den abgelehnten, in Zeitreihenfolge.
-  ComputedValue vo2maxValue(DateTime computedAt) {
+  /// Abschnitten (FR-0073), auch den abgelehnten, in Zeitreihenfolge, und der
+  /// Kettenversion der Vorverarbeitung [preprocessingVersion] (ADR-0004).
+  ComputedValue vo2maxValue(
+    DateTime computedAt, {
+    required String preprocessingVersion,
+  }) {
     final sections = valueSectionsOf(selection, estimate);
     return toComputedValue(
       key: vo2maxRunValueKey,
@@ -89,6 +93,7 @@ class RunAnalysis {
       computedAt: computedAt,
       sections: sections,
       heartRateBasis: snapshotOf(basis),
+      preprocessingVersion: preprocessingVersion,
     );
   }
 }
@@ -130,6 +135,8 @@ List<ValueSection> valueSectionsOf(
 
 /// Überträgt einen fortgeschrittenen Wert in die Speicherform. „Nicht
 /// bestimmbar“ wird ohne Wert, aber mit Grund gespeichert (FR-0068).
+/// [preprocessingVersion] nur bei Laufwerten (Kettenversion der
+/// Vorverarbeitung), bei Tageswerten `null`.
 ComputedValue toComputedValue({
   required String key,
   required String unit,
@@ -137,6 +144,7 @@ ComputedValue toComputedValue({
   required DateTime computedAt,
   List<ValueSection> sections = const [],
   HeartRateBasis? heartRateBasis,
+  String? preprocessingVersion,
 }) {
   final m = value.metadata;
   return ComputedValue(
@@ -144,6 +152,7 @@ ComputedValue toComputedValue({
     value: value.value,
     unavailableReason: value.reason,
     heartRateBasis: heartRateBasis,
+    preprocessingVersion: preprocessingVersion,
     unit: unit,
     computedAt: computedAt,
     dataFrom: m.dataFrom,
