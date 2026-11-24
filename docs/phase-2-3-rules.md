@@ -10,6 +10,8 @@
 
 **Ergänzung 2026-11-20:** PAR-234 (Live-Fenster der Signalanzeige, Abschnitt 7.1); nur Anzeige beim Messen, sie ändert weder das Verfahren `camera-ppg` noch das Endergebnis.
 
+**Ergänzung 2026-11-20:** PAR-232 (Bewegungszeit ohne Strecke, neben PAR-209); sie gilt nur für eine andere Sportart (FR-0221), ändert das Verfahren `movement-time` auf Version 2 und lässt die Werte von GPS- und Bandläufen gleich.
+
 **Ergänzung 2026-11-21:** Feste Kameraeinstellung (Fokus, Stabilisierung; ADR-0011, Nachtrag 2026-11-21); sie ändert das Verfahren `camera-ppg` auf Version 4 und keine der Regeln.
 
 **Ergänzung 2026-11-22:** Belichtung (ADR-0011, Nachtrag 2026-11-22); sie ändert das Verfahren `camera-ppg` auf Version 5 und keine der Regeln.
@@ -270,6 +272,7 @@ Die Basisstufe zeigt nur Texte und keine Zustände (OQ-0029, FR-0107). **Evidenz
 | PAR-208 | Plausibles Tempo einer Referenz | 2:30 bis 15:00 min/km, Grenzen eingeschlossen. Eine Referenz außerhalb geht in keine Berechnung ein (Prognose, Einschätzung, Pace-Vorgaben). Sie bleibt gespeichert, der Import übernimmt sie, die App zeigt sie als „ungültig“ mit Grund | Heuristik, Evidenz keine | Entscheidung des Maintainers 2026-11-11 (K53) nach dem Fund „Referenzzeit unplausibel“ im E2E von WP22. 2:30 min/km liegt knapp unter dem Weltrekordtempo über 5 km (12:35 min, rund 2:31 min/km), 15:00 min/km entspricht Gehen mit 4 km/h. Die Grenzen sind eigene Wahl. | FR-0129 |
 | PAR-209 | Bandgeschwindigkeit im Laufbandmodus | 1 bis 25 km/h, Schritte von 0,1 km/h, Grenzen eingeschlossen; die Speicherung ist m/s (km/h geteilt durch 3,6, für Meilen in der Anzeige umgerechnet). Geschwindigkeit 0 gilt als Stillstand ohne Bewegungszeit und ist als Eingabe zusätzlich zur Pause-Taste möglich (K57); die Startgeschwindigkeit vor „Los“ ist Pflicht | Heuristik, Evidenz keine | Entscheidung des Maintainers 2026-11-11 (K57). Übliche Laufbänder zeigen 0,1 km/h-Schritte und reichen bis etwa 20 bis 25 km/h. Die Grenzen sind eigene Wahl. | FR-0196 |
 | PAR-210 | Steigung im Laufbandmodus | 0 bis 15 %, Schritte von 0,5 %, Grenzen eingeschlossen, keine negative Steigung; die Angabe ist freiwillig (ohne Angabe gilt sie als unbekannt, nicht als 0) | Heuristik, Evidenz keine | Entscheidung des Maintainers 2026-11-11 (K57). Übliche Laufbänder stellen bis etwa 12 bis 15 % ein. Die Grenzen sind eigene Wahl. | FR-0196 |
+| PAR-232 | Bewegungszeit ohne Strecke | Bei einer anderen Sportart (FR-0221) ist die Bewegungszeit die Aufzeichnungszeit ohne die Zeiten mit Pause-Taste. Es gibt keine Autopause und keine Stillstandserkennung; Pausen zwischen Runden zählen mit, weil der Puls dort erhöht bleibt | abgeleitet, Evidenz keine | Entscheidung des Maintainers 2026-11-20. Bezug PAR-014, PAR-015, PAR-209: ohne Strecke oder Bandgeschwindigkeit gäbe die Stillstandserkennung keine Bewegungszeit und damit keinen TRIMP. | FR-0221 |
 
 ## 7. Regelversion K-1: Kamera-Morgenmessung (Phase 3)
 
