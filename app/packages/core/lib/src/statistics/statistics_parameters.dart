@@ -1,6 +1,6 @@
 /// Kennung und Version der Statistikrechnung (NFR-0001, NFR-0005).
 const String statisticsMethod = 'statistics';
-const int statisticsMethodVersion = 1;
+const int statisticsMethodVersion = 2;
 
 /// Festlegungen der Statistik, die keine PAR-Grenzwerte sind: Sie stammen aus
 /// OQ-0037 (Bestpace, Vergleich mit den letzten Läufen) beziehungsweise sind
