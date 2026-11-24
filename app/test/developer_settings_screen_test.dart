@@ -62,26 +62,23 @@ Future<DeveloperModeStore> _pumpAll(
 }
 
 void pageTests() {
-  testWidgets(
-    'Seite: Titel, Abschnitte Entwicklermodus, Kamera, Diagnose, Messpaare, '
-    'Kamera gegen Gurt in dieser Reihenfolge',
-    (tester) async {
-      await _pumpAll(tester);
-      expect(find.widgetWithText(AppBar, 'Entwicklereinstellungen'), findsOne);
-      expect(find.text('Entwicklermodus'), findsOneWidget);
-      final y = [
-        key('about_dev_switch'),
-        key('about_ppg_camera_card'),
-        key('dev_ppg_diag_card'),
-        key('about_pairs'),
-        key('dev_compare'),
-      ].map((f) => tester.getTopLeft(f).dy).toList();
-      expect(y[0], lessThan(y[1]));
-      expect(y[1], lessThan(y[2]));
-      expect(y[2], lessThan(y[3]));
-      expect(y[3], lessThan(y[4]));
-    },
-  );
+  testWidgets('Seite: Titel, Abschnitte Entwicklermodus, Kamera, Messpaare, '
+      'Kamera gegen Gurt, Diagnose in dieser Reihenfolge', (tester) async {
+    await _pumpAll(tester);
+    expect(find.widgetWithText(AppBar, 'Entwicklereinstellungen'), findsOne);
+    expect(find.text('Entwicklermodus'), findsOneWidget);
+    final y = [
+      key('about_dev_switch'),
+      key('about_ppg_camera_card'),
+      key('about_pairs'),
+      key('dev_compare'),
+      key('dev_ppg_diag_card'),
+    ].map((f) => tester.getTopLeft(f).dy).toList();
+    expect(y[0], lessThan(y[1]));
+    expect(y[1], lessThan(y[2]));
+    expect(y[2], lessThan(y[3]));
+    expect(y[3], lessThan(y[4]));
+  });
 
   testWidgets('Seite: Englisch', (tester) async {
     await _pumpAll(tester, locale: 'en');

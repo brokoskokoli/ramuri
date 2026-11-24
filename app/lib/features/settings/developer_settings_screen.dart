@@ -122,16 +122,6 @@ class _DeveloperSettingsScreenState extends State<DeveloperSettingsScreen> {
                 ),
               ),
             ],
-            if (widget.cameraDiagnostics != null) ...[
-              const SizedBox(height: 8),
-              RamuriCard(
-                key: const Key('dev_ppg_diag_card'),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: PpgCameraDiagnosticsSection(
-                  store: widget.cameraDiagnostics!,
-                ),
-              ),
-            ],
             if (widget.morning != null) ...[
               const SizedBox(height: 8),
               RamuriCard(
@@ -146,6 +136,16 @@ class _DeveloperSettingsScreenState extends State<DeveloperSettingsScreen> {
                 key: const Key('dev_compare_card'),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: BeltCompareSection(store: widget.morning!),
+              ),
+            ],
+            if (widget.cameraDiagnostics != null) ...[
+              const SizedBox(height: 8),
+              RamuriCard(
+                key: const Key('dev_ppg_diag_card'),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: PpgCameraDiagnosticsSection(
+                  store: widget.cameraDiagnostics!,
+                ),
               ),
             ],
           ],
