@@ -130,7 +130,7 @@ Diese Dateien muss man nicht ganz lesen. Die Suchbegriffe markieren, wo ihre Abs
 | `app/lib/features/home/home_screen.dart` | 1200 | `class HomeScreen`, `class _HomeScreenState`, `Widget _cards`, `Widget build`, `Widget _content`, `class _LastRun` |
 | `app/lib/features/statistics/load_card.dart` | 1100 | `class LoadCard`, `class LoadCardBody` |
 | `app/lib/features/history/history_screen.dart` | 1000 | `class HistoryScreen`, `class _HistoryScreenState`, `Widget build` |
-| `app/lib/features/measure/resting_measure_controller.dart` | 1000 | `class RestingMeasureResult`, `class RestingMeasureController`, `void startRest`, `void tick`, `void checkFrameGap` |
+| `app/lib/features/measure/resting_measure_controller.dart` | 1000 | `class RestingMeasureResult`, `class RestingMeasureController`, `Future<void> startRest`, `void tick`, `void checkFrameGap` |
 | `app/lib/features/plan/plan_goal_form.dart` | 1000 | `class PlanGoalFormScreen`, `class _PlanGoalFormScreenState` |
 | `app/lib/features/run/run_controller.dart` | 900 | `class LiveZone`, `class RunController`, `Future<void> start`, `bool skipSegment` |
 | `app/packages/core/lib/src/plan/generate_plan.dart` | 1000 | `class GeneratedPlan`, `GeneratedPlan generatePlan(`, `planDroppedWithoutRestDays(`, `List<PinnedConflict> planSpacingConflicts(` |

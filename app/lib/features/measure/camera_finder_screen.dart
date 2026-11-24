@@ -6,12 +6,29 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import 'camera_finder_controller.dart';
 
+/// Wofür die Kamerasuche geöffnet ist (FR-0220).
+enum CameraFinderPurpose {
+  /// Entwicklereinstellungen: Anweisung der Entwickler, „Übernehmen“.
+  developer,
+
+  /// Einstellungen „Kamera-Messung“: Erklärung für alle Nutzer, „Übernehmen“, ohne Empfehlung
+  /// „Standardkamera verwenden“; danach keine Messung.
+  settings,
+
+  /// Vor der ersten Kamera-Messung: wie [settings], aber „Weiter“ zur Messung.
+  measurement,
+}
+
 /// Seite „Kamera finden“ (FR-0220, PAR-227, PAR-228): Live-Bilder aller nutzbaren
 /// Rückkameras bei eingeschaltetem Blitz in zwei Spalten, je Bild Bezeichnung, Bildrate,
 /// Balken „Licht“, „Finger erkannt“ und die Empfehlung. Ein Tipp wählt eine Kamera;
 /// „Übernehmen“ speichert sie (ohne Tipp die Empfehlung) als Ergebnis der Kamerasuche,
 /// mit [allowManual] zusätzlich „Als feste Wahl setzen“ (Wahl von Hand). Zurück speichert
 /// nichts. Zurück, Übernehmen und Hintergrund beenden die Vorschau (Taschenlampe aus).
+/// Für alle Nutzer ([CameraFinderPurpose.settings], [CameraFinderPurpose.measurement]) mit
+/// kurzer Erklärung und, solange es weder Empfehlung noch Tipp gibt (auch nach einem Fehler
+/// der Vorschau), „Standardkamera verwenden“. Zahlen je Kamera (auch die Bildrate) nur mit
+/// [developerMode].
 /// Gibt die gespeicherte Kamera zurück (`Navigator.pop`), sonst `null`.
 class CameraFinderScreen extends StatefulWidget {
   const CameraFinderScreen({
@@ -20,6 +37,7 @@ class CameraFinderScreen extends StatefulWidget {
     required this.choice,
     this.developerMode = false,
     this.allowManual = false,
+    this.purpose = CameraFinderPurpose.developer,
   });
 
   final PpgCamera camera;
@@ -30,6 +48,8 @@ class CameraFinderScreen extends StatefulWidget {
 
   /// „Als feste Wahl setzen“ anbieten (Entwicklereinstellungen).
   final bool allowManual;
+
+  final CameraFinderPurpose purpose;
 
   static Key tileKey(PpgCameraRef ref) => Key('camera_finder_tile_${ref.key}');
   static Key fingerKey(PpgCameraRef ref) =>
@@ -88,13 +108,15 @@ class _CameraFinderScreenState extends State<CameraFinderScreen>
     super.dispose();
   }
 
-  Future<void> _apply({required bool manual}) async {
+  bool get _forUsers => widget.purpose != CameraFinderPurpose.developer;
+
+  Future<void> _apply({required bool manual, bool standard = false}) async {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final failed = AppLocalizations.of(context).settingsSaveFailed;
     PpgCameraRef? ref;
     try {
-      ref = await _c.apply(manual: manual);
+      ref = standard ? await _c.applyDefault() : await _c.apply(manual: manual);
     } on StorageException {
       messenger.showSnackBar(SnackBar(content: Text(failed)));
       return;
@@ -138,10 +160,17 @@ class _CameraFinderScreenState extends State<CameraFinderScreen>
       CameraFinderPhase.running => _grid(l10n, c, theme, muted),
     };
     final running = _c.phase == CameraFinderPhase.running;
+    // Für alle Nutzer: ohne Empfehlung und ohne Tipp die Standardkamera statt „Weiter“.
+    final standard = _forUsers && _c.target == null;
+    final bar =
+        running ||
+        (_forUsers &&
+            _c.phase == CameraFinderPhase.stopped &&
+            _c.canApplyDefault);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.cameraFinderTitle)),
       body: body,
-      bottomNavigationBar: running
+      bottomNavigationBar: bar
           ? SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -149,13 +178,26 @@ class _CameraFinderScreenState extends State<CameraFinderScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    FilledButton(
-                      key: const Key('camera_finder_apply'),
-                      onPressed: _c.canApply
-                          ? () => _apply(manual: false)
-                          : null,
-                      child: Text(l10n.cameraFinderApply),
-                    ),
+                    if (standard)
+                      FilledButton(
+                        key: const Key('camera_finder_default'),
+                        onPressed: _c.canApplyDefault
+                            ? () => _apply(manual: false, standard: true)
+                            : null,
+                        child: Text(l10n.cameraFinderUseDefault),
+                      )
+                    else
+                      FilledButton(
+                        key: const Key('camera_finder_apply'),
+                        onPressed: _c.canApply
+                            ? () => _apply(manual: false)
+                            : null,
+                        child: Text(
+                          widget.purpose == CameraFinderPurpose.measurement
+                              ? l10n.cameraFinderContinue
+                              : l10n.cameraFinderApply,
+                        ),
+                      ),
                     if (widget.allowManual) ...[
                       const SizedBox(height: 8),
                       OutlinedButton(
@@ -192,7 +234,11 @@ class _CameraFinderScreenState extends State<CameraFinderScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(l10n.cameraFinderInstruction, style: theme.bodyLarge),
+        Text(
+          _forUsers ? l10n.cameraFinderIntro : l10n.cameraFinderInstruction,
+          key: const Key('camera_finder_instruction'),
+          style: theme.bodyLarge,
+        ),
         if (_c.mode == PpgPreviewMode.alternating)
           Padding(
             key: const Key('camera_finder_alternating'),
@@ -305,7 +351,7 @@ class _CameraFinderScreenState extends State<CameraFinderScreen>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (cam.frameRate != null)
+              if (widget.developerMode && cam.frameRate != null)
                 Text(l10n.devCameraFrameRate(cam.frameRate!), style: muted),
               const SizedBox(height: 4),
               Text(l10n.cameraFinderLight, style: muted),

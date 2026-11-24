@@ -4038,5 +4038,15 @@
   "cameraFinderFailOther": "Keine Vorschau",
   "@cameraFinderFailOther": {"description": "Grund je Kamera: sonstiger Fehler"},
   "cameraFinderNumbers": "R/G {ratio} · {exposure} ms · ISO {iso} · Licht {light}",
-  "@cameraFinderNumbers": {"description": "Entwicklermodus: Zahlen je Kamera (Mittel R/G, Belichtungszeit, ISO, Lichtmenge)", "placeholders": {"ratio": {"type": "String"}, "exposure": {"type": "String"}, "iso": {"type": "String"}, "light": {"type": "String"}}}
+  "@cameraFinderNumbers": {"description": "Entwicklermodus: Zahlen je Kamera (Mittel R/G, Belichtungszeit, ISO, Lichtmenge)", "placeholders": {"ratio": {"type": "String"}, "exposure": {"type": "String"}, "iso": {"type": "String"}, "light": {"type": "String"}}},
+  "cameraFinderIntro": "Dein Handy hat mehrere Kameras. Lege den Finger über Blitz und Kamera – die beleuchtete Kamera ist markiert.",
+  "@cameraFinderIntro": {"description": "Erklärung oben auf der Kamerasuche für alle Nutzer (FR-0220)"},
+  "cameraFinderContinue": "Weiter",
+  "@cameraFinderContinue": {"description": "Kamerasuche vor der Messung: übernimmt die gewählte bzw. empfohlene Kamera und startet die Messung"},
+  "cameraFinderUseDefault": "Standardkamera verwenden",
+  "@cameraFinderUseDefault": {"description": "Kamerasuche ohne Empfehlung und ohne Tipp: speichert die Standardkamera als Ergebnis"},
+  "settingsCameraTitle": "Kamera-Messung",
+  "@settingsCameraTitle": {"description": "Abschnitt der Einstellungen bei mehreren nutzbaren Kameras (FR-0220)"},
+  "settingsCameraDefault": "Standardkamera",
+  "@settingsCameraDefault": {"description": "Geltende Kamera der Kamera-Messung ist die Standardkamera"}
 }

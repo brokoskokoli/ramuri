@@ -41,6 +41,7 @@ Future<void> _tap(WidgetTester t, String key) async {
 Future<FakePpgCamera> _measure(
   WidgetTester t, {
   required bool developerMode,
+  PpgCameraRef? auto,
 }) async {
   t.view.physicalSize = const Size(390, 844);
   t.view.devicePixelRatio = 1;
@@ -55,6 +56,7 @@ Future<FakePpgCamera> _measure(
       session.settings,
       _clock,
     ).setManual(_second);
+    await SettingsPpgCameraChoiceStore(session.settings, _clock).setAuto(auto);
   });
   final cam = FakePpgCamera()..cameraList = _cameras;
   await t.pumpWidget(
@@ -89,9 +91,10 @@ void main() {
     await _tap(t, 'measure_cancel');
   });
 
-  testWidgets('Entwicklermodus aus: Standardkamera ohne Angabe', (t) async {
-    final cam = await _measure(t, developerMode: false);
-    expect(cam.startedWith, [null]);
+  testWidgets('Entwicklermodus aus: Wahl von Hand gilt nicht, es gilt das '
+      'Suchergebnis (hier die Standardkamera)', (t) async {
+    final cam = await _measure(t, developerMode: false, auto: _std);
+    expect(cam.startedWith, [_std]);
     await _tap(t, 'measure_cancel');
   });
 }

@@ -83,6 +83,7 @@ class MorningMeasureController extends ChangeNotifier {
     Future<PpgCameraRef?> Function()? cameraChoice,
     Future<({Set<PpgCameraDiagnostic> diagnostics, bool ispFrames})> Function()?
     cameraDiagnostics,
+    Future<bool> Function()? beforeStart,
     bool autoTick = true,
     this.validationState = ppgValidationState,
     this.marksFor,
@@ -96,6 +97,7 @@ class MorningMeasureController extends ChangeNotifier {
          searchWindow: true,
          cameraChoice: cameraChoice,
          cameraDiagnostics: cameraDiagnostics,
+         beforeStart: beforeStart,
          autoTick: autoTick,
        ) {
     engine.setPosture(RestingPosture.lying);

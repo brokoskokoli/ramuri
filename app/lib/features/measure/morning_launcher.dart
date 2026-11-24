@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
+import 'camera_finder_gate.dart';
 import 'device_info.dart';
 import 'morning_belt.dart';
 import 'morning_measure_controller.dart';
@@ -91,6 +92,13 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
       evaluate: widget.evaluate,
       evaluateBest: widget.evaluateBest,
       check: widget.check,
+      // Kamerasuche vor der Messung, wenn nötig (FR-0220).
+      beforeStart: () => runCameraFinderBeforeMeasurement(
+        context,
+        camera: widget.camera,
+        settings: widget.settings,
+        clock: widget.clock,
+      ),
       developerMode: SettingsDeveloperModeStore(
         widget.settings,
         widget.clock,
