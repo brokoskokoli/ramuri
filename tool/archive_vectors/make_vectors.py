@@ -114,6 +114,12 @@ SECTIONS_S15 = SECTIONS_S14
 # (0/1, vom Nutzer als gueltige Messung des Tages gewaehlt) ans Zeilenende. Archive bis Schema 15 lesen 0.
 SECTIONS_S16 = SECTIONS_S15
 
+# Schema 17 (weiter Format 2, FR-0217): Abschnitte wie Schema 16; in `morning_raw_signals` kommen `isp_frames`
+# (BLOB als Hex, je Bild 19 float64 LE, NaN = nicht gemeldet, null = nicht aufgezeichnet), die fuenf Schalter
+# `diag_*` (0/1) und `diag_awb_variant` (`matrix`/`lock`, nur bei diag_awb_fixed) ans Zeilenende.
+# Archive bis Schema 16 lesen null bzw. 0.
+SECTIONS_S17 = SECTIONS_S16
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -455,8 +461,38 @@ def archive_rows_s16():
     return r
 
 
+def archive_rows_s17():
+    """Schema 17: die Zeilen von Schema 16 mit ISP-Werten und Diagnose-Schaltern im Rohsignal. Rohsignal von
+    Messung 1 (drei Bilder) mit ISP-Werten je Bild (Bild 2 ohne Farbverstaerkungen und Fokusdistanz, also NaN;
+    Bild 3 ganz ohne Ergebnis, alle NaN), Rauschunterdrueckung aus und Weissabgleich fest mit `matrix`;
+    Rohsignal von Messung 2 ohne ISP-Werte und ohne Schalter."""
+    import struct
+    nan = float("nan")
+    r = archive_rows_s16()
+    isp = []
+    for i in range(3):
+        vals = [1.5 + i * 0.125, 1.0, 1.0, 2.25, 2, 1, 0, 0, 1, 1, 1, 33_333_333 - i, 400 + i, 2, 33_366_666, 0,
+                10.0, 0, 0]
+        if i == 1:
+            vals[0:4] = [nan] * 4
+            vals[16] = nan
+        if i == 2:
+            vals = [nan] * 19
+        assert len(vals) == 19
+        isp.append(struct.pack("<19d", *vals))
+    r["morning_raw_signals"][0].update(isp_frames=b"".join(isp).hex(), diag_noise_reduction_off=1, diag_edge_off=0,
+                                       diag_awb_fixed=1, diag_tonemap_linear=0, diag_shading_off=0,
+                                       diag_awb_variant="matrix")
+    r["morning_raw_signals"][1].update(isp_frames=None, diag_noise_reduction_off=0, diag_edge_off=0,
+                                       diag_awb_fixed=0, diag_tonemap_linear=0, diag_shading_off=0,
+                                       diag_awb_variant=None)
+    return r
+
+
 def archive_plaintext(version=1, future_training=False, schema=None, reserved_row=False):
-    if schema == 16:
+    if schema == 17:
+        r, sections = archive_rows_s17(), SECTIONS_S17
+    elif schema == 16:
         r, sections = archive_rows_s16(), SECTIONS_S16
     elif schema == 15:
         r, sections = archive_rows_s15(), SECTIONS_S15
@@ -528,6 +564,7 @@ def main():
     jl14, gz14 = archive_plaintext(2, schema=14)
     jl15, gz15 = archive_plaintext(2, schema=15)
     jl16, gz16 = archive_plaintext(2, schema=16)
+    jl17, gz17 = archive_plaintext(2, schema=17)
     _, gz2_future = archive_plaintext(2, future_training=True)
     _, gz10_warn = archive_plaintext(2, schema=10, reserved_row=True)
     # (name, passwort, salz, klartext)
@@ -553,6 +590,7 @@ def main():
         ("archive_v2_s14", "archiv-test-passwort-s14+", bytes(range(136, 152)), gz14),
         ("archive_v2_s15", "archiv-test-passwort-s15+", bytes(range(152, 168)), gz15),
         ("archive_v2_s16", "archiv-test-passwort-s16+", bytes(range(168, 184)), gz16),
+        ("archive_v2_s17", "archiv-test-passwort-s17+", bytes(range(184, 200)), gz17),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
@@ -560,7 +598,7 @@ def main():
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11", "archive_v2_s12", "archive_v2_s13", "archive_v2_s14", "archive_v2_s15", "archive_v2_s16") else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11", "archive_v2_s12", "archive_v2_s13", "archive_v2_s14", "archive_v2_s15", "archive_v2_s16", "archive_v2_s17") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -643,6 +681,12 @@ def main():
             manifest[-1]["jsonl_file"] = "archive_v2_s16.jsonl"
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl16).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_s16()[s]) for s in SECTIONS_S16}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s17":
+            open(os.path.join(out, "archive_v2_s17.jsonl"), "wb").write(jl17)
+            manifest[-1]["jsonl_file"] = "archive_v2_s17.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl17).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s17()[s]) for s in SECTIONS_S17}
             manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)

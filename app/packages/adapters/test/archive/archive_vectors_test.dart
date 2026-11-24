@@ -509,6 +509,64 @@ void main() {
     expect(lines.last['rows'], v['row_counts']);
   });
 
+  test('archive_v2_s17: Format 2, Schema 17, ISP-Werte und Schalter (Abschnitt 34)', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s17');
+    final plain = await _collect(
+      createArchiveCipher().decrypt(
+        v['password'] as String,
+        Stream.value(_read(v['file'] as String)),
+      ),
+    );
+    expect(_read(v['file'] as String)[9], 2);
+    final text = utf8.decode(gzip.decode(plain));
+    expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+    final lines = [
+      for (final l in const LineSplitter().convert(text))
+        jsonDecode(l) as Map<String, dynamic>,
+    ];
+    expect(lines.first['format'], 2);
+    expect(lines.first['schema_version'], 17);
+    final start = lines.indexWhere(
+      (l) => l['type'] == 'section' && l['name'] == 'morning_raw_signals',
+    );
+    final raw = [
+      for (final l
+          in lines.skip(start + 1).takeWhile((l) => l['type'] == 'row'))
+        l['data'] as Map,
+    ];
+    expect(raw.map((r) => r['measurement_id']), [1, 2]);
+    // Die neuen Spalten stehen am Zeilenende.
+    expect(raw.first.keys.toList().sublist(14), [
+      'isp_frames',
+      'diag_noise_reduction_off',
+      'diag_edge_off',
+      'diag_awb_fixed',
+      'diag_tonemap_linear',
+      'diag_shading_off',
+      'diag_awb_variant',
+    ]);
+    // Drei Bilder je 19 float64 = 456 Byte; Bild 3 ohne Ergebnis (NaN).
+    final isp = raw.first['isp_frames'] as String;
+    expect(isp.length, 3 * 152 * 2);
+    final bytes = Uint8List.fromList([
+      for (var k = 0; k < isp.length; k += 2)
+        int.parse(isp.substring(k, k + 2), radix: 16),
+    ]);
+    final d = ByteData.sublistView(bytes);
+    expect(d.getFloat64(0, Endian.little), 1.5);
+    expect(d.getFloat64(152, Endian.little).isNaN, isTrue);
+    for (var i = 0; i < 19; i++) {
+      expect(d.getFloat64(304 + i * 8, Endian.little).isNaN, isTrue);
+    }
+    expect(raw.first['diag_noise_reduction_off'], 1);
+    expect(raw.first['diag_awb_fixed'], 1);
+    expect(raw.first['diag_awb_variant'], 'matrix');
+    expect(raw[1]['isp_frames'], isNull);
+    expect(raw[1]['diag_awb_fixed'], 0);
+    expect(raw[1]['diag_awb_variant'], isNull);
+    expect(lines.last['rows'], v['row_counts']);
+  });
+
   test('archive_v2_s11: Format 2, Schema 11, active_warning mit einer Zeile (Abschnitt 21)', () async {
     final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s11');
     final plain = await _collect(

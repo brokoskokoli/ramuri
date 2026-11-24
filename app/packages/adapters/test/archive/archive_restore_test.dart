@@ -838,6 +838,7 @@ void main() {
     ('archive_v2_s14', 14),
     ('archive_v2_s15', 15),
     ('archive_v2_s16', 16),
+    ('archive_v2_s17', 17),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -1078,6 +1079,31 @@ void main() {
             expect(raw2.cameraId, '1');
             expect(raw2.physicalCameraId, isNull);
             expect(raw2.focalLengthMm, isNull);
+            if (schema >= 17) {
+              // Schema 17: ISP-Werte je Bild (NaN = nicht gemeldet) und
+              // gesetzte Schalter.
+              final isp = raw.ispFrames!;
+              expect(isp, hasLength(3));
+              expect(isp[0][0], 1.5);
+              expect(isp[0][11], 33333333);
+              expect(isp[1][0].isNaN, isTrue);
+              expect(isp[1][16].isNaN, isTrue);
+              expect(isp[1][12], 401);
+              expect(isp[2].every((v) => v.isNaN), isTrue);
+              expect(raw.diagnostics, {
+                PpgCameraDiagnostic.noiseReductionOff,
+                PpgCameraDiagnostic.awbFixed,
+              });
+              expect(raw.awbVariant, PpgAwbVariant.matrix);
+            } else {
+              // Archive bis Schema 16: nicht aufgezeichnet, keine Schalter.
+              expect(raw.ispFrames, isNull);
+              expect(raw.diagnostics, isEmpty);
+              expect(raw.awbVariant, isNull);
+            }
+            expect(raw2.ispFrames, isNull);
+            expect(raw2.diagnostics, isEmpty);
+            expect(raw2.awbVariant, isNull);
           } else {
             // Archive bis Schema 14 lesen die Kamera-Angaben als null.
             expect(raw.cameraId, isNull);

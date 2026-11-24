@@ -467,6 +467,14 @@ void main() {
         'camera_id': '0',
         'physical_camera_id': '2',
         'focal_length_mm': 2.2,
+        // Schema 17: ISP-Werte (ein Bild = 152 Byte) und gesetzte Schalter.
+        'isp_frames': '00' * 152,
+        'diag_noise_reduction_off': 0,
+        'diag_edge_off': 1,
+        'diag_awb_fixed': 1,
+        'diag_tonemap_linear': 0,
+        'diag_shading_off': 0,
+        'diag_awb_variant': 'lock',
       },
     ]);
     expect(
