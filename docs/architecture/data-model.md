@@ -32,10 +32,15 @@ Seit Schema 18 (`schema.drift`, Archivabschnitt 1, [Archivvertrag](../contracts/
 
 Seit Schema 19 (`schema.drift`, Archivabschnitt 12, [Archivvertrag](../contracts/archive.md), [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md)):
 
-- **Inhalt:** Text aus den Versionen aller Stufen der Vorverarbeitung, aus denen ein Laufwert entstand, in fester Reihenfolge (Puls, Pace, Bewegungszeit, Position, Höhe, Einschwingen, Abschnittsqualität, Schritte), z. B. `hr1.pace1.mov2.pos2.alt1.set1.sq2.st1` (`preprocessingChainVersion` im Kern). Jede Stufe mit eigener Methodenversion gehört dazu.
+- **Inhalt:** Text aus den Versionen aller Stufen der Vorverarbeitung, aus denen ein Laufwert entstand, in fester Reihenfolge (Puls, Pace, Bewegungszeit, Position, Höhe, Einschwingen, Abschnittsqualität, Schritte, Tageszuordnung), z. B. `hr1.pace1.mov2.pos2.alt1.set1.sq2.st1.day2` (`preprocessingChainVersion` im Kern). Jede Stufe mit eigener Methodenversion gehört dazu. Die Stufe `day` (`runDayMethodVersion`) ist die Tageszuordnung der Tageswerte nach PAR-237; sie ändert keinen Laufwert, nur den Tag, an dem seine Tageswerte hängen.
 - **Wo:** an jedem Laufwert, an `original` und `current` je eigener Wert; das Original behält die Kette, mit der es entstand. Tageswerte tragen `null`.
 - **Migration auf Schema 19:** Alle bestehenden Laufwerte bekommen die Kette, mit der sie damals gerechnet wurden (`legacyPreprocessingChainVersion`, fest), Tageswerte bleiben `null`. Ein Archiv mit Schema 18 oder früher liest sich ebenso.
 - **Verwendung:** Die Prüfung auf neue Versionen (`RecalculationService.checkVersions`) vergleicht die Kette des aktuellen Laufwerts (VO2max, TRIMP, Zeit über der Intensitätsschwelle) mit der aktuellen Kette, gemeinsam mit Methoden- und Parameterversion. Weicht sie ab, bietet die App eine Neuberechnung an; dabei bleibt das Original unverändert, `current` bekommt die neue Kette.
+
+## Tag der Tageswerte (`computed_values`, Besitzer `day`)
+
+- **Tag:** Tageswerte hängen am Tag des Laufs nach PAR-237, dem Ortstag seines Starts (`startedAt` plus `ended_utc_offset`; ohne Versatz der UTC-Tag, `dayOfRun` im Kern). Die frühere Festlegung K21 (lokaler Kalendertag des Laufendes) ist abgelöst.
+- **Bestehende Werte:** Laufwerte mit einer älteren Stufe `day` in der Kettenversion lösen das Angebot zur Neuberechnung aus (ADR-0004, NFR-0005). Die Neuberechnung legt die Tageswerte am Starttag an und entfernt Tageswerte an Tagen ohne Lauf (`writeAll` mit `removeDays`), in derselben Transaktion. Ein Tageswert an einem Tag ohne Lauf löst allein kein Angebot aus. Rohdaten und Schema bleiben unverändert.
 
 ## Schritte eines Laufs (`raw_steps`)
 

@@ -92,6 +92,7 @@ Die App soll Statistiken nach einzelnen Läufen, Kalenderwochen, Monaten und fre
 **Akzeptanzkriterien:**
 - [ ] Alle vier Zeitraumarten sind wählbar.
 - [ ] Die Summe der Läufe einer Woche entspricht der Wochenstatistik.
+- [ ] Ein Lauf über Mitternacht zählt am Tag seines Starts (PAR-237).
 
 ### FR-0211 — Kilometerwerte in der Detailansicht
 - **Status:** Approved | **Phase:** 1
