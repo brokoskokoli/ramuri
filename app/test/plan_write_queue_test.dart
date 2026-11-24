@@ -203,6 +203,14 @@ void main() {
           today.add(Duration(days: i)),
     ].first;
     final before = await e.triggers();
+    // Zwischen Lesen und Schreiben jeder Fassung vergeht Zeit (mehrere
+    // Runden der Ereignisschleife): Ohne gemeinsame Reihe läse ein anderer
+    // Schreiber in dieser Lücke den alten Stand.
+    e.storage.data.beforePlanWrite = () async {
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    };
     final c1 = e.controller();
     final c2 = e.controller();
     // Ohne `await` dazwischen: alle drei laufen zugleich an.

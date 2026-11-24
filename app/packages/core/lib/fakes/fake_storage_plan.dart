@@ -205,6 +205,7 @@ class FakePlanRepository implements PlanRepository {
   Future<PlanVersionRecord> writeVersion(PlanVersionDraft draft) async {
     if (_d.goal == null) throw const StorageException(StorageFailure.notFound);
     checkPlanDraftForStorage(draft);
+    await _d.beforePlanWrite?.call();
     if (_d.rejectPlanWrites > 0) {
       _d.rejectPlanWrites--;
       _d.rejectedPlanWrites++;

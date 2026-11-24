@@ -93,6 +93,12 @@ class FakeStorageData {
   /// Lesestand) – eine still verworfene Fassung wird so sichtbar.
   int rejectedPlanWrites = 0;
 
+  /// Verzögerung für Tests: Ist sie gesetzt, wartet
+  /// `PlanRepository.writeVersion` vor seiner Prüfung darauf – so liegt
+  /// zwischen dem Lesen eines Aufrufers und seinem Schreiben Zeit, in der ein
+  /// anderer Aufrufer ohne gemeinsame Reihe den alten Stand lesen könnte.
+  Future<void> Function()? beforePlanWrite;
+
   /// Zählt jede geschriebene Zuordnung (`assignRun` mit Ergebnis
   /// [PlanAssignResult.assigned]).
   int planAssignWrites = 0;
