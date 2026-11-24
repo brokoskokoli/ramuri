@@ -135,7 +135,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     if (_scroll.hasClients) _view.scrollOffset = _scroll.offset;
   }
 
-  /// Heutiger Ortstag nach dem Versatz der Uhr (wie der Tag eines Laufendes).
+  /// Heutiger Ortstag nach dem Versatz der Uhr (wie der Tag eines Laufs, PAR-237).
   String get _today {
     final now = widget.clock.now().toUtc();
     return widget.today ?? isoDay(now.add(widget.clock.utcOffsetAt(now)));

@@ -1856,7 +1856,7 @@ class PlanCalendarRun {
 
   final int id;
 
-  /// Ortstag des Laufendes.
+  /// Tag des Laufs ([dayOfRun], Ortstag des Beginns, PAR-237).
   final DateTime day;
 
   /// Gilt nach PAR-058 als intensiv (RPE-Angabe).
