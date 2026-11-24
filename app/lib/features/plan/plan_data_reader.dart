@@ -40,9 +40,12 @@ class PlanDataReader {
     final custom = loadRuns;
     if (custom != null) return custom();
     final overviews = await runOverviews();
+    // Nur Läufe: Eine andere Sportart (FR-0221) zählt nicht für Trainingsstand,
+    // lockeres Tempo und Wochenzeit; für den Plan zählt sie nur über den
+    // Ersatz einer lockeren Einheit (DEC-0056).
     return [
       for (final o in overviews)
-        if (!o.readFailed) o.toFigures(),
+        if (!o.readFailed && o.run.mode.isRunning) o.toFigures(),
     ];
   }
 

@@ -24,6 +24,9 @@ class PlanRunCandidate {
   }) {
     final end = run.endedAt;
     if (run.state != RunState.finished || end == null) return null;
+    // Eine andere Sportart (FR-0221) zählt für den Plan nur über den Ersatz
+    // einer lockeren Einheit (DEC-0056), nie über die Zuordnung eines Laufs.
+    if (!run.mode.isRunning) return null;
     return PlanRunCandidate(
       runId: run.id,
       day: planRunStartDay(run, fallbackOffset: fallbackOffset),

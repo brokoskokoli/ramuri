@@ -303,15 +303,23 @@ void main() {
       expect((await values(w, id))[trimpRunValueKey]!.value, closeTo(90, 0.1));
     });
 
-    test('mit Positionen: keine Strecke in der Historie', () async {
-      final w = await RecalcWorld.create();
-      final id = await sportWithPositions(w);
-      final o = await overview(w, id);
-      expect(o.distanceMeters, isNull);
-      expect(o.averagePaceSecondsPerKm, isNull);
-      expect(o.bestPaceSecondsPerKm, isNull);
-      expect(o.movingTime, const Duration(minutes: 30));
-    });
+    test(
+      'mit Positionen: keine Strecke in der Historie, keine Prognose',
+      () async {
+        final w = await RecalcWorld.create();
+        final id = await sportWithPositions(w);
+        final runs = await PredictionRunReader(
+          session: w.session,
+          clock: w.clock,
+        ).load();
+        expect(runs, isEmpty);
+        final o = await overview(w, id);
+        expect(o.distanceMeters, isNull);
+        expect(o.averagePaceSecondsPerKm, isNull);
+        expect(o.bestPaceSecondsPerKm, isNull);
+        expect(o.movingTime, const Duration(minutes: 30));
+      },
+    );
 
     test(
       'keine Strecke, Pace, VO2max; nicht in Prognose und Effizienz',
