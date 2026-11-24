@@ -749,6 +749,16 @@ final Map<String, List<Object>> parCodeValues = {
     ppgGoodStretchDisplayMinSeconds,
     ..._doc([0], 'Anzeigewert darunter.'),
   ],
+  'PAR-227': [ppgCameraFinderTurnSeconds, ppgCameraFinderWindowSeconds],
+  'PAR-228': [
+    ..._doc(
+      [60, 30],
+      'Feste Bildraten der Kameraliste (PpgCameraInfo.frameRate), keine '
+      'Konstante der Empfehlung.',
+    ),
+    ppgCameraFinderIsoReference,
+    _pct(ppgCameraFinderLightTieRelative),
+  ],
   'PAR-229': [morningBeltCompareAmbiguityRatio],
   'PAR-234': [
     // Fenster (restingLiveStageWindowSeconds) im App-Paket.

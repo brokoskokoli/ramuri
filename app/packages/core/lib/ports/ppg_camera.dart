@@ -311,6 +311,73 @@ final class PpgCameraStopped extends PpgCameraEvent {
   final PpgCameraStopReason reason;
 }
 
+/// Betrieb der Kamerasuche (FR-0220, PAR-227).
+enum PpgPreviewMode {
+  /// Alle Kameras zugleich: physische Kameras derselben logischen Kamera in einer Sitzung.
+  simultaneous,
+
+  /// Nacheinander je PAR-227; das letzte Bild jeder Kamera bleibt stehen.
+  alternating,
+}
+
+/// Ereignis der Kamerasuche ([PpgCamera.preview]). Nach [PpgPreviewStopped] endet der Strom.
+sealed class PpgPreviewEvent {
+  const PpgPreviewEvent();
+}
+
+/// Die Vorschau läuft im Betrieb [mode], Taschenlampe an. [textures] ordnet jeder Kamera die
+/// Flutter-Texture ihres Vorschaubilds zu (nur Anzeige: die Pixel gehen nie nach Dart, ADR-0011
+/// Nachtrag 2026-11-24); fehlt eine Kamera, zeigt die Seite stattdessen eine Fläche in der Farbe
+/// ihrer Zahlen (Debug-Quelle).
+final class PpgPreviewStarted extends PpgPreviewEvent {
+  const PpgPreviewStarted(this.mode, [this.textures = const {}]);
+  final PpgPreviewMode mode;
+  final Map<PpgCameraRef, int> textures;
+}
+
+/// Zahlen eines Vorschaubilds der Kamera [camera] (keine Pixel): Mittel [r], [g] der Bildmitte
+/// (wie [PpgFrame]), Belichtungszeit [exposureNs] und Empfindlichkeit [iso] aus dem Ergebnis der
+/// Kamera (`null` = nicht gemeldet), [t] Sensorzeit in Sekunden (je Kamera steigend).
+final class PpgPreviewFrame extends PpgPreviewEvent {
+  const PpgPreviewFrame({
+    required this.camera,
+    required this.t,
+    required this.r,
+    required this.g,
+    this.exposureNs,
+    this.iso,
+  });
+  final PpgCameraRef camera;
+  final double t;
+  final double r;
+  final double g;
+  final int? exposureNs;
+  final int? iso;
+
+  /// Ohne Werte (gehören nicht in Logs).
+  @override
+  String toString() => 'PpgPreviewFrame';
+}
+
+/// Im Wechselbetrieb ist ab jetzt [camera] offen (PAR-227).
+final class PpgPreviewTurn extends PpgPreviewEvent {
+  const PpgPreviewTurn(this.camera);
+  final PpgCameraRef camera;
+}
+
+/// Die Kamera [camera] liefert keine Vorschau ([reason]); die übrigen laufen weiter.
+final class PpgPreviewCameraFailed extends PpgPreviewEvent {
+  const PpgPreviewCameraFailed(this.camera, this.reason);
+  final PpgCameraRef camera;
+  final PpgCameraStopReason reason;
+}
+
+/// Die Vorschau wurde beendet (Hintergrund, Fehler): Taschenlampe aus, alles geschlossen.
+final class PpgPreviewStopped extends PpgPreviewEvent {
+  const PpgPreviewStopped(this.reason);
+  final PpgCameraStopReason reason;
+}
+
 /// Port: Rückkamera mit Blitz als Bildstatistik-Quelle für das Kamera-PPG (ADR-0011).
 abstract interface class PpgCamera {
   /// Stand ohne Rechteanfrage.
@@ -343,6 +410,14 @@ abstract interface class PpgCamera {
     bool ispFrames = false,
   });
 
-  /// Beendet eine laufende Aufnahme (Torch aus, Sitzung und Gerät zu); der Strom endet.
+  /// Beendet eine laufende Aufnahme oder Vorschau (Torch aus, Sitzung und Gerät zu); der
+  /// Strom endet.
   Future<void> stop();
+
+  /// Kamerasuche (FR-0220): startet beim Abonnieren die Vorschau der nutzbaren Kameras
+  /// [cameras] mit Taschenlampe, gleichzeitig oder im Wechsel (PAR-227), und liefert je Bild
+  /// nur Zahlen ([PpgPreviewFrame]); die Bilder gehen als Texture an die Anzeige und werden nie
+  /// gespeichert. Abbestellen oder [stop] schließt alles und schaltet die Taschenlampe aus; die
+  /// App im Hintergrund beendet die Vorschau mit [PpgPreviewStopped].
+  Stream<PpgPreviewEvent> preview(List<PpgCameraRef> cameras);
 }

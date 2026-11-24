@@ -136,6 +136,61 @@ class FakePpgCamera implements PpgCamera {
     return c.stream;
   }
 
+  StreamController<PpgPreviewEvent>? _preview;
+
+  /// Kamerasuche: Argument jedes [preview] in Reihenfolge.
+  final List<List<PpgCameraRef>> previewWith = [];
+
+  /// Betrieb, den [preview] beim Start meldet.
+  PpgPreviewMode previewMode = PpgPreviewMode.simultaneous;
+
+  /// Vorschau läuft (Taschenlampe an); nach Abbestellen, [stop] oder Abbruch `false`.
+  bool previewOn = false;
+
+  /// Zahl der Enden einer Vorschau (Abbestellen, [stop], Abbruch).
+  int previewStops = 0;
+
+  @override
+  Stream<PpgPreviewEvent> preview(List<PpgCameraRef> cameras) {
+    late final StreamController<PpgPreviewEvent> c;
+    c = StreamController<PpgPreviewEvent>(
+      onListen: () {
+        previewWith.add(List.unmodifiable(cameras));
+        if (_availability != PpgCameraAvailability.available) {
+          c.add(const PpgPreviewStopped(PpgCameraStopReason.permissionDenied));
+          c.close();
+          return;
+        }
+        previewOn = true;
+        torchOn = true;
+        c.add(PpgPreviewStarted(previewMode));
+      },
+      onCancel: () => _releasePreview(c),
+    );
+    _preview = c;
+    return c.stream;
+  }
+
+  void _releasePreview(StreamController<PpgPreviewEvent> c) {
+    if (!identical(_preview, c)) return;
+    if (previewOn) previewStops++;
+    previewOn = false;
+    torchOn = false;
+    _preview = null;
+  }
+
+  /// Ereignis der laufenden Vorschau (Bild, Wechsel, Fehler einer Kamera).
+  void emitPreview(PpgPreviewEvent e) => _preview?.add(e);
+
+  /// Abbruch der Vorschau mit Grund (z. B. Hintergrund): Taschenlampe aus, Strom endet.
+  Future<void> abortPreview(PpgCameraStopReason reason) async {
+    final c = _preview;
+    if (c == null) return;
+    _releasePreview(c);
+    c.add(PpgPreviewStopped(reason));
+    await c.close();
+  }
+
   void _release(StreamController<PpgCameraEvent> c) {
     torchOn = false;
     if (identical(_controller, c)) _controller = null;
@@ -144,6 +199,11 @@ class FakePpgCamera implements PpgCamera {
   @override
   Future<void> stop() async {
     stopCount++;
+    final p = _preview;
+    if (p != null) {
+      _releasePreview(p);
+      await p.close();
+    }
     final c = _controller;
     if (c == null) return;
     _release(c);
