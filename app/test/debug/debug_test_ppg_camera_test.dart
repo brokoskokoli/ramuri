@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app_dependencies.dart';
@@ -413,6 +415,41 @@ void main() {
         expectSpacing(frames, 25);
       }
     });
+
+    // Takt ohne Nachliefern: Die Wanduhr steht, also sendet jeder Takt genau ein Bild. Nach
+    // 10,5 Bildabständen der Kamera sind es 11 Bilder (bei t = 0 und nach jedem der 10 Takte).
+    for (final (name, ref, fixed, rate) in [
+      ('Standardkamera', null, null, 60),
+      ('zweite nutzbare Kamera', const PpgCameraRef('0', '2'), null, 30),
+      ('feste Rate auf der Standardkamera', null, 25, 25),
+      (
+        'feste Rate auf der zweiten Kamera',
+        const PpgCameraRef('0', '2'),
+        25,
+        25,
+      ),
+    ]) {
+      // testWidgets: Timer laufen auf der Testuhr, `pump` rückt sie vor.
+      testWidgets('Takt folgt der Rate: $name sendet je 1/$rate s ein Bild', (
+        tester,
+      ) async {
+        final cam = DebugTestPpgCamera(
+          speed: 1,
+          fps: fixed,
+          wallClock: () => Duration.zero,
+        );
+        final sub = cam.start(camera: ref).listen((_) {});
+        await tester.pump();
+        expect(cam.framesGenerated, 1);
+        final tick = Duration(microseconds: (1e6 / rate).round());
+        await tester.pump(tick * 10 + tick ~/ 2);
+        expect(cam.framesGenerated, 11);
+        // Nicht abwarten: Unter der Testuhr kehrt das Abbestellen sonst nicht zurück.
+        unawaited(sub.cancel());
+        await tester.pump(tick);
+        expect(cam.framesGenerated, 11);
+      });
+    }
 
     test('nutzbarer Eintrag ohne Rate: 30 Bilder/s, feste Rate geht vor', () {
       const info = PpgCameraInfo(ref: PpgCameraRef('5'), focalLengthMm: 4);
