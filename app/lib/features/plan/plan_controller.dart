@@ -1596,7 +1596,16 @@ class PlanController extends ChangeNotifier {
     if (warning != null) return true;
     final today = _today();
     if (planCorrectedDownThisWeek(history, today)) return true;
-    return (await _readinessOn(today))?.eases ?? false;
+    // Anders als die Lockerung ([_readinessOn]) unterscheidet die Sperre
+    // „kein Wert“ (nicht gesperrt) von „Fehler“ (gesperrt).
+    final load = readinessToday;
+    if (load == null) return false;
+    try {
+      final r = await load(today);
+      return r != null && planDay(r.day) == today && r.eases;
+    } on Object {
+      return true;
+    }
   }
 
   /// Schritt der Unterforderung beim Öffnen (PAR-236): Muster aus den Läufen

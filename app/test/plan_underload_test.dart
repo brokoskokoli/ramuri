@@ -329,6 +329,69 @@ void main() {
       );
     });
 
+    test(
+      'Frage offen, danach „fix“: Ja abgelehnt, keine neue Fassung',
+      () async {
+        final e = await _Env.open(PlanAdaptationMode.adaptive);
+        final q = await _toQuestion(e);
+        final before = await e.sigs();
+        final versions = (await e.plans.history()).length;
+        await SettingsPlanAdaptationStore(e.session.settings)
+            .set(PlanAdaptationMode.fixed, at: e.clock.now());
+        expect(
+          await q.answerUnderloadQuestion(true),
+          PlanActionResult.rejected,
+        );
+        expect((await e.plans.history()).length, versions);
+        expect(await e.sigs(), before);
+        expect(await e.stage(), 'question');
+      },
+    );
+
+    test(
+      'Frage offen, danach Warnsignal: Ja abgelehnt, keine neue Fassung',
+      () async {
+        final e = await _Env.open(PlanAdaptationMode.adaptive);
+        final q = await _toQuestion(e);
+        expect(await e.controller().reportWarning(), PlanActionResult.done);
+        final before = await e.sigs();
+        final versions = (await e.plans.history()).length;
+        expect(
+          await q.answerUnderloadQuestion(true),
+          PlanActionResult.rejected,
+        );
+        expect((await e.plans.history()).length, versions);
+        expect(await e.sigs(), before);
+        expect(await e.stage(), 'question');
+      },
+    );
+
+    test(
+      'Frage offen, danach wirft die Readiness-Quelle: Ja abgelehnt',
+      () async {
+        var fail = false;
+        final e = await _Env.open(
+          PlanAdaptationMode.adaptive,
+          readiness: (day) async {
+            if (fail) throw StateError('Quelle nicht lesbar');
+            return null;
+          },
+        );
+        final q = await _toQuestion(e);
+        final before = await e.sigs();
+        final versions = (await e.plans.history()).length;
+        fail = true;
+        expect(
+          await q.answerUnderloadQuestion(true),
+          PlanActionResult.rejected,
+        );
+        expect((await e.plans.history()).length, versions);
+        expect(await e.sigs(), before);
+        expect(q.state.underloadPrompt, isNull);
+        expect(await e.stage(), 'question');
+      },
+    );
+
     test('ohne offene Frage: abgelehnt, nichts geändert', () async {
       final e = await _Env.open(PlanAdaptationMode.adaptive);
       final c = await e.opened();
@@ -408,6 +471,31 @@ void main() {
       final c = await e.opened();
       expect(c.state.underloadPrompt, isNull);
       expect(await e.stage(), isNull);
+    });
+
+    test('wenn die Readiness-Quelle wirft (fail-closed)', () async {
+      final e = await _Env.open(
+        PlanAdaptationMode.adaptive,
+        readiness: (day) async => throw StateError('Quelle nicht lesbar'),
+      );
+      await e.run(15);
+      await e.run(18);
+      final c = await e.opened();
+      expect(c.state.underloadPrompt, isNull);
+      expect(await e.stage(), isNull);
+    });
+
+    test('ohne Readiness-Wert für heute nicht gesperrt', () async {
+      final e = await _Env.open(
+        PlanAdaptationMode.adaptive,
+        readiness: (day) async => null,
+      );
+      await e.run(15);
+      await e.run(18);
+      expect(
+        (await e.opened()).state.underloadPrompt,
+        PlanUnderloadPrompt.hint,
+      );
     });
   });
 }
