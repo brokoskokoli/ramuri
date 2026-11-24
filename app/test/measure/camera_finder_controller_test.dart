@@ -241,6 +241,70 @@ void main() {
     },
   );
 
+  test('ausgefallene Kamera wird nicht empfohlen, auch mit 60 Bilder/s und mehr Licht', () async {
+    final s = await _setup();
+    await s.c.load();
+    await pumpEventQueue();
+    // Die Standardkamera (60 Bilder/s) hat Finger und viermal so viel Licht wie die
+    // zweite (30 Bilder/s); ohne ihren Ausfall wäre sie die Empfehlung.
+    s.cam
+      ..emitPreview(_frame(_std, 0, exposureNs: 2500000))
+      ..emitPreview(_frame(_second, 0));
+    await pumpEventQueue();
+    expect(s.c.recommendation, _std);
+    s.cam.emitPreview(
+      const PpgPreviewCameraFailed(_std, PpgCameraStopReason.disconnected),
+    );
+    await pumpEventQueue();
+    expect(s.c.recommendation, _second);
+    expect(s.c.target, _second);
+    expect(await s.c.apply(), _second);
+    expect(s.choice.writes, ['auto:0/2']);
+    s.c.dispose();
+  });
+
+  test('angetippte Kamera fällt danach aus: Auswahl weg, Übernehmen speichert die Empfehlung', () async {
+    final s = await _setup();
+    await s.c.load();
+    await pumpEventQueue();
+    s.cam
+      ..emitPreview(_frame(_std, 0))
+      ..emitPreview(_frame(_second, 0));
+    await pumpEventQueue();
+    s.c.select(_second);
+    expect(s.c.target, _second);
+    s.cam.emitPreview(
+      const PpgPreviewCameraFailed(_second, PpgCameraStopReason.busy),
+    );
+    await pumpEventQueue();
+    expect(s.c.selected, isNull);
+    expect(s.c.target, _std);
+    expect(await s.c.apply(manual: true), _std);
+    expect(s.choice.writes, ['manual:0']);
+    s.c.dispose();
+  });
+
+  test('angetippte Kamera fällt aus, keine Empfehlung: Übernehmen gesperrt, nichts gespeichert', () async {
+    final s = await _setup();
+    await s.c.load();
+    await pumpEventQueue();
+    s.cam
+      ..emitPreview(_frame(_std, 0, finger: false))
+      ..emitPreview(_frame(_second, 0, finger: false));
+    await pumpEventQueue();
+    s.c.select(_second);
+    expect(s.c.canApply, isTrue);
+    s.cam.emitPreview(
+      const PpgPreviewCameraFailed(_second, PpgCameraStopReason.busy),
+    );
+    await pumpEventQueue();
+    expect(s.c.selected, isNull);
+    expect(s.c.canApply, isFalse);
+    expect(await s.c.apply(), isNull);
+    expect(s.choice.writes, isEmpty);
+    s.c.dispose();
+  });
+
   test('Ende mit Fehler: Seite zeigt beendet, Übernehmen gesperrt', () async {
     final s = await _setup();
     await s.c.load();
