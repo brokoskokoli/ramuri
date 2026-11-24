@@ -331,7 +331,7 @@ In Phase 2 gibt es einen Laufbandmodus, in dem der Nutzer die aktuelle Geschwind
 ### FR-0221 — Andere Sportart mit Puls aufzeichnen
 - **Status:** Approved | **Phase:** 3
 - **Quelle:** SRC-003 (Maintainer 2026-11-20)
-- **Verwandt:** FR-0092, FR-0095, FR-0193, FR-0196, FR-0197, FR-0199, PAR-232, DEC-0056
+- **Verwandt:** FR-0092, FR-0095, FR-0193, FR-0196, FR-0197, FR-0199, FR-0222, PAR-232, DEC-0056
 
 Neben GPS-Lauf und Laufband kann der Nutzer eine andere Sportart aufzeichnen: Seilspringen, Radfahren, Rudern/Ergometer oder Sonstiges. Aufgezeichnet wird nur der Puls eines verbundenen Sensors, ohne Standort und ohne Strecke. Die Belastung wird wie beim Lauf aus dem Puls gerechnet, mit derselben Herzfrequenzbasis und demselben Belastungsprofil, ohne Korrektur je Sportart.
 
@@ -342,7 +342,7 @@ Gespeichert wird eine solche Einheit als Lauf mit der Art `sport` und der Sporta
 - [ ] Die Aufzeichnung braucht keine Standortberechtigung und nimmt weder Positionen noch Schritte an.
 - [ ] Die Bewegungszeit folgt PAR-232; TRIMP, Zonenzeit und Pulsabdeckung entstehen wie beim Lauf (FR-0092, FR-0197).
 - [ ] Es gibt keine Strecke, Pace, Splits, Kadenz, VO₂max, aerobe Effizienz, Bestwerte, Prognose und Referenzvorschläge.
-- [ ] Die Einheit zählt nicht für Trainingsstand (PAR-192), längste Einheit, lockeres Tempo (PAR-205), Wochenstrecke und Wochenminuten des Plans.
+- [ ] Die Einheit zählt nicht für Trainingsstand (PAR-192), längste Einheit, lockeres Tempo (PAR-205), Wochenstrecke und Wochenminuten des Plans; ersetzt sie nach FR-0222 eine lockere Einheit, zählt sie für Wochenzeit und RPE-Regel (PAR-201, PAR-233).
 - [ ] Die Einheit zählt für Tageswert, ATL/CTL/TSB (FR-0095) und das Pausenende; der sRPE-Faktor (PAR-087) bleibt aus Läufen.
 - [ ] Nach einem Prozessende setzt der Wiederanlauf die Einheit mit derselben Sportart fort (FR-0193).
 - [ ] RPE wird wie nach einem Lauf abgefragt.

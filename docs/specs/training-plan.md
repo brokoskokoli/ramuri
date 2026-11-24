@@ -4,7 +4,7 @@ title: Erstellung des Trainingsplans
 status: Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0138, FR-0139, FR-0140, FR-0141, FR-0142, FR-0143, FR-0144, FR-0145, FR-0146, FR-0147, FR-0148, FR-0149, FR-0150, FR-0151, FR-0152, FR-0153, FR-0154, FR-0155]
+related_requirements: [FR-0138, FR-0139, FR-0140, FR-0141, FR-0142, FR-0143, FR-0144, FR-0145, FR-0146, FR-0147, FR-0148, FR-0149, FR-0150, FR-0151, FR-0152, FR-0153, FR-0154, FR-0155, FR-0222]
 ---
 
 # Erstellung des Trainingsplans
@@ -237,6 +237,25 @@ Einfache Trainingsplanung muss allein mit dem Smartphone funktionieren.
 **Akzeptanzkriterien:**
 - [ ] Ohne Wearable und ohne Gesundheitsdaten lässt sich ein Plan erzeugen.
 - [ ] Der Plan braucht nur die Angaben aus PAR-192.
+
+### FR-0222 — Andere Sportart ersetzt einen lockeren Lauf
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-003 (Maintainer 2026-11-20)
+- **Verwandt:** FR-0221, PAR-233, PAR-201, PAR-178, PAR-058, PAR-059, PAR-060, DEC-0056, ADR-0010
+
+Eine aufgezeichnete andere Sportart (FR-0221) kann eine geplante lockere Einheit als erledigt abhaken, wenn sie nach PAR-233 locker war. Sie ersetzt den Ausdauerreiz, nicht das Laufen selbst; die App sagt das beim Abhaken. Zugeordnet zählt sie für die Wochenzeit und die RPE-Regel wie ein lockerer Lauf, nicht für lockeres Tempo, Trainingsstand und längste Einheit.
+
+Die Zuordnung ist dieselbe wie bei einem Lauf (`plan_units.run_id`, ADR-0010). Wege: „Einheit starten“ an einer lockeren Einheit bietet neben dem Lauf auch „Andere Sportart“ an; nach einer freien Sporteinheit fragt die App nach der offenen lockeren Einheit des Tages. Sind die Bedingungen nicht erfüllt, bietet die App die Zuordnung nicht an und sagt in einem Satz warum (keine lockere Einheit, diese Woche schon ersetzt, zu intensiv, zu kurz). Beim Abhaken erscheint der Hinweis „Ersetzt den Ausdauerreiz, nicht das Laufen selbst.“ Ohne Zuordnung zählt die Sporteinheit nur für Belastung und Pausenende (DEC-0056); ist sie nach PAR-058 intensiv, zählt sie für den Abstand zu harten Einheiten (PAR-059, PAR-060) wie ein absolvierter intensiver Lauf.
+
+**Akzeptanzkriterien:**
+- [ ] Lockere Sporteinheit (Puls in Zone 1–2) mit 30 min an einer geplanten lockeren Einheit von 40 min: Abhaken möglich, Hinweis erscheint, Einheit erledigt und eingefroren. Mit 26 min (unter zwei Dritteln) nicht (PAR-233).
+- [ ] Sporteinheit mit 10 min ab 80 % HFmax: Abhaken nicht angeboten, Grund „zu intensiv“; sie zählt als intensiv für den Abstand (Konflikt beim Verschieben einer harten Einheit auf den Folgetag nach PAR-060).
+- [ ] Zweite lockere Sporteinheit in derselben Woche: Abhaken nicht angeboten, Grund „diese Woche schon ersetzt“; in der Folgewoche wieder möglich (Wochenwechsel Sonntag/Montag um Mitternacht).
+- [ ] Lange Einheit, Intervalle, Tempo, Progressiv, Gehen/Laufen und Ruhetag lassen sich nie durch eine Sporteinheit abhaken.
+- [ ] Wochenzeit: Woche mit 3 geplanten Läufen à 40 min, 2 gelaufen, 1 ersetzt (30 min) zählt 110 min für PAR-201; dieselbe Sporteinheit ohne Zuordnung zählt 0.
+- [ ] RPE-Regel: 2 von 3 letzten lockeren Einheiten mit RPE ≥ 6, darunter eine ersetzte, senken die nächste Woche um 10 % wie bei drei Läufen (PAR-201).
+- [ ] Lockeres Tempo (PAR-205) und Trainingsstand (PAR-192) bleiben mit und ohne ersetzte Einheit gleich.
+- [ ] Löschen der Sporteinheit: Einheit wieder offen, Wochenzeit ohne sie (ADR-0010).
 
 ## Regeln und Startwerte
 
