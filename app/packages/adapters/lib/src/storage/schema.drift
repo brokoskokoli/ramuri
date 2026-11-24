@@ -325,6 +325,13 @@ CREATE TABLE computed_values (
   hr_max_bpm INTEGER CHECK (hr_max_bpm > 0),
   hr_rest_bpm INTEGER CHECK (hr_rest_bpm > 0),
   hr_max_is_estimated BOOLEAN CHECK (hr_max_is_estimated IN (0, 1)),
+  -- Seit Version 19 (ADR-0004): Kettenversion der Vorverarbeitung, aus der
+  -- ein Laufwert entstand (preprocessingChainVersion im Core, etwa
+  -- 'hr1.pace1.mov2.pos2.alt1.set1.sq2.st1'). NULL an Tageswerten. Die
+  -- Migration 18 -> 19 setzt an allen Laufwerten die Kette von damals
+  -- (legacyPreprocessingChainVersion), damit nach dem Update kein falsches
+  -- Angebot zur Neuberechnung entsteht.
+  preprocessing_version TEXT,
   CHECK ((run_id IS NULL) <> (day IS NULL))
 );
 CREATE UNIQUE INDEX computed_values_run_unique
