@@ -646,6 +646,7 @@ class _FailingStart extends RunRecorder {
     RunMode mode = RunMode.gps,
     double? beltSpeedMetersPerSecond,
     double? inclinePercent,
+    OtherSport? sport,
   }) async => throw StateError('kein Speicher');
 }
 
