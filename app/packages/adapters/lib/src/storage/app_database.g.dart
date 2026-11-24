@@ -18207,6 +18207,89 @@ class MorningRawSignals extends Table
     requiredDuringInsert: false,
     $customConstraints: 'CHECK (focal_length_mm > 0)',
   );
+  static const VerificationMeta _ispFramesMeta = const VerificationMeta(
+    'ispFrames',
+  );
+  late final GeneratedColumn<Uint8List> ispFrames = GeneratedColumn<Uint8List>(
+    'isp_frames',
+    aliasedName,
+    true,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (isp_frames IS NULL OR length(isp_frames) = frame_count * 152)',
+  );
+  static const VerificationMeta _diagNoiseReductionOffMeta =
+      const VerificationMeta('diagNoiseReductionOff');
+  late final GeneratedColumn<bool> diagNoiseReductionOff =
+      GeneratedColumn<bool>(
+        'diag_noise_reduction_off',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        $customConstraints: 'NOT NULL DEFAULT 0',
+        defaultValue: const CustomExpression('0'),
+      );
+  static const VerificationMeta _diagEdgeOffMeta = const VerificationMeta(
+    'diagEdgeOff',
+  );
+  late final GeneratedColumn<bool> diagEdgeOff = GeneratedColumn<bool>(
+    'diag_edge_off',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0',
+    defaultValue: const CustomExpression('0'),
+  );
+  static const VerificationMeta _diagAwbFixedMeta = const VerificationMeta(
+    'diagAwbFixed',
+  );
+  late final GeneratedColumn<bool> diagAwbFixed = GeneratedColumn<bool>(
+    'diag_awb_fixed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0',
+    defaultValue: const CustomExpression('0'),
+  );
+  static const VerificationMeta _diagTonemapLinearMeta = const VerificationMeta(
+    'diagTonemapLinear',
+  );
+  late final GeneratedColumn<bool> diagTonemapLinear = GeneratedColumn<bool>(
+    'diag_tonemap_linear',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0',
+    defaultValue: const CustomExpression('0'),
+  );
+  static const VerificationMeta _diagShadingOffMeta = const VerificationMeta(
+    'diagShadingOff',
+  );
+  late final GeneratedColumn<bool> diagShadingOff = GeneratedColumn<bool>(
+    'diag_shading_off',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0',
+    defaultValue: const CustomExpression('0'),
+  );
+  static const VerificationMeta _diagAwbVariantMeta = const VerificationMeta(
+    'diagAwbVariant',
+  );
+  late final GeneratedColumn<String> diagAwbVariant = GeneratedColumn<String>(
+    'diag_awb_variant',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (diag_awb_variant IS NULL OR(diag_awb_fixed = 1 AND diag_awb_variant IN (\'matrix\', \'lock\')))',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     measurementId,
@@ -18223,6 +18306,13 @@ class MorningRawSignals extends Table
     cameraId,
     physicalCameraId,
     focalLengthMm,
+    ispFrames,
+    diagNoiseReductionOff,
+    diagEdgeOff,
+    diagAwbFixed,
+    diagTonemapLinear,
+    diagShadingOff,
+    diagAwbVariant,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -18358,6 +18448,66 @@ class MorningRawSignals extends Table
         ),
       );
     }
+    if (data.containsKey('isp_frames')) {
+      context.handle(
+        _ispFramesMeta,
+        ispFrames.isAcceptableOrUnknown(data['isp_frames']!, _ispFramesMeta),
+      );
+    }
+    if (data.containsKey('diag_noise_reduction_off')) {
+      context.handle(
+        _diagNoiseReductionOffMeta,
+        diagNoiseReductionOff.isAcceptableOrUnknown(
+          data['diag_noise_reduction_off']!,
+          _diagNoiseReductionOffMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diag_edge_off')) {
+      context.handle(
+        _diagEdgeOffMeta,
+        diagEdgeOff.isAcceptableOrUnknown(
+          data['diag_edge_off']!,
+          _diagEdgeOffMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diag_awb_fixed')) {
+      context.handle(
+        _diagAwbFixedMeta,
+        diagAwbFixed.isAcceptableOrUnknown(
+          data['diag_awb_fixed']!,
+          _diagAwbFixedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diag_tonemap_linear')) {
+      context.handle(
+        _diagTonemapLinearMeta,
+        diagTonemapLinear.isAcceptableOrUnknown(
+          data['diag_tonemap_linear']!,
+          _diagTonemapLinearMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diag_shading_off')) {
+      context.handle(
+        _diagShadingOffMeta,
+        diagShadingOff.isAcceptableOrUnknown(
+          data['diag_shading_off']!,
+          _diagShadingOffMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diag_awb_variant')) {
+      context.handle(
+        _diagAwbVariantMeta,
+        diagAwbVariant.isAcceptableOrUnknown(
+          data['diag_awb_variant']!,
+          _diagAwbVariantMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -18423,6 +18573,34 @@ class MorningRawSignals extends Table
         DriftSqlType.double,
         data['${effectivePrefix}focal_length_mm'],
       ),
+      ispFrames: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}isp_frames'],
+      ),
+      diagNoiseReductionOff: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}diag_noise_reduction_off'],
+      )!,
+      diagEdgeOff: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}diag_edge_off'],
+      )!,
+      diagAwbFixed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}diag_awb_fixed'],
+      )!,
+      diagTonemapLinear: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}diag_tonemap_linear'],
+      )!,
+      diagShadingOff: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}diag_shading_off'],
+      )!,
+      diagAwbVariant: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}diag_awb_variant'],
+      ),
     );
   }
 
@@ -18451,6 +18629,13 @@ class MorningRawSignalRow extends DataClass
   final String? cameraId;
   final String? physicalCameraId;
   final double? focalLengthMm;
+  final Uint8List? ispFrames;
+  final bool diagNoiseReductionOff;
+  final bool diagEdgeOff;
+  final bool diagAwbFixed;
+  final bool diagTonemapLinear;
+  final bool diagShadingOff;
+  final String? diagAwbVariant;
   const MorningRawSignalRow({
     required this.measurementId,
     required this.frameCount,
@@ -18466,6 +18651,13 @@ class MorningRawSignalRow extends DataClass
     this.cameraId,
     this.physicalCameraId,
     this.focalLengthMm,
+    this.ispFrames,
+    required this.diagNoiseReductionOff,
+    required this.diagEdgeOff,
+    required this.diagAwbFixed,
+    required this.diagTonemapLinear,
+    required this.diagShadingOff,
+    this.diagAwbVariant,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -18502,6 +18694,17 @@ class MorningRawSignalRow extends DataClass
     if (!nullToAbsent || focalLengthMm != null) {
       map['focal_length_mm'] = Variable<double>(focalLengthMm);
     }
+    if (!nullToAbsent || ispFrames != null) {
+      map['isp_frames'] = Variable<Uint8List>(ispFrames);
+    }
+    map['diag_noise_reduction_off'] = Variable<bool>(diagNoiseReductionOff);
+    map['diag_edge_off'] = Variable<bool>(diagEdgeOff);
+    map['diag_awb_fixed'] = Variable<bool>(diagAwbFixed);
+    map['diag_tonemap_linear'] = Variable<bool>(diagTonemapLinear);
+    map['diag_shading_off'] = Variable<bool>(diagShadingOff);
+    if (!nullToAbsent || diagAwbVariant != null) {
+      map['diag_awb_variant'] = Variable<String>(diagAwbVariant);
+    }
     return map;
   }
 
@@ -18537,6 +18740,17 @@ class MorningRawSignalRow extends DataClass
       focalLengthMm: focalLengthMm == null && nullToAbsent
           ? const Value.absent()
           : Value(focalLengthMm),
+      ispFrames: ispFrames == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ispFrames),
+      diagNoiseReductionOff: Value(diagNoiseReductionOff),
+      diagEdgeOff: Value(diagEdgeOff),
+      diagAwbFixed: Value(diagAwbFixed),
+      diagTonemapLinear: Value(diagTonemapLinear),
+      diagShadingOff: Value(diagShadingOff),
+      diagAwbVariant: diagAwbVariant == null && nullToAbsent
+          ? const Value.absent()
+          : Value(diagAwbVariant),
     );
   }
 
@@ -18566,6 +18780,15 @@ class MorningRawSignalRow extends DataClass
         json['physical_camera_id'],
       ),
       focalLengthMm: serializer.fromJson<double?>(json['focal_length_mm']),
+      ispFrames: serializer.fromJson<Uint8List?>(json['isp_frames']),
+      diagNoiseReductionOff: serializer.fromJson<bool>(
+        json['diag_noise_reduction_off'],
+      ),
+      diagEdgeOff: serializer.fromJson<bool>(json['diag_edge_off']),
+      diagAwbFixed: serializer.fromJson<bool>(json['diag_awb_fixed']),
+      diagTonemapLinear: serializer.fromJson<bool>(json['diag_tonemap_linear']),
+      diagShadingOff: serializer.fromJson<bool>(json['diag_shading_off']),
+      diagAwbVariant: serializer.fromJson<String?>(json['diag_awb_variant']),
     );
   }
   @override
@@ -18586,6 +18809,15 @@ class MorningRawSignalRow extends DataClass
       'camera_id': serializer.toJson<String?>(cameraId),
       'physical_camera_id': serializer.toJson<String?>(physicalCameraId),
       'focal_length_mm': serializer.toJson<double?>(focalLengthMm),
+      'isp_frames': serializer.toJson<Uint8List?>(ispFrames),
+      'diag_noise_reduction_off': serializer.toJson<bool>(
+        diagNoiseReductionOff,
+      ),
+      'diag_edge_off': serializer.toJson<bool>(diagEdgeOff),
+      'diag_awb_fixed': serializer.toJson<bool>(diagAwbFixed),
+      'diag_tonemap_linear': serializer.toJson<bool>(diagTonemapLinear),
+      'diag_shading_off': serializer.toJson<bool>(diagShadingOff),
+      'diag_awb_variant': serializer.toJson<String?>(diagAwbVariant),
     };
   }
 
@@ -18604,6 +18836,13 @@ class MorningRawSignalRow extends DataClass
     Value<String?> cameraId = const Value.absent(),
     Value<String?> physicalCameraId = const Value.absent(),
     Value<double?> focalLengthMm = const Value.absent(),
+    Value<Uint8List?> ispFrames = const Value.absent(),
+    bool? diagNoiseReductionOff,
+    bool? diagEdgeOff,
+    bool? diagAwbFixed,
+    bool? diagTonemapLinear,
+    bool? diagShadingOff,
+    Value<String?> diagAwbVariant = const Value.absent(),
   }) => MorningRawSignalRow(
     measurementId: measurementId ?? this.measurementId,
     frameCount: frameCount ?? this.frameCount,
@@ -18633,6 +18872,15 @@ class MorningRawSignalRow extends DataClass
     focalLengthMm: focalLengthMm.present
         ? focalLengthMm.value
         : this.focalLengthMm,
+    ispFrames: ispFrames.present ? ispFrames.value : this.ispFrames,
+    diagNoiseReductionOff: diagNoiseReductionOff ?? this.diagNoiseReductionOff,
+    diagEdgeOff: diagEdgeOff ?? this.diagEdgeOff,
+    diagAwbFixed: diagAwbFixed ?? this.diagAwbFixed,
+    diagTonemapLinear: diagTonemapLinear ?? this.diagTonemapLinear,
+    diagShadingOff: diagShadingOff ?? this.diagShadingOff,
+    diagAwbVariant: diagAwbVariant.present
+        ? diagAwbVariant.value
+        : this.diagAwbVariant,
   );
   MorningRawSignalRow copyWithCompanion(MorningRawSignalsCompanion data) {
     return MorningRawSignalRow(
@@ -18672,6 +18920,25 @@ class MorningRawSignalRow extends DataClass
       focalLengthMm: data.focalLengthMm.present
           ? data.focalLengthMm.value
           : this.focalLengthMm,
+      ispFrames: data.ispFrames.present ? data.ispFrames.value : this.ispFrames,
+      diagNoiseReductionOff: data.diagNoiseReductionOff.present
+          ? data.diagNoiseReductionOff.value
+          : this.diagNoiseReductionOff,
+      diagEdgeOff: data.diagEdgeOff.present
+          ? data.diagEdgeOff.value
+          : this.diagEdgeOff,
+      diagAwbFixed: data.diagAwbFixed.present
+          ? data.diagAwbFixed.value
+          : this.diagAwbFixed,
+      diagTonemapLinear: data.diagTonemapLinear.present
+          ? data.diagTonemapLinear.value
+          : this.diagTonemapLinear,
+      diagShadingOff: data.diagShadingOff.present
+          ? data.diagShadingOff.value
+          : this.diagShadingOff,
+      diagAwbVariant: data.diagAwbVariant.present
+          ? data.diagAwbVariant.value
+          : this.diagAwbVariant,
     );
   }
 
@@ -18691,13 +18958,20 @@ class MorningRawSignalRow extends DataClass
           ..write('saturatedFraction: $saturatedFraction, ')
           ..write('cameraId: $cameraId, ')
           ..write('physicalCameraId: $physicalCameraId, ')
-          ..write('focalLengthMm: $focalLengthMm')
+          ..write('focalLengthMm: $focalLengthMm, ')
+          ..write('ispFrames: $ispFrames, ')
+          ..write('diagNoiseReductionOff: $diagNoiseReductionOff, ')
+          ..write('diagEdgeOff: $diagEdgeOff, ')
+          ..write('diagAwbFixed: $diagAwbFixed, ')
+          ..write('diagTonemapLinear: $diagTonemapLinear, ')
+          ..write('diagShadingOff: $diagShadingOff, ')
+          ..write('diagAwbVariant: $diagAwbVariant')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     measurementId,
     frameCount,
     $driftBlobEquality.hash(frames),
@@ -18712,7 +18986,14 @@ class MorningRawSignalRow extends DataClass
     cameraId,
     physicalCameraId,
     focalLengthMm,
-  );
+    $driftBlobEquality.hash(ispFrames),
+    diagNoiseReductionOff,
+    diagEdgeOff,
+    diagAwbFixed,
+    diagTonemapLinear,
+    diagShadingOff,
+    diagAwbVariant,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -18730,7 +19011,14 @@ class MorningRawSignalRow extends DataClass
           other.saturatedFraction == this.saturatedFraction &&
           other.cameraId == this.cameraId &&
           other.physicalCameraId == this.physicalCameraId &&
-          other.focalLengthMm == this.focalLengthMm);
+          other.focalLengthMm == this.focalLengthMm &&
+          $driftBlobEquality.equals(other.ispFrames, this.ispFrames) &&
+          other.diagNoiseReductionOff == this.diagNoiseReductionOff &&
+          other.diagEdgeOff == this.diagEdgeOff &&
+          other.diagAwbFixed == this.diagAwbFixed &&
+          other.diagTonemapLinear == this.diagTonemapLinear &&
+          other.diagShadingOff == this.diagShadingOff &&
+          other.diagAwbVariant == this.diagAwbVariant);
 }
 
 class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
@@ -18748,6 +19036,13 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
   final Value<String?> cameraId;
   final Value<String?> physicalCameraId;
   final Value<double?> focalLengthMm;
+  final Value<Uint8List?> ispFrames;
+  final Value<bool> diagNoiseReductionOff;
+  final Value<bool> diagEdgeOff;
+  final Value<bool> diagAwbFixed;
+  final Value<bool> diagTonemapLinear;
+  final Value<bool> diagShadingOff;
+  final Value<String?> diagAwbVariant;
   const MorningRawSignalsCompanion({
     this.measurementId = const Value.absent(),
     this.frameCount = const Value.absent(),
@@ -18763,6 +19058,13 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     this.cameraId = const Value.absent(),
     this.physicalCameraId = const Value.absent(),
     this.focalLengthMm = const Value.absent(),
+    this.ispFrames = const Value.absent(),
+    this.diagNoiseReductionOff = const Value.absent(),
+    this.diagEdgeOff = const Value.absent(),
+    this.diagAwbFixed = const Value.absent(),
+    this.diagTonemapLinear = const Value.absent(),
+    this.diagShadingOff = const Value.absent(),
+    this.diagAwbVariant = const Value.absent(),
   });
   MorningRawSignalsCompanion.insert({
     this.measurementId = const Value.absent(),
@@ -18779,6 +19081,13 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     this.cameraId = const Value.absent(),
     this.physicalCameraId = const Value.absent(),
     this.focalLengthMm = const Value.absent(),
+    this.ispFrames = const Value.absent(),
+    this.diagNoiseReductionOff = const Value.absent(),
+    this.diagEdgeOff = const Value.absent(),
+    this.diagAwbFixed = const Value.absent(),
+    this.diagTonemapLinear = const Value.absent(),
+    this.diagShadingOff = const Value.absent(),
+    this.diagAwbVariant = const Value.absent(),
   }) : frameCount = Value(frameCount),
        frames = Value(frames),
        frameGapCount = Value(frameGapCount),
@@ -18798,6 +19107,13 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     Expression<String>? cameraId,
     Expression<String>? physicalCameraId,
     Expression<double>? focalLengthMm,
+    Expression<Uint8List>? ispFrames,
+    Expression<bool>? diagNoiseReductionOff,
+    Expression<bool>? diagEdgeOff,
+    Expression<bool>? diagAwbFixed,
+    Expression<bool>? diagTonemapLinear,
+    Expression<bool>? diagShadingOff,
+    Expression<String>? diagAwbVariant,
   }) {
     return RawValuesInsertable({
       if (measurementId != null) 'measurement_id': measurementId,
@@ -18815,6 +19131,14 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
       if (cameraId != null) 'camera_id': cameraId,
       if (physicalCameraId != null) 'physical_camera_id': physicalCameraId,
       if (focalLengthMm != null) 'focal_length_mm': focalLengthMm,
+      if (ispFrames != null) 'isp_frames': ispFrames,
+      if (diagNoiseReductionOff != null)
+        'diag_noise_reduction_off': diagNoiseReductionOff,
+      if (diagEdgeOff != null) 'diag_edge_off': diagEdgeOff,
+      if (diagAwbFixed != null) 'diag_awb_fixed': diagAwbFixed,
+      if (diagTonemapLinear != null) 'diag_tonemap_linear': diagTonemapLinear,
+      if (diagShadingOff != null) 'diag_shading_off': diagShadingOff,
+      if (diagAwbVariant != null) 'diag_awb_variant': diagAwbVariant,
     });
   }
 
@@ -18833,6 +19157,13 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     Value<String?>? cameraId,
     Value<String?>? physicalCameraId,
     Value<double?>? focalLengthMm,
+    Value<Uint8List?>? ispFrames,
+    Value<bool>? diagNoiseReductionOff,
+    Value<bool>? diagEdgeOff,
+    Value<bool>? diagAwbFixed,
+    Value<bool>? diagTonemapLinear,
+    Value<bool>? diagShadingOff,
+    Value<String?>? diagAwbVariant,
   }) {
     return MorningRawSignalsCompanion(
       measurementId: measurementId ?? this.measurementId,
@@ -18849,6 +19180,14 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
       cameraId: cameraId ?? this.cameraId,
       physicalCameraId: physicalCameraId ?? this.physicalCameraId,
       focalLengthMm: focalLengthMm ?? this.focalLengthMm,
+      ispFrames: ispFrames ?? this.ispFrames,
+      diagNoiseReductionOff:
+          diagNoiseReductionOff ?? this.diagNoiseReductionOff,
+      diagEdgeOff: diagEdgeOff ?? this.diagEdgeOff,
+      diagAwbFixed: diagAwbFixed ?? this.diagAwbFixed,
+      diagTonemapLinear: diagTonemapLinear ?? this.diagTonemapLinear,
+      diagShadingOff: diagShadingOff ?? this.diagShadingOff,
+      diagAwbVariant: diagAwbVariant ?? this.diagAwbVariant,
     );
   }
 
@@ -18899,6 +19238,29 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     if (focalLengthMm.present) {
       map['focal_length_mm'] = Variable<double>(focalLengthMm.value);
     }
+    if (ispFrames.present) {
+      map['isp_frames'] = Variable<Uint8List>(ispFrames.value);
+    }
+    if (diagNoiseReductionOff.present) {
+      map['diag_noise_reduction_off'] = Variable<bool>(
+        diagNoiseReductionOff.value,
+      );
+    }
+    if (diagEdgeOff.present) {
+      map['diag_edge_off'] = Variable<bool>(diagEdgeOff.value);
+    }
+    if (diagAwbFixed.present) {
+      map['diag_awb_fixed'] = Variable<bool>(diagAwbFixed.value);
+    }
+    if (diagTonemapLinear.present) {
+      map['diag_tonemap_linear'] = Variable<bool>(diagTonemapLinear.value);
+    }
+    if (diagShadingOff.present) {
+      map['diag_shading_off'] = Variable<bool>(diagShadingOff.value);
+    }
+    if (diagAwbVariant.present) {
+      map['diag_awb_variant'] = Variable<String>(diagAwbVariant.value);
+    }
     return map;
   }
 
@@ -18918,7 +19280,14 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
           ..write('saturatedFraction: $saturatedFraction, ')
           ..write('cameraId: $cameraId, ')
           ..write('physicalCameraId: $physicalCameraId, ')
-          ..write('focalLengthMm: $focalLengthMm')
+          ..write('focalLengthMm: $focalLengthMm, ')
+          ..write('ispFrames: $ispFrames, ')
+          ..write('diagNoiseReductionOff: $diagNoiseReductionOff, ')
+          ..write('diagEdgeOff: $diagEdgeOff, ')
+          ..write('diagAwbFixed: $diagAwbFixed, ')
+          ..write('diagTonemapLinear: $diagTonemapLinear, ')
+          ..write('diagShadingOff: $diagShadingOff, ')
+          ..write('diagAwbVariant: $diagAwbVariant')
           ..write(')'))
         .toString();
   }
@@ -33507,6 +33876,13 @@ typedef $MorningRawSignalsCreateCompanionBuilder =
       Value<String?> cameraId,
       Value<String?> physicalCameraId,
       Value<double?> focalLengthMm,
+      Value<Uint8List?> ispFrames,
+      Value<bool> diagNoiseReductionOff,
+      Value<bool> diagEdgeOff,
+      Value<bool> diagAwbFixed,
+      Value<bool> diagTonemapLinear,
+      Value<bool> diagShadingOff,
+      Value<String?> diagAwbVariant,
     });
 typedef $MorningRawSignalsUpdateCompanionBuilder =
     MorningRawSignalsCompanion Function({
@@ -33524,6 +33900,13 @@ typedef $MorningRawSignalsUpdateCompanionBuilder =
       Value<String?> cameraId,
       Value<String?> physicalCameraId,
       Value<double?> focalLengthMm,
+      Value<Uint8List?> ispFrames,
+      Value<bool> diagNoiseReductionOff,
+      Value<bool> diagEdgeOff,
+      Value<bool> diagAwbFixed,
+      Value<bool> diagTonemapLinear,
+      Value<bool> diagShadingOff,
+      Value<String?> diagAwbVariant,
     });
 
 final class $MorningRawSignalsReferences
@@ -33625,6 +34008,41 @@ class $MorningRawSignalsFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<Uint8List> get ispFrames => $composableBuilder(
+    column: $table.ispFrames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get diagNoiseReductionOff => $composableBuilder(
+    column: $table.diagNoiseReductionOff,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get diagEdgeOff => $composableBuilder(
+    column: $table.diagEdgeOff,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get diagAwbFixed => $composableBuilder(
+    column: $table.diagAwbFixed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get diagTonemapLinear => $composableBuilder(
+    column: $table.diagTonemapLinear,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get diagShadingOff => $composableBuilder(
+    column: $table.diagShadingOff,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get diagAwbVariant => $composableBuilder(
+    column: $table.diagAwbVariant,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $MorningMeasurementsFilterComposer get measurementId {
     final $MorningMeasurementsFilterComposer composer = $composerBuilder(
       composer: this,
@@ -33723,6 +34141,41 @@ class $MorningRawSignalsOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<Uint8List> get ispFrames => $composableBuilder(
+    column: $table.ispFrames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get diagNoiseReductionOff => $composableBuilder(
+    column: $table.diagNoiseReductionOff,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get diagEdgeOff => $composableBuilder(
+    column: $table.diagEdgeOff,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get diagAwbFixed => $composableBuilder(
+    column: $table.diagAwbFixed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get diagTonemapLinear => $composableBuilder(
+    column: $table.diagTonemapLinear,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get diagShadingOff => $composableBuilder(
+    column: $table.diagShadingOff,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get diagAwbVariant => $composableBuilder(
+    column: $table.diagAwbVariant,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $MorningMeasurementsOrderingComposer get measurementId {
     final $MorningMeasurementsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -33815,6 +34268,39 @@ class $MorningRawSignalsAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<Uint8List> get ispFrames =>
+      $composableBuilder(column: $table.ispFrames, builder: (column) => column);
+
+  GeneratedColumn<bool> get diagNoiseReductionOff => $composableBuilder(
+    column: $table.diagNoiseReductionOff,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get diagEdgeOff => $composableBuilder(
+    column: $table.diagEdgeOff,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get diagAwbFixed => $composableBuilder(
+    column: $table.diagAwbFixed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get diagTonemapLinear => $composableBuilder(
+    column: $table.diagTonemapLinear,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get diagShadingOff => $composableBuilder(
+    column: $table.diagShadingOff,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get diagAwbVariant => $composableBuilder(
+    column: $table.diagAwbVariant,
+    builder: (column) => column,
+  );
+
   $MorningMeasurementsAnnotationComposer get measurementId {
     final $MorningMeasurementsAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -33881,6 +34367,13 @@ class $MorningRawSignalsTableManager
                 Value<String?> cameraId = const Value.absent(),
                 Value<String?> physicalCameraId = const Value.absent(),
                 Value<double?> focalLengthMm = const Value.absent(),
+                Value<Uint8List?> ispFrames = const Value.absent(),
+                Value<bool> diagNoiseReductionOff = const Value.absent(),
+                Value<bool> diagEdgeOff = const Value.absent(),
+                Value<bool> diagAwbFixed = const Value.absent(),
+                Value<bool> diagTonemapLinear = const Value.absent(),
+                Value<bool> diagShadingOff = const Value.absent(),
+                Value<String?> diagAwbVariant = const Value.absent(),
               }) => MorningRawSignalsCompanion(
                 measurementId: measurementId,
                 frameCount: frameCount,
@@ -33896,6 +34389,13 @@ class $MorningRawSignalsTableManager
                 cameraId: cameraId,
                 physicalCameraId: physicalCameraId,
                 focalLengthMm: focalLengthMm,
+                ispFrames: ispFrames,
+                diagNoiseReductionOff: diagNoiseReductionOff,
+                diagEdgeOff: diagEdgeOff,
+                diagAwbFixed: diagAwbFixed,
+                diagTonemapLinear: diagTonemapLinear,
+                diagShadingOff: diagShadingOff,
+                diagAwbVariant: diagAwbVariant,
               ),
           createCompanionCallback:
               ({
@@ -33913,6 +34413,13 @@ class $MorningRawSignalsTableManager
                 Value<String?> cameraId = const Value.absent(),
                 Value<String?> physicalCameraId = const Value.absent(),
                 Value<double?> focalLengthMm = const Value.absent(),
+                Value<Uint8List?> ispFrames = const Value.absent(),
+                Value<bool> diagNoiseReductionOff = const Value.absent(),
+                Value<bool> diagEdgeOff = const Value.absent(),
+                Value<bool> diagAwbFixed = const Value.absent(),
+                Value<bool> diagTonemapLinear = const Value.absent(),
+                Value<bool> diagShadingOff = const Value.absent(),
+                Value<String?> diagAwbVariant = const Value.absent(),
               }) => MorningRawSignalsCompanion.insert(
                 measurementId: measurementId,
                 frameCount: frameCount,
@@ -33928,6 +34435,13 @@ class $MorningRawSignalsTableManager
                 cameraId: cameraId,
                 physicalCameraId: physicalCameraId,
                 focalLengthMm: focalLengthMm,
+                ispFrames: ispFrames,
+                diagNoiseReductionOff: diagNoiseReductionOff,
+                diagEdgeOff: diagEdgeOff,
+                diagAwbFixed: diagAwbFixed,
+                diagTonemapLinear: diagTonemapLinear,
+                diagShadingOff: diagShadingOff,
+                diagAwbVariant: diagAwbVariant,
               ),
           withReferenceMapper: (p0) => p0
               .map(

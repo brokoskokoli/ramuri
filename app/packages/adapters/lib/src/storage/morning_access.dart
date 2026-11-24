@@ -67,6 +67,33 @@ class DriftMorningStore implements MorningStore {
                 cameraId: Value(rawSignal.cameraId),
                 physicalCameraId: Value(rawSignal.physicalCameraId),
                 focalLengthMm: Value(rawSignal.focalLengthMm),
+                ispFrames: Value(
+                  rawSignal.ispFrames == null
+                      ? null
+                      : encodeIspFrames(rawSignal.ispFrames!),
+                ),
+                diagNoiseReductionOff: Value(
+                  rawSignal.diagnostics.contains(
+                    PpgCameraDiagnostic.noiseReductionOff,
+                  ),
+                ),
+                diagEdgeOff: Value(
+                  rawSignal.diagnostics.contains(PpgCameraDiagnostic.edgeOff),
+                ),
+                diagAwbFixed: Value(
+                  rawSignal.diagnostics.contains(PpgCameraDiagnostic.awbFixed),
+                ),
+                diagTonemapLinear: Value(
+                  rawSignal.diagnostics.contains(
+                    PpgCameraDiagnostic.tonemapLinear,
+                  ),
+                ),
+                diagShadingOff: Value(
+                  rawSignal.diagnostics.contains(
+                    PpgCameraDiagnostic.shadingOff,
+                  ),
+                ),
+                diagAwbVariant: Value(rawSignal.awbVariant?.wire),
               ),
             );
       }
@@ -193,6 +220,16 @@ class DriftMorningStore implements MorningStore {
     if (frames.length != r.frameCount) {
       throw const StorageException(StorageFailure.failed);
     }
+    final isp = r.ispFrames == null ? null : decodeIspFrames(r.ispFrames!);
+    if (isp != null && isp.length != r.frameCount) {
+      throw const StorageException(StorageFailure.failed);
+    }
+    final awb = r.diagAwbVariant == null
+        ? null
+        : PpgAwbVariant.fromWire(r.diagAwbVariant);
+    if (r.diagAwbVariant != null && awb == null) {
+      throw const StorageException(StorageFailure.failed);
+    }
     return MorningRawSignal(
       frames: frames,
       exposureTimeNs: r.exposureTimeNs,
@@ -206,6 +243,15 @@ class DriftMorningStore implements MorningStore {
       cameraId: r.cameraId,
       physicalCameraId: r.physicalCameraId,
       focalLengthMm: r.focalLengthMm,
+      ispFrames: isp,
+      diagnostics: Set.unmodifiable({
+        if (r.diagNoiseReductionOff) PpgCameraDiagnostic.noiseReductionOff,
+        if (r.diagEdgeOff) PpgCameraDiagnostic.edgeOff,
+        if (r.diagAwbFixed) PpgCameraDiagnostic.awbFixed,
+        if (r.diagTonemapLinear) PpgCameraDiagnostic.tonemapLinear,
+        if (r.diagShadingOff) PpgCameraDiagnostic.shadingOff,
+      }),
+      awbVariant: awb,
     );
   });
 
