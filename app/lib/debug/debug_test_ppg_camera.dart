@@ -284,11 +284,125 @@ class DebugTestPpgCamera implements PpgCamera {
     return c.stream;
   }
 
+  /// Kamerasuche im Wechsel statt gleichzeitig (PAR-227); über das Debug-Panel umschaltbar,
+  /// gilt ab der nächsten Vorschau.
+  bool previewAlternating = false;
+
+  /// Gestartete Vorschauen der Kamerasuche (Argument je [preview]).
+  final List<List<PpgCameraRef>> previewRequests = [];
+
+  /// Vorschau läuft (Taschenlampe an).
+  bool previewOn = false;
+
+  StreamController<PpgPreviewEvent>? _preview;
+
+  /// Synthetische Zahlen eines Vorschaubilds der Kamera [ref] zur Sensorzeit [t]: mit Finger
+  /// rot und hell (R 200, G 40), [DebugPpgScenario.noFinger] grau (R 167, G 194, R/G < 1,5);
+  /// Belichtung und ISO wie [debugCameraDetails]. Erfundene Werte.
+  PpgPreviewFrame previewFrame(PpgCameraRef ref, double t) {
+    final finger = scenarioOf(ref) != DebugPpgScenario.noFinger;
+    return PpgPreviewFrame(
+      camera: ref,
+      t: t,
+      r: finger ? 200 : 167,
+      g: finger ? 40 : 194,
+      exposureNs: debugCameraDetails.exposureTimeNs,
+      iso: debugCameraDetails.iso,
+    );
+  }
+
+  /// Kamerasuche ohne Hardware: liefert je nutzbarer Kamera aus [cameras] 10 Bilder je
+  /// Sekunde Sensorzeit (mal [speed]) ohne Texture; die Seite zeigt dafür eine Fläche in der
+  /// Farbe der Zahlen. Gleichzeitig oder, mit [previewAlternating], im Wechsel je PAR-227.
+  @override
+  Stream<PpgPreviewEvent> preview(List<PpgCameraRef> cameras) {
+    late final StreamController<PpgPreviewEvent> c;
+    var cancelled = false;
+    c = StreamController<PpgPreviewEvent>(
+      onListen: () async {
+        previewRequests.add(List.unmodifiable(cameras));
+        final stop = _stopOf(scenario);
+        if (stop != null) {
+          c.add(PpgPreviewStopped(stop));
+          await c.close();
+          return;
+        }
+        final live = <PpgCameraRef>[];
+        final alternating = previewAlternating;
+        c.add(
+          PpgPreviewStarted(
+            alternating
+                ? PpgPreviewMode.alternating
+                : PpgPreviewMode.simultaneous,
+          ),
+        );
+        for (final ref in cameras) {
+          final info = debugPpgCameras.where((i) => i.ref == ref).firstOrNull;
+          final reason = info == null
+              ? PpgCameraStopReason.noCamera
+              : !info.usable
+              ? PpgCameraStopReason.noFlash
+              : _stopOf(scenarioOf(ref));
+          if (reason != null) {
+            c.add(PpgPreviewCameraFailed(ref, reason));
+          } else {
+            live.add(ref);
+          }
+        }
+        if (live.isEmpty) return;
+        previewOn = true;
+        torchOn = true;
+        const step = 0.1;
+        final sp = speed;
+        final startedAt = _wall();
+        final delay = Duration(microseconds: (1e6 * step / sp).round());
+        var n = 0;
+        var turn = -1;
+        // [stop] schließt den Strom ohne Abbestellen: dann endet die Schleife ebenso.
+        while (!cancelled && !c.isClosed) {
+          final due = (_wall() - startedAt).inMicroseconds / 1e6 * sp;
+          do {
+            final t = n * step;
+            if (alternating) {
+              final k =
+                  (t / ppgCameraFinderTurnSeconds + 1e-9).floor() % live.length;
+              if (k != turn) {
+                turn = k;
+                c.add(PpgPreviewTurn(live[k]));
+              }
+              c.add(previewFrame(live[k], t));
+            } else {
+              for (final ref in live) {
+                c.add(previewFrame(ref, t));
+              }
+            }
+            n++;
+          } while (n * step <= due && !cancelled && !c.isClosed);
+          await Future<void>.delayed(delay);
+        }
+      },
+      // `async`: die Rückgabe von `cancel()` läuft in der Zone des Aufrufers (sonst die
+      // Null-Future der Root-Zone, die im FakeAsync eines Widget-Tests nie fertig wird).
+      onCancel: () async {
+        cancelled = true;
+        if (identical(_preview, c)) _preview = null;
+        previewOn = false;
+        torchOn = false;
+      },
+    );
+    _preview = c;
+    return c.stream;
+  }
+
   @override
   Future<void> stop() async {
     final c = _active;
     _active = null;
+    final p = _preview;
+    _preview = null;
+    previewOn = false;
     torchOn = false;
+    await p?.close();
     await c?.close();
   }
 }

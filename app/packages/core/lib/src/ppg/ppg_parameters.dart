@@ -211,3 +211,24 @@ const double ppgMaxFrameGapSeconds = 1.0;
 /// (`PpgQualityReason.noFinger`). Mit Blitz auf der Haut absorbiert das Blut Grün weit stärker
 /// als Rot; eine freie Szene hat Rot/Grün um 1 und darunter. Die Referenz prüft nur die Anzeige.
 const double ppgMinRedGreenRatio = 1.5;
+
+/// Kennung und Version der Kamerasuche (FR-0220, NFR-0001): Fingerprüfung und Lichtmenge je
+/// Kamera aus den Vorschaubildern und die Empfehlung (PAR-227, PAR-228). Keine Pulsauswertung,
+/// nur Anzeige und Vorschlag; gespeichert wird nur die gewählte Kamera.
+const String ppgCameraFinderMethod = 'camera-finder';
+const int ppgCameraFinderMethodVersion = 1;
+
+/// Kamerasuche im Wechsel (PAR-227): so lange ist jede Kamera nacheinander offen (Sekunden).
+const double ppgCameraFinderTurnSeconds = 1.5;
+
+/// Kamerasuche (PAR-227): gleitendes Mittel für Fingerprüfung und Lichtmenge über die Bilder
+/// der letzten so vielen Sekunden Sensorzeit je Kamera (im Wechsel: der letzte Durchgang).
+const double ppgCameraFinderWindowSeconds = 1.5;
+
+/// Lichtmenge (PAR-228): Bezug der Empfindlichkeit; Lichtmenge = Rot / (Belichtungszeit in s ×
+/// ISO / [ppgCameraFinderIsoReference]).
+const double ppgCameraFinderIsoReference = 100;
+
+/// Empfehlung (PAR-228): Liegt die zweitbeste Lichtmenge weniger als dieser Anteil unter der
+/// besten, gilt die frühere der beiden in der Reihenfolge von `cameras()` (gegen Springen).
+const double ppgCameraFinderLightTieRelative = 0.10;

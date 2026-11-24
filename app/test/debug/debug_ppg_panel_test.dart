@@ -136,6 +136,29 @@ void main() {
     expect(find.text('PPG Zeitraffer an'), findsOneWidget);
   });
 
+  testWidgets('Schalter der Kamerasuche: gleichzeitig ↔ im Wechsel', (
+    tester,
+  ) async {
+    final cam = DebugTestPpgCamera();
+    await tester.pumpWidget(
+      DebugPpgPanel(
+        camera: cam,
+        child: const MaterialApp(home: SizedBox()),
+      ),
+    );
+    await tester.tap(find.text('PPG'));
+    await tester.pump();
+    expect(cam.previewAlternating, isFalse);
+    expect(find.text('PPG Suche gleichzeitig'), findsOneWidget);
+    await tester.tap(find.text('PPG Suche gleichzeitig'));
+    await tester.pump();
+    expect(cam.previewAlternating, isTrue);
+    expect(find.text('PPG Suche im Wechsel'), findsOneWidget);
+    await tester.tap(find.text('PPG Suche im Wechsel'));
+    await tester.pump();
+    expect(cam.previewAlternating, isFalse);
+  });
+
   testWidgets('Kachel einer Kamera setzt das Szenario nur für diese Kamera', (
     tester,
   ) async {

@@ -8,6 +8,7 @@ import '../permissions/method_channel_permission_status.dart';
 /// Kanalnamen zu `PpgCamera.kt`; dieselben Zeichenketten stehen dort (ein Test prüft das).
 const String ppgCameraChannelName = 'ramuri/ppg_camera';
 const String ppgCameraStreamChannelName = 'ramuri/ppg_camera_stream';
+const String ppgCameraPreviewChannelName = 'ramuri/ppg_camera_preview';
 
 /// [PpgCamera] über Camera2 im Android-Teil (ADR-0011). Über die Grenze gehen nur Zahlen je
 /// Bild (Zeitstempel, R/G der Mitte, 16 × R, 16 × G), nie Pixel. Die Rechteanfrage läuft über
@@ -17,12 +18,18 @@ class MethodChannelPpgCamera implements PpgCamera {
     MethodChannel? method,
     EventChannel? events,
     MethodChannel? permissions,
+    EventChannel? preview,
   }) : _method = method ?? const MethodChannel(ppgCameraChannelName),
        _events = events ?? const EventChannel(ppgCameraStreamChannelName),
+       _previewEvents =
+           preview ?? const EventChannel(ppgCameraPreviewChannelName),
        _permissions = permissions ?? permissionChannel;
 
   final MethodChannel _method;
   final EventChannel _events;
+  final EventChannel _previewEvents;
+  StreamController<PpgPreviewEvent>? _previewActive;
+  StreamSubscription<dynamic>? _previewSub;
   final MethodChannel _permissions;
 
   StreamController<PpgCameraEvent>? _active;
@@ -271,8 +278,111 @@ class MethodChannelPpgCamera implements PpgCamera {
     return out.stream;
   }
 
+  /// Argument der Kamerasuche für den Kanal: die Kameras in Reihenfolge.
+  static Map<String, Object?> previewArguments(List<PpgCameraRef> cameras) => {
+    'cameras': [
+      for (final c in cameras)
+        {'cameraId': c.cameraId, 'physicalCameraId': c.physicalCameraId},
+    ],
+  };
+
+  static PpgPreviewMode? _mode(Object? s) => switch (s) {
+    'simultaneous' => PpgPreviewMode.simultaneous,
+    'alternating' => PpgPreviewMode.alternating,
+    _ => null,
+  };
+
+  /// Wandelt eine Nachricht der Kamerasuche von Kotlin; Unpassendes entfällt (nie ein Fehler).
+  static PpgPreviewEvent? parsePreview(Object? event) {
+    if (event is! Map) return null;
+    switch (event['type']) {
+      case 'started':
+        final mode = _mode(event['mode']);
+        if (mode == null) return null;
+        final textures = <PpgCameraRef, int>{};
+        final list = event['textures'];
+        if (list is List) {
+          for (final t in list) {
+            if (t is! Map) continue;
+            final ref = _ref(t);
+            final id = t['textureId'];
+            if (ref != null && id is int && id >= 0) textures[ref] = id;
+          }
+        }
+        return PpgPreviewStarted(mode, Map.unmodifiable(textures));
+      case 'frame':
+        final camera = _ref(event);
+        final t = _time(event['t']);
+        final r = event['r'];
+        final g = event['g'];
+        if (camera == null || t == null || r is! num || g is! num) return null;
+        if (!r.isFinite || !g.isFinite) return null;
+        final exposure = _int(event['exposureNs']);
+        final iso = _int(event['iso']);
+        return PpgPreviewFrame(
+          camera: camera,
+          t: t,
+          r: r.toDouble(),
+          g: g.toDouble(),
+          exposureNs: exposure != null && exposure > 0 ? exposure : null,
+          iso: iso != null && iso > 0 ? iso : null,
+        );
+      case 'turn':
+        final camera = _ref(event);
+        return camera == null ? null : PpgPreviewTurn(camera);
+      case 'failed':
+        final camera = _ref(event);
+        return camera == null
+            ? null
+            : PpgPreviewCameraFailed(camera, _reason(event['reason']));
+      case 'stopped':
+        return PpgPreviewStopped(_reason(event['reason']));
+    }
+    return null;
+  }
+
+  /// Wie [start] bewusst kein `async*`: Abbestellen schließt in Kotlin sofort alles
+  /// (Taschenlampe aus). Nichts davon geht in ein Log.
+  @override
+  Stream<PpgPreviewEvent> preview(List<PpgCameraRef> cameras) {
+    late final StreamController<PpgPreviewEvent> out;
+    out = StreamController<PpgPreviewEvent>(
+      onListen: () {
+        _previewSub = _previewEvents
+            .receiveBroadcastStream(previewArguments(cameras))
+            .listen(
+              (event) {
+                final e = parsePreview(event);
+                if (e == null) return;
+                out.add(e);
+                if (e is PpgPreviewStopped) out.close();
+              },
+              onError: (Object error) {
+                final code = error is PlatformException ? error.code : null;
+                out.add(PpgPreviewStopped(_reason(code)));
+                out.close();
+              },
+              onDone: out.close,
+            );
+      },
+      onCancel: () {
+        if (!identical(_previewActive, out)) return null;
+        _previewActive = null;
+        return _previewSub?.cancel();
+      },
+    );
+    _previewActive = out;
+    return out.stream;
+  }
+
   @override
   Future<void> stop() async {
+    final p = _previewActive;
+    _previewActive = null;
+    final psub = _previewSub;
+    _previewSub = null;
+    await psub?.cancel();
+    await p?.close();
     final a = _active;
     _active = null;
     final sub = _sub;

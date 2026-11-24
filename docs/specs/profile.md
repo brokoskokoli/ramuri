@@ -142,12 +142,16 @@ Unter Einstellungen → Über schaltet 10-maliges Tippen auf die Versionsnummer 
 
 ### FR-0220 — Kamera für die Kamera-Messung
 - **Status:** Approved | **Phase:** 3
-- **Quelle:** SRC-003 (Maintainer 2026-11-18, 2026-11-22)
-- **Verwandt:** FR-0214, FR-0215, FR-0217, ADR-0011
+- **Quelle:** SRC-003 (Maintainer 2026-11-18, 2026-11-20, 2026-11-22)
+- **Verwandt:** FR-0214, FR-0215, FR-0217, ADR-0011, PAR-219, PAR-227, PAR-228
 
 Die Kamera-Messung (FR-0214, FR-0215) nutzt eine Rückkamera mit Blitz. Hat das Handy mehrere Rückkameras (auch als einzelne Objektive einer Mehrfachkamera), gilt: Im Entwicklermodus (FR-0217) lässt sich in den Entwicklereinstellungen eine Kamera wählen; sie gilt für Ruhepuls- und Morgenmessung. Sonst gilt das Ergebnis der Kamerasuche, wenn eine stattgefunden hat, sonst die Standardkamera (die erste Rückkamera mit Blitz). Ohne Entwicklermodus gilt die Wahl von Hand nicht, bleibt aber gespeichert. Ist die gewählte Kamera nicht mehr vorhanden oder nicht nutzbar, gilt die nächste Stufe; startet die Kamera nicht, endet die Messung mit Grund wie bisher, ohne Wechsel der Kamera. Wahl und Suchergebnis sind Einstellungen des Geräts: nicht im Archiv, „Alles löschen“ setzt sie zurück. Bei gespeichertem Rohsignal (Entwicklermodus) trägt die Messung die verwendete Kamera (Kamera-ID, physische Kamera, Brennweite); sie steht im Archiv und in der Messpaare-CSV.
 
 **Umsetzung:** Die Karte „Kamera für die Pulsmessung“ auf der Seite „Entwicklereinstellungen“ zeigt „Standard“ (löscht die Wahl von Hand) und jede Rückkamera als „Kamera <Kennung>“ bzw. „Kamera <Kennung>/<physische Kennung>“ mit Brennweite und der Bildrate, mit der die Messung auf ihr liefe (höchste feste Bildrate 30–60 Bilder/s, 60 vor 30, ADR-0011); die Standardkamera ist als „Standard“ markiert. Nicht nutzbare Kameras (ohne Blitz, ohne feste Bildrate) sind sichtbar, aber nicht wählbar, mit Grund. Ist die gespeicherte Wahl nicht mehr in der Liste, steht dort ein Hinweis, dass die Standardkamera gilt; ohne Rückkamera „Keine Rückkamera“. Die Liste braucht kein Kamera-Recht. Kennungen, Brennweiten, Bildraten und die Liste stehen in keinem Log. Technik der Kamerawahl: ADR-0011, Nachtrag 2026-11-18.
+
+**Kamerasuche:** Die Kamerasuche zeigt Live-Bilder aller nutzbaren Rückkameras bei eingeschaltetem Blitz (gleichzeitig, wo das Gerät es kann, sonst im Wechsel, PAR-227) mit ihrer Bildrate und empfiehlt eine Kamera nach PAR-228 (60 Bilder/s bevorzugt); der Nutzer übernimmt die Empfehlung oder tippt eine andere an. Vorschaubilder werden nur angezeigt, nie gespeichert, übertragen oder protokolliert. Im Entwicklermodus ist sie in den Entwicklereinstellungen aufrufbar („Kamera suchen“ in der Karte „Kamera für die Pulsmessung“) und zeigt die Zahlen je Kamera.
+
+**Umsetzung der Kamerasuche:** Die Seite „Kamera finden“ zeigt oben „Lege den Finger über Blitz und Kamera, wie bei der Messung.“, im Wechselbetrieb zusätzlich „Kameras werden nacheinander gezeigt“. Darunter in zwei Spalten je nutzbarer Kamera das Vorschaubild mit der Bezeichnung wie in der Liste, der Bildrate („60 Bilder/s“), einem Balken „Licht“ (Lichtmenge relativ zur hellsten Kamera), einem Haken „Finger erkannt“ und bei der Empfehlung „Empfohlen“; im Entwicklermodus zusätzlich je Bild R/G, Belichtungszeit, ISO und Lichtmenge. Liefert eine Kamera keine Vorschau, steht ihr Grund im Bild. Ein Tipp auf ein Bild wählt die Kamera (hervorgehoben). „Übernehmen“ speichert die gewählte Kamera, ohne Tipp die Empfehlung, als Ergebnis der Kamerasuche; ohne Empfehlung und ohne Tipp ist „Übernehmen“ gesperrt. In den Entwicklereinstellungen setzt „Als feste Wahl setzen“ dieselbe Kamera als Wahl von Hand. Zurück speichert nichts. Zurück, Übernehmen und die App im Hintergrund beenden die Vorschau und schalten die Taschenlampe aus; nach der Rückkehr in den Vordergrund läuft sie neu an. Gibt es nur eine nutzbare Kamera, zeigt die Seite „Nur eine Kamera, keine Auswahl nötig“ ohne Vorschau. Ohne Kamera-Recht steht dort ein Hinweis, ohne Vorschau. Technik: ADR-0011, Nachtrag 2026-11-24.
 
 **Akzeptanzkriterien:**
 - [ ] Die Kameraliste nennt jede Rückkamera und bei einer logischen Mehrfachkamera ihre physischen Kameras, sortiert (Standardkamera zuerst), mit „nutzbar“ nach Blitz und fester Bildrate; ohne Rückkamera ist sie leer.
@@ -158,6 +162,10 @@ Die Kamera-Messung (FR-0214, FR-0215) nutzt eine Rückkamera mit Blitz. Hat das 
 - [ ] Die Liste nennt je nutzbarer Kamera die Bildrate, mit der die Messung auf ihr liefe.
 - [ ] Wahl und Suchergebnis kommen nicht ins Archiv und werden von „Alles löschen“ zurückgesetzt.
 - [ ] Ohne Entwicklermodus und ohne Suchergebnis verhält sich die Messung wie vor dieser Anforderung.
+- [ ] Kamerasuche: Empfehlung nach PAR-228 (Finger nach PAR-219, 60 Bilder/s vor 30, größte Lichtmenge, unter 10 % Abstand die frühere, ohne Finger keine); im Wechsel erst nach einem vollen Durchgang (PAR-227).
+- [ ] Kamerasuche: je Kamera Bild, Bildrate, Licht, „Finger erkannt“ und „Empfohlen“; Tipp überstimmt die Empfehlung; „Übernehmen“ setzt das Suchergebnis, „Als feste Wahl setzen“ die Wahl von Hand; danach startet die Messung diese Kamera.
+- [ ] Kamerasuche: Zurück und Hintergrund beenden die Vorschau und schalten die Taschenlampe aus, Zurück speichert nichts; nur eine nutzbare Kamera → Hinweis ohne Vorschau.
+- [ ] Vorschaubilder gehen nicht als Pixel nach Dart und werden nie gespeichert, übertragen oder protokolliert; die Zahlen je Bild stehen in keinem Log.
 
 ## Randfälle und Fehlerverhalten
 - Weder Alter noch maximale Herzfrequenz bekannt: Abhängige Funktionen sind nicht verfügbar, die App bittet um die Eingabe (OQ-0012).

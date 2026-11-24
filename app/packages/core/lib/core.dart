@@ -181,6 +181,7 @@ export 'src/morning/morning_marks.dart';
 export 'src/morning/morning_parameters.dart';
 export 'src/ppg/morning_belt_recorder.dart';
 export 'src/ppg/ppg_analyzer.dart';
+export 'src/ppg/ppg_camera_choice.dart';
 export 'src/ppg/ppg_evaluator.dart';
 export 'src/ppg/ppg_parameters.dart';
 export 'src/ppg/ppg_window_search.dart';
