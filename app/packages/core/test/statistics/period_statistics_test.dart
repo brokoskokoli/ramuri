@@ -240,4 +240,150 @@ void main() {
       expect(comparePeriod(const StatisticsPeriod.singleRun(1), all), isNull);
     });
   });
+
+  group('Sporteinheiten (FR-0221, FR-0043)', () {
+    // Zwei GPS-Läufe je 5 km in 30 min, eine Sporteinheit 30 min mit TRIMP 40.
+    final r1 = figures(
+      11,
+      '2029-12-31',
+      km: 5,
+      movingSec: 1800,
+      paceSec: 1800,
+      best: 350,
+      laps: 5,
+      hrAvg: 150,
+      hrSec: 1800,
+      hrMax: 170,
+      trimp: 50,
+      zonesSec: [600, 1200, 0, 0, 0],
+      belowSec: 10,
+    );
+    final r2 = figures(
+      12,
+      '2030-01-02',
+      km: 5,
+      movingSec: 1800,
+      paceSec: 1800,
+      best: 340,
+      laps: 5,
+      hrAvg: 160,
+      hrSec: 1800,
+      hrMax: 175,
+      trimp: 60,
+      zonesSec: [0, 1800, 0, 0, 0],
+      belowSec: 20,
+    );
+    final sp = figures(
+      13,
+      '2030-01-04',
+      sport: true,
+      movingSec: 1800,
+      laps: 0,
+      hrAvg: 170,
+      hrSec: 1800,
+      hrMax: 190,
+      trimp: 40,
+      zonesSec: [0, 0, 1800, 0, 0],
+      belowSec: 30,
+    );
+
+    test('Umfang und Tempo nur aus Läufen, Puls und TRIMP aus allen', () {
+      final s = computePeriodStatistics(week, [sp, r1, r2]);
+      expect(s.runCount, 2);
+      expect(s.runs.map((r) => r.runId), [11, 12]);
+      expect(s.units.map((r) => r.runId), [11, 12, 13]);
+      expect(s.trainingDays, 2);
+      expect(s.distanceMeters.value, 10000);
+      expect(s.distanceMeters.isPartial, isFalse);
+      expect(s.distanceMeters.runsTotal, 2);
+      expect(s.movingTime.value, const Duration(minutes: 60));
+      expect(s.movingTime.isPartial, isFalse);
+      expect(s.totalTime.value, const Duration(minutes: 62));
+      expect(s.averagePaceSecondsPerKm.value, closeTo(360, 1e-9));
+      expect(s.averagePaceSecondsPerKm.runsTotal, 2);
+      expect(s.bestPaceSecondsPerKm.value, 340);
+      expect(s.lapCount.value, 10);
+      expect(s.lapCount.runsTotal, 2);
+      expect(s.trimpPoints.value, 150);
+      expect(s.trimpPoints.runsTotal, 3);
+      expect(s.trimpPoints.isPartial, isFalse);
+      expect(s.zoneTimes.value, const [
+        Duration(seconds: 600),
+        Duration(seconds: 3000),
+        Duration(seconds: 1800),
+        Duration.zero,
+        Duration.zero,
+      ]);
+      expect(s.zoneTimes.runsTotal, 3);
+      expect(s.belowZone1Time.value, const Duration(seconds: 60));
+      expect(s.belowZone1Time.runsTotal, 3);
+      expect(s.heartRateMaxBpm.value, 190);
+      expect(s.heartRateMaxBpm.runsTotal, 3);
+      expect(s.heartRateAverageBpm.value, closeTo(160, 1e-9));
+      expect(s.heartRateAverageBpm.runsTotal, 3);
+    });
+
+    test('Tag nur mit Sporteinheit ist kein Trainingstag', () {
+      final s = computePeriodStatistics(week, [r1, sp]);
+      expect(s.trainingDays, 1);
+    });
+
+    test('Tag mit Lauf und Sporteinheit zählt einmal', () {
+      final same = figures(
+        14,
+        '2029-12-31',
+        hour: 18,
+        sport: true,
+        trimp: 5,
+        trimpIncomplete: true,
+      );
+      final s = computePeriodStatistics(week, [r1, same]);
+      expect(s.trainingDays, 1);
+      expect(s.runCount, 1);
+      expect(s.trimpPoints.value, 55);
+      // Unvollständiger Puls der Sporteinheit gilt auch für die Summe.
+      expect(s.trimpIncomplete, isTrue);
+    });
+
+    test('nur Sporteinheiten: wie ohne Lauf, TRIMP bleibt', () {
+      final s = computePeriodStatistics(week, [sp]);
+      final none = computePeriodStatistics(week, const []);
+      expect(s.runCount, 0);
+      expect(s.trainingDays, 0);
+      expect(s.distanceMeters.value, none.distanceMeters.value);
+      expect(s.distanceMeters.isPartial, isFalse);
+      expect(s.movingTime.value, isNull);
+      expect(s.averagePaceSecondsPerKm.isAvailable, isFalse);
+      expect(s.bestPaceSecondsPerKm.isAvailable, isFalse);
+      expect(s.lapCount.value, isNull);
+      expect(s.trimpPoints.value, 40);
+      expect(s.trimpPoints.isPartial, isFalse);
+      expect(s.zoneTimes.value![2], const Duration(seconds: 1800));
+    });
+
+    test('Bandlauf zählt als Lauf (FR-0196)', () {
+      // Bandlauf: Lauf mit Strecke, ohne Bestpace.
+      final belt = figures(
+        15,
+        '2030-01-03',
+        km: 4,
+        movingSec: 1500,
+        paceSec: 1500,
+      );
+      final s = computePeriodStatistics(week, [belt, sp]);
+      expect(s.runCount, 1);
+      expect(s.distanceMeters.value, 4000);
+      expect(s.trainingDays, 1);
+    });
+
+    test('Vergleich mit der Vorwoche zählt die Sporteinheit nicht', () {
+      final next = figures(16, '2030-01-08', sport: true, movingSec: 600);
+      final cmp = comparePeriod(StatisticsPeriod.weekOf('2030-01-08'), [
+        r1,
+        next,
+      ])!;
+      expect(cmp.runCountDelta, -1);
+      expect(cmp.distanceDeltaMeters, isNull);
+    });
+  });
 }

@@ -69,14 +69,16 @@ class RunClassification {
 /// Ordnet [run] gegenüber [others] ein. Vorläufe sind Läufe mit früherem
 /// Laufende (gleiche Id und spätere zählen nicht); es zählen die letzten
 /// `comparisonRunCount` mit Durchschnittspace. Die Referenz ist Σ Strecke /
-/// Σ Pace-Zeit dieser Läufe (nicht das Mittel der Paces).
+/// Σ Pace-Zeit dieser Läufe (nicht das Mittel der Paces). Sporteinheiten
+/// (FR-0221) zählen nie als Vorlauf, und eine Sporteinheit selbst wird nicht
+/// gegenüber Läufen eingeordnet (FR-0043, Festlegung FR-0221).
 RunClassification classifyRun(
   RunFigures run,
   Iterable<RunFigures> others, {
   StatisticsParameters parameters = const StatisticsParameters(),
 }) {
   final pace = run.averagePaceSecondsPerKm;
-  if (pace == null) {
+  if (pace == null || !run.isRunning) {
     return const RunClassification.unavailable(
       ClassificationUnavailable.noPaceForRun,
     );
@@ -85,6 +87,7 @@ RunClassification classifyRun(
       others
           .where(
             (r) =>
+                r.isRunning &&
                 r.runId != run.runId &&
                 r.endedAt.isBefore(run.endedAt) &&
                 r.averagePaceSecondsPerKm != null,

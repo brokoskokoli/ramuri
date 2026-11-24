@@ -138,4 +138,20 @@ void main() {
       throwsArgumentError,
     );
   });
+
+  test('Woche nur mit Sporteinheit ist 0 km, nicht teilweise (FR-0221)', () {
+    final s = weeklyDistanceSeries('2030-01-02', [
+      figures(1, '2029-12-31', sport: true, movingSec: 1800, trimp: 40),
+      figures(2, '2029-12-24', km: 5, movingSec: 1800),
+      figures(3, '2029-12-26', sport: true, movingSec: 900),
+    ]);
+    final last = s.last;
+    expect(last.hasRuns, isFalse);
+    expect(last.meters, 0);
+    expect(last.isUnavailable, isFalse);
+    expect(last.distance.isPartial, isFalse);
+    final before = s[s.length - 2];
+    expect(before.meters, 5000);
+    expect(before.distance.isPartial, isFalse);
+  });
 }

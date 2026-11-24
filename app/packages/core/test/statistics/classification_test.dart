@@ -146,4 +146,34 @@ void main() {
       );
     });
   });
+
+  group('Sporteinheiten im Vergleich (FR-0221)', () {
+    final prev = [
+      for (var i = 0; i < 3; i++)
+        withPace(i + 1, '2030-01-0${i + 1}', 300.0 + i * 10),
+    ];
+    final run = withPace(20, '2030-01-20', 290);
+    // Sporteinheiten nach den Läufen; eine trägt (fehlerhaft) Strecke und
+    // Zeit, damit sie eine Pace hätte – auch sie zählt nicht.
+    final sport = [
+      figures(30, '2030-01-10', sport: true, movingSec: 1800, trimp: 40),
+      figures(31, '2030-01-11', sport: true, km: 1, paceSec: 600),
+    ];
+
+    test('ein Lauf wird mit und ohne Sporteinheiten gleich eingeordnet', () {
+      final without = classifyRun(run, prev);
+      final withSport = classifyRun(run, [...prev, ...sport]);
+      expect(withSport.comparedRuns, without.comparedRuns);
+      expect(withSport.comparedRuns, 3);
+      expect(withSport.referenceSecondsPerKm, without.referenceSecondsPerKm);
+      expect(withSport.referenceSecondsPerKm, closeTo(310, 1e-9));
+      expect(withSport.relation, without.relation);
+    });
+
+    test('eine Sporteinheit selbst wird nicht eingeordnet', () {
+      final c = classifyRun(sport[1], prev);
+      expect(c.isAvailable, isFalse);
+      expect(c.unavailable, ClassificationUnavailable.noPaceForRun);
+    });
+  });
 }
