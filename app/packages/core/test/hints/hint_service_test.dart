@@ -250,4 +250,37 @@ void main() {
     );
     expect((await service.today()).hint, isNull);
   });
+
+  group('PAR-178 mit anderer Sportart (PAR-233)', () {
+    Future<int> setUpWeeks() async {
+      await LoadSettings.saveAllRecorded(
+        w.session.settings,
+        true,
+        at: recalcNow,
+      );
+      // 30 Tage Daten; 21 Tage davor je Woche 30 min, letzte 7 Tage 30 min.
+      for (final d in [30, 22, 15, 8, 3]) {
+        await addRun(d);
+      }
+      return addRun(2, sport: OtherSport.rope);
+    }
+
+    test(
+      'ohne Zuordnung zählt die Sporteinheit nicht für den Anstieg',
+      () async {
+        await setUpWeeks();
+        plan(2, PlanUnitKind.easy);
+        expect(
+          (await service.today()).hint?.code,
+          isNot(HintCode.steepIncrease),
+        );
+      },
+    );
+
+    test('als ersetzte Einheit zählt sie mit ihrer Zeit', () async {
+      final id = await setUpWeeks();
+      plan(2, PlanUnitKind.easy, runId: id);
+      expect((await service.today()).hint?.code, HintCode.steepIncrease);
+    });
+  });
 }
