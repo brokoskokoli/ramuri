@@ -60,12 +60,15 @@ class MethodChannelPpgCamera implements PpgCamera {
     final isDefault = m['isDefault'];
     if (ref == null || usable is! bool || isDefault is! bool) return null;
     final focal = m['focalLength'];
+    // Fehlt bei einer älteren Gegenseite; nur ganze Zahlen 1 bis 240 gelten.
+    final fps = m['frameRate'];
     return PpgCameraInfo(
       ref: ref,
       focalLengthMm: focal is num && focal.isFinite && focal > 0
           ? focal.toDouble()
           : null,
       isDefault: isDefault,
+      frameRate: fps is int && fps >= 1 && fps <= 240 ? fps : null,
       unusable: usable
           ? null
           : switch (m['reason']) {

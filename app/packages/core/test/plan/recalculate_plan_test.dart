@@ -418,7 +418,7 @@ void main() {
     expect(await e.settings.get(planLastCheckDayKey), '2026-11-11');
   });
 
-  group('Einfrieren und Inhaltsänderungen (Nachbesserung NB1)', () {
+  group('Einfrieren und Inhaltsänderungen', () {
     test(
       'Einheit mit Lauf bleibt eingefroren, am Tag entsteht keine zweite',
       () async {
@@ -650,7 +650,7 @@ void main() {
             '${u.day.toIso8601String()}|${u.kind.name}',
       ];
 
-      // Befund NB3-1: hart -> locker hängt an der Einheit
+      // hart -> locker hängt an der Einheit
       // (fixed = easyForHard), nicht am Tag der erzeugten harten Einheit.
       test('hart -> locker, danach verschoben: manuell und automatisch '
           'bleibt die Woche ohne harte Einheit, Hinweis „vom Nutzer '
@@ -937,7 +937,7 @@ void main() {
     });
 
     test('entfallener Tag, der jetzt ein Ruhetag des Nutzers ist, zählt '
-        'nicht als entfallen (Befund E2b 1)', () {
+        'nicht als entfallen', () {
       PlanUnit rest(DateTime d, {bool pinned = true}) => PlanUnit(
         day: d,
         kind: PlanUnitKind.rest,
@@ -1071,7 +1071,7 @@ void main() {
     });
   });
 
-  group('Ziel-Fingerabdruck an der Fassung (WP22 NB2)', () {
+  group('Ziel-Fingerabdruck an der Fassung (WP22)', () {
     TrainingGoal g({
       GoalType type = GoalType.time,
       double? target = 3000,
@@ -1206,103 +1206,95 @@ void main() {
     );
   });
 
-  group(
-    'Anker in der nächsten Woche lässt die laufende Woche stehen (NB4)',
-    () {
-      // Plan ab Montag 9.11. (Di/Do/Sa); Antwort am Donnerstag der 4. Woche.
-      Future<(_Env, List<PlanUnit>)> prepare() async {
-        final e = await _Env.open();
-        await e.goals.save(_goal(), today: _goal().createdAt);
-        await e.run(PlanTrigger.create, -2);
-        final today = _day(22); // Donnerstag
-        final before = (await _all(e.plans))
-            .where((u) => !u.day.isBefore(today) && u.day.isBefore(_day(26)))
-            .toList();
-        return (e, before);
-      }
-
-      test(
-        'zu schwer am Donnerstag: offene Einheiten der Woche bleiben',
-        () async {
-          final (e, before) = await prepare();
-          expect(before.length, 2, reason: 'Do und Sa');
-          final goal = (await e.plans.currentGoal())!;
-          final last = (await e.plans.history()).last;
-          final r = applyPlanFeedback(
-            goal: goal,
-            inputs: last.inputs.copyWith(today: _day(22)),
-            answer: PlanFeedback.tooHard,
-            today: _day(22),
-          );
-          expect(r.inputs, isNotNull);
-          final w = await recalculatePlan(
-            plans: e.plans,
-            settings: e.settings,
-            trigger: PlanTrigger.feedback,
-            today: _day(22),
-            now: _now(22),
-            inputs: r.inputs,
-          );
-          expect(w.wasWritten, isTrue);
-          final after = (await _all(e.plans))
-              .where(
-                (u) => !u.day.isBefore(_day(22)) && u.day.isBefore(_day(26)),
-              )
-              .toList();
-          expect(after.map(_sig).toList(), before.map(_sig).toList());
-        },
-      );
-    },
-  );
-
-  test(
-    'Warnsignal: angepasste Eingaben ergeben auch bei unveränderten '
-    'Ruhetagen eine Fassung, gleiche Eingaben keine weitere (NB7 2)',
-    () async {
+  group('Anker in der nächsten Woche lässt die laufende Woche stehen', () {
+    // Plan ab Montag 9.11. (Di/Do/Sa); Antwort am Donnerstag der 4. Woche.
+    Future<(_Env, List<PlanUnit>)> prepare() async {
       final e = await _Env.open();
-      await e.goals.save(_goal(), today: _day(0));
-      await e.run(PlanTrigger.create, 0);
-      final warning = (e.session as WarningStorage).warning;
-      await warning.set(
-        WarningSignal(reportedOn: _day(1), source: WarningSource.manual),
-      );
-      Future<PlanRecalculation> again(PlanInputs? inputs) => recalculatePlan(
-        plans: e.plans,
-        settings: e.settings,
-        trigger: PlanTrigger.weekly,
-        today: _day(1),
-        now: _now(1),
-        inputs: inputs,
-        warning: warning,
-      );
-      // Warnung legt die Ruhetage (gezeigter Plan ändert sich einmal).
-      await again(null);
-      final h0 = (await e.plans.history()).length;
-      final stored = (await e.plans.history()).last.inputs;
-      // Gleiche Eingaben, gleicher Plan: keine weitere Fassung.
-      expect((await again(null)).wasWritten, isFalse);
-      expect((await e.plans.history()).length, h0);
-      // Angepasste Eingaben (Ermüdung: keine harte Einheit), Plan zeigt weiter
-      // nur Ruhetage: trotzdem eine Fassung, ohne Karte.
-      final r = await again(stored.copyWith(noHardUntil: _day(9)));
-      expect(r.wasWritten, isTrue);
-      expect(r.summary?.isEmpty, isTrue);
-      expect((await e.plans.history()).length, h0 + 1);
-      expect((await e.plans.history()).last.inputs.noHardUntil, _day(9));
-      expect((await again(null)).wasWritten, isFalse);
-      // Angepasster Anker, sonst gleich und der gezeigte Plan unverändert
-      // (leere Zusammenfassung): ebenfalls eine Fassung, danach mit den
-      // gespeicherten Eingaben keine weitere. Der Anker ist hier drei Tage
-      // später (nur diese Eingabe ändert sich, der Plan bleibt Ruhe).
-      final stored2 = (await e.plans.history()).last.inputs;
-      final anchor = stored2.anchor.add(const Duration(days: 3));
-      final h1 = (await e.plans.history()).length;
-      final r2 = await again(stored2.copyWith(anchor: anchor));
-      expect(r2.summary?.isEmpty, isTrue, reason: 'sonst belegt es nichts');
-      expect(r2.wasWritten, isTrue);
-      expect((await e.plans.history()).length, h1 + 1);
-      expect((await e.plans.history()).last.inputs.anchor, anchor);
-      expect((await again(null)).wasWritten, isFalse);
-    },
-  );
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      await e.run(PlanTrigger.create, -2);
+      final today = _day(22); // Donnerstag
+      final before = (await _all(e.plans))
+          .where((u) => !u.day.isBefore(today) && u.day.isBefore(_day(26)))
+          .toList();
+      return (e, before);
+    }
+
+    test(
+      'zu schwer am Donnerstag: offene Einheiten der Woche bleiben',
+      () async {
+        final (e, before) = await prepare();
+        expect(before.length, 2, reason: 'Do und Sa');
+        final goal = (await e.plans.currentGoal())!;
+        final last = (await e.plans.history()).last;
+        final r = applyPlanFeedback(
+          goal: goal,
+          inputs: last.inputs.copyWith(today: _day(22)),
+          answer: PlanFeedback.tooHard,
+          today: _day(22),
+        );
+        expect(r.inputs, isNotNull);
+        final w = await recalculatePlan(
+          plans: e.plans,
+          settings: e.settings,
+          trigger: PlanTrigger.feedback,
+          today: _day(22),
+          now: _now(22),
+          inputs: r.inputs,
+        );
+        expect(w.wasWritten, isTrue);
+        final after = (await _all(e.plans))
+            .where((u) => !u.day.isBefore(_day(22)) && u.day.isBefore(_day(26)))
+            .toList();
+        expect(after.map(_sig).toList(), before.map(_sig).toList());
+      },
+    );
+  });
+
+  test('Warnsignal: angepasste Eingaben ergeben auch bei unveränderten '
+      'Ruhetagen eine Fassung, gleiche Eingaben keine weitere', () async {
+    final e = await _Env.open();
+    await e.goals.save(_goal(), today: _day(0));
+    await e.run(PlanTrigger.create, 0);
+    final warning = (e.session as WarningStorage).warning;
+    await warning.set(
+      WarningSignal(reportedOn: _day(1), source: WarningSource.manual),
+    );
+    Future<PlanRecalculation> again(PlanInputs? inputs) => recalculatePlan(
+      plans: e.plans,
+      settings: e.settings,
+      trigger: PlanTrigger.weekly,
+      today: _day(1),
+      now: _now(1),
+      inputs: inputs,
+      warning: warning,
+    );
+    // Warnung legt die Ruhetage (gezeigter Plan ändert sich einmal).
+    await again(null);
+    final h0 = (await e.plans.history()).length;
+    final stored = (await e.plans.history()).last.inputs;
+    // Gleiche Eingaben, gleicher Plan: keine weitere Fassung.
+    expect((await again(null)).wasWritten, isFalse);
+    expect((await e.plans.history()).length, h0);
+    // Angepasste Eingaben (Ermüdung: keine harte Einheit), Plan zeigt weiter
+    // nur Ruhetage: trotzdem eine Fassung, ohne Karte.
+    final r = await again(stored.copyWith(noHardUntil: _day(9)));
+    expect(r.wasWritten, isTrue);
+    expect(r.summary?.isEmpty, isTrue);
+    expect((await e.plans.history()).length, h0 + 1);
+    expect((await e.plans.history()).last.inputs.noHardUntil, _day(9));
+    expect((await again(null)).wasWritten, isFalse);
+    // Angepasster Anker, sonst gleich und der gezeigte Plan unverändert
+    // (leere Zusammenfassung): ebenfalls eine Fassung, danach mit den
+    // gespeicherten Eingaben keine weitere. Der Anker ist hier drei Tage
+    // später (nur diese Eingabe ändert sich, der Plan bleibt Ruhe).
+    final stored2 = (await e.plans.history()).last.inputs;
+    final anchor = stored2.anchor.add(const Duration(days: 3));
+    final h1 = (await e.plans.history()).length;
+    final r2 = await again(stored2.copyWith(anchor: anchor));
+    expect(r2.summary?.isEmpty, isTrue, reason: 'sonst belegt es nichts');
+    expect(r2.wasWritten, isTrue);
+    expect((await e.plans.history()).length, h1 + 1);
+    expect((await e.plans.history()).last.inputs.anchor, anchor);
+    expect((await again(null)).wasWritten, isFalse);
+  });
 }

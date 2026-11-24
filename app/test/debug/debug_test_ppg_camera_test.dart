@@ -196,6 +196,8 @@ void main() {
       expect([for (final c in list) c.isDefault], [true, false, false]);
       expect([for (final c in list) c.usable], [true, true, false]);
       expect(list[2].unusable, PpgCameraUnusable.noFlash);
+      // Bildrate: Standard 60, die übrigen nutzbaren 30, die nicht nutzbare ohne.
+      expect([for (final c in list) c.frameRate], [60, 30, null]);
     });
 
     test('ohne Rückkamera ist die Liste leer', () async {

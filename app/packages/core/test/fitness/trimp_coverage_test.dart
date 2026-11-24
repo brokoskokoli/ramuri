@@ -51,7 +51,7 @@ TrimpResult value(FitnessResult<TrimpResult> r) =>
     (r as FitnessAvailable<TrimpResult>).value;
 
 void main() {
-  group('Muster: 3 Werte, dann 9 s nichts (Befund 1)', () {
+  group('Muster: 3 Werte, dann 9 s nichts', () {
     final x = record(until: 600, bpmAt: (s) => s % 12 < 3 ? 150 : null);
 
     test(
@@ -116,7 +116,7 @@ void main() {
     });
   });
 
-  group('Takt und Laufanfang (Befund 8)', () {
+  group('Takt und Laufanfang', () {
     test('stabiler 5-s-Takt: vollständig', () {
       final x = record(until: 600, bpmAt: (s) => s % 5 == 0 ? 150 : null);
       final v = value(load(x));
@@ -159,7 +159,7 @@ void main() {
     });
   });
 
-  group('Fremde Parameterversion (Befund 2)', () {
+  group('Fremde Parameterversion', () {
     const v4 = PreprocessingParameters(parameterVersion: 9);
     final x = record(until: 60, bpmAt: (s) => 150, params: v4);
 

@@ -9,19 +9,39 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  gate:
+  # Stufen aus tool/gate.sh --list-stages: die Matrix folgt dem Skript, ohne eine zweite Liste zu pflegen.
+  stufen:
     # Eigene Zweige issue-* und wp/* bekommen das Gate schon über push (gleicher Stand); der zweite Lauf zu
-    # pull_request wird übersprungen. PRs aus Forks und von anderen Zweigen (z. B. Dependabot) starten kein
-    # Gate über push und laufen hier weiter.
+    # pull_request wird übersprungen (und mit ihm stage und gate). PRs aus Forks und von anderen Zweigen
+    # (z. B. Dependabot) starten kein Gate über push und laufen hier weiter.
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name != github.repository ||
       !(startsWith(github.head_ref, 'issue-') || startsWith(github.head_ref, 'wp/'))
     runs-on: ubuntu-latest
-    # Gemessen an 75 grünen Läufen dieses Jobs (bis 2026-11-19): 17,4 bis 28,4 min samt Einrichtung, Median
-    # 23,8 min, längster 1706 s (davon tool/gate.sh 1656 s). Das alte Limit von 30 min ließ nur 1,6 min Luft;
-    # unter paralleler Last brach der Release-APK-Schritt ohne Fehler ab. 45 min wie e2e.yml: 16,6 min Abstand.
+    timeout-minutes: 5
+    outputs:
+      liste: ${{ steps.liste.outputs.liste }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: liste
+        run: |
+          liste=$(sh tool/gate.sh --list-stages | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          [ "$liste" != '[]' ] || { echo "tool/gate.sh --list-stages lieferte keine Stufe"; exit 1; }
+          echo "liste=$liste" >> "$GITHUB_OUTPUT"
+          echo "Stufen: $liste"
+  # Je Stufe ein Job, parallel. fail-fast aus: eine rote Stufe bricht die anderen nicht ab, damit der
+  # Abschlussjob alle roten Stufen nennt.
+  stage:
+    needs: stufen
+    runs-on: ubuntu-latest
+    # Gemessen an 75 grünen Läufen des früheren seriellen Jobs (bis 2026-11-19): 17,4 bis 28,4 min samt
+    # Einrichtung, längster 1706 s. 45 min wie e2e.yml; eine einzelne Stufe bleibt deutlich darunter.
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        stage: ${{ fromJSON(needs.stufen.outputs.liste) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -32,8 +52,9 @@ jobs:
           java-version: '17'
           # Gradle-Abhängigkeiten und Plugins zwischenspeichern, damit nicht jeder Job sie neu lädt. Der Schlüssel
           # deckt die Gradle-Dateien, die Flutter-Version (pubspec.yaml) und die Plugin-Versionen (pubspec.lock) ab.
-          # Caches eines Zweigs sind für main nicht lesbar; nightly/release ohne Cache.
-          cache: gradle
+          # Caches eines Zweigs sind für main nicht lesbar; nightly/release ohne Cache. Nur die Stufen mit Gradle
+          # (android, release) laden und speichern ihn; die übrigen würden ihn nur umsonst herunterladen.
+          cache: ${{ (matrix.stage == 'android' || matrix.stage == 'release') && 'gradle' || '' }}
           cache-dependency-path: |
             app/android/**/*.gradle.kts
             app/android/gradle.properties
@@ -48,8 +69,9 @@ jobs:
           cache: true
       # NDK vor dem ersten Gradle-Build fest installieren (Version aus der Flutter-Version, bis zu zwei
       # Wiederholungen); sonst lädt Gradle es im Build nach, und ein beschädigter Download bricht ab.
+      # Nur die Stufen mit Gradle-Build (android, release) brauchen es.
       - name: Android-NDK installieren
-        if: hashFiles('app/pubspec.yaml') != ''
+        if: hashFiles('app/pubspec.yaml') != '' && (matrix.stage == 'android' || matrix.stage == 'release')
         run: bash tool/ci_ndk.sh
       # Die Build-Hooks von sqlite3 laden SQLite3MultipleCiphers zur Bauzeit (ADR-0003). Ihr gemeinsames
       # Ausgabeverzeichnis wird zwischengespeichert; der Hook prüft vorhandene Dateien weiter per SHA-256
@@ -64,8 +86,12 @@ jobs:
       - name: sqlite3mc vor dem Build
         if: hashFiles('app/pubspec.yaml') != ''
         run: find app/.dart_tool/hooks_runner/shared/sqlite3 -type f -printf '%TY-%Tm-%Td %TT %s %P\n' 2>/dev/null || echo "kein sqlite3mc im Cache"
-      - run: sh tool/gate.sh
+      - name: Stufe ${{ matrix.stage }}
+        run: sh tool/gate.sh --stage "$STAGE"
+        env:
+          STAGE: ${{ matrix.stage }}
       # Gespeichert wird nur ein neuer Inhalt (Schlüssel mit Hash der Dateien); unverändert = Treffer, kein Upload.
+      # Speichern mehrere Stufen denselben neuen Inhalt, gewinnt die erste; die anderen melden nur eine Warnung.
       - name: sqlite3mc nach dem Build
         if: always() && hashFiles('app/.dart_tool/hooks_runner/shared/sqlite3/**') != ''
         run: find app/.dart_tool/hooks_runner/shared/sqlite3 -type f -printf '%TY-%Tm-%Td %TT %s %P\n'
@@ -75,3 +101,67 @@ jobs:
         with:
           path: app/.dart_tool/hooks_runner/shared/sqlite3
           key: sqlite3mc-gate-${{ hashFiles('app/pubspec.lock') }}-${{ hashFiles('app/.dart_tool/hooks_runner/shared/sqlite3/**') }}
+      # Ergebnis der Stufe für den Abschlussjob, damit er die roten Stufen beim Namen nennen kann. Läuft immer,
+      # auch nach einem roten oder abgebrochenen Schritt; fehlt die Datei (Job vorher abgebrochen), gilt die Stufe
+      # als rot.
+      - name: Ergebnis der Stufe ablegen
+        if: always()
+        run: |
+          mkdir -p gate-ergebnis
+          printf '%s\n' "$STATUS" > "gate-ergebnis/$STAGE"
+        env:
+          STAGE: ${{ matrix.stage }}
+          STATUS: ${{ job.status }}
+      - name: Ergebnis der Stufe hochladen
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gate-stufe-${{ matrix.stage }}
+          path: gate-ergebnis/${{ matrix.stage }}
+          retention-days: 1
+          # Bei einem Neustart der roten Jobs ersetzt der neue Lauf das alte Ergebnis.
+          overwrite: true
+  # Abschlussjob: grün nur, wenn die Stufenliste und alle Stufen success sind; sonst rot mit den Namen der roten
+  # Stufen. Der Name gate bleibt, weil Merge und Pflicht-Checks diesen Check auswerten.
+  gate:
+    needs: [stufen, stage]
+    # always(): auch nach roten Stufen laufen (sonst würde gate übersprungen statt rot). Die Bedingung des
+    # doppelten pull_request-Laufs gilt wie bei stufen.
+    if: >-
+      always() && (
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name != github.repository ||
+      !(startsWith(github.head_ref, 'issue-') || startsWith(github.head_ref, 'wp/')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Ergebnisse der Stufen laden
+        # Fehlt ein Ergebnis, nennt der nächste Schritt die Stufe als rot; das Urteil hängt nicht am Download.
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: gate-stufe-*
+          path: gate-ergebnis
+          merge-multiple: true
+      - name: Alle Stufen grün?
+        env:
+          STUFEN_JOB: ${{ needs.stufen.result }}
+          STAGE_JOBS: ${{ needs.stage.result }}
+          LISTE: ${{ needs.stufen.outputs.liste }}
+        run: |
+          if [ "$STUFEN_JOB" != success ]; then
+            echo "GATE ROT: Stufenliste nicht ermittelt ($STUFEN_JOB)"; exit 1
+          fi
+          rot=
+          for s in $(printf '%s' "$LISTE" | jq -r '.[]'); do
+            st=$(cat "gate-ergebnis/$s" 2>/dev/null || echo "kein Ergebnis")
+            echo "$s: $st"
+            [ "$st" = success ] || rot="$rot $s"
+          done
+          if [ -n "$rot" ] || [ "$STAGE_JOBS" != success ]; then
+            echo "GATE ROT: rote Stufen:${rot:- (keine einzeln erkannt, Matrix $STAGE_JOBS)}"
+            echo "### Gate rot" >> "$GITHUB_STEP_SUMMARY"
+            echo "Rote Stufen:${rot:- keine einzeln erkannt (Matrix $STAGE_JOBS)}" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "GATE GRÜN: alle Stufen success"

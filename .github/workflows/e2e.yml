@@ -2,10 +2,18 @@ name: e2e
 on:
   push:
     branches: [main, 'wp/**', 'issue-**']
+  # Wöchentlicher Lauf auf main (GitHub plant nur auf dem Default-Branch): Start Sonntag 23:37 UTC, damit die Tests
+  # über den Tageswechsel um Mitternacht UTC laufen. Krumme Minute, weil GitHub Läufe zur vollen Stunde verzögert.
+  schedule:
+    - cron: '37 23 * * 0'
+  # Lauf von Hand auf einem beliebigen Branch.
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: e2e-${{ github.ref }}
+  # Ereignis in der Gruppe: Ein geplanter Lauf und ein Push-Lauf auf main stehen in getrennten Gruppen und brechen
+  # sich weder ab noch verdrängen sie sich in der Warteschlange. Abbrechen nur auf Arbeits-Branches wie bisher.
+  group: e2e-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/wp/') || startsWith(github.ref, 'refs/heads/issue-') }}
 jobs:
   e2e:

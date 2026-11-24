@@ -81,6 +81,13 @@ void main() {
     expect(cam.permissionRequests, 1);
   });
 
+  test('Vorgabeliste: eine nutzbare Standardkamera mit 60 Bildern/s', () async {
+    final list = await FakePpgCamera().cameras();
+    expect(list.single.isDefault, isTrue);
+    expect(list.single.usable, isTrue);
+    expect(list.single.frameRate, 60);
+  });
+
   group('Kamerawahl', () {
     const second = PpgCameraRef('2', '4');
     FakePpgCamera cam() => FakePpgCamera()
