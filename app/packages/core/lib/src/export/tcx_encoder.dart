@@ -1,3 +1,4 @@
+import '../recording/treadmill.dart';
 import 'export_run.dart';
 import 'xml_text.dart';
 
@@ -16,7 +17,8 @@ const String _tpxNs = 'http://www.garmin.com/xmlschemas/ActivityExtension/v2';
 /// Zuwachs. TCX kennt keine Laufbandkennzeichnung (Sport nur Running, Biking,
 /// Other). Schrittfrequenz: `Extensions/TPX/RunCadence` der ActivityExtension
 /// v2 (Doppelschritte je Minute); der Namensraum steht nur in Dateien mit
-/// Schrittfrequenz.
+/// Schrittfrequenz. Andere Sportart (FR-0221): [tcxSport], Trackpoints nur
+/// mit Zeit und Puls, `Lap/DistanceMeters` = 0.
 String encodeTcx(ExportRun run) {
   final distances = run.lapDistancesMeters();
   final withCadence = run.segments.any(
@@ -34,7 +36,7 @@ String encodeTcx(ExportRun run) {
       'https://www8.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">',
     )
     ..writeln('  <Activities>')
-    ..writeln('    <Activity Sport="Running">')
+    ..writeln('    <Activity Sport="${tcxSport(run.sport)}">')
     ..writeln('      <Id>${xmlTime(run.startedAt)}</Id>');
   for (var i = 0; i < run.laps.length; i++) {
     final lap = run.laps[i];
@@ -118,3 +120,11 @@ String encodeTcx(ExportRun run) {
     ..writeln('</TrainingCenterDatabase>');
   return b.toString();
 }
+
+/// `Activity/@Sport` (TCX kennt nur `Running`, `Biking`, `Other`): Läufe
+/// `Running`, Radfahren `Biking`, die übrigen Sportarten `Other` (FR-0221).
+String tcxSport(OtherSport? sport) => switch (sport) {
+  null => 'Running',
+  OtherSport.cycling => 'Biking',
+  OtherSport.rope || OtherSport.rowing || OtherSport.other => 'Other',
+};

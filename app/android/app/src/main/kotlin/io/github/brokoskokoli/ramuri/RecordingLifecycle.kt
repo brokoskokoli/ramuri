@@ -5,11 +5,14 @@ import android.content.pm.ServiceInfo
 
 /**
  * Art des Laufs für den Dienst (ADR-0005 Nachtrag WP25). `GPS` ist der bisherige Lauf mit Typ `location`;
- * `TREADMILL` hat keine Position und läuft mit Typ `health`. [wire] ist der Wert im Kanal `ramuri/recording_service`.
+ * `TREADMILL` hat keine Position und läuft mit Typ `health`. `SPORT` (andere Sportart, FR-0221) hat weder
+ * Position noch Schritte und läuft mit Typ `connectedDevice`: Der Puls kommt vom verbundenen Gurt, ein
+ * Schrittzähler-Recht ist nicht nötig. [wire] ist der Wert im Kanal `ramuri/recording_service`.
  */
 enum class RecordingMode(val wire: String) {
     GPS("gps"),
-    TREADMILL("treadmill");
+    TREADMILL("treadmill"),
+    SPORT("sport");
 
     companion object {
         /** Ohne Angabe `GPS` (alter Aufrufer); ein unbekannter Wert ist null und wird abgelehnt. */
@@ -132,12 +135,15 @@ class RecordingLifecycle(
          * Darf der Dienst gestartet werden? Ohne Standortrecht wirft `startForeground`
          * mit Typ `location` eine SecurityException, und weil `startForegroundService`
          * dann schon gelaufen ist, kann das System den Prozess beenden. Deshalb wird
-         * vor `startForegroundService` geprüft und sonst gar nicht gestartet.
+         * vor `startForegroundService` geprüft und sonst gar nicht gestartet. Eine andere
+         * Sportart braucht nur BLUETOOTH_CONNECT (Typ `connectedDevice`), weder Standort noch
+         * ACTIVITY_RECOGNITION.
          */
         fun mayStart(
             mode: RecordingMode,
             fineLocationGranted: Boolean,
             activityRecognitionGranted: Boolean,
+            bluetoothConnectGranted: Boolean = false,
         ): Result<Unit> = when (mode) {
             RecordingMode.GPS ->
                 if (fineLocationGranted) Result.success(Unit)
@@ -146,6 +152,10 @@ class RecordingLifecycle(
             RecordingMode.TREADMILL ->
                 if (activityRecognitionGranted) Result.success(Unit)
                 else Result.failure(SecurityException("activity_recognition_denied"))
+            // Andere Sportart: Puls nur vom verbundenen Gurt, kein Schrittzähler nötig.
+            RecordingMode.SPORT ->
+                if (bluetoothConnectGranted) Result.success(Unit)
+                else Result.failure(SecurityException("bluetooth_connect_denied"))
         }
 
         /** ADR-0005 Punkt 6: kein Neustart durch das System. */
@@ -153,13 +163,15 @@ class RecordingLifecycle(
 
         /**
          * Diensttyp (ADR-0005 Punkt 2 und Nachtrag WP25): im GPS-Lauf `location`, im Laufbandlauf `health`;
-         * `connectedDevice` nur mit BLUETOOTH_CONNECT. Ohne das Recht wirft `startForeground` mit diesem Typ
+         * `connectedDevice` nur mit BLUETOOTH_CONNECT. Die andere Sportart hat nur `connectedDevice`; ohne
+         * BLUETOOTH_CONNECT startet sie gar nicht ([mayStart]), der Typ bleibt dann trotzdem nie leer. Ohne das Recht wirft `startForeground` mit diesem Typ
          * eine SecurityException (Android 14), deshalb dann gar nicht nennen.
          */
         fun startType(bluetoothConnectGranted: Boolean, mode: RecordingMode = RecordingMode.GPS): Int {
             val base = when (mode) {
                 RecordingMode.GPS -> ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
                 RecordingMode.TREADMILL -> ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
+                RecordingMode.SPORT -> ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
             }
             return if (bluetoothConnectGranted) base or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else base
         }
