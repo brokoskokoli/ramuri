@@ -90,10 +90,10 @@ run() {
 run "Shard sammlung: all_test und treadmill-plan" 0 2 E2E_SHARD=sammlung
 grep -qx 'integration_test/all_test.dart' "$FAKE_LOG" || { echo "FAIL Shard sammlung: all_test fehlt"; fails=$((fails + 1)); }
 grep -qx 'integration_test/e2e_treadmill_test.dart' "$FAKE_LOG" || { echo "FAIL Shard sammlung: treadmill-plan fehlt"; fails=$((fails + 1)); }
-run "Shard stufen: Mehrphasen-Stufen, m2-flow, readiness, plan-adapt und m3-flow" 0 8 E2E_SHARD=stufen
+run "Shard stufen: Mehrphasen-Stufen, m2-flow, readiness, plan-adapt, m3-flow und sport-plan" 0 9 E2E_SHARD=stufen
 grep -qx 'integration_test/e2e_m3_flow_test.dart' "$FAKE_LOG" || { echo "FAIL Shard stufen: m3-flow fehlt"; fails=$((fails + 1)); }
 grep -q all_test "$FAKE_LOG" && { echo "FAIL Shard stufen fuehrt all_test aus"; fails=$((fails + 1)); }
-run "ohne Auswahl: alle zehn Stufen"          0 10 X=1
+run "ohne Auswahl: alle elf Stufen"           0 11 X=1
 run "Shard unbekannt (Tippfehler) -> Fehler"   1 0 E2E_SHARD=sammlungx
 run "Stufe unbekannt -> Fehler"                1 0 E2E_STUFEN=recover-x
 run "eine bekannte, eine unbekannte -> Fehler" 1 0 "E2E_STUFEN=sammlung recover-x"
@@ -113,6 +113,9 @@ grep -qx 'integration_test/e2e_m3_flow_test.dart' "$FAKE_LOG" || { echo "FAIL m3
 run "Stufe treadmill-plan: Laufband-Datei mit Schalter" 0 1 E2E_STUFEN=treadmill-plan
 grep -qx 'integration_test/e2e_treadmill_test.dart' "$FAKE_LOG" || { echo "FAIL treadmill-plan: falsche Datei"; fails=$((fails + 1)); }
 grep -q 'TREADMILL_PLAN=true' "$FAKE_ARGS" || { echo "FAIL treadmill-plan: Schalter fehlt"; fails=$((fails + 1)); }
+run "Stufe sport-plan: Sport-Datei mit Schalter" 0 1 E2E_STUFEN=sport-plan
+grep -qx 'integration_test/e2e_other_sport_test.dart' "$FAKE_LOG" || { echo "FAIL sport-plan: falsche Datei"; fails=$((fails + 1)); }
+grep -q 'SPORT_PLAN=true' "$FAKE_ARGS" || { echo "FAIL sport-plan: Schalter fehlt"; fails=$((fails + 1)); }
 run "leere Auswahl: keine Stufe gelaufen"      1 0 "E2E_STUFEN= "
 # Waechter: eine Stufe in keinem Shard (Kopie des Skripts mit einer zusaetzlichen Stufe) ist ein Fehler vor dem ersten Lauf.
 sed 's|^\[ "\$ran" -gt 0 \]|stufe neu 0 integration_test/e2e_a_test.dart\n&|' "$script" > "$tmp/ci_e2e_neu.sh"
