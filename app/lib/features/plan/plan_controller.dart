@@ -437,16 +437,11 @@ class PlanController extends ChangeNotifier {
         }
       }
     }
-    final r = await recalculatePlan(
-      plans: _plans,
-      settings: session.settings,
+    final r = await _write(
       trigger: trigger,
       today: today,
-      now: clock.now(),
       reason: reason,
       inputs: inputs,
-      parameters: parameters,
-      warning: _warning,
       readiness: readiness,
       // `manual` bewertet die Woche nicht (ADR-0010 Nachtrag WP24, K63): Der
       // Prüftag bleibt, sonst fiele die fällige Wochenbewertung weg.
@@ -458,6 +453,32 @@ class PlanController extends ChangeNotifier {
     if (r.wasWritten) onChanged?.call();
     return r.wasWritten;
   }
+
+  /// Schreibt die Neuberechnung ([recalculatePlan]) mit den Läufen der
+  /// Woche für die Regel der Abweichung (PAR-235, [PlanDataReader.runFacts]):
+  /// Jede Fassung des Controllers rechnet mit ihnen, sonst fielen Kürzung,
+  /// Lockerung und Tausch beim nächsten Rechnen zurück.
+  Future<PlanRecalculation> _write({
+    required PlanTrigger trigger,
+    required DateTime today,
+    String? reason,
+    PlanInputs? inputs,
+    bool markChecked = true,
+    Iterable<PlanReadinessDay> readiness = const [],
+  }) async => recalculatePlan(
+    plans: _plans,
+    settings: session.settings,
+    trigger: trigger,
+    today: today,
+    now: clock.now(),
+    reason: reason,
+    inputs: inputs,
+    parameters: parameters,
+    warning: _warning,
+    markChecked: markChecked,
+    readiness: readiness,
+    runs: await reader.runFacts(today),
+  );
 
   /// Eingaben der Rechnung für [trigger]: beim Anlegen (oder ohne Fassung)
   /// die frischen aus [buildPlanInputs], sonst die der letzten Fassung mit den
@@ -529,6 +550,15 @@ class PlanController extends ChangeNotifier {
             if (c.kind != PinnedConflictKind.spacing && !c.day.isBefore(today))
               c,
           ...planSpacingConflicts(units, today, parameters: parameters),
+          // Bei „fix“ zusätzlich der Abstand der nächsten harten Einheit zu
+          // einem intensiven Lauf, wenn kein Tausch möglich war (PAR-235).
+          if (await _adaptation.read() == PlanAdaptationMode.fixed)
+            ...planRunSpacingConflicts(
+              units,
+              await _intensiveRunDays(today),
+              today,
+              parameters: parameters,
+            ),
         ],
       );
     }
@@ -661,6 +691,7 @@ class PlanController extends ChangeNotifier {
         PlanCalendarRun(
           id: r.id,
           day: day,
+          running: r.mode.isRunning,
           intensive: parameters.completedIntensive(
             rpe: rpe,
             highHrMinutes: highHr,
@@ -669,6 +700,21 @@ class PlanController extends ChangeNotifier {
       );
     }
     return result;
+  }
+
+  /// Ortstage der intensiven Läufe (PAR-058, ohne andere Sportart, DEC-0056),
+  /// zu denen die harte Einheit der Woche von [today] Abstand halten muss
+  /// (PAR-059), wie [planIntensiveRunDays]; über [runsBetween], damit die
+  /// Seite nicht auf die Kennzahlen aller Läufe wartet.
+  Future<Set<DateTime>> _intensiveRunDays(DateTime today) async {
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    return {
+      for (final r in await runsBetween(
+        monday.subtract(Duration(days: parameters.minGapDays - 1)),
+        today,
+      ))
+        if (r.running && r.intensive) r.day,
+    };
   }
 
   /// Die zugeordneten Läufe der erledigten Einheiten in [units] (ohne
@@ -1150,6 +1196,7 @@ class PlanController extends ChangeNotifier {
     parameters: parameters,
     measuredInputs: (goal, today) async =>
         (await reader.read(goal: goal, today: today)).inputs,
+    runFacts: reader.runFacts,
   );
 
   /// Antwort auf die Nachfrage (PAR-200). „Passt“ und „zu leicht“ am Regler
@@ -1185,16 +1232,11 @@ class PlanController extends ChangeNotifier {
       raise = result.raiseGoalSignal;
       final next = result.inputs;
       if (next != null) {
-        final w = await recalculatePlan(
-          plans: _plans,
-          settings: session.settings,
+        final w = await _write(
           trigger: PlanTrigger.feedback,
           markChecked: false, // bewertet die Woche (PAR-201) nicht
           today: today,
-          now: clock.now(),
           inputs: next,
-          parameters: parameters,
-          warning: _warning,
         );
         _fresh = w.generated;
         _lastChange = w.summary;
@@ -1276,17 +1318,12 @@ class PlanController extends ChangeNotifier {
       );
     }
     if (next != null) {
-      final r = await recalculatePlan(
-        plans: _plans,
-        settings: session.settings,
+      final r = await _write(
         // Der gewählte Einstieg ist eine Zieländerung des Nutzers (Stand neu):
         // `goalChange` hält sie fest, sonst bliebe sie ausstehend.
         trigger: chosen ? PlanTrigger.goalChange : PlanTrigger.pause,
         today: today,
-        now: clock.now(),
         inputs: next,
-        parameters: parameters,
-        warning: _warning,
       );
       _fresh = r.generated;
       _lastChange = r.summary;
@@ -1408,17 +1445,12 @@ class PlanController extends ChangeNotifier {
       proposal.suggestion,
       from: walkRunRepeatFrom(today, proposal.lastDay),
     ).copyWith(today: today);
-    final r = await recalculatePlan(
-      plans: _plans,
-      settings: session.settings,
+    final r = await _write(
       trigger: PlanTrigger.manual,
       reason: walkRunRepeatReason,
       markChecked: false, // bewertet die Woche nicht
       today: today,
-      now: clock.now(),
       inputs: inputs,
-      parameters: parameters,
-      warning: _warning,
     );
     _fresh = r.generated;
     _lastChange = r.summary;
@@ -1585,9 +1617,13 @@ class PlanCalendarRun {
     required this.id,
     required this.day,
     required this.intensive,
+    this.running = true,
   });
 
   final int id;
+
+  /// Ein Lauf, keine andere Sportart (FR-0221).
+  final bool running;
 
   /// Ortstag des Laufendes.
   final DateTime day;

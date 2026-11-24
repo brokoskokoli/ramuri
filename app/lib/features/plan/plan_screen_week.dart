@@ -53,6 +53,8 @@ class _Week extends StatelessWidget {
     final week = planWeekOf(weeks, monday);
     final inPlan = week != null;
     final list = units ?? const <PlanUnit>[];
+    // Begründungen der Regel der Abweichung (PAR-235) aus der letzten Fassung.
+    final notes = planRunNotesFromSummary(state.version!.summary);
     final runUnits = [
       for (final u in list)
         if (u.kind != PlanUnitKind.rest) u,
@@ -159,6 +161,10 @@ class _Week extends StatelessWidget {
             _Day(
               day: monday.add(Duration(days: d)),
               unit: _unitOn(list, monday.add(Duration(days: d))),
+              note: switch (_unitOn(list, monday.add(Duration(days: d)))) {
+                final u? => planRunNoteFor(u, notes),
+                null => null,
+              },
               runs: runs,
               dropped: dropped.any(
                 (x) => planDay(x) == planDay(monday.add(Duration(days: d))),
@@ -185,6 +191,7 @@ class _Day extends StatelessWidget {
   const _Day({
     required this.day,
     required this.unit,
+    this.note,
     this.runs = const {},
     required this.dropped,
     required this.isToday,
@@ -195,6 +202,10 @@ class _Day extends StatelessWidget {
 
   final DateTime day;
   final PlanUnit? unit;
+
+  /// Begründung, wenn die Regel der Abweichung die Einheit geändert hat
+  /// (PAR-235); nur an offenen Einheiten.
+  final PlanRunNote? note;
   final Map<int, PlanDoneRun> runs;
   final bool dropped;
   final bool isToday;
@@ -328,6 +339,16 @@ class _Day extends StatelessWidget {
                           subline,
                           key: const Key('plan_day_purpose'),
                           style: t.bodySmall?.copyWith(color: cc.textMuted),
+                        ),
+                      if (note case final n?)
+                        Text(
+                          planRunNoteText(
+                            l,
+                            n,
+                            (d) => DateFormat.EEEE(lang).format(d),
+                          ),
+                          key: const Key('plan_day_deviation'),
+                          style: t.bodySmall?.copyWith(color: cc.accent),
                         ),
                     ],
                   ],

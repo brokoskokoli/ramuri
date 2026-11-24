@@ -7,6 +7,7 @@ import '../fitness/fitness_parameters.dart';
 import '../fitness/heart_rate_basis.dart';
 import '../fitness/load_profile.dart';
 import '../fitness/vo2max_long_term.dart';
+import '../preprocessing/preprocessing_chain.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../recording/treadmill.dart' show RunMode;
 import '../statistics/run_overview.dart' show overviewOf;
@@ -63,10 +64,20 @@ class ValueSnapshot {
 /// ist noch nicht gerechnet und bekommt alle Werte mit seiner Berechnung. Die
 /// EINE Stelle für [ValueCalculationService.buildSnapshot], die betroffenen
 /// Läufe und die Prüfung auf fehlende Werte im Angebot.
-bool hasRecalculatedRunValue(Iterable<ValuePair> stored) => stored.any(
-  (p) =>
-      p.original.key == vo2maxRunValueKey || p.original.key == trimpRunValueKey,
-);
+bool hasRecalculatedRunValue(Iterable<ValuePair> stored) =>
+    hasRecalculatedRunKey(stored.map((p) => p.original.key));
+
+/// [hasRecalculatedRunValue] über die Schlüssel der gespeicherten Werte (für
+/// die Sammelabfrage `readRunValues` mit [recalculatedRunValueKeys]).
+bool hasRecalculatedRunKey(Iterable<String> keys) =>
+    keys.any(recalculatedRunValueKeys.contains);
+
+/// Schlüssel der Laufwerte, die einen Lauf zur Neuberechnung gehören lassen
+/// ([hasRecalculatedRunValue]).
+const Set<String> recalculatedRunValueKeys = {
+  vo2maxRunValueKey,
+  trimpRunValueKey,
+};
 
 /// ISO-Datum (UTC) `JJJJ-MM-TT` eines Zeitpunkts.
 String isoDay(DateTime t) {
@@ -112,7 +123,9 @@ class ValueCalculationService {
     this.preprocessing = const PreprocessingParameters.v4(),
     this.longTerm = const SmoothedVo2maxLongTerm(),
     this.efficiency = const MedianAerobicEfficiency(),
-  });
+    String? preprocessingVersion,
+  }) : preprocessingVersion =
+           preprocessingVersion ?? preprocessingChainVersion();
 
   final StorageSession session;
   final Clock clock;
@@ -120,6 +133,12 @@ class ValueCalculationService {
   final PreprocessingParameters preprocessing;
   final Vo2maxLongTerm longTerm;
   final AerobicEfficiency efficiency;
+
+  /// Kettenversion der Vorverarbeitung, die an jeden neuen Laufwert kommt
+  /// und gegen die `RecalculationService.checkVersions` die gespeicherten
+  /// prüft (ADR-0004). Ohne Angabe die der App ([preprocessingChainVersion]);
+  /// Tests setzen eine Kette mit erhöhter Stufe.
+  final String preprocessingVersion;
 
   /// Herzfrequenzbasis des gespeicherten Profils (FR-0003, FR-0004), wie sie
   /// an Werten gespeichert wird.
@@ -188,7 +207,10 @@ class ValueCalculationService {
     final profile = await _profileBasis();
     final analysis = await _analyzer(profile)
         .analyze(session, run, calculatedAt: now);
-    final runValue = analysis.vo2maxValue(now);
+    final runValue = analysis.vo2maxValue(
+      now,
+      preprocessingVersion: preprocessingVersion,
+    );
 
     final runs = await _finishedRuns();
     final runValues = <int, ComputedValue>{runId: runValue};
@@ -239,6 +261,7 @@ class ValueCalculationService {
       fitness: fitness.copyWith(reserveZoneBounds: bounds),
       sources: analysis.sources,
       computedAt: now,
+      preprocessingVersion: preprocessingVersion,
       loadProfile: await loadResolution(profile),
     );
     // Zeit bei mindestens 80 % HFmax (PAR-058) mit der Basis zum Laufende.
@@ -249,6 +272,7 @@ class ValueCalculationService {
       fitness: fitness,
       sources: analysis.sources,
       computedAt: now,
+      preprocessingVersion: preprocessingVersion,
     );
     // Kurzfassung für Historie und Vergleich (vor den Werten: scheitert sie,
     // ist nichts geschrieben und ein neuer Versuch möglich).
@@ -665,6 +689,7 @@ class ValueCalculationService {
         fitness: fitness,
         sources: analysis.sources,
         computedAt: now,
+        preprocessingVersion: preprocessingVersion,
       );
       // Vorhanden: tauschen (hängt an HFmax wie der TRIMP); fehlt er (Lauf
       // von vor dieser Methode): anlegen.
@@ -683,7 +708,10 @@ class ValueCalculationService {
         }
         continue;
       }
-      final value = analysis.vo2maxValue(now);
+      final value = analysis.vo2maxValue(
+        now,
+        preprocessingVersion: preprocessingVersion,
+      );
       runValues[r.id] = value;
       (runOwners[ValueOwner.run(r.id)] ??= []).addAll([
         value,
@@ -738,6 +766,7 @@ class ValueCalculationService {
         fitness: fitness,
         sources: analysis.sources,
         computedAt: now,
+        preprocessingVersion: preprocessingVersion,
         loadProfile: resolution,
       ))
         if (v.key == trimpRunValueKey) v,

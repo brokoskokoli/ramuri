@@ -523,7 +523,9 @@ void main() {
       e = await _Env.open(
         loadRuns: () async {
           reads++;
-          if (reads == 2) {
+          // Je Neuberechnung zwei Lesevorgänge: Eingaben und Läufe der
+          // Abweichung (PAR-235).
+          if (reads == 3) {
             // Lesen der Neuberechnung nach assignRun.
             seenBySecondRead = await e.plans.unitOn(_day(1));
           }
@@ -549,7 +551,7 @@ void main() {
       gate.complete();
       expect(await manual, PlanActionResult.done);
       expect(await assign, PlanActionResult.done);
-      expect(reads, 2);
+      expect(reads, 4);
       // assignRun lief erst nach dem Abschluss der Neuberechnung (Prüftag
       // geschrieben) und hat dann zugeordnet.
       expect(seenBySecondRead?.runId, runId);
