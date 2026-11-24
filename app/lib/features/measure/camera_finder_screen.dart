@@ -241,19 +241,19 @@ class _CameraFinderScreenState extends State<CameraFinderScreen>
     final g = (s.meanGreen ?? 0).clamp(0, 255).round();
     final Widget image = failure != null
         ? Container(
-            color: Colors.black,
+            color: scheme.inverseSurface,
             alignment: Alignment.center,
             padding: const EdgeInsets.all(8),
             child: Text(
               _failure(l10n, failure),
               textAlign: TextAlign.center,
-              style: theme.bodySmall!.copyWith(color: Colors.white),
+              style: theme.bodySmall!.copyWith(color: scheme.onInverseSurface),
             ),
           )
         : texture != null
         ? Texture(textureId: texture)
         // Ohne Texture (Debug-Quelle): Fläche in der Farbe der Zahlen.
-        : ColoredBox(color: Color.fromARGB(255, r, g, ((r + g) / 2).round()));
+        : PpgPreviewPatch(r: r, g: g);
     final two = NumberFormat.decimalPatternDigits(
       locale: locale,
       decimalDigits: 2,
