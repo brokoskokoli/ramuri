@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/error_counter.dart';
 import 'package:running_app/features/export/file_handoff_scope.dart';
+import 'package:running_app/features/home/overview_screen.dart';
+import 'package:running_app/features/recalculation/recalculation_controller.dart';
 import 'package:running_app/features/settings/about_screen.dart';
 import 'package:running_app/features/settings/developer_settings_screen.dart';
 import 'package:running_app/l10n/app_localizations.dart';
@@ -287,6 +289,61 @@ void main() {
         await d.stop(tester);
       },
     );
+
+    testWidgets('Übersicht → Entwicklereinstellungen: App-Version der '
+        'Übersicht im Diagnose-Export', (tester) async {
+      final d = Device();
+      await d.start(tester, const Locale('de'));
+      await d.skipSetup(tester);
+      await SettingsDeveloperModeStore(d.session.settings, d.clock).set(true);
+      final recalculation = RecalculationController(
+        RecalculationService(
+          session: d.session,
+          clock: d.clock,
+          calculation: ValueCalculationService(
+            session: d.session,
+            clock: d.clock,
+          ),
+        ),
+      );
+      addTearDown(recalculation.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('de'),
+          theme: RamuriTheme.light,
+          builder: (context, child) => FileHandoffScope(
+            handoff: d.fileHandoff,
+            child: ErrorCounterScope(errors: d.errors, child: child!),
+          ),
+          home: OverviewScreen(
+            session: d.session,
+            clock: d.clock,
+            permissions: d.permissions,
+            recalculation: recalculation,
+            sensors: d.sensors,
+            appVersion: () async => '7.6.5 (43)',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('overview_developer')));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('dev_errors_share')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.byKey(const Key('dev_errors_share')));
+      await tester.pumpAndSettle();
+      final content = tester.widget<SelectableText>(
+        find.byKey(const Key('dev_errors_share_content')),
+      );
+      expect(content.data, contains('"appVersion": "7.6.5 (43)"'));
+      await tester.pumpWidget(const SizedBox());
+      await d.stop(tester);
+    });
 
     testWidgets('nach „Alles löschen“ sind die Zähler leer (SEC-0004)', (
       tester,
