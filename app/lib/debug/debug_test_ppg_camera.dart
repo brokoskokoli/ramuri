@@ -44,10 +44,20 @@ enum DebugPpgScenario {
 /// [speed] der beim Start festgehaltene Zeitraffer.
 typedef DebugPpgSensorTime = ({int run, double seconds, double speed});
 
+/// Bildrate eines nutzbaren Eintrags in [debugPpgCameras] ohne eigene Rate.
+const int debugPpgDefaultFps = 30;
+
+/// Bildrate der Aufnahme auf der nutzbaren Kamera [info]: [fixed], falls gesetzt, sonst die
+/// Rate aus der Liste, ohne sie [debugPpgDefaultFps].
+int debugPpgFrameRate(PpgCameraInfo info, int? fixed) =>
+    fixed ?? info.frameRate ?? debugPpgDefaultFps;
+
 /// Die drei erfundenen Rückkameras der Debug-Quelle (FR-0220), in der Reihenfolge von
 /// [PpgCamera.cameras]: Standardkamera, eine physische Kamera der Standardkamera (nutzbar)
 /// und eine Kamera ohne Blitz (nicht nutzbar). Bildrate: Standardkamera 60, die übrigen
-/// nutzbaren 30 (nur Anzeige der Liste; die Aufnahme nutzt [DebugTestPpgCamera.fps]).
+/// nutzbaren 30. Mit dieser Rate nimmt die Kamera auch auf (wie der Android-Teil mit der Rate
+/// aus der Liste); ein nutzbarer Eintrag ohne Rate nimmt mit [debugPpgDefaultFps] auf, ein
+/// gesetztes [DebugTestPpgCamera.fps] gilt für jede Kamera.
 const List<PpgCameraInfo> debugPpgCameras = [
   PpgCameraInfo(
     ref: PpgCameraRef('0'),
@@ -73,7 +83,10 @@ class DebugTestPpgCamera implements PpgCamera {
 
     /// Zeitraffer: 1 = Echtzeit, 30 = 60 s Messung in 2 s.
     this.speed = 1,
-    this.fps = 30,
+
+    /// Feste Bildrate für jede Kamera (Tests); `null` = Rate der gestarteten Kamera aus
+    /// [debugPpgCameras].
+    this.fps,
 
     /// Wanduhr (nur Tests); Vorgabe: eine laufende Stoppuhr.
     Duration Function()? wallClock,
@@ -113,7 +126,7 @@ class DebugTestPpgCamera implements PpgCamera {
 
   /// Zeitraffer; über das Debug-Panel umschaltbar (gilt ab dem nächsten Start).
   double speed;
-  final int fps;
+  final int? fps;
   final Duration Function() _wall;
 
   static Duration Function() _stopwatchClock() {
@@ -198,6 +211,7 @@ class DebugTestPpgCamera implements PpgCamera {
           await c.close();
           return;
         }
+        final rate = debugPpgFrameRate(info!, fps);
         torchOn = true;
         startedCameras.add(ref);
         final requested = Set<PpgCameraDiagnostic>.unmodifiable(diagnostics);
@@ -206,7 +220,7 @@ class DebugTestPpgCamera implements PpgCamera {
         // wurde; Weißabgleich fest mit fester Matrix (Variante a, ADR-0011).
         c.add(
           PpgCameraStarted(
-            fps,
+            rate,
             ref,
             diagnostics: requested,
             awbVariant: requested.contains(PpgCameraDiagnostic.awbFixed)
@@ -218,14 +232,14 @@ class DebugTestPpgCamera implements PpgCamera {
         final end = sc == DebugPpgScenario.disconnected
             ? 3.0
             : ppgSearchMaxRecordSeconds + 0.5;
-        final gen = _Generator(fps, weak, sc == DebugPpgScenario.noFinger);
+        final gen = _Generator(rate, weak, sc == DebugPpgScenario.noFinger);
         var locked = false;
         // Zeitraffer beim Start festhalten: eine Umschaltung im Panel gilt erst ab dem nächsten
         // Start (sonst spränge `due` und der Rest der Messung käme in einem Schwall).
         final sp = speed;
         final run = ++_runs;
         _sensorTime = (run: run, seconds: 0, speed: sp);
-        final delay = Duration(microseconds: (1e6 / fps / sp).round());
+        final delay = Duration(microseconds: (1e6 / rate / sp).round());
         // Die Sensorzeit folgt der Wanduhr (mal [speed]) wie bei einer echten Kamera:
         // Kommt die App zeitweise nicht zum Zug, kommen die versäumten Bilder
         // gebündelt nach, statt die Messung zu verlängern (sonst liefe sie bei hoher
@@ -239,7 +253,7 @@ class DebugTestPpgCamera implements PpgCamera {
             c.add(
               PpgCameraFrame(
                 gen.frame(t),
-                ispFrames ? debugIspValues(t, fps, requested) : null,
+                ispFrames ? debugIspValues(t, rate, requested) : null,
               ),
             );
             if (!locked && t >= 2.5) {
