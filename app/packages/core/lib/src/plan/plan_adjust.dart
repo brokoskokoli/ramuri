@@ -99,6 +99,43 @@ PlanFeedbackResult applyPlanFeedback({
   return PlanFeedbackResult(inputs: _reanchor(inputs, setup, next, target));
 }
 
+/// Steigerung nach „Ja, steigern“ (PAR-236): Die nächste Woche bekommt
+/// einmalig einen zusätzlichen Schritt nach PAR-193 (ohne Dämpfung), also
+/// zwei Schritte gegenüber der Vorwoche statt einem; höchstens bis zum Regler
+/// (PAR-196). Ist die nächste Woche eine leichtere Woche (PAR-194), wirkt der
+/// Schritt auf die Woche danach. Danach gilt wieder PAR-193 vom neuen Wert
+/// aus; die Zählung nach PAR-194 läuft weiter. `null`: keine Steigerung
+/// möglich (am Regler, Geh-Lauf-Abfolge, Reduktion vor dem Termin).
+PlanInputs? applyPlanUnderloadRaise({
+  required TrainingGoal goal,
+  required PlanInputs inputs,
+  required DateTime today,
+  PlanParameters parameters = const PlanParameters(),
+}) {
+  final p = parameters;
+  final setup = planCourseSetup(goal, inputs, parameters: p);
+  final monday = _monday(today);
+  var next = _weekAt(setup, monday.add(const Duration(days: 7)));
+  if (next != null && next.kind == WeekKind.lighter) {
+    next = _weekAt(setup, monday.add(const Duration(days: 14)));
+  }
+  if (next == null || !_adjustable(next) || next.kind == WeekKind.lighter) {
+    return null;
+  }
+  final cap = setup.capMinutes;
+  final base = next.baseMinutes!;
+  if (base >= cap) return null;
+  final rate = base < p.midThresholdMinutes
+      ? p.rateBelowMid
+      : base < p.highThresholdMinutes
+      ? p.rateMid
+      : p.rateHigh;
+  final raised = (base * (1 + rate)).round();
+  final target = raised > cap ? cap : raised;
+  if (target <= base) return null;
+  return _reanchor(inputs, setup, next, target);
+}
+
 /// Ergebnis von [evaluateWeekAdjustment].
 class WeekAdjustment {
   const WeekAdjustment({

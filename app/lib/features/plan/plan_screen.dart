@@ -18,6 +18,7 @@ import 'plan_data_reader.dart';
 import 'plan_goal_form.dart';
 import 'plan_page_view_state.dart';
 import 'plan_texts.dart';
+import 'plan_underload_card.dart';
 import 'plan_unit_screen.dart';
 
 part 'plan_screen_goal.dart';
@@ -410,6 +411,24 @@ class _PlanScreenState extends State<PlanScreen> {
     );
   }
 
+  /// Hinweis bzw. Frage der Unterforderung (PAR-236) beantworten.
+  Future<void> _underload(
+    Future<void> Function(PlanUnderloadActions a) action,
+  ) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await action(
+      PlanUnderloadActions(
+        controller: _controller,
+        session: widget.session,
+        clock: widget.clock,
+        recalculation: widget.recalculation,
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+  }
+
   void _snack(ScaffoldMessengerState m, String key, String text) => m
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(key: Key(key), content: Text(text)));
@@ -746,6 +765,21 @@ class _PlanScreenState extends State<PlanScreen> {
           if (s.feedbackDue) ...[
             const SizedBox(height: 10),
             _FeedbackCard(onAnswer: _busy ? null : _answerFeedback),
+          ],
+          if (s.underloadPrompt case final prompt?) ...[
+            const SizedBox(height: 10),
+            PlanUnderloadCard(
+              prompt: prompt,
+              onCheckHrMax: _busy
+                  ? null
+                  : () => _underload((a) => a.checkHrMax(context)),
+              onHintFine: _busy
+                  ? null
+                  : () => _underload((a) => a.hintFine(context)),
+              onAnswer: _busy
+                  ? null
+                  : (yes) => _underload((a) => a.answer(context, yes)),
+            ),
           ],
           const SizedBox(height: 16),
           FutureBuilder<_WeekData>(

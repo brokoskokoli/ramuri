@@ -367,6 +367,13 @@ final Map<String, List<Object>> parCodeValues = {
   ],
   'PAR-204': [_pct(_plan.largeChangeShare)],
   'PAR-235': [_plan.deviationTimeFactor, _plan.deviationRpeSteps],
+  'PAR-236': [
+    _plan.underloadRuns,
+    _plan.underloadWindowRuns,
+    _plan.completedIntensiveMinHighHrMinutes,
+    // Auslegung: „ab 80 % HFmax“ wie PAR-058.
+    _fit.highHeartRateMinSharePercent,
+  ],
   'PAR-205': [
     ..._doc([5, 10], 'Namen der Zielstrecken 5 km und 10 km.'),
     _plan.peakHalfMarathonKm,

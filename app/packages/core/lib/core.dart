@@ -135,6 +135,7 @@ export 'src/plan/plan_parameters.dart';
 export 'src/plan/plan_registry.dart';
 export 'src/plan/plan_unit.dart';
 export 'src/plan/plan_recovery.dart';
+export 'src/plan/plan_underload.dart';
 export 'src/plan/plan_warning.dart';
 export 'src/plan/recalculate_plan.dart';
 export 'src/plan/warning_service.dart';

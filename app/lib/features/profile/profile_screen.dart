@@ -14,11 +14,15 @@ class ProfileScreen extends StatefulWidget {
     required this.session,
     required this.clock,
     required this.recalculation,
+    this.focusMaxHeartRate = false,
   });
 
   final StorageSession session;
   final Clock clock;
   final RecalculationController recalculation;
+
+  /// Öffnet mit dem Feld HFmax im Fokus (PAR-236).
+  final bool focusMaxHeartRate;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -120,6 +124,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             restingMeasure: _camera == null ? null : _launcher(),
             coefficients: _Coefficients(widget.session, widget.recalculation),
             onSaved: (_) => _showSaved(),
+            focusMaxHeartRate: widget.focusMaxHeartRate,
           ),
         ],
       ),
