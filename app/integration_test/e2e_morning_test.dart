@@ -1,7 +1,8 @@
 // E2E: Morgenmessung (FR-0215/0217, WP33) mit Fake-Kamera (DebugTestPpgCamera,
 // Zeitraffer 30) und Test-Sensor mit RR (DebugTestSensor sendRr). Ein Ablauf,
 // weil die Schritte aufeinander aufbauen (Entwicklermodus, Messungen des Tages):
-// 1 ohne Entwicklermodus kein Einstieg, 2 neun Tipps nein / zehn ja, 3 liegend und
+// 1 ohne Entwicklermodus kein Einstieg, 3 die erste Messung zeigt die
+// Kamerasuche vor der Ruhephase (FR-0220, volle Ruhephase danach), 2 neun Tipps nein / zehn ja, 3 liegend und
 // sitzend: beide gespeichert, aber nur die erste gueltige des Morgens zaehlt
 // (eine Reihe je Geraet, K67), 3b nach gueltiger Messung im Fenster Noch einmal
 // (Einstieg, andere Haltung, Ruhephase) -> zweite zaehlt nicht -> stattdessen
@@ -134,9 +135,35 @@ bool resultSettled() {
   return w is RamuriPrimaryButton && w.onPressed != null;
 }
 
-Future<void> toResult(WidgetTester t) async {
+/// Mit [finder] erscheint nach dem Start zuerst die Kamerasuche (FR-0220, noch
+/// kein Suchergebnis): Zeit darauf (Testuhr vorgestellt) zaehlt nicht, die
+/// Ruhephase danach hat die volle Dauer von 2 min.
+Future<void> toResult(WidgetTester t, {bool finder = false}) async {
   await tapKey(t, 'morning_start');
   try {
+    if (finder) {
+      await waitFor(
+        t,
+        () => has('camera_finder_apply') || has('camera_finder_default'),
+        'Kamerasuche vor der Ruhephase',
+        timeout: const Duration(seconds: 30),
+      );
+      expect(has('measure_rest_clock'), isFalse, reason: 'Ruhephase danach');
+      _clk.jump(const Duration(minutes: 5));
+      await pumpFor(t, const Duration(milliseconds: 300));
+      await tapKey(
+        t,
+        has('camera_finder_apply')
+            ? 'camera_finder_apply'
+            : 'camera_finder_default',
+      );
+      await waitFor(t, () => has('measure_rest_clock'), 'Ruhephase');
+      expect(
+        txt('measure_rest_clock'),
+        anyOf('2:00', '1:59', '1:58'),
+        reason: 'volle Ruhephase nach der Kamerasuche',
+      );
+    }
     await waitFor(t, () => has('measure_rest_clock'), 'Ruhephase');
     _clk.jump(const Duration(minutes: 30));
     await waitFor(
@@ -155,7 +182,11 @@ Future<void> toResult(WidgetTester t) async {
 }
 
 /// Ueber Heute -> Uebersicht -> Eintrag Morgenmessung; am Ende liegt das Ergebnis.
-Future<void> measureFromTile(WidgetTester t, {bool sitting = false}) async {
+Future<void> measureFromTile(
+  WidgetTester t, {
+  bool sitting = false,
+  bool finder = false,
+}) async {
   await tapKey(t, 'home_overview');
   await tapKey(t, 'overview_morning');
   await waitFor(t, () => has('morning_start'), 'Einstieg Morgenmessung');
@@ -170,7 +201,7 @@ Future<void> measureFromTile(WidgetTester t, {bool sitting = false}) async {
       'Haltung sitzend gewaehlt (morning_pose_note)',
     );
   }
-  await toResult(t);
+  await toResult(t, finder: finder);
 }
 
 /// Seite „Heute“ steht: am Schluessel der Seite, nicht an „Lauf starten“ –
@@ -764,6 +795,12 @@ void main() {
     await startApp(t, w);
     await setupIfShown(t);
     final s = await session(t, w);
+    // Die Sammlung teilt den Speicher: ohne Suchergebnis beginnen (FR-0220).
+    await t.runAsync(() async {
+      final choice = SettingsPpgCameraChoiceStore(s.settings, w.deps.clock);
+      await choice.setAuto(null);
+      await choice.setManual(null);
+    });
     log(
       'S0 Fenster=${(await t.runAsync(() => SettingsMorningWindowStore(s.settings, w.deps.clock).read()))!.format()}',
     );
@@ -908,7 +945,15 @@ void main() {
     // (K67): nur die erste gueltige des Morgens zaehlt, die zweite wird
     // gespeichert und als „zaehlt nicht“ vermerkt. Hatte das Geraet heute schon
     // eine zaehlende Messung (Tabelle nicht leer), zaehlt auch die liegende nicht.
-    await measureFromTile(t);
+    // Erste Kamera-Messung ohne Suchergebnis: Kamerasuche vor der Ruhephase.
+    await measureFromTile(t, finder: true);
+    expect(
+      await t.runAsync(
+        SettingsPpgCameraChoiceStore(s.settings, w.deps.clock).readAuto,
+      ),
+      isNotNull,
+      reason: 'S3 Suchergebnis gespeichert',
+    );
     expect(has('morning_done'), isTrue, reason: 'S3 liegend gut');
     // Gueltig im Fenster: Noch einmal messen wird angeboten (FR-0215).
     expect(has('morning_again'), isTrue, reason: 'S3 liegend Noch einmal');

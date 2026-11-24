@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'camera_finder_gate.dart';
 import 'resting_measure_controller.dart';
 import 'resting_measure_screen.dart';
 
@@ -126,6 +127,13 @@ class _RestingMeasureHostState extends State<RestingMeasureHost> {
       clock: widget.clock,
       signal: SystemRestingSignal(_soundOn),
       evaluate: widget.evaluate,
+      // Kamerasuche vor der Messung, wenn nötig (FR-0220).
+      beforeStart: () => runCameraFinderBeforeMeasurement(
+        context,
+        camera: widget.camera,
+        settings: widget.settings,
+        clock: widget.clock,
+      ),
       // Kamera nach FR-0220 (gleiche Regel wie die Morgenmessung).
       cameraChoice: () => choosePpgCamera(
         camera: widget.camera,
