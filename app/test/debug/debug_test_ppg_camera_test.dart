@@ -344,4 +344,99 @@ void main() {
       expect(cam.startedCameras, isEmpty);
     });
   });
+
+  group('Bildrate je Kamera (FR-0220)', () {
+    Future<(PpgCameraStarted, List<PpgFrame>)> start(
+      DebugTestPpgCamera cam, [
+      PpgCameraRef? camera,
+    ]) async {
+      final events = await cam.start(camera: camera, ispFrames: true).toList();
+      return (events.first as PpgCameraStarted, _frames(events));
+    }
+
+    void expectSpacing(List<PpgFrame> frames, int fps) {
+      expect(frames.length, greaterThan(2));
+      expect(frames[1].t - frames[0].t, closeTo(1 / fps, 1e-9));
+      expect(
+        frames.last.t - frames[frames.length - 2].t,
+        closeTo(1 / fps, 1e-9),
+      );
+    }
+
+    test('ohne Angabe: Standardkamera nimmt mit 60 Bildern/s auf', () async {
+      final cam = DebugTestPpgCamera(speed: 100000);
+      final (started, frames) = await start(cam);
+      expect(started.camera, const PpgCameraRef('0'));
+      expect(started.fps, 60);
+      expectSpacing(frames, 60);
+    });
+
+    test('zweite nutzbare Kamera nimmt mit 30 Bildern/s auf', () async {
+      final cam = DebugTestPpgCamera(speed: 100000);
+      final (started, frames) = await start(cam, const PpgCameraRef('0', '2'));
+      expect(started.camera, const PpgCameraRef('0', '2'));
+      expect(started.fps, 30);
+      expectSpacing(frames, 30);
+    });
+
+    test(
+      'Rate gilt je Start: dieselbe Quelle erst Standard-, dann zweite Kamera',
+      () async {
+        final cam = DebugTestPpgCamera(speed: 100000);
+        expect((await start(cam)).$1.fps, 60);
+        final (started, frames) = await start(
+          cam,
+          const PpgCameraRef('0', '2'),
+        );
+        expect(started.fps, 30);
+        expectSpacing(frames, 30);
+        expect((await start(cam)).$1.fps, 60);
+      },
+    );
+
+    test('Bilddauer der ISP-Werte folgt der Rate der Kamera', () async {
+      final cam = DebugTestPpgCamera(speed: 100000);
+      final events = await cam.start(ispFrames: true).toList();
+      final isp = events.whereType<PpgCameraFrame>().first.isp!;
+      expect(isp[14], (1e9 / 60).roundToDouble());
+    });
+
+    test('feste Rate gilt für jede nutzbare Kamera', () async {
+      for (final ref in [
+        null,
+        const PpgCameraRef('0'),
+        const PpgCameraRef('0', '2'),
+      ]) {
+        final cam = DebugTestPpgCamera(speed: 100000, fps: 25);
+        final (started, frames) = await start(cam, ref);
+        expect(started.fps, 25, reason: '$ref');
+        expectSpacing(frames, 25);
+      }
+    });
+
+    test('nutzbarer Eintrag ohne Rate: 30 Bilder/s, feste Rate geht vor', () {
+      const info = PpgCameraInfo(ref: PpgCameraRef('5'), focalLengthMm: 4);
+      expect(debugPpgFrameRate(info, null), 30);
+      expect(debugPpgDefaultFps, 30);
+      expect(debugPpgFrameRate(info, 25), 25);
+      expect(debugPpgFrameRate(debugPpgCameras.first, null), 60);
+    });
+
+    test('auch mit fester Rate: Kamera ohne Blitz und unbekannte Kamera '
+        'brechen vor jedem Bild ab', () async {
+      for (final (ref, reason) in [
+        (const PpgCameraRef('1'), PpgCameraStopReason.noFlash),
+        (const PpgCameraRef('7'), PpgCameraStopReason.noCamera),
+      ]) {
+        for (final fps in [null, 25]) {
+          final cam = DebugTestPpgCamera(speed: 100000, fps: fps);
+          final events = await cam.start(camera: ref).toList();
+          expect(events, hasLength(1));
+          expect((events.single as PpgCameraStopped).reason, reason);
+          expect(cam.framesGenerated, 0);
+          expect(cam.startedCameras, isEmpty);
+        }
+      }
+    });
+  });
 }
