@@ -366,6 +366,7 @@ final Map<String, List<Object>> parCodeValues = {
     _plan.pauseNewStartDays / 7,
   ],
   'PAR-204': [_pct(_plan.largeChangeShare)],
+  'PAR-235': [_plan.deviationTimeFactor, _plan.deviationRpeSteps],
   'PAR-205': [
     ..._doc([5, 10], 'Namen der Zielstrecken 5 km und 10 km.'),
     _plan.peakHalfMarathonKm,
