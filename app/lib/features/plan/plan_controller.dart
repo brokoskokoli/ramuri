@@ -956,7 +956,6 @@ class PlanController extends ChangeNotifier {
             ?PlanRunCandidate.of(
               r,
               movingTime: overviews[r.id]?.summary.movingTime,
-              fallbackOffset: clock.utcOffsetAt(r.startedAt),
             ),
       ];
       final next = planAutoAssignments(

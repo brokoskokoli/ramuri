@@ -23,24 +23,19 @@ const int runDayMethodVersion = 2;
 /// Ortstag des Laufbeginns als UTC-Mitternacht (PAR-237): Beginn plus der am
 /// Lauf gespeicherte UTC-Versatz (Zeitzone des Laufs, nicht die des Geräts
 /// jetzt; es gibt nur den Versatz zum Ende, er gilt auch für den Start). Fehlt
-/// der Versatz, gilt [fallbackOffset] (ohne Angabe UTC). Ein Lauf über
-/// Mitternacht zählt für den Starttag. Die EINE Rechnung für [dayOfRun] und
-/// die Zuordnung zu Plan-Einheiten (`planRunStartDay`, PAR-231).
-DateTime runStartLocalDay(
-  StoredRun run, {
-  Duration fallbackOffset = Duration.zero,
-}) {
-  final local = runStartLocal(run, fallbackOffset: fallbackOffset);
+/// der Versatz (alter Lauf), gilt UTC, nie der Versatz des Geräts. Ein Lauf
+/// über Mitternacht zählt für den Starttag. Die EINE Rechnung für [dayOfRun]
+/// und die Zuordnung zu Plan-Einheiten (`planRunStartDay`, PAR-231).
+DateTime runStartLocalDay(StoredRun run) {
+  final local = runStartLocal(run);
   return DateTime.utc(local.year, local.month, local.day);
 }
 
 /// Beginn des Laufs in seiner Ortszeit (als UTC-Zeitpunkt mit den Ziffern der
 /// Ortszeit), wie [runStartLocalDay]: Beginn plus der am Lauf gespeicherte
-/// UTC-Versatz, ohne Versatz [fallbackOffset] (ohne Angabe UTC).
-DateTime runStartLocal(
-  StoredRun run, {
-  Duration fallbackOffset = Duration.zero,
-}) => run.startedAt.toUtc().add(run.endedUtcOffset ?? fallbackOffset);
+/// UTC-Versatz, ohne Versatz UTC.
+DateTime runStartLocal(StoredRun run) =>
+    run.startedAt.toUtc().add(run.endedUtcOffset ?? Duration.zero);
 
 /// Tag eines Laufs (PAR-237), `JJJJ-MM-TT`: der Ortstag seines Beginns
 /// ([runStartLocalDay]); fehlt der Versatz (alter Lauf, unbekannt), gilt der

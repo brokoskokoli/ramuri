@@ -53,17 +53,85 @@ class _NoCheck extends PlanController {
   Future<void> open() => reload();
 }
 
-/// Lauf ab Tag [day] 23:30 bis zum Folgetag 00:40 (Versatz 0).
-Future<int> _midnightRun(StorageSession s, int day) async {
+/// Lauf ab Tag [day] 23:30 UTC bis zum Folgetag 00:40 UTC, mit dem Versatz
+/// [offset] am Lauf (`null`: alter Lauf ohne gespeicherten Versatz).
+Future<int> _midnightRun(
+  StorageSession s,
+  int day, {
+  Duration? offset = Duration.zero,
+}) async {
   final start = _d(day).add(const Duration(hours: 23, minutes: 30));
   final run = await s.runs.create(startedAt: start);
   await s.runs.setState(
     run.id,
     RunState.finished,
     endedAt: start.add(const Duration(minutes: 70)),
-    endedUtcOffset: Duration.zero,
+    endedUtcOffset: offset,
   );
   return run.id;
+}
+
+/// Plan mit einer lockeren Einheit am Dienstag (Tag 1).
+Future<void> _seedPlan(StorageSession session) async {
+  await (session as GoalStorage).goals.save(_goal(), today: _d(0));
+  final plans = (session as PlanStorage).plans;
+  await plans.writeVersion(
+    PlanVersionDraft(
+      createdAt: _d(0),
+      validFrom: _d(0),
+      trigger: PlanTrigger.create,
+      reason: 'start',
+      version: const PlanVersion(),
+      inputs: PlanInputs(
+        anchor: _mon,
+        startWeeklyMinutes: 145,
+        today: _d(0),
+        easyPaceSecondsPerKm: 360,
+        easyRunCount: 4,
+      ),
+      summary: const {'larger': false, 'changedUnitCount': 1},
+      units: [_easy(1)],
+      readState: planUnitsFingerprint(
+        await plans.unitsBetween(_mon, planFarFuture),
+      ),
+    ),
+  );
+}
+
+/// Öffnet den Kalender des Plans und liefert eine Suche im Tag `2026-11-[day]`.
+Future<Finder Function(String day, String text)> _openCalendar(
+  WidgetTester tester,
+  StorageSession session,
+  FakeClock clock,
+  PlanController controller,
+) async {
+  tester.view.physicalSize = const Size(411, 1400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  final settings = await AppSettings.load(session.settings, clock);
+  await tester.pumpWidget(
+    OffloadScope(
+      offload: inlineOffload,
+      child: AppSettingsScope(
+        holder: AppSettingsHolder()..attach(settings),
+        child: localizedApp(
+          locale: const Locale('de'),
+          home: PlanScreen(
+            session: session,
+            clock: clock,
+            controller: controller,
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(key('plan_open_calendar'));
+  await tester.pumpAndSettle();
+  return (day, text) => find.descendant(
+    of: key('calendar_day_2026-11-$day'),
+    matching: find.textContaining(text),
+  );
 }
 
 void main() {
@@ -73,29 +141,7 @@ void main() {
   ) async {
     final session = await FakeStorage().open(_key);
     final clock = LocalFakeClock(_now);
-    await (session as GoalStorage).goals.save(_goal(), today: _d(0));
-    final plans = (session as PlanStorage).plans;
-    await plans.writeVersion(
-      PlanVersionDraft(
-        createdAt: _d(0),
-        validFrom: _d(0),
-        trigger: PlanTrigger.create,
-        reason: 'start',
-        version: const PlanVersion(),
-        inputs: PlanInputs(
-          anchor: _mon,
-          startWeeklyMinutes: 145,
-          today: _d(0),
-          easyPaceSecondsPerKm: 360,
-          easyRunCount: 4,
-        ),
-        summary: const {'larger': false, 'changedUnitCount': 1},
-        units: [_easy(1)],
-        readState: planUnitsFingerprint(
-          await plans.unitsBetween(_mon, planFarFuture),
-        ),
-      ),
-    );
+    await _seedPlan(session);
     // Dienstag 23:30 bis Mittwoch 00:40: für die Einheit am Dienstag.
     final planned = await _midnightRun(session, 1);
     // Donnerstag 23:30 bis Freitag 00:40, ohne Einheit.
@@ -105,34 +151,7 @@ void main() {
     expect(await controller.autoAssignRuns(since: _mon), PlanActionResult.done);
     expect((await controller.unitOn(_d(1)))!.runId, planned);
 
-    tester.view.physicalSize = const Size(411, 1400);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    final settings = await AppSettings.load(session.settings, clock);
-    await tester.pumpWidget(
-      OffloadScope(
-        offload: inlineOffload,
-        child: AppSettingsScope(
-          holder: AppSettingsHolder()..attach(settings),
-          child: localizedApp(
-            locale: const Locale('de'),
-            home: PlanScreen(
-              session: session,
-              clock: clock,
-              controller: controller,
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(key('plan_open_calendar'));
-    await tester.pumpAndSettle();
-
-    Finder inDay(String day, String text) => find.descendant(
-      of: key('calendar_day_2026-11-$day'),
-      matching: find.textContaining(text),
-    );
+    final inDay = await _openCalendar(tester, session, clock, controller);
     // Einheit des Starttags erledigt; der Folgetag hat keinen Lauf.
     expect(inDay('10', 'erledigt'), findsOneWidget);
     expect(inDay('11', 'Lauf ohne Plan'), findsNothing);
@@ -140,6 +159,29 @@ void main() {
     // Lauf ohne Einheit am Starttag (Donnerstag), nicht am Freitag.
     expect(inDay('12', 'Lauf ohne Plan'), findsOneWidget);
     expect(inDay('13', 'Lauf ohne Plan'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Lauf ohne gespeicherten Versatz: Kalender und Plan-Einheit am '
+      'UTC-Tag des Starts, nicht am Tag nach dem Versatz des Geräts '
+      '(FR-0171, PAR-231, PAR-237)', (tester) async {
+    final session = await FakeStorage().open(_key);
+    // Gerät auf UTC+1: Freitag 12:00 Ortszeit in jeder Prozesszone.
+    final clock = LocalFakeClock(DateTime.utc(2026, 11, 13, 11))
+      ..utcOffset = const Duration(hours: 1);
+    await _seedPlan(session);
+    // Dienstag 23:30 UTC (mit dem Gerät schon Mittwoch 00:30), alter Lauf
+    // ohne Versatz: zählt für Dienstag.
+    final run = await _midnightRun(session, 1, offset: null);
+    final controller = _NoCheck(session, clock);
+    addTearDown(controller.dispose);
+    expect(await controller.autoAssignRuns(since: _mon), PlanActionResult.done);
+    expect((await controller.unitOn(_d(1)))!.runId, run);
+
+    final inDay = await _openCalendar(tester, session, clock, controller);
+    expect(inDay('10', 'erledigt'), findsOneWidget);
+    expect(inDay('11', 'Lauf ohne Plan'), findsNothing);
+    expect(inDay('11', 'Ruhetag'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

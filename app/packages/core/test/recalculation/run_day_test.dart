@@ -90,10 +90,7 @@ void main() {
           const Duration(minutes: 70),
           const Duration(hours: 1),
         );
-        expect(
-          isoDay(planRunStartDay(r, fallbackOffset: Duration.zero)),
-          dayOfRun(r),
-        );
+        expect(isoDay(planRunStartDay(r)), dayOfRun(r));
       },
     );
   });
