@@ -1,5 +1,6 @@
 import '../../ports/clock.dart';
 import '../../ports/storage.dart';
+import '../../ports/storage_derived.dart';
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_warning.dart';
@@ -76,16 +77,37 @@ class HintService {
     final trainings = <HintTraining>[];
     final byRunId = <int, HintTraining>{};
     final subjective = await s.subjective.readAll();
+    // Eine andere Sportart (FR-0221) zählt für PAR-178 nur, wenn sie eine
+    // lockere Einheit ersetzt (PAR-233), dann mit ihrer Bewegungszeit.
+    final replaced = <int>{};
+    if (s is PlanStorage) {
+      for (final u in await (s as PlanStorage).plans.unitsBetween(
+        DateTime.utc(1, 1, 1),
+        planFarFuture,
+      )) {
+        if (u.runId case final int id) replaced.add(id);
+      }
+    }
+    Map<int, StoredPreprocessing>? overviews;
     for (final r in await s.runs.list()) {
       final end = r.endedAt;
       if (r.state != RunState.finished || end == null) continue;
       final sub = subjective[r.id]?.subjective;
+      final sport = !r.mode.isRunning;
+      final counts = !sport || replaced.contains(r.id);
+      var minutes = end.difference(r.startedAt).inMinutes;
+      if (sport && counts) {
+        overviews ??= await s.preprocessing.readOverviews();
+        final moving = overviews[r.id]?.summary.movingTime;
+        if (moving != null) minutes = moving.inMinutes;
+      }
       final t = HintTraining(
         day: DateTime.parse('${dayOfRun(r)}T00:00:00Z'),
-        minutes: end.difference(r.startedAt).inMinutes,
+        minutes: minutes,
         rpe: sub?.rpe,
         wellbeing: sub?.wellbeing,
         isRun: true,
+        countsForIncrease: counts,
       );
       trainings.add(t);
       byRunId[r.id] = t;

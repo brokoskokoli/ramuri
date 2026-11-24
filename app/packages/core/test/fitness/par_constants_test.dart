@@ -366,6 +366,14 @@ final Map<String, List<Object>> parCodeValues = {
     _plan.pauseNewStartDays / 7,
   ],
   'PAR-204': [_pct(_plan.largeChangeShare)],
+  'PAR-235': [_plan.deviationTimeFactor, _plan.deviationRpeSteps],
+  'PAR-236': [
+    _plan.underloadRuns,
+    _plan.underloadWindowRuns,
+    _plan.completedIntensiveMinHighHrMinutes,
+    // Auslegung: „ab 80 % HFmax“ wie PAR-058.
+    _fit.highHeartRateMinSharePercent,
+  ],
   'PAR-205': [
     ..._doc([5, 10], 'Namen der Zielstrecken 5 km und 10 km.'),
     _plan.peakHalfMarathonKm,
@@ -748,6 +756,16 @@ final Map<String, List<Object>> parCodeValues = {
     ppgGoodStretchDisplayMinSeconds,
     ..._doc([0], 'Anzeigewert darunter.'),
   ],
+  'PAR-227': [ppgCameraFinderTurnSeconds, ppgCameraFinderWindowSeconds],
+  'PAR-228': [
+    ..._doc(
+      [60, 30],
+      'Feste Bildraten der Kameraliste (PpgCameraInfo.frameRate), keine '
+      'Konstante der Empfehlung.',
+    ),
+    ppgCameraFinderIsoReference,
+    _pct(ppgCameraFinderLightTieRelative),
+  ],
   'PAR-229': [morningBeltCompareAmbiguityRatio],
   'PAR-234': [
     // Fenster (restingLiveStageWindowSeconds) im App-Paket.
@@ -764,8 +782,25 @@ final Map<String, List<Object>> parCodeValues = {
     ..._doc(
       [3],
       'Version, ab der PAR-230 gilt; die aktuelle Version (ppgMethodVersion) '
-      'ist seit der Belichtungsänderung (ADR-0011, Nachtrag 2026-11-22) 5.',
+      'ist seit der Neusperre der Belichtung (PAR-245, PAR-246) 6.',
     ),
+  ],
+  'PAR-245': [
+    ..._doc(
+      [20, 0.5, 1.5],
+      'Kotlin-Konstanten in PpgCameraLogic.kt, geprüft in PpgCameraLogicTest.',
+    ),
+    ppgMethodVersion,
+  ],
+  'PAR-246': [
+    ..._doc([
+      5,
+    ], 'Kotlin-Konstante CALM_RELATIVE, geprüft in PpgCameraLogicTest.'),
+    ppgExposureLockSeconds,
+    // Fensterbeginn frühestens so lange nach der neuen Sperre wie beim ersten Mal.
+    ppgSearchStartMin(relockedAt: 60) - 60,
+    ppgSearchMaxRecordSeconds,
+    ppgMethodVersion,
   ],
 };
 

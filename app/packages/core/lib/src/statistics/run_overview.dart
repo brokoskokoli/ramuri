@@ -42,6 +42,7 @@ StoredPreprocessing overviewOf(
   required DateTime computedAt,
   int? lapCount,
   BeltTrack? belt,
+  bool isRunning = true,
 }) {
   final beltSpans = belt == null
       ? null
@@ -59,13 +60,18 @@ StoredPreprocessing overviewOf(
       // Bandlauf (FR-0196): Strecke und Bewegungszeit aus den Einstellungen,
       // keine überbrückte Strecke, keine Bestpace (nur eingestellt, K57).
       movingTime: belt?.moving ?? pre.movement.movingTime,
-      distanceMeters: belt?.meters ?? pre.position.distanceMeters,
-      bridgedDistanceMeters: belt == null
+      // Andere Sportart (FR-0221): keine Strecke und keine Pace.
+      distanceMeters: !isRunning
+          ? null
+          : belt?.meters ?? pre.position.distanceMeters,
+      bridgedDistanceMeters: !isRunning
+          ? null
+          : belt == null
           ? pre.position.bridgedDistanceMeters
           : 0,
       averageBpm: pre.heartRate.averageBpm,
       maxBpm: pre.heartRate.maxBpm,
-      bestPaceSecondsPerKm: belt != null
+      bestPaceSecondsPerKm: belt != null || !isRunning
           ? null
           : bestPace(pre.pace.segments).secondsPerKm,
       lapCount: lapCount,
@@ -143,6 +149,7 @@ class RunOverview {
     runId: run.id,
     endedAt: run.endedAt!,
     day: dayOfRun(run),
+    isRunning: run.mode.isRunning,
     distanceMeters: distanceMeters,
     movingTime: movingTime,
     totalTime: totalTime,
@@ -276,6 +283,7 @@ class RunOverviewService {
       computedAt: clock.now(),
       lapCount: lapCount,
       belt: belt,
+      isRunning: run.mode.isRunning,
     );
     try {
       // Die Bewegungszeit kann sich geändert haben: sRPE des Laufs folgt, und

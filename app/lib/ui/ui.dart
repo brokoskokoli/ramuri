@@ -4,6 +4,7 @@ library;
 
 export 'dark_scope.dart';
 export 'ember_dot.dart';
+export 'ppg_preview_patch.dart';
 export 'estimated_mark.dart';
 export 'font_licenses.dart';
 export 'ramuri_badge.dart';

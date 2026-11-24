@@ -63,3 +63,44 @@ class IsolateLogs {
 
 FutureOr<void> Function() _redirect(SendPort port) =>
     () => driftRuntimeOptions.debugPrint = (String s) => port.send(s);
+
+/// Baut `runs` in den Stand vor Version 10 zurück (ohne `mode` und `sport`).
+/// SQLite kann `mode` nicht einzeln entfernen, weil der Tabellen-CHECK aus
+/// Version 18 die Spalte nennt. Ids und Werte bleiben, Kindzeilen ebenso
+/// (Fremdschlüssel aus, Verweise bleiben auf `runs`). [withOffset]: Stand ab
+/// Version 3 mit `ended_utc_offset_s` und den beiden Triggern.
+Future<void> rebuildRunsBeforeMode(
+  Future<void> Function(String sql) exec, {
+  required bool withOffset,
+}) async {
+  final offset = withOffset ? ', ended_utc_offset_s' : '';
+  await exec('PRAGMA foreign_keys = OFF');
+  await exec(
+    'CREATE TABLE runs_before_mode ('
+    'id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
+    "state TEXT NOT NULL CHECK (state IN ('active', 'paused', 'finished')), "
+    'started_at_us INTEGER NOT NULL, ended_at_us INTEGER'
+    '${withOffset ? ', ended_utc_offset_s INTEGER CHECK '
+              '(ended_utc_offset_s BETWEEN -64800 AND 64800)' : ''})',
+  );
+  await exec(
+    'INSERT INTO runs_before_mode (id, state, started_at_us, ended_at_us'
+    '$offset) SELECT id, state, started_at_us, ended_at_us$offset FROM runs',
+  );
+  await exec('DROP TABLE runs');
+  await exec('PRAGMA legacy_alter_table = ON');
+  await exec('ALTER TABLE runs_before_mode RENAME TO runs');
+  await exec('PRAGMA legacy_alter_table = OFF');
+  await exec('PRAGMA foreign_keys = ON');
+  if (!withOffset) return;
+  for (final (name, event) in [
+    ('runs_offset_insert', 'INSERT'),
+    ('runs_offset_update', 'UPDATE'),
+  ]) {
+    await exec(
+      'CREATE TRIGGER $name BEFORE $event ON runs '
+      'WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL '
+      "BEGIN SELECT RAISE(ABORT, 'offset without end'); END",
+    );
+  }
+}

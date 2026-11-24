@@ -126,4 +126,31 @@ void main() {
       isEmpty,
     );
   });
+
+  test('Sporteinheit zählt nicht in Anzahl, Strecke und Zeit (FR-0221)', () {
+    final withSport = [
+      ...runs,
+      figures(
+        9,
+        '2030-01-15',
+        hour: 18,
+        sport: true,
+        movingSec: 1800,
+        trimp: 40,
+      ),
+    ];
+    for (final r in HistoryRange.values) {
+      final a = historyTotals(r, today, runs);
+      final b = historyTotals(r, today, withSport);
+      expect(b.runCount, a.runCount, reason: '$r');
+      expect(b.distanceMeters, a.distanceMeters, reason: '$r');
+      expect(b.movingTime, a.movingTime, reason: '$r');
+      expect(b.totalTime, a.totalTime, reason: '$r');
+      expect(
+        b.statistics.distanceMeters.runsTotal,
+        a.statistics.distanceMeters.runsTotal,
+        reason: '$r',
+      );
+    }
+  });
 }

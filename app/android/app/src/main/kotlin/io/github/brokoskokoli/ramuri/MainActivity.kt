@@ -54,6 +54,7 @@ class MainActivity : FlutterActivity() {
     /** ADR-0011 Punkt 6: Nicht mehr sichtbar (Hintergrund, Bildschirm aus): die Kamera-Messung bricht ab. */
     override fun onStop() {
         PpgCamera.onAppBackground()
+        PpgCameraPreview.onAppBackground()
         super.onStop()
     }
 

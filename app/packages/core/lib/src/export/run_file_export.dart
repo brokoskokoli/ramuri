@@ -4,6 +4,7 @@ import '../../ports/file_handoff.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
+import '../recording/treadmill.dart';
 import '../statistics/offload.dart';
 import 'export_run.dart';
 import 'fit_encoder.dart';
@@ -24,10 +25,11 @@ enum ExportFormat {
   /// Zeitauflösung des Formats (FIT: ganze Sekunden).
   final Duration resolution;
 
-  /// Ob das Format für einen Bandlauf (ohne Positionen) möglich ist: GPX
-  /// nicht (FR-0196, K57).
-  bool availableFor({required bool treadmill}) =>
-      !(treadmill && this == ExportFormat.gpx);
+  /// Ob das Format für einen Lauf der Art [mode] möglich ist: GPX nur mit
+  /// Positionen, also nicht für Bandläufe (FR-0196, K57) und andere
+  /// Sportarten (FR-0221).
+  bool availableFor(RunMode mode) =>
+      this != ExportFormat.gpx || mode == RunMode.gps;
 }
 
 /// Baut aus einem gespeicherten Lauf die Datei eines Formats; die Übergabe

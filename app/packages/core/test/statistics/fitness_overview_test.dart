@@ -48,7 +48,8 @@ class _CountingValues implements ComputedValueStore {
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
-  }) => i.writeAll(create: create, swap: swap);
+    Set<String> removeDays = const {},
+  }) => i.writeAll(create: create, swap: swap, removeDays: removeDays);
 }
 
 Future<List<StoredRun>> _finished(StorageSession s) async => [

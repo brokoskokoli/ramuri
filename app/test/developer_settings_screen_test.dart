@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/export/file_handoff_scope.dart';
 import 'package:running_app/features/settings/developer_settings_screen.dart';
+import 'package:running_app/features/settings/ppg_camera_diagnostics_section.dart';
 import 'package:running_app/features/settings/ppg_camera_section.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
@@ -14,6 +15,7 @@ import 'app_harness.dart';
 void main() {
   pairsTests();
   cameraTests();
+  diagnosticsTests();
   pageTests();
 }
 
@@ -22,7 +24,7 @@ Future<DeveloperModeStore> _pumpAll(
   WidgetTester tester, {
   String locale = 'de',
   double scale = 1,
-  Size size = const Size(800, 2400),
+  Size size = const Size(800, 4000),
 }) async {
   final s = await _cameraSetup();
   final session = await FakeStorage().open(Uint8List(32));
@@ -48,6 +50,7 @@ Future<DeveloperModeStore> _pumpAll(
           developerMode: s.mode,
           ppgCamera: s.camera,
           cameraChoice: s.choice,
+          cameraDiagnostics: s.diagnostics,
           morning: morning,
           clock: () => DateTime.utc(2031, 2, 3),
         ),
@@ -60,7 +63,7 @@ Future<DeveloperModeStore> _pumpAll(
 
 void pageTests() {
   testWidgets('Seite: Titel, Abschnitte Entwicklermodus, Kamera, Messpaare, '
-      'Kamera gegen Gurt in dieser Reihenfolge', (tester) async {
+      'Kamera gegen Gurt, Diagnose in dieser Reihenfolge', (tester) async {
     await _pumpAll(tester);
     expect(find.widgetWithText(AppBar, 'Entwicklereinstellungen'), findsOne);
     expect(find.text('Entwicklermodus'), findsOneWidget);
@@ -69,10 +72,12 @@ void pageTests() {
       key('about_ppg_camera_card'),
       key('about_pairs'),
       key('dev_compare'),
+      key('dev_ppg_diag_card'),
     ].map((f) => tester.getTopLeft(f).dy).toList();
     expect(y[0], lessThan(y[1]));
     expect(y[1], lessThan(y[2]));
     expect(y[2], lessThan(y[3]));
+    expect(y[3], lessThan(y[4]));
   });
 
   testWidgets('Seite: Englisch', (tester) async {
@@ -80,6 +85,7 @@ void pageTests() {
     expect(find.widgetWithText(AppBar, 'Developer settings'), findsOne);
     expect(find.text('Developer mode'), findsOneWidget);
     expect(find.text('Camera for pulse measurement'), findsOneWidget);
+    expect(find.text('Camera image processing (diagnostics)'), findsOneWidget);
     expect(find.text('Camera and strap pairs'), findsOneWidget);
   });
 
@@ -274,6 +280,7 @@ typedef _CameraSetup = ({
   SettingsStore settings,
   DeveloperModeStore mode,
   PpgCameraChoiceStore choice,
+  PpgCameraDiagnosticsStore diagnostics,
   FakePpgCamera camera,
 });
 
@@ -287,9 +294,62 @@ Future<_CameraSetup> _cameraSetup({bool on = true}) async {
     settings: session.settings,
     mode: mode,
     choice: SettingsPpgCameraChoiceStore(session.settings, clock),
+    diagnostics: SettingsPpgCameraDiagnosticsStore(session.settings, clock),
     camera: camera,
   );
 }
+
+/// Wahl von Hand, deren Speichern scheitert; Lesen geht an [_inner].
+class _FailingChoiceStore implements PpgCameraChoiceStore {
+  _FailingChoiceStore(this._inner);
+
+  final PpgCameraChoiceStore _inner;
+  int setCalls = 0;
+
+  @override
+  Future<PpgCameraRef?> readManual() => _inner.readManual();
+
+  @override
+  Future<void> setManual(PpgCameraRef? camera) async {
+    setCalls++;
+    throw const StorageException(StorageFailure.failed);
+  }
+
+  @override
+  Future<PpgCameraRef?> readAuto() => _inner.readAuto();
+
+  @override
+  Future<void> setAuto(PpgCameraRef? camera) => _inner.setAuto(camera);
+}
+
+/// Diagnose-Schalter, deren Speichern scheitert; Lesen geht an [_inner].
+class _FailingDiagnosticsStore implements PpgCameraDiagnosticsStore {
+  _FailingDiagnosticsStore(this._inner);
+
+  final PpgCameraDiagnosticsStore _inner;
+  int setCalls = 0;
+
+  @override
+  Future<Set<PpgCameraDiagnostic>> read() => _inner.read();
+
+  @override
+  Future<void> set(PpgCameraDiagnostic diagnostic, {required bool on}) async {
+    setCalls++;
+    throw const StorageException(StorageFailure.failed);
+  }
+}
+
+_CameraSetup _withStores(
+  _CameraSetup s, {
+  PpgCameraChoiceStore? choice,
+  PpgCameraDiagnosticsStore? diagnostics,
+}) => (
+  settings: s.settings,
+  mode: s.mode,
+  choice: choice ?? s.choice,
+  diagnostics: diagnostics ?? s.diagnostics,
+  camera: s.camera,
+);
 
 /// Baut die Entwicklereinstellungen neu auf (wie nach einem Neustart: neuer Zustand, dieselben Einstellungen).
 Future<void> _pumpCamera(
@@ -311,6 +371,7 @@ Future<void> _pumpCamera(
         developerMode: s.mode,
         ppgCamera: s.camera,
         cameraChoice: s.choice,
+        cameraDiagnostics: s.diagnostics,
       ),
     ),
   );
@@ -354,6 +415,49 @@ void cameraTests() {
       expect(_selected(tester, null), isTrue);
     },
   );
+
+  testWidgets('Kamera suchen: öffnet die Kamerasuche; nach „Als feste Wahl setzen“ zeigt die '
+      'Liste die neue Wahl', (tester) async {
+    final s = await _cameraSetup();
+    await _pumpCamera(tester, s);
+    expect(key('about_ppg_camera_find'), findsOneWidget);
+    expect(find.text('Kamera suchen'), findsOneWidget);
+    await tester.ensureVisible(key('about_ppg_camera_find'));
+    await tester.tap(key('about_ppg_camera_find'));
+    await tester.pumpAndSettle();
+    expect(find.text('Kamera finden'), findsOneWidget);
+    // Nur die nutzbaren Kameras (ohne Blitz nicht).
+    expect(s.camera.previewWith.single, const [
+      PpgCameraRef('0'),
+      PpgCameraRef('0', '2'),
+    ]);
+    expect(s.camera.previewOn, isTrue);
+    // Finger auf der zweiten Kamera (erfundene Zahlen).
+    for (var i = 0; i < 5; i++) {
+      for (final (ref, r, g) in const [
+        (PpgCameraRef('0'), 150.0, 140.0),
+        (PpgCameraRef('0', '2'), 200.0, 40.0),
+      ]) {
+        s.camera.emitPreview(
+          PpgPreviewFrame(
+            camera: ref,
+            t: i * 0.1,
+            r: r,
+            g: g,
+            exposureNs: 8333333,
+            iso: 100,
+          ),
+        );
+      }
+    }
+    await tester.pumpAndSettle();
+    await tester.tap(key('camera_finder_manual'));
+    await tester.pumpAndSettle();
+    expect(find.text('Kamera finden'), findsNothing);
+    expect(s.camera.previewOn, isFalse);
+    expect(await s.choice.readManual(), const PpgCameraRef('0', '2'));
+    expect(_selected(tester, const PpgCameraRef('0', '2')), isTrue);
+  });
 
   testWidgets('Kamera: Bildrate je nutzbarer Kamera im Untertitel', (
     tester,
@@ -453,6 +557,38 @@ void cameraTests() {
     expect(key('about_ppg_camera_card'), findsNothing);
   });
 
+  testWidgets('Kamera: Speichern der Wahl scheitert', (tester) async {
+    final base = await _cameraSetup();
+    await base.choice.setManual(const PpgCameraRef('0'));
+    final failing = _FailingChoiceStore(base.choice);
+    final s = _withStores(base, choice: failing);
+    await _pumpCamera(tester, s);
+    expect(_selected(tester, const PpgCameraRef('0')), isTrue);
+
+    await tester.tap(_entry(const PpgCameraRef('0', '2')));
+    await tester.pumpAndSettle();
+    expect(failing.setCalls, 1);
+    expect(
+      find.text('Die Einstellung konnte nicht gespeichert werden.'),
+      findsOneWidget,
+    );
+    expect(_selected(tester, const PpgCameraRef('0')), isTrue);
+    expect(_selected(tester, const PpgCameraRef('0', '2')), isFalse);
+    expect(tester.takeException(), isNull);
+    expect(await base.choice.readManual(), const PpgCameraRef('0'));
+  });
+
+  testWidgets('Kamera: Speichern scheitert, Englisch', (tester) async {
+    final base = await _cameraSetup();
+    final s = _withStores(base, choice: _FailingChoiceStore(base.choice));
+    await _pumpCamera(tester, s, locale: 'en');
+    await tester.tap(_entry(const PpgCameraRef('0', '2')));
+    await tester.pumpAndSettle();
+    expect(find.text('The setting could not be saved.'), findsOneWidget);
+    expect(_selected(tester, null), isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Kamera: Englisch', (tester) async {
     final s = await _cameraSetup();
     s.camera.cameraList = [
@@ -476,5 +612,196 @@ void cameraTests() {
     s.camera.cameraList = const [];
     await _pumpCamera(tester, s, locale: 'en');
     expect(find.text('No rear camera'), findsOneWidget);
+  });
+}
+
+Finder _diag(PpgCameraDiagnostic d) =>
+    find.byKey(PpgCameraDiagnosticsSection.switchKey(d));
+
+bool _diagOn(WidgetTester tester, PpgCameraDiagnostic d) =>
+    tester.widget<SwitchListTile>(_diag(d)).value;
+
+void diagnosticsTests() {
+  const titles = {
+    PpgCameraDiagnostic.noiseReductionOff: 'Rauschunterdrückung aus',
+    PpgCameraDiagnostic.edgeOff: 'Kantenschärfung aus',
+    PpgCameraDiagnostic.awbFixed: 'Weißabgleich fest ab Start',
+    PpgCameraDiagnostic.tonemapLinear: 'Tonwertkurve linear',
+    PpgCameraDiagnostic.shadingOff: 'Linsenschattierung fest',
+  };
+
+  testWidgets('Diagnose: Abschnitt mit fünf Schaltern, Vorgabe aus, Hinweis', (
+    tester,
+  ) async {
+    final s = await _cameraSetup();
+    await _pumpCamera(tester, s);
+    expect(find.text('Kamera-Bildverarbeitung (Diagnose)'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: key('dev_ppg_diag'),
+        matching: find.byType(SwitchListTile),
+      ),
+      findsNWidgets(5),
+    );
+    for (final MapEntry(key: d, value: title) in titles.entries) {
+      expect(
+        find.descendant(of: _diag(d), matching: find.text(title)),
+        findsOneWidget,
+        reason: d.wire,
+      );
+      expect(_diagOn(tester, d), isFalse, reason: d.wire);
+    }
+    expect(
+      find.text(
+        'Nur für die Fehlersuche. Gilt für die Morgenmessung im '
+        'Entwicklermodus; die Einstellung wird mit der Messung gespeichert. '
+        'Was die Kamera nicht anbietet, bleibt unverändert.',
+      ),
+      findsOneWidget,
+    );
+    expect(await s.diagnostics.read(), isEmpty);
+  });
+
+  testWidgets('Diagnose: jeder Schalter übersteht das Neuöffnen', (
+    tester,
+  ) async {
+    final s = await _cameraSetup();
+    await _pumpCamera(tester, s);
+    await tester.ensureVisible(_diag(PpgCameraDiagnostic.edgeOff));
+    await tester.tap(_diag(PpgCameraDiagnostic.edgeOff));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(_diag(PpgCameraDiagnostic.shadingOff));
+    await tester.tap(_diag(PpgCameraDiagnostic.shadingOff));
+    await tester.pumpAndSettle();
+    expect(await s.diagnostics.read(), {
+      PpgCameraDiagnostic.edgeOff,
+      PpgCameraDiagnostic.shadingOff,
+    });
+    expect(await s.settings.get(SettingKeys.ppgDiagEdgeOff), '1');
+
+    await _pumpCamera(tester, s);
+    for (final d in PpgCameraDiagnostic.values) {
+      expect(
+        _diagOn(tester, d),
+        d == PpgCameraDiagnostic.edgeOff || d == PpgCameraDiagnostic.shadingOff,
+        reason: d.wire,
+      );
+    }
+
+    // Wieder aus: nach dem Neuöffnen aus, die übrigen bleiben.
+    await tester.ensureVisible(_diag(PpgCameraDiagnostic.edgeOff));
+    await tester.tap(_diag(PpgCameraDiagnostic.edgeOff));
+    await tester.pumpAndSettle();
+    await _pumpCamera(tester, s);
+    expect(_diagOn(tester, PpgCameraDiagnostic.edgeOff), isFalse);
+    expect(_diagOn(tester, PpgCameraDiagnostic.shadingOff), isTrue);
+    expect(await s.diagnostics.read(), {PpgCameraDiagnostic.shadingOff});
+
+    // Die übrigen drei einzeln an.
+    for (final d in [
+      PpgCameraDiagnostic.noiseReductionOff,
+      PpgCameraDiagnostic.awbFixed,
+      PpgCameraDiagnostic.tonemapLinear,
+    ]) {
+      await tester.ensureVisible(_diag(d));
+      await tester.tap(_diag(d));
+      await tester.pumpAndSettle();
+    }
+    await _pumpCamera(tester, s);
+    for (final d in PpgCameraDiagnostic.values) {
+      expect(_diagOn(tester, d), d != PpgCameraDiagnostic.edgeOff);
+    }
+  });
+
+  testWidgets('Diagnose: Speichern scheitert', (tester) async {
+    const d = PpgCameraDiagnostic.noiseReductionOff;
+    final base = await _cameraSetup();
+    final failing = _FailingDiagnosticsStore(base.diagnostics);
+    final s = _withStores(base, diagnostics: failing);
+    await _pumpCamera(tester, s);
+    expect(_diagOn(tester, d), isFalse);
+
+    await tester.ensureVisible(
+      find.descendant(of: _diag(d), matching: find.text(titles[d]!)),
+    );
+    await tester.tap(find.text(titles[d]!));
+    await tester.pumpAndSettle();
+    expect(failing.setCalls, 1);
+    expect(
+      find.text('Die Einstellung konnte nicht gespeichert werden.'),
+      findsOneWidget,
+    );
+    expect(_diagOn(tester, d), isFalse);
+    expect(tester.takeException(), isNull);
+
+    await _pumpCamera(tester, s);
+    expect(_diagOn(tester, d), isFalse);
+    expect(await base.diagnostics.read(), isEmpty);
+  });
+
+  testWidgets('Diagnose: Ausschalten scheitert, Schalter bleibt an', (
+    tester,
+  ) async {
+    const d = PpgCameraDiagnostic.edgeOff;
+    final base = await _cameraSetup();
+    await base.diagnostics.set(d, on: true);
+    final failing = _FailingDiagnosticsStore(base.diagnostics);
+    final s = _withStores(base, diagnostics: failing);
+    await _pumpCamera(tester, s);
+    expect(_diagOn(tester, d), isTrue);
+
+    await tester.ensureVisible(_diag(d));
+    await tester.tap(_diag(d));
+    await tester.pumpAndSettle();
+    expect(failing.setCalls, 1);
+    expect(_diagOn(tester, d), isTrue);
+    expect(
+      find.text('Die Einstellung konnte nicht gespeichert werden.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    expect(await base.diagnostics.read(), {d});
+  });
+
+  testWidgets('Diagnose: Speichern scheitert, Englisch', (tester) async {
+    const d = PpgCameraDiagnostic.shadingOff;
+    final base = await _cameraSetup();
+    final s = _withStores(
+      base,
+      diagnostics: _FailingDiagnosticsStore(base.diagnostics),
+    );
+    await _pumpCamera(tester, s, locale: 'en');
+    await tester.ensureVisible(_diag(d));
+    await tester.tap(_diag(d));
+    await tester.pumpAndSettle();
+    expect(find.text('The setting could not be saved.'), findsOneWidget);
+    expect(_diagOn(tester, d), isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Diagnose: ohne Entwicklermodus keine Karte', (tester) async {
+    final s = await _cameraSetup(on: false);
+    await s.diagnostics.set(PpgCameraDiagnostic.edgeOff, on: true);
+    await _pumpCamera(tester, s);
+    expect(key('dev_ppg_diag_card'), findsNothing);
+    expect(find.text('Kamera-Bildverarbeitung (Diagnose)'), findsNothing);
+  });
+
+  testWidgets('Diagnose: Englisch', (tester) async {
+    final s = await _cameraSetup();
+    await _pumpCamera(tester, s, locale: 'en');
+    for (final t in [
+      'Camera image processing (diagnostics)',
+      'Noise reduction off',
+      'Edge enhancement off',
+      'White balance fixed from start',
+      'Linear tone curve',
+      'Lens shading fixed',
+      'For troubleshooting only. Applies to the morning measurement in '
+          'developer mode; the setting is saved with the measurement. '
+          'Anything the camera does not offer stays unchanged.',
+    ]) {
+      expect(find.text(t), findsOneWidget, reason: t);
+    }
   });
 }

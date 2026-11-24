@@ -174,9 +174,7 @@ void main() {
     expect(stored.segments, hasLength(2));
   });
 
-  guided('Hängende Vorbereitung blockiert den Start nie (Review 1, M1)', (
-    tester,
-  ) async {
+  guided('Hängende Vorbereitung blockiert den Start nie', (tester) async {
     final w = await _World.create();
     final never = Completer<List<EasyRunExposure>>();
     final c = w.controller(
@@ -194,9 +192,7 @@ void main() {
     expect(c.phase, RecordingPhase.finished);
   });
 
-  guided('Schnappschuss steht vor dem Dienststart (Review 2, S4)', (
-    tester,
-  ) async {
+  guided('Schnappschuss steht vor dem Dienststart', (tester) async {
     final w = await _World.create();
     final gate = Completer<void>();
     final c = w.controller(
@@ -214,8 +210,9 @@ void main() {
     await tester.pump();
   });
 
-  guided('Ende vor der Vorbereitung: kein Ereignisgeber, kein Schnappschuss '
-      '(Review 2, M3)', (tester) async {
+  guided('Ende vor der Vorbereitung: kein Ereignisgeber, kein Schnappschuss', (
+    tester,
+  ) async {
     final w = await _World.create();
     final late = Completer<List<EasyRunExposure>>();
     const above = EasyRunExposure(
@@ -241,7 +238,7 @@ void main() {
     );
   });
 
-  group('Schnappschuss am Laufende (Review 1, S5)', () {
+  group('Schnappschuss am Laufende', () {
     Future<String?> stored(_World w) =>
         w.session.settings.get(SettingKeys.guidedUnitSnapshot);
 
@@ -361,7 +358,7 @@ void main() {
       expect(c.voiceUnavailable, isFalse);
     });
 
-    // Review 4, Muss 3: jeder Einzelschalter allein reicht, damit gefragt wird.
+    // Jeder Einzelschalter allein reicht, damit gefragt wird.
     for (final only in [
       SettingKeys.guidanceSegments,
       SettingKeys.guidanceKilometer,
@@ -481,9 +478,7 @@ void main() {
       expect(c.phase, RecordingPhase.finished);
     });
 
-    guided('Beenden stoppt die Sprachausgabe, Pause nicht (E2E-Befund NB9)', (
-      tester,
-    ) async {
+    guided('Beenden stoppt die Sprachausgabe, Pause nicht', (tester) async {
       final w = await _World.create();
       final c = w.controller(segments: _twoParts);
       await c.start();

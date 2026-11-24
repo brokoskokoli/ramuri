@@ -19,6 +19,7 @@ import '../plan/plan_adapt_recommendation.dart';
 import '../plan/plan_recovery_trigger.dart';
 import '../plan/plan_started_unit.dart';
 import '../plan/plan_texts.dart';
+import '../plan/plan_underload_card.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/run_ports.dart';
 import '../measure/morning_belt.dart';
@@ -356,6 +357,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _reloadHints();
   }
 
+  /// Hinweis bzw. Frage der Unterforderung (PAR-236) beantworten.
+  Future<void> _underload(
+    Future<void> Function(PlanUnderloadActions a) action,
+  ) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await action(
+      PlanUnderloadActions(
+        controller: _plan,
+        session: widget.session,
+        clock: widget.clock,
+        recalculation: widget.recalculation,
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _renewCards();
+    });
+  }
+
   Future<void> _seeChange(PlanChangeNotice notice) async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -492,6 +514,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           notice: notice,
           onSeen: _busy ? null : () => _seeChange(notice),
           onHistory: _openHistory,
+        ),
+      if (ready ? s.underloadPrompt : null case final prompt?)
+        PlanUnderloadCard(
+          prompt: prompt,
+          onCheckHrMax: _busy
+              ? null
+              : () => _underload((a) => a.checkHrMax(context)),
+          onHintFine: _busy
+              ? null
+              : () => _underload((a) => a.hintFine(context)),
+          onAnswer: _busy
+              ? null
+              : (yes) => _underload((a) => a.answer(context, yes)),
         ),
     ];
     if (children.isEmpty) return const SizedBox.shrink();
@@ -1008,13 +1043,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     final today = _today;
     // Dieselbe Woche und dieselbe Summe wie die Wochenstatistik (FR-0044).
+    // Strecke, Trainingstage und Wochenziel zählen nur Läufe: Eine
+    // Sporteinheit zählt für den Plan nur, wenn sie eine Einheit ersetzt
+    // (DEC-0056), und hat keine Strecke (FR-0221).
     final week = StatisticsPeriod.weekOf(today);
-    final inWeek = [
-      for (final f in data.figures)
-        if (week.contains(id: f.runId, day: f.day)) f,
-    ];
     final stats = computePeriodStatistics(week, data.figures);
-    final runDays = {for (final f in inWeek) f.day};
+    final runDays = {for (final f in stats.runs) f.day};
     final km = stats.runCount == 0
         ? formatter.distance(0)
         : formatter.distance(stats.distanceMeters.value);

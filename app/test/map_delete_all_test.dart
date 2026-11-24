@@ -1,4 +1,4 @@
-// WP13 Nachbesserung N1a: "Alles löschen" und der Kartenanbieter (Review B1, M4 D6, H5, S3). Nach "Alles löschen"
+// WP13: "Alles löschen" und der Kartenanbieter. Nach "Alles löschen"
 // gilt der Stand des ersten Starts auch im Speicher des Prozesses: keine Einwilligung, keine Anfrage, keine
 // Schreibung einer laufenden Miniatur; das Löschen eines Laufs im Detail nimmt seine Miniatur mit.
 import 'dart:async';
@@ -455,7 +455,7 @@ void main() {
       expect(await map.read('map:/a'), bytes(500));
     });
 
-    test('Review 3, S2: Speicher geschlossen, der Tausch löscht über die Verdrahtung die Kartendatei (Rückfall)', () async {
+    test('Speicher geschlossen, der Tausch löscht über die Verdrahtung die Kartendatei (Rückfall)', () async {
       final files = databaseFilesFor(dbPath, map, FakeFileHandoff());
       await map.write('map:/a', bytes(500));
       await map.write('thumb:v1:7', bytes(300));

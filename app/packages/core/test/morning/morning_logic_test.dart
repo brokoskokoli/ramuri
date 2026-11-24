@@ -4,6 +4,8 @@ import 'package:core/core.dart';
 import 'package:core/fakes/fake_storage_morning.dart';
 import 'package:test/test.dart';
 
+import '../ppg/ppg_synth.dart';
+
 PpgMeasurement meas({
   PpgQuality quality = PpgQuality.good,
   double? bpm = 58,
@@ -87,48 +89,45 @@ void main() {
       expect(x.utcOffset, off);
     });
 
-    test(
-      'Version 5 (Belichtung) wird gespeichert, ältere Datensätze mit '
-      'Version 1 bis 4 bleiben lesbar und unverändert (Fake-Speicher)',
-      () async {
-        final store = FakeMorningStore(FakeStorageData());
-        final v5 = build(meas(ibis: const [1000, double.nan, 1020, 1010]))!;
-        expect(v5.methodVersion, 5);
-        MorningMeasurement old(int version) => MorningMeasurement(
-          measuredAt: local(7, version, 13).toUtc(),
-          utcOffset: off,
-          posture: RestingPosture.lying,
-          deviceManufacturer: 'H',
-          deviceModel: 'M1',
-          method: 'camera-ppg',
-          methodVersion: version,
-          quality: PpgQuality.good,
-          restingHrBpm: 57.5,
-          rmssdMs: 61,
-          timingNoiseMs: 12,
-          cameraIntervalsMs: const [1000, 1100, double.nan, 1050],
-          beforeValidation: true,
-          outsideWindow: false,
-        );
-        final oldIds = {
-          for (final v in [1, 2, 3, 4]) v: await store.add(old(v)),
-        };
-        final newId = await store.add(v5);
-        final byId = {for (final e in await store.list()) e.id: e.value};
-        expect(byId[newId]!.methodVersion, 5);
-        expect(byId[newId]!.method, 'camera-ppg');
-        for (final MapEntry(key: v, value: id) in oldIds.entries) {
-          final o = byId[id]!;
-          expect(o.methodVersion, v);
-          expect(o.rmssdMs, 61);
-          expect(o.restingHrBpm, 57.5);
-          expect(o.timingNoiseMs, 12);
-          expect(o.cameraIntervalsMs.take(2), [1000, 1100]);
-          expect(o.cameraIntervalsMs[2].isNaN, isTrue);
-          expect(o.cameraIntervalsMs[3], 1050);
-        }
-      },
-    );
+    test('Version 6 (Neusperre der Belichtung) wird gespeichert, ältere '
+        'Datensätze mit Version 1 bis 5 bleiben lesbar und unverändert (Fake-Speicher)', () async {
+      final store = FakeMorningStore(FakeStorageData());
+      final v6 = build(meas(ibis: const [1000, double.nan, 1020, 1010]))!;
+      expect(v6.methodVersion, 6);
+      MorningMeasurement old(int version) => MorningMeasurement(
+        measuredAt: local(7, version, 13).toUtc(),
+        utcOffset: off,
+        posture: RestingPosture.lying,
+        deviceManufacturer: 'H',
+        deviceModel: 'M1',
+        method: 'camera-ppg',
+        methodVersion: version,
+        quality: PpgQuality.good,
+        restingHrBpm: 57.5,
+        rmssdMs: 61,
+        timingNoiseMs: 12,
+        cameraIntervalsMs: const [1000, 1100, double.nan, 1050],
+        beforeValidation: true,
+        outsideWindow: false,
+      );
+      final oldIds = {
+        for (final v in [1, 2, 3, 4, 5]) v: await store.add(old(v)),
+      };
+      final newId = await store.add(v6);
+      final byId = {for (final e in await store.list()) e.id: e.value};
+      expect(byId[newId]!.methodVersion, 6);
+      expect(byId[newId]!.method, 'camera-ppg');
+      for (final MapEntry(key: v, value: id) in oldIds.entries) {
+        final o = byId[id]!;
+        expect(o.methodVersion, v);
+        expect(o.rmssdMs, 61);
+        expect(o.restingHrBpm, 57.5);
+        expect(o.timingNoiseMs, 12);
+        expect(o.cameraIntervalsMs.take(2), [1000, 1100]);
+        expect(o.cameraIntervalsMs[2].isNaN, isTrue);
+        expect(o.cameraIntervalsMs[3], 1050);
+      }
+    });
 
     test('eingeschränkt: Ruhepuls ja, RMSSD nie', () {
       final x = build(meas(quality: PpgQuality.limited))!;
@@ -399,6 +398,96 @@ void main() {
       expect(logical.physicalCameraId, isNull);
       expect(logical.focalLengthMm, 5.4);
     });
+
+    test('ISP-Werte je Bild und gesetzte Schalter gehen ins Rohsignal', () {
+      final isp = [
+        for (var i = 0; i < 3; i++)
+          [
+            for (var k = 0; k < ppgIspValueCount; k++)
+              k == 5 ? double.nan : k + i / 10,
+          ],
+      ];
+      final raw = buildMorningRawSignal(
+        [frame(0), frame(0.5), frame(1)],
+        ispFrames: isp,
+        diagnostics: const {
+          PpgCameraDiagnostic.edgeOff,
+          PpgCameraDiagnostic.awbFixed,
+        },
+        awbVariant: PpgAwbVariant.matrix,
+      );
+      expect(raw.ispFrames!.length, 3);
+      expect(raw.ispFrames![2][7], 7.2);
+      expect(raw.ispFrames![1][5].isNaN, isTrue);
+      expect(raw.diagnostics, {
+        PpgCameraDiagnostic.edgeOff,
+        PpgCameraDiagnostic.awbFixed,
+      });
+      expect(raw.awbVariant, PpgAwbVariant.matrix);
+      expect(raw.withCameraDiagnostics, isTrue);
+      checkMorningForStorage(withExtras(meas())!, rawSignal: raw);
+      final plain = buildMorningRawSignal([frame(0)]);
+      expect(plain.ispFrames, isNull);
+      expect(plain.diagnostics, isEmpty);
+      expect(plain.withCameraDiagnostics, isFalse);
+      // Variante ohne festen Weißabgleich wird nicht übernommen.
+      expect(
+        buildMorningRawSignal([
+          frame(0),
+        ], awbVariant: PpgAwbVariant.lock).awbVariant,
+        isNull,
+      );
+      expect(
+        () => buildMorningRawSignal([frame(0)], ispFrames: const []),
+        throwsArgumentError,
+      );
+    });
+
+    test(
+      'Auswertung mit und ohne ISP-Werte und Schalter identisch (FR-0215)',
+      () {
+        final s = synth(0.95, 0.03, 0.01, 0.4, 30, 7);
+        final frames = [
+          for (var i = 0; i < s.t.length; i++)
+            PpgFrame(
+              t: s.t[i],
+              r: s.red[i],
+              g: s.green[i],
+              r16: List.filled(16, s.red[i]),
+              g16: List.filled(16, s.green[i]),
+            ),
+        ];
+        final plain = buildMorningRawSignal(frames);
+        final diag = buildMorningRawSignal(
+          frames,
+          ispFrames: [
+            for (var i = 0; i < frames.length; i++)
+              List.filled(ppgIspValueCount, i.isEven ? 1.0 : double.nan),
+          ],
+          diagnostics: PpgCameraDiagnostic.values.toSet(),
+          awbVariant: PpgAwbVariant.lock,
+        );
+        final a = evaluatePpgBestWindow(plain.frames);
+        final b = evaluatePpgBestWindow(diag.frames);
+        String key(PpgWindowedMeasurement w) => [
+          w.measurement.quality,
+          w.measurement.bpm,
+          w.measurement.rmssdMs,
+          w.measurement.timingNoiseMs,
+          w.measurement.intervalsMs.join(','),
+          w.windowStartSeconds,
+          w.windowEndSeconds,
+        ].join('|');
+        expect(key(b), key(a));
+        expect(a.measurement.bpm, isNotNull);
+        final ma = build(a.measurement)!;
+        final mb = build(b.measurement)!;
+        expect(mb.quality, ma.quality);
+        expect(mb.restingHrBpm, ma.restingHrBpm);
+        expect(mb.rmssdMs, ma.rmssdMs);
+        expect(mb.methodVersion, ppgMethodVersion);
+      },
+    );
 
     test('Kamera ohne Eintrag in der Liste: Brennweite unbekannt', () {
       final raw = buildMorningRawSignal(

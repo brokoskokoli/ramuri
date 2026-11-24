@@ -1,17 +1,22 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
+import '../../error_counter.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../reminders/reminder_controller.dart';
+import 'app_version.dart';
 import 'belt_compare_screen.dart';
+import 'error_counts_section.dart';
 import 'morning_pairs_section.dart';
+import 'ppg_camera_diagnostics_section.dart';
 import 'ppg_camera_section.dart';
 
 /// Seite „Entwicklereinstellungen“ (FR-0217): bündelt alles, was es nur im
 /// Entwicklermodus gibt – in dieser Reihenfolge Schalter „Entwicklermodus“,
-/// „Kamera für die Pulsmessung“ (FR-0220), „Messpaare“ und „Kamera gegen
-/// Gurt“. Erreichbar über die
+/// „Kamera für die Pulsmessung“ (FR-0220), „Messpaare“, „Kamera gegen Gurt“
+/// „Kamera-Bildverarbeitung (Diagnose)“ und zuletzt „Fehler“ (gezählte Fehler,
+/// Diagnose teilen; FR-0223). Erreichbar über die
 /// Übersicht (nur bei eingeschaltetem Modus) und den Verweis auf „Über“.
 ///
 /// Schaltet man den Modus hier aus, schließt sich die Seite; wer sie geöffnet
@@ -24,6 +29,8 @@ class DeveloperSettingsScreen extends StatefulWidget {
     this.clock,
     this.ppgCamera,
     this.cameraChoice,
+    this.cameraDiagnostics,
+    this.appVersion = readAppVersion,
   });
 
   final DeveloperModeStore developerMode;
@@ -37,8 +44,15 @@ class DeveloperSettingsScreen extends StatefulWidget {
   final PpgCamera? ppgCamera;
   final PpgCameraChoiceStore? cameraChoice;
 
+  /// Diagnose-Schalter der Kamera-Bildverarbeitung (FR-0217); ohne Angabe
+  /// entfällt die Karte.
+  final PpgCameraDiagnosticsStore? cameraDiagnostics;
+
   /// Zeitquelle für den Dateinamen des Exports; ohne Angabe die Systemzeit.
   final DateTime Function()? clock;
+
+  /// App-Version für den Diagnose-Export (FR-0223).
+  final Future<String?> Function() appVersion;
 
   @override
   State<DeveloperSettingsScreen> createState() =>
@@ -84,6 +98,7 @@ class _DeveloperSettingsScreenState extends State<DeveloperSettingsScreen> {
     final c = RamuriColors.of(context);
     final theme = Theme.of(context).textTheme;
     final on = _on == true;
+    final errors = ErrorCounterScope.maybeOf(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.devSettingsTitle)),
       body: ListView(
@@ -130,6 +145,28 @@ class _DeveloperSettingsScreenState extends State<DeveloperSettingsScreen> {
                 key: const Key('dev_compare_card'),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: BeltCompareSection(store: widget.morning!),
+              ),
+            ],
+            if (widget.cameraDiagnostics != null) ...[
+              const SizedBox(height: 8),
+              RamuriCard(
+                key: const Key('dev_ppg_diag_card'),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: PpgCameraDiagnosticsSection(
+                  store: widget.cameraDiagnostics!,
+                ),
+              ),
+            ],
+            if (errors != null) ...[
+              const SizedBox(height: 8),
+              RamuriCard(
+                key: const Key('dev_errors_card'),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ErrorCountsSection(
+                  errors: errors,
+                  appVersion: widget.appVersion,
+                  clock: widget.clock,
+                ),
               ),
             ],
           ],

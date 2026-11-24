@@ -116,11 +116,122 @@ sealed class PpgCameraEvent {
   const PpgCameraEvent();
 }
 
-/// Bildstatistik eines Bilds (keine Pixel).
+/// Bildstatistik eines Bilds (keine Pixel). [isp] sind die von der Kamera zu
+/// genau diesem Bild gemeldeten Werte der Bildverarbeitung und Belichtung
+/// ([ppgIspValueCount] Werte in der Reihenfolge von [PpgIspValue], `NaN` = nicht
+/// gemeldet); `null`, wenn sie nicht angefordert wurden ([PpgCamera.start] mit
+/// `ispFrames`). Sie gehören bewusst nicht zu [PpgFrame]: die Auswertung sieht sie nie.
 final class PpgCameraFrame extends PpgCameraEvent {
-  const PpgCameraFrame(this.frame);
+  const PpgCameraFrame(this.frame, [this.isp]);
   final PpgFrame frame;
+  final List<double>? isp;
 }
+
+/// Diagnose-Schalter der Bildverarbeitung der Kamera (FR-0217, ADR-0011): nur
+/// Morgenmessung im Entwicklermodus, Vorgabe jeweils aus. [wire] ist der Name im
+/// Kanal und in der gespeicherten Form.
+enum PpgCameraDiagnostic {
+  /// Rauschunterdrückung aus (`NOISE_REDUCTION_MODE_OFF`).
+  noiseReductionOff('noise_reduction_off'),
+
+  /// Kantenschärfung aus (`EDGE_MODE_OFF`).
+  edgeOff('edge_off'),
+
+  /// Weißabgleich fest ab Start ([PpgAwbVariant]).
+  awbFixed('awb_fixed'),
+
+  /// Tonwertkurve linear (`TONEMAP_MODE_CONTRAST_CURVE`, (0,0)–(1,1)).
+  tonemapLinear('tonemap_linear'),
+
+  /// Linsenschattierung fest (`SHADING_MODE_OFF`).
+  shadingOff('shading_off');
+
+  const PpgCameraDiagnostic(this.wire);
+  final String wire;
+
+  static PpgCameraDiagnostic? fromWire(Object? s) {
+    for (final d in values) {
+      if (d.wire == s) return d;
+    }
+    return null;
+  }
+}
+
+/// Wie der Weißabgleich fest ab Start gehalten wird: [matrix] = AWB aus mit den
+/// Farbverstärkungen und der Matrix des ersten eingeschwungenen Ergebnisses
+/// (spätestens bei 0,5 s), [lock] = AWB-Sperre ab dem ersten Bild.
+enum PpgAwbVariant {
+  matrix('matrix'),
+  lock('lock');
+
+  const PpgAwbVariant(this.wire);
+  final String wire;
+
+  static PpgAwbVariant? fromWire(Object? s) {
+    for (final v in values) {
+      if (v.wire == s) return v;
+    }
+    return null;
+  }
+}
+
+/// Werte der Bildverarbeitung je Bild in dieser Reihenfolge (Kanal, Speicher,
+/// Messpaare-CSV). Zustände und Modi sind Ganzzahl-Codes der Kamera-API.
+enum PpgIspValue {
+  /// `COLOR_CORRECTION_GAINS` R, G gerade, G ungerade, B.
+  gainR,
+  gainGEven,
+  gainGOdd,
+  gainB,
+
+  /// `CONTROL_AWB_STATE`.
+  awbState,
+
+  /// `CONTROL_AWB_MODE`.
+  awbMode,
+
+  /// `COLOR_CORRECTION_MODE`.
+  colorCorrectionMode,
+
+  /// `NOISE_REDUCTION_MODE`.
+  noiseReductionMode,
+
+  /// `EDGE_MODE`.
+  edgeMode,
+
+  /// `TONEMAP_MODE`.
+  tonemapMode,
+
+  /// `SHADING_MODE`.
+  shadingMode,
+
+  /// `SENSOR_EXPOSURE_TIME` in ns.
+  exposureTimeNs,
+
+  /// `SENSOR_SENSITIVITY`.
+  sensitivity,
+
+  /// `CONTROL_AE_STATE`.
+  aeState,
+
+  /// `SENSOR_FRAME_DURATION` in ns.
+  frameDurationNs,
+
+  /// `CONTROL_AF_MODE`.
+  afMode,
+
+  /// `LENS_FOCUS_DISTANCE` in Dioptrien.
+  focusDistance,
+
+  /// `LENS_OPTICAL_STABILIZATION_MODE`.
+  oisMode,
+
+  /// `LENS_STATE`.
+  lensState,
+}
+
+/// Anzahl der Werte je Bild ([PpgIspValue]).
+const int ppgIspValueCount = 19;
 
 /// Kamera-Angaben der Aufnahme (K70, R010), gemeldet nach der Sperre von Belichtung
 /// und Weißabgleich und danach gelegentlich erneuert (der Anteil gesättigter Pixel
@@ -161,21 +272,109 @@ final class PpgCameraDetails extends PpgCameraEvent {
 }
 
 /// Kamera läuft, Torch an; [fps] ist die gewählte feste Bildrate, [camera] die
-/// tatsächlich geöffnete Kamera.
+/// tatsächlich geöffnete Kamera. [diagnostics] sind die tatsächlich gesetzten
+/// Diagnose-Schalter (Teilmenge der angeforderten: nur, was die Kamera anbietet),
+/// [awbVariant] die Variante bei [PpgCameraDiagnostic.awbFixed].
 final class PpgCameraStarted extends PpgCameraEvent {
-  const PpgCameraStarted(this.fps, this.camera);
+  const PpgCameraStarted(
+    this.fps,
+    this.camera, {
+    this.diagnostics = const {},
+    this.awbVariant,
+  });
   final int fps;
   final PpgCameraRef camera;
+  final Set<PpgCameraDiagnostic> diagnostics;
+  final PpgAwbVariant? awbVariant;
 }
 
-/// Belichtung und Weißabgleich sind gesperrt (2,5 s nach Aufnahmebeginn).
+/// Belichtung und Weißabgleich sind gesperrt: 2,5 s nach Aufnahmebeginn und nach
+/// jedem Neu-Einschwingen ([PpgCameraRelocking], PAR-246). [t] ist die Sensorzeit
+/// der Sperre (Sekunden seit Aufnahmebeginn wie [PpgFrame.t]); `null`, wenn die
+/// Gegenseite sie nicht meldet (ältere Fassung: Verhalten wie bei der ersten Sperre).
 final class PpgCameraExposureLocked extends PpgCameraEvent {
-  const PpgCameraExposureLocked();
+  const PpgCameraExposureLocked([this.t]);
+  final double? t;
+}
+
+/// Nach einem Helligkeitssprung im Rot (PAR-245) und anschließender Ruhe beginnt
+/// bei Sensorzeit [t] das Neu-Einschwingen der Belichtung; die neue Sperre folgt
+/// 2,5 s später mit [PpgCameraExposureLocked] (PAR-246).
+final class PpgCameraRelocking extends PpgCameraEvent {
+  const PpgCameraRelocking(this.t);
+  final double t;
 }
 
 /// Die Aufnahme wurde beendet: Torch aus, Sitzung und Gerät geschlossen.
 final class PpgCameraStopped extends PpgCameraEvent {
   const PpgCameraStopped(this.reason);
+  final PpgCameraStopReason reason;
+}
+
+/// Betrieb der Kamerasuche (FR-0220, PAR-227).
+enum PpgPreviewMode {
+  /// Alle Kameras zugleich: physische Kameras derselben logischen Kamera in einer Sitzung.
+  simultaneous,
+
+  /// Nacheinander je PAR-227; das letzte Bild jeder Kamera bleibt stehen.
+  alternating,
+}
+
+/// Ereignis der Kamerasuche ([PpgCamera.preview]). Nach [PpgPreviewStopped] endet der Strom.
+sealed class PpgPreviewEvent {
+  const PpgPreviewEvent();
+}
+
+/// Die Vorschau läuft im Betrieb [mode], Taschenlampe an. [textures] ordnet jeder Kamera die
+/// Flutter-Texture ihres Vorschaubilds zu (nur Anzeige: die Pixel gehen nie nach Dart, ADR-0011
+/// Nachtrag 2026-11-24); fehlt eine Kamera, zeigt die Seite stattdessen eine Fläche in der Farbe
+/// ihrer Zahlen (Debug-Quelle).
+final class PpgPreviewStarted extends PpgPreviewEvent {
+  const PpgPreviewStarted(this.mode, [this.textures = const {}]);
+  final PpgPreviewMode mode;
+  final Map<PpgCameraRef, int> textures;
+}
+
+/// Zahlen eines Vorschaubilds der Kamera [camera] (keine Pixel): Mittel [r], [g] der Bildmitte
+/// (wie [PpgFrame]), Belichtungszeit [exposureNs] und Empfindlichkeit [iso] aus dem Ergebnis der
+/// Kamera (`null` = nicht gemeldet), [t] Sensorzeit in Sekunden (je Kamera steigend).
+final class PpgPreviewFrame extends PpgPreviewEvent {
+  const PpgPreviewFrame({
+    required this.camera,
+    required this.t,
+    required this.r,
+    required this.g,
+    this.exposureNs,
+    this.iso,
+  });
+  final PpgCameraRef camera;
+  final double t;
+  final double r;
+  final double g;
+  final int? exposureNs;
+  final int? iso;
+
+  /// Ohne Werte (gehören nicht in Logs).
+  @override
+  String toString() => 'PpgPreviewFrame';
+}
+
+/// Im Wechselbetrieb ist ab jetzt [camera] offen (PAR-227).
+final class PpgPreviewTurn extends PpgPreviewEvent {
+  const PpgPreviewTurn(this.camera);
+  final PpgCameraRef camera;
+}
+
+/// Die Kamera [camera] liefert keine Vorschau ([reason]); die übrigen laufen weiter.
+final class PpgPreviewCameraFailed extends PpgPreviewEvent {
+  const PpgPreviewCameraFailed(this.camera, this.reason);
+  final PpgCameraRef camera;
+  final PpgCameraStopReason reason;
+}
+
+/// Die Vorschau wurde beendet (Hintergrund, Fehler): Taschenlampe aus, alles geschlossen.
+final class PpgPreviewStopped extends PpgPreviewEvent {
+  const PpgPreviewStopped(this.reason);
   final PpgCameraStopReason reason;
 }
 
@@ -200,8 +399,25 @@ abstract interface class PpgCamera {
   /// Der Strom endet mit [PpgCameraStopped] (Abbruch mit Grund) oder, wenn die App
   /// abbestellt oder [stop] ruft, ohne Ereignis. Abbestellen schaltet Torch aus und
   /// schließt Sitzung und Gerät.
-  Stream<PpgCameraEvent> start({PpgCameraRef? camera});
+  ///
+  /// [diagnostics] (Diagnose-Schalter) und [ispFrames] (Werte der
+  /// Bildverarbeitung je Bild, [PpgCameraFrame.isp]) fordert nur die
+  /// Morgenmessung im Entwicklermodus an (FR-0217); ohne Angabe gilt die Vorgabe
+  /// des Verfahrens.
+  Stream<PpgCameraEvent> start({
+    PpgCameraRef? camera,
+    Set<PpgCameraDiagnostic> diagnostics = const {},
+    bool ispFrames = false,
+  });
 
-  /// Beendet eine laufende Aufnahme (Torch aus, Sitzung und Gerät zu); der Strom endet.
+  /// Beendet eine laufende Aufnahme oder Vorschau (Torch aus, Sitzung und Gerät zu); der
+  /// Strom endet.
   Future<void> stop();
+
+  /// Kamerasuche (FR-0220): startet beim Abonnieren die Vorschau der nutzbaren Kameras
+  /// [cameras] mit Taschenlampe, gleichzeitig oder im Wechsel (PAR-227), und liefert je Bild
+  /// nur Zahlen ([PpgPreviewFrame]); die Bilder gehen als Texture an die Anzeige und werden nie
+  /// gespeichert. Abbestellen oder [stop] schließt alles und schaltet die Taschenlampe aus; die
+  /// App im Hintergrund beendet die Vorschau mit [PpgPreviewStopped].
+  Stream<PpgPreviewEvent> preview(List<PpgCameraRef> cameras);
 }

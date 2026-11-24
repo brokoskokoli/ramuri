@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'app_dependencies.dart';
+import 'error_counter.dart';
 import 'features/reminders/reminder_controller.dart';
 import 'features/archive/archive_scope.dart';
 import 'features/export/file_handoff_scope.dart';
@@ -87,7 +88,10 @@ class _RunningAppState extends State<RunningApp> {
                       holder: _settings,
                       child: ReminderScope(
                         controller: _reminders,
-                        child: child!,
+                        child: ErrorCounterScope(
+                          errors: dependencies.errors,
+                          child: child!,
+                        ),
                       ),
                     ),
                   ),

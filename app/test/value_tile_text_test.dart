@@ -1,4 +1,4 @@
-// WP16 Runde 4, Punkt 1: Ersatztexte in Wertkacheln stehen klein, der Grund in
+// Ersatztexte in Wertkacheln stehen klein, der Grund in
 // einer eigenen Zeile, und kein Wort bricht mitten im Wort (echte Schrift).
 
 import 'package:flutter/material.dart';
@@ -145,7 +145,7 @@ void main() {
     });
   }
 
-  // Review 5, Befund 1: Eine Zahl bricht nie innerhalb der Ziffern („+120 / 0“).
+  // Eine Zahl bricht nie innerhalb der Ziffern („+120 / 0“).
   for (final width in [320.0, 340.0, 360.0, 411.0]) {
     for (final scale in [1.0, 1.15, 1.3, 2.0]) {
       testWidgets('große Zahlen brechen nie, ${width.round()} dp, '

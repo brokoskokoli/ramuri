@@ -317,7 +317,7 @@ void main() {
     }
   });
 
-  group('Grund der Wochenanpassung in Karte und Verlauf (NB7 3)', () {
+  group('Grund der Wochenanpassung in Karte und Verlauf', () {
     // Echte Fassung der Wochenprüfung aus dem Controller: Plan seit 11.11.,
     // geöffnet Dienstag 24.11., bewertet wird die Woche 16.-22.11.
     final tuesday = DateTime(2026, 11, 24, 12);
@@ -446,44 +446,46 @@ void main() {
     }
   });
 
-  test('Zieländerung mit Wochenbewertung: Satz nennt Ziel und Gründe '
-      '(NB8 6)', () async {
-    final (session, clock) = await _withPlan();
-    final plans = (session as PlanStorage).plans;
-    clock.set(DateTime(2026, 11, 24, 12));
-    final c = PlanController(
-      session: session,
-      clock: clock,
-      reader: PlanDataReader(
+  test(
+    'Zieländerung mit Wochenbewertung: Satz nennt Ziel und Gründe',
+    () async {
+      final (session, clock) = await _withPlan();
+      final plans = (session as PlanStorage).plans;
+      clock.set(DateTime(2026, 11, 24, 12));
+      final c = PlanController(
         session: session,
         clock: clock,
-        loadRuns: () async => const [],
-      ),
-    );
-    await c.open();
-    c.dispose();
-    final v = (await plans.history()).last;
-    const e = Explanation(
-      kind: ExplanationKind.planChange,
-      code: 'goalChange,repeatWeek',
-      evidence: [],
-    );
-    expect(
-      planChangeReasonText(AppLocalizationsDe(), e, v),
-      'Dein Ziel hat sich geändert, deshalb wurde der Plan neu berechnet. '
-      'Du hast 0 % der geplanten Wochenzeit geschafft, deshalb bleibt die '
-      'Wochenzeit auf dem Stand der letzten Woche.',
-    );
-    expect(
-      planChangeReasonText(AppLocalizationsEn(), e, v),
-      'Your goal changed, so the plan was recalculated. You completed 0 % '
-      "of the planned weekly time, so the weekly time stays at last week's "
-      'level.',
-    );
-  });
+        reader: PlanDataReader(
+          session: session,
+          clock: clock,
+          loadRuns: () async => const [],
+        ),
+      );
+      await c.open();
+      c.dispose();
+      final v = (await plans.history()).last;
+      const e = Explanation(
+        kind: ExplanationKind.planChange,
+        code: 'goalChange,repeatWeek',
+        evidence: [],
+      );
+      expect(
+        planChangeReasonText(AppLocalizationsDe(), e, v),
+        'Dein Ziel hat sich geändert, deshalb wurde der Plan neu berechnet. '
+        'Du hast 0 % der geplanten Wochenzeit geschafft, deshalb bleibt die '
+        'Wochenzeit auf dem Stand der letzten Woche.',
+      );
+      expect(
+        planChangeReasonText(AppLocalizationsEn(), e, v),
+        'Your goal changed, so the plan was recalculated. You completed 0 % '
+        "of the planned weekly time, so the weekly time stays at last week's "
+        'level.',
+      );
+    },
+  );
 
   test('Regelversion mit Wochenbewertung: Satz nennt die Gründe der '
-      'Bewertung, nicht „Sonstiges“ (NB6 1)', () async {
+      'Bewertung, nicht „Sonstiges“', () async {
     final (session, clock) = await _withPlan();
     final plans = (session as PlanStorage).plans;
     final v = (await plans.history()).last;

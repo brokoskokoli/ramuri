@@ -15,12 +15,15 @@ class FakeRunStore implements RunStore {
   Future<StoredRun> create({
     required DateTime startedAt,
     RunMode mode = RunMode.gps,
+    OtherSport? sport,
   }) async {
+    requireRunSport(mode, sport);
     final run = StoredRun(
       id: _d.nextRunId++,
       state: RunState.active,
       startedAt: _utc(startedAt),
       mode: mode,
+      sport: sport,
     );
     _d.runs[run.id] = run;
     return run;
@@ -43,6 +46,7 @@ class FakeRunStore implements RunStore {
       endedAt: endedAt == null ? null : _utc(endedAt),
       endedUtcOffset: endedUtcOffset,
       mode: old.mode,
+      sport: old.sport,
     );
   }
 

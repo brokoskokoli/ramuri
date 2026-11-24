@@ -37,6 +37,20 @@ class FakePpgCamera implements PpgCamera {
   /// Argument `camera` jedes [start] in Reihenfolge (`null` = ohne Angabe).
   final List<PpgCameraRef?> startedWith = [];
 
+  /// Argumente `diagnostics` und `ispFrames` jedes [start] in Reihenfolge.
+  final List<Set<PpgCameraDiagnostic>> diagnosticsWith = [];
+  final List<bool> ispFramesWith = [];
+
+  /// Schalter, die diese Kamera anbietet: gemeldet als gesetzt wird die
+  /// Schnittmenge mit den angeforderten. Vorgabe: alle.
+  Set<PpgCameraDiagnostic> offeredDiagnostics = PpgCameraDiagnostic.values
+      .toSet();
+
+  /// Variante bei festem Weißabgleich.
+  PpgAwbVariant awbVariant = PpgAwbVariant.matrix;
+
+  bool _isp = false;
+
   @override
   Future<List<PpgCameraInfo>> cameras() async {
     camerasCount++;
@@ -59,12 +73,19 @@ class FakePpgCamera implements PpgCamera {
   }
 
   @override
-  Stream<PpgCameraEvent> start({PpgCameraRef? camera}) {
+  Stream<PpgCameraEvent> start({
+    PpgCameraRef? camera,
+    Set<PpgCameraDiagnostic> diagnostics = const {},
+    bool ispFrames = false,
+  }) {
     late final StreamController<PpgCameraEvent> c;
     c = StreamController<PpgCameraEvent>(
       onListen: () {
         startCount++;
         startedWith.add(camera);
+        diagnosticsWith.add(Set.unmodifiable(diagnostics));
+        ispFramesWith.add(ispFrames);
+        _isp = ispFrames;
         var reason = switch (_availability) {
           PpgCameraAvailability.available => null,
           PpgCameraAvailability.noCamera => PpgCameraStopReason.noCamera,
@@ -95,12 +116,80 @@ class FakePpgCamera implements PpgCamera {
           return;
         }
         torchOn = true;
-        if (sendStarted) c.add(PpgCameraStarted(60, info!.ref));
+        final applied = diagnostics.intersection(offeredDiagnostics);
+        if (sendStarted) {
+          c.add(
+            PpgCameraStarted(
+              60,
+              info!.ref,
+              diagnostics: applied,
+              awbVariant: applied.contains(PpgCameraDiagnostic.awbFixed)
+                  ? awbVariant
+                  : null,
+            ),
+          );
+        }
       },
       onCancel: () => _release(c),
     );
     _controller = c;
     return c.stream;
+  }
+
+  StreamController<PpgPreviewEvent>? _preview;
+
+  /// Kamerasuche: Argument jedes [preview] in Reihenfolge.
+  final List<List<PpgCameraRef>> previewWith = [];
+
+  /// Betrieb, den [preview] beim Start meldet.
+  PpgPreviewMode previewMode = PpgPreviewMode.simultaneous;
+
+  /// Vorschau läuft (Taschenlampe an); nach Abbestellen, [stop] oder Abbruch `false`.
+  bool previewOn = false;
+
+  /// Zahl der Enden einer Vorschau (Abbestellen, [stop], Abbruch).
+  int previewStops = 0;
+
+  @override
+  Stream<PpgPreviewEvent> preview(List<PpgCameraRef> cameras) {
+    late final StreamController<PpgPreviewEvent> c;
+    c = StreamController<PpgPreviewEvent>(
+      onListen: () {
+        previewWith.add(List.unmodifiable(cameras));
+        if (_availability != PpgCameraAvailability.available) {
+          c.add(const PpgPreviewStopped(PpgCameraStopReason.permissionDenied));
+          c.close();
+          return;
+        }
+        previewOn = true;
+        torchOn = true;
+        c.add(PpgPreviewStarted(previewMode));
+      },
+      // `async`: `cancel()` endet in der Zone des Aufrufers (FakeAsync in Widget-Tests).
+      onCancel: () async => _releasePreview(c),
+    );
+    _preview = c;
+    return c.stream;
+  }
+
+  void _releasePreview(StreamController<PpgPreviewEvent> c) {
+    if (!identical(_preview, c)) return;
+    if (previewOn) previewStops++;
+    previewOn = false;
+    torchOn = false;
+    _preview = null;
+  }
+
+  /// Ereignis der laufenden Vorschau (Bild, Wechsel, Fehler einer Kamera).
+  void emitPreview(PpgPreviewEvent e) => _preview?.add(e);
+
+  /// Abbruch der Vorschau mit Grund (z. B. Hintergrund): Taschenlampe aus, Strom endet.
+  Future<void> abortPreview(PpgCameraStopReason reason) async {
+    final c = _preview;
+    if (c == null) return;
+    _releasePreview(c);
+    c.add(PpgPreviewStopped(reason));
+    await c.close();
   }
 
   void _release(StreamController<PpgCameraEvent> c) {
@@ -111,17 +200,39 @@ class FakePpgCamera implements PpgCamera {
   @override
   Future<void> stop() async {
     stopCount++;
+    final p = _preview;
+    if (p != null) {
+      _releasePreview(p);
+      await p.close();
+    }
     final c = _controller;
     if (c == null) return;
     _release(c);
     await c.close();
   }
 
-  void emitFrame(PpgFrame frame) => _controller?.add(PpgCameraFrame(frame));
+  /// Bild; mit angeforderten ISP-Werten ([start] mit `ispFrames`) trägt es [isp]
+  /// oder, ohne Angabe, synthetische Werte ([syntheticIsp]).
+  void emitFrame(PpgFrame frame, {List<double>? isp}) => _controller?.add(
+    PpgCameraFrame(frame, _isp ? (isp ?? syntheticIsp(frame.t)) : null),
+  );
+
+  /// Synthetische ISP-Werte eines Bilds (keine Messwerte): feste Modi, die
+  /// Fokusdistanz aus dem Zeitstempel, `LENS_STATE` nicht gemeldet.
+  static List<double> syntheticIsp(double t) => List.unmodifiable(<double>[
+    1.5, 1.0, 1.0, 2.25, // Farbverstärkungen
+    2, 1, 1, 1, 1, 1, 1, // AWB-Zustand und -Modus, Modi
+    16666666, 100, 2, 16666666, // Belichtung, Empfindlichkeit, AE, Bilddauer
+    0, 10 + t, 0, double.nan, // AF, Fokusdistanz, OIS, Linsenzustand
+  ]);
 
   void emitDetails(PpgCameraDetails details) => _controller?.add(details);
 
-  void emitLocked() => _controller?.add(const PpgCameraExposureLocked());
+  /// Sperre der Belichtung bei Sensorzeit [t] (`null` wie bei einer älteren Gegenseite).
+  void emitLocked([double? t]) => _controller?.add(PpgCameraExposureLocked(t));
+
+  /// Beginn des Neu-Einschwingens nach einem Helligkeitssprung bei Sensorzeit [t] (PAR-246).
+  void emitRelocking(double t) => _controller?.add(PpgCameraRelocking(t));
 
   /// Abbruch mit Grund (Kamera belegt, getrennt, Hintergrund ...): Torch aus, Strom endet.
   Future<void> abort(PpgCameraStopReason reason) async {

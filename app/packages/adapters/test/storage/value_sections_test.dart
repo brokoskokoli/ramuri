@@ -62,10 +62,10 @@ class _V1 extends AppDatabase {
         'hr_max_bpm',
         'hr_rest_bpm',
         'hr_max_is_estimated',
+        'preprocessing_version', // Schema 19
       ]) {
         await customStatement('ALTER TABLE computed_values DROP COLUMN $c');
       }
-      await customStatement('ALTER TABLE runs DROP COLUMN ended_utc_offset_s');
       // Tabellen aus Schema 5 (WP18).
       await customStatement('DROP TABLE run_feedback');
       await customStatement('DROP TABLE manual_trainings');
@@ -102,7 +102,8 @@ class _V1 extends AppDatabase {
       }
       // Laufart und Laufbandeinstellungen (Schema 10, WP25).
       await customStatement('DROP TABLE treadmill_settings');
-      await customStatement('ALTER TABLE runs DROP COLUMN mode');
+      // Ohne `mode`, `sport` (Schema 18) und `ended_utc_offset_s` (Schema 3).
+      await rebuildRunsBeforeMode(customStatement, withOffset: false);
       // Morgenmessungen samt Gurt-RR (Schema 13, WP33).
       await customStatement('DROP TABLE morning_raw_signals'); // Schema 14
       await customStatement('DROP TABLE morning_rr_packets');
@@ -621,7 +622,7 @@ void main() {
   });
 
   for (final from in [1, 2]) {
-    group('Migration $from -> 16 auf befüllter v$from-Datenbank', () {
+    group('Migration $from -> 19 auf befüllter v$from-Datenbank', () {
       test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
         final v1 = await open((e) => _V1(e, from));
         Future<List<Object?>> master(String type) async => [
@@ -674,7 +675,14 @@ void main() {
               .single,
           from,
         );
-        final expected = cs.describeValue(cs.sampleValue('vo2max', 48.5));
+        // Laufwerte bekommen beim Schritt 18 -> 19 die Kette von damals.
+        final expected = cs.describeValue(
+          cs.sampleValue(
+            'vo2max',
+            48.5,
+            chain: legacyPreprocessingChainVersion,
+          ),
+        );
         await v1.close();
 
         final s = await open();
@@ -684,7 +692,7 @@ void main() {
               .data
               .values
               .single,
-          16,
+          19,
         );
         await s.database.validateDatabaseSchema();
         expect(await count(s, 'computed_values'), 6);

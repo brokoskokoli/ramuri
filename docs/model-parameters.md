@@ -10,6 +10,7 @@
 - `belegt`: Der Wert steht so in der genannten Quelle. Der Zusatz `(Sekundärquellen)` heißt: nur dort, nicht in der Originalleitlinie.
 - `abgeleitet`: Der Wert folgt aus einer Quellenangabe, durch Umrechnung oder einen benannten Rechenschritt.
 - `Heuristik`: Keine Quelle nennt diesen Wert. Genannte Quellen stützen höchstens die Richtung oder die Größenordnung.
+- `Festlegung`: Eine Regel, die der Maintainer festlegt (keine Messgröße).
 
 **Evidenz insgesamt**
 - Keine gefundene Quelle prüft den ACSM-/HFR-Schätzer an Freizeitläufern mit Smartphone-GPS. Die meisten Studien nutzen Laufband, kleine Gruppen junger Männer oder Athleten.
@@ -52,6 +53,7 @@
 | PAR-017 | Ruhepuls, Plausibilität | Eingaben außerhalb 30–120 bpm ablehnen, Hinweis außerhalb 40–110 bpm | abgeleitet | Individuelle Mittelwerte des Tracker-Ruhepulses reichten von 39,7 bis 108,6 bpm (92.457 Personen, Fitbit-PPG, USA) [Q19]; das sind keine Selbsteingaben. Der Hinweisbereich folgt daraus gerundet. Die härteren Grenzen sind ein eigener Puffer, weil einzelne Tage und sehr ausdauernde Personen weiter außen liegen können. | FR-0060 |
 | PAR-018 | Verhalten bei HFmax ≤ HFRuhe | Neue Eingabe nicht speichern. Entsteht der Konflikt aus verschiedenen Quellen: `r`, Reservezonen, VO₂max, aerobe Effizienz und TRIMP sind „nicht verfügbar“, mit Grund und Bitte um Eingabe. Historische Werte bleiben unverändert | Heuristik | Keine Quelle nötig: `r` ist dann undefiniert oder unsinnig. Das Verhalten folgt OQ-0012. **Entschieden:** Auch der TRIMP ist dann nicht verfügbar, weil gerade die HFmax falsch sein kann. Nach der Korrektur lässt er sich über die Neuberechnung nachholen (FR-0058). | FR-0055, FR-0060 |
 | PAR-019 | Mindest-Herzfrequenzreserve | Bei 0 < HFR < 50 bpm die Eingabe speichern. `r`, Reservezonen, VO₂max und aerobe Effizienz sind „nicht verfügbar“, mit Grund und Bitte um Prüfung. Der TRIMP wird weiter berechnet | Heuristik | Keine Quelle. Bei 50 bpm entspricht ein Messfehler von 5 bpm schon 10 Prozentpunkten von `r`. Der TRIMP braucht nur HFmax (OQ-0012), und ein echtes Wertepaar kann etwa unter Medikamenten unter 50 bpm Reserve liegen (PAR-016). Bei HFmax ≤ HFRuhe gilt PAR-018, dort ist auch der TRIMP nicht verfügbar (OQ-0019). | FR-0060 |
+| PAR-237 | Tag eines Laufs | Ein Lauf zählt überall am Ortstag seines Starts: Beginn plus der am Lauf gespeicherte UTC-Versatz; fehlt der Versatz, gilt der UTC-Tag. Das gilt für Tageswerte, Statistik, Belastung, Readiness, Prognose, Verlauf, Kalender, Plan und Export | Festlegung | Ein Lauf soll nur an einem Tag stehen; übliche Lauf-Apps zählen ihn am Starttag. Abweichung nur bei einer Zeitzonenreise während des Laufs (der Versatz des Endes gilt). Quelle SRC-003, Entscheidung Maintainer 2026-11-20. | FR-0040, FR-0044, FR-0092, FR-0171 |
 
 ## 3. VO₂max (Phase 1)
 

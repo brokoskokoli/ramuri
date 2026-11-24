@@ -323,6 +323,13 @@ void main() {
         ),
         sensor,
       );
+      // Suchergebnis vorab (FR-0220): die Morgenmessung startet ohne Kamerasuche.
+      await t.runAsync(
+        () => SettingsPpgCameraChoiceStore(
+          s.settings,
+          clock,
+        ).setAuto(const PpgCameraRef('0')),
+      );
       await startApp(t, w);
       await _onHome(t, card: false);
 

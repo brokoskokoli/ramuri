@@ -135,7 +135,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     if (_scroll.hasClients) _view.scrollOffset = _scroll.offset;
   }
 
-  /// Heutiger Ortstag nach dem Versatz der Uhr (wie der Tag eines Laufendes).
+  /// Heutiger Ortstag nach dem Versatz der Uhr (wie der Tag eines Laufs, PAR-237).
   String get _today {
     final now = widget.clock.now().toUtc();
     return widget.today ?? isoDay(now.add(widget.clock.utcOffsetAt(now)));
@@ -369,7 +369,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               WeekDistanceCard(
                 series: series,
                 formatter: formatter,
-                hasAnyRun: data.figures.isNotEmpty,
+                hasAnyRun: data.figures.any((f) => f.isRunning),
               ),
               const SizedBox(height: 14),
               Vo2ProgressCard(

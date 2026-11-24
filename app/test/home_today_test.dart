@@ -444,7 +444,7 @@ void main() {
     expect((await _unitToday(d.session))!.runId, isNull);
   });
 
-  group('Nachbesserung D', () {
+  group('Zuordnung des Laufs zur Einheit von heute', () {
     testWidgets('„Fertig“ vor dem Ende der Berechnung: Zuordnung danach, '
         'Datenmeldung erst nach der Zuordnung', (tester) async {
       final d = Device();

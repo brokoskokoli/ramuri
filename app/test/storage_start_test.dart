@@ -99,7 +99,7 @@ void main() {
     expect(w.files.present, isTrue);
   });
 
-  group('Schlüsselablage-Fehler und Neubeginn (S7)', () {
+  group('Schlüsselablage-Fehler und Neubeginn', () {
     test(
       'Neubeginn erst, nachdem "Erneut versuchen" einmal gescheitert ist',
       () async {
@@ -183,7 +183,7 @@ void main() {
     });
   });
 
-  group('Neuere Version, Migration, Einrichtung (S9)', () {
+  group('Neuere Version, Migration, Einrichtung', () {
     for (final (failure, cause) in [
       (StorageFailure.newerVersion, StorageNotOpenableCause.newerVersion),
       (StorageFailure.migrationFailed, StorageNotOpenableCause.migrationFailed),
@@ -278,7 +278,7 @@ void main() {
       expect((c.state as StorageNotOpenableState).canReset, isTrue);
     });
 
-    test('Verschlüsselung dazwischen setzt den Zähler zurück (M1)', () async {
+    test('Verschlüsselung dazwischen setzt den Zähler zurück', () async {
       final w = World();
       await w.seed(fileKey: k0, storedKey: k0);
       w.inner.openFailure = StorageFailure.newerVersion;
@@ -295,7 +295,7 @@ void main() {
     });
 
     test('Neubeginn gelingt beim Löschen, Öffnen scheitert mit derselben Art: '
-        'Zähler beginnt neu (M2)', () async {
+        'Zähler beginnt neu', () async {
       final w = World();
       await w.seed(fileKey: k0, storedKey: k0);
       w.inner.openFailure = StorageFailure.newerVersion;

@@ -5,8 +5,9 @@ import 'recalc_support.dart';
 
 /// WP09 D2b: Besitzertag, Atomarität, gespeicherte Basis, Rennen.
 void main() {
-  group('Besitzertag: lokaler Kalendertag des Laufendes', () {
-    // (Ende UTC, Versatz, erwarteter Tag, der andere Kandidat)
+  group('Besitzertag: lokaler Kalendertag des Laufbeginns (PAR-237)', () {
+    // (Ende UTC, Versatz, erwarteter Tag, der andere Kandidat); Start 30 min
+    // vor dem Ende, am selben lokalen Tag.
     final cases = <(String, DateTime, Duration?, String, String)>[
       (
         'UTC, Berechnung nach Mitternacht',
@@ -71,12 +72,14 @@ void main() {
       });
     }
 
-    test('Tag des Laufs ohne Versatz ist der UTC-Tag (dokumentiert)', () async {
+    test('Tag des Laufs ohne Versatz ist der UTC-Tag des Starts '
+        '(dokumentiert)', () async {
       final w = await RecalcWorld.create();
+      // Start 23:40 UTC am 25., Ende 00:10 UTC am 26.
       final id = await w.seedRun(DateTime.utc(2030, 2, 25, 23, 40));
       final run = (await w.session.runs.get(id))!;
       expect(run.endedUtcOffset, isNull);
-      expect(dayOfRun(run), '2030-02-26');
+      expect(dayOfRun(run), '2030-02-25');
     });
   });
 

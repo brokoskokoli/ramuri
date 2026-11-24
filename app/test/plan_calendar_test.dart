@@ -918,7 +918,7 @@ void main() {
     expect(key('plan_list'), findsOneWidget);
   });
 
-  group('Nachbesserung E', () {
+  group('Läufe ohne Einheit, Abstand und Verschieben', () {
     testWidgets('Lauf ohne Einheit erscheint als erledigt, der Tag ist kein '
         'Ruhetag (FR-0171, FR-0172)', (tester) async {
       // Heute (Mi 11.11.) frei gelaufen, ohne Einheit.
@@ -1158,7 +1158,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    // Festlegung WP22 (Review E2a Runde 3, Befund 4).
+    // Festlegung WP22.
     for (final (locale, text) in [
       ('de', 'Diese Einheit ersetzt die harte Einheit ihrer Woche.'),
       ('en', 'This run replaces the hard session of its week.'),
@@ -1613,8 +1613,9 @@ void main() {
       expect(spy.calls, isEmpty);
     });
 
-    testWidgets('Ruhe-Einheit mit Lauf: kein „Ruhetag festlegen“ '
-        '(Befund 3)', (tester) async {
+    testWidgets('Ruhe-Einheit mit Lauf: kein „Ruhetag festlegen“', (
+      tester,
+    ) async {
       final (session, clock) = await _seed(
         extra: [
           PlanUnit(

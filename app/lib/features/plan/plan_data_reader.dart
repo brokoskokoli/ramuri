@@ -36,14 +36,31 @@ class PlanDataReader {
     offload: offload,
   ).load();
 
-  Future<List<RunFigures>> _runs() async {
+  /// Alle beendeten Einheiten mit Kennzahlen, Läufe und andere Sportart.
+  Future<List<RunFigures>> _figures() async {
     final custom = loadRuns;
     if (custom != null) return custom();
-    final overviews = await runOverviews();
     return [
-      for (final o in overviews)
+      for (final o in await runOverviews())
         if (!o.readFailed) o.toFigures(),
     ];
+  }
+
+  /// Nur Läufe: Eine andere Sportart (FR-0221) zählt nie für Trainingsstand,
+  /// lockeres Tempo und längste Einheit; für Wochenzeit und RPE-Regel zählt
+  /// sie nur als ersetzte lockere Einheit (PAR-233, DEC-0056).
+  Future<List<RunFigures>> _runs() async => [
+    for (final r in await _figures())
+      if (r.isRunning) r,
+  ];
+
+  /// Kennzahlen der Sporteinheit [runId] (`null` ohne oder bei einem Lauf),
+  /// für die Prüfung des Ersatzes (PAR-233).
+  Future<RunFigures?> sportFigures(int runId) async {
+    for (final r in await _figures()) {
+      if (r.runId == runId) return r.isRunning ? null : r;
+    }
+    return null;
   }
 
   /// Eingaben für [goal] am Ortstag [today]. Die Zuordnung „locker“/„andere“
@@ -136,21 +153,27 @@ class PlanDataReader {
 
   /// Belege der Wochenprüfung (PAR-201) am Ortstag [today] für die Woche vor
   /// der von [today]: Minuten aller Läufe dieser Woche (zugeordnete und
-  /// freie), die geplanten Minuten der Woche (`null` ohne gespeicherte
-  /// Einheiten), die RPE der lockeren Läufe (zugeordnet zu lockerer oder
-  /// langer Einheit, ältester zuerst, `null` ohne Angabe) und gemeldete
+  /// freie) und der Sporteinheiten, die eine lockere Einheit ersetzen
+  /// (PAR-233, Bewegungszeit), die geplanten Minuten der Woche (`null` ohne
+  /// gespeicherte Einheiten), die RPE der lockeren Läufe (zugeordnet zu
+  /// lockerer oder langer Einheit, auch ersetzte, ältester zuerst, `null`
+  /// ohne Angabe) und gemeldete
   /// Ermüdung (PAR-188: Befinden 1 oder 2 beim letzten Lauf, höchstens
   /// 3 Tage alt).
   Future<WeekEvidence> weekEvidence(DateTime today) async {
     final t = planDay(today);
     final thisMonday = t.subtract(Duration(days: t.weekday - DateTime.monday));
     final lastMonday = thisMonday.subtract(const Duration(days: 7));
-    final runs = await _runs();
     final units = await _plans.unitsBetween(
       DateTime.utc(1, 1, 1),
       planFarFuture,
     );
     final easyIds = plannedRunIds(units).easy;
+    // Eine andere Sportart zählt nur als ersetzte lockere Einheit (PAR-233).
+    final runs = [
+      for (final r in await _figures())
+        if (r.isRunning || easyIds.contains(r.runId)) r,
+    ];
     final subjective = await session.subjective.readAll();
 
     var done = 0.0;
@@ -206,6 +229,85 @@ class PlanDataReader {
       recentEasyRpe: easyRpe,
       fatigueReported: fatigue,
     );
+  }
+
+  /// Die beendeten Läufe und Sporteinheiten (eine intensive andere Sportart
+  /// zählt für den Abstand, PAR-233; zugeordnet ist sie nur einer lockeren
+  /// Einheit) mit Ortstag von
+  /// `minGapDays - 1` Tagen vor dem Montag der Woche von [today] bis
+  /// [today], so wie sie die Regel der Abweichung braucht (PAR-235): die
+  /// Läufe der laufenden Woche und die, zu denen ihre harte Einheit Abstand
+  /// halten muss (PAR-059). RPE aus der Rückmeldung, Zeit bei mindestens
+  /// 80 % HFmax aus dem Laufwert [highHeartRateTimeValueKey] (PAR-058).
+  Future<List<PlanRunFacts>> runFacts(DateTime today) async {
+    final t = planDay(today);
+    final monday = t.subtract(Duration(days: t.weekday - DateTime.monday));
+    final from = monday.subtract(Duration(days: parameters.minGapDays - 1));
+    final inWindow = [
+      for (final r in await _figures())
+        if (_parseDay(r.day) case final d?
+            when !d.isBefore(from) && !d.isAfter(t))
+          (r, d),
+    ];
+    if (inWindow.isEmpty) return const [];
+    final subjective = await session.subjective.readAll();
+    final values = await session.values.readRunValues({
+      highHeartRateTimeValueKey,
+    });
+    return [
+      for (final (r, d) in inWindow)
+        PlanRunFacts(
+          runId: r.runId,
+          day: d,
+          movingSeconds: r.movingTime?.inSeconds,
+          rpe: subjective[r.runId]?.subjective.rpe,
+          highHrMinutes: values[r.runId]?[highHeartRateTimeValueKey]?.value,
+        ),
+    ];
+  }
+
+  /// Die einer Einheit zugeordneten, beendeten Läufe (ohne andere Sportart),
+  /// die nach [from] endeten
+  /// (ohne [from]: alle), für das Muster der Unterforderung
+  /// (PAR-236, [planUnderloadPattern]): Art der Einheit, RPE aus der
+  /// Rückmeldung und Zeit bei mindestens 80 % HFmax aus dem Laufwert
+  /// [highHeartRateTimeValueKey] (PAR-058). Gesundheitsdaten: nie loggen.
+  Future<List<PlanUnderloadRun>> underloadRuns(DateTime? from) async {
+    final kinds = <int, PlanUnitKind>{
+      for (final u in await _plans.unitsBetween(
+        DateTime.utc(1, 1, 1),
+        planFarFuture,
+      ))
+        if (u.runId case final int id) id: u.kind,
+    };
+    if (kinds.isEmpty) return const [];
+    final result = <PlanUnderloadRun>[];
+    for (final r in await session.runs.finishedBetween(
+      from ?? DateTime.utc(1, 1, 1),
+      clock.now().add(const Duration(days: 1)),
+    )) {
+      final kind = kinds[r.id];
+      final ended = r.endedAt;
+      // Nur Läufe: Eine Sporteinheit, die nach PAR-233 eine lockere Einheit
+      // ersetzt, zählt nicht für das Muster (FR-0222).
+      if (kind == null || ended == null || !r.mode.isRunning) continue;
+      if (from != null && !ended.isAfter(from)) continue;
+      double? highHr;
+      for (final v in await session.values.read(ValueOwner.run(r.id))) {
+        if (v.current.key == highHeartRateTimeValueKey) {
+          highHr = v.current.value;
+        }
+      }
+      result.add(
+        PlanUnderloadRun(
+          kind: kind,
+          endedAt: ended.toUtc(),
+          rpe: (await session.subjective.read(r.id))?.subjective.rpe,
+          highHrMinutes: highHr,
+        ),
+      );
+    }
+    return result;
   }
 
   bool _before(RunFigures r, DateTime monday) {

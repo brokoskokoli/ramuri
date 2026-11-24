@@ -367,7 +367,7 @@ void main() {
     });
 
     test('alte Regelversion, gleiche Einheiten: neue Fassung ohne Karte, '
-        'Hinweis weg, Prüftag gesetzt (NB6 1)', () async {
+        'Hinweis weg, Prüftag gesetzt', () async {
       final e = await _Env.open();
       await e.controller.saveGoal(_goal());
       final units = await e.plans.unitsBetween(_today, planFarFuture);
@@ -400,7 +400,7 @@ void main() {
     });
 
     test('alte Regelversion unter Warnsignal: neue Fassung, gehaltene '
-        'Einheiten bleiben gehalten (NB6 1)', () async {
+        'Einheiten bleiben gehalten', () async {
       final e = await _Env.open();
       await e.controller.saveGoal(_goal());
       await e.controller.reportWarning();
@@ -513,7 +513,7 @@ void main() {
     },
   );
 
-  group('Nachbesserung 1', () {
+  group('Warteschlange, Prüftag und Hinweise der Fassung', () {
     test('Warteschlange: assignRun wartet, bis die laufende Neuberechnung '
         'ihre Fassung geschrieben hat', () async {
       Completer<void>? gate;
@@ -523,7 +523,9 @@ void main() {
       e = await _Env.open(
         loadRuns: () async {
           reads++;
-          if (reads == 2) {
+          // Je Neuberechnung zwei Lesevorgänge: Eingaben und Läufe der
+          // Abweichung (PAR-235).
+          if (reads == 3) {
             // Lesen der Neuberechnung nach assignRun.
             seenBySecondRead = await e.plans.unitOn(_day(1));
           }
@@ -549,7 +551,7 @@ void main() {
       gate.complete();
       expect(await manual, PlanActionResult.done);
       expect(await assign, PlanActionResult.done);
-      expect(reads, 2);
+      expect(reads, 4);
       // assignRun lief erst nach dem Abschluss der Neuberechnung (Prüftag
       // geschrieben) und hat dann zugeordnet.
       expect(seenBySecondRead?.runId, runId);
@@ -773,7 +775,7 @@ void main() {
     });
   });
 
-  group('Nachbesserung 2', () {
+  group('Läufe im Zeitraum und Abstand beim Verschieben', () {
     test('runsBetween: RPE 7 ist intensiv, 6 nicht (PAR-058); nur beendete '
         'Läufe, Tag nach Ortszeit des Endes, Grenzen eingeschlossen', () async {
       final e = await _Env.open();
@@ -895,65 +897,63 @@ void main() {
       },
     );
 
-    test(
-      'runsBetween an der Versatzgrenze ±18 h (maxRunEndUtcOffset): '
-      'genau 18 h zählt zum Plantag der Ortszeit, mehr wird abgewiesen',
-      () async {
-        final e = await _Env.open();
-        const limit = Duration(hours: 18);
-        const second = Duration(seconds: 1);
-        Future<int> run(DateTime end, Duration offset) async {
-          final r = await e.session.runs.create(
-            startedAt: end.subtract(const Duration(hours: 1)),
-          );
-          await e.session.runs.setState(
+    test('runsBetween an der Versatzgrenze ±18 h (maxRunEndUtcOffset): '
+        'genau 18 h zählt zum Plantag der Ortszeit des Starts (PAR-237), mehr '
+        'wird abgewiesen', () async {
+      final e = await _Env.open();
+      const limit = Duration(hours: 18);
+      const second = Duration(seconds: 1);
+      // Jeder Lauf dauert 1 h.
+      Future<int> run(DateTime start, Duration offset) async {
+        final r = await e.session.runs.create(startedAt: start);
+        await e.session.runs.setState(
+          r.id,
+          RunState.finished,
+          endedAt: start.add(const Duration(hours: 1)),
+          endedUtcOffset: offset,
+        );
+        return r.id;
+      }
+
+      // +18 h: Start UTC 18 h vor dem ersten Tag, Ortszeit genau
+      // Mitternacht des ersten Tags.
+      final firstMidnight = await run(_day(0).subtract(limit), limit);
+      // Eine Sekunde früher: Start am Vortag, Ende im Zeitraum, fällt weg.
+      await run(_day(0).subtract(limit + second), limit);
+      // −18 h: Start eine Sekunde vor Mitternacht des letzten Tags (Ortszeit),
+      // Ende am Folgetag 00:59:59, also UTC fast 19 h nach dem Ende des
+      // letzten Tags: nur mit dem Puffer für den Folgetag gefunden.
+      final lastSecond = await run(_day(4).add(limit - second), -limit);
+      // Genau 18 h danach: Start Mitternacht des Folgetags, fällt weg.
+      await run(_day(4).add(limit), -limit);
+
+      final runs = await e.controller.runsBetween(_day(0), _day(3));
+      expect(
+        {for (final r in runs) r.id: r.day},
+        {firstMidnight: _day(0), lastSecond: _day(3)},
+      );
+
+      // Knapp über der Grenze: requireRunEnd lehnt das Speichern ab.
+      for (final offset in [limit + second, -(limit + second)]) {
+        final r = await e.session.runs.create(startedAt: _day(1));
+        await expectLater(
+          e.session.runs.setState(
             r.id,
             RunState.finished,
-            endedAt: end,
+            endedAt: _day(1).add(const Duration(hours: 1)),
             endedUtcOffset: offset,
-          );
-          return r.id;
-        }
-
-        // +18 h: UTC 18 h vor dem ersten Tag, Ortszeit genau Mitternacht des
-        // ersten Tags.
-        final firstMidnight = await run(_day(0).subtract(limit), limit);
-        // Eine Sekunde früher: Ortszeit am Vortag, fällt weg.
-        await run(_day(0).subtract(limit + second), limit);
-        // −18 h: UTC fast 18 h nach dem Ende des letzten Tags, Ortszeit eine
-        // Sekunde vor Mitternacht des letzten Tags.
-        final lastSecond = await run(_day(4).add(limit - second), -limit);
-        // Genau 18 h danach: Ortszeit Mitternacht des Folgetags, fällt weg.
-        await run(_day(4).add(limit), -limit);
-
-        final runs = await e.controller.runsBetween(_day(0), _day(3));
-        expect(
-          {for (final r in runs) r.id: r.day},
-          {firstMidnight: _day(0), lastSecond: _day(3)},
+          ),
+          throwsA(
+            isA<StorageException>().having(
+              (x) => x.failure,
+              'failure',
+              StorageFailure.rejected,
+            ),
+          ),
         );
-
-        // Knapp über der Grenze: requireRunEnd lehnt das Speichern ab.
-        for (final offset in [limit + second, -(limit + second)]) {
-          final r = await e.session.runs.create(startedAt: _day(1));
-          await expectLater(
-            e.session.runs.setState(
-              r.id,
-              RunState.finished,
-              endedAt: _day(1).add(const Duration(hours: 1)),
-              endedUtcOffset: offset,
-            ),
-            throwsA(
-              isA<StorageException>().having(
-                (x) => x.failure,
-                'failure',
-                StorageFailure.rejected,
-              ),
-            ),
-          );
-          expect((await e.session.runs.get(r.id))!.endedAt, isNull);
-        }
-      },
-    );
+        expect((await e.session.runs.get(r.id))!.endedAt, isNull);
+      }
+    });
 
     test('confirmMove: Abstandskonflikt der Verschiebung ist ohne '
         'Neuberechnung sichtbar, Konflikte vor heute nicht', () async {
@@ -1117,7 +1117,7 @@ void main() {
     }
   });
 
-  group('Wochenprüfung PAR-201 beim Öffnen (NB4 2)', () {
+  group('Wochenprüfung PAR-201 beim Öffnen', () {
     // Plan seit Mittwoch 21.10.; geöffnet wird am Mittwoch 25.11., geprüft
     // wird die Woche 16.-22.11. (monday(0)), die Folgewoche ist monday(1).
     DateTime monday(int n) =>
@@ -1168,21 +1168,22 @@ void main() {
       expect(await e.plans.history(), hasLength(2));
     });
 
-    test('alte Regelversion: die Prüfung bewertet die Woche wie weekly '
-        '(NB6 1)', () async {
-      final (e, planned) = await prepare();
-      await _downgradeLast(e);
-      await e.controller.open();
-      final h = await e.plans.history();
-      expect(h.last.trigger, PlanTrigger.ruleVersion);
-      expect(h.last.reason, 'ruleVersion,repeatWeek');
-      expect(h.last.version.isCurrent, isTrue);
-      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
-    });
+    test(
+      'alte Regelversion: die Prüfung bewertet die Woche wie weekly',
+      () async {
+        final (e, planned) = await prepare();
+        await _downgradeLast(e);
+        await e.controller.open();
+        final h = await e.plans.history();
+        expect(h.last.trigger, PlanTrigger.ruleVersion);
+        expect(h.last.reason, 'ruleVersion,repeatWeek');
+        expect(h.last.version.isCurrent, isTrue);
+        expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+      },
+    );
 
     test('Lauf zuordnen vor der Prüfung (Lauf über Mitternacht in den '
-        'Montag): der Prüftag bleibt, das Öffnen bewertet die Woche '
-        '(NB7 1)', () async {
+        'Montag): der Prüftag bleibt, das Öffnen bewertet die Woche', () async {
       // Lauf 1 des Belegs (30 % der Woche) ist auch der zugeordnete.
       final (e, planned) = await prepare(share: 0.3);
       // Der Lauf liegt kurz vor heute, sonst hielte die Pausenfrage die
@@ -1208,7 +1209,7 @@ void main() {
     });
 
     test('Warnsignal und fällige Wochenbewertung: nach dem Aufheben gilt die '
-        'Anpassung (NB7 2)', () async {
+        'Anpassung', () async {
       final (e, planned) = await prepare();
       // Gemeldet am Dienstag, geöffnet am Mittwoch derselben Woche: die
       // Wochenprüfung ist fällig, das Melden hat den Prüftag nicht gesetzt.
@@ -1232,7 +1233,7 @@ void main() {
     });
 
     test('Warnsignal: wiederholtes Öffnen und Aufheben ohne Änderung der '
-        'Eingaben schreibt keine weitere Fassung (NB7 2)', () async {
+        'Eingaben schreibt keine weitere Fassung', () async {
       final (e, _) = await prepare();
       // Gemeldet am Dienstag, geöffnet am Mittwoch derselben Woche: die
       // Wochenprüfung ist fällig, das Melden hat den Prüftag nicht gesetzt.
@@ -1271,7 +1272,7 @@ void main() {
     });
   });
 
-  group('Wochenprüfung: Belege aus dem Speicher (NB7 4 bis 6)', () {
+  group('Wochenprüfung: Belege aus dem Speicher', () {
     // Plan seit Mittwoch 21.10.; bewertet wird die Woche 16.-22.11., geöffnet
     // wird Dienstag 24.11. (letzter Lauf höchstens 3 Tage her).
     DateTime monday(int n) =>
@@ -1391,29 +1392,28 @@ void main() {
       expect(v?.reason, 'fatigue');
     });
 
-    test('RPE: nur 1 von 3 lockeren Läufen mit RPE >= 6 -> keine Ermüdung '
-        '(NB8 5)', () async {
-      await prepare();
-      var n = 0;
-      await runWeek(0, rpeOf: (u, i) => easy(u) ? (n++ == 0 ? 7 : 4) : 3);
-      expect(await opened(), isNull);
-    });
-
     test(
-      'Öffnen erst am Samstag: ein lockerer Lauf der laufenden Woche '
-      'verdrängt die bewertete Woche nicht aus dem RPE-Fenster (NB8 5)',
+      'RPE: nur 1 von 3 lockeren Läufen mit RPE >= 6 -> keine Ermüdung',
       () async {
         await prepare();
         var n = 0;
-        await runWeek(0, rpeOf: (u, i) => easy(u) ? (n++ < 2 ? 7 : 4) : 3);
-        // Samstag der laufenden Woche; ein lockerer Lauf (RPE 3) am Dienstag.
-        final current = (await week(1)).firstWhere(easy);
-        await addRun(current.day, current.minutes, unit: current, rpe: 3);
-        e.clock.set(DateTime(2026, 11, 28, 12));
-        final v = await opened();
-        expect(v?.reason, 'fatigue');
+        await runWeek(0, rpeOf: (u, i) => easy(u) ? (n++ == 0 ? 7 : 4) : 3);
+        expect(await opened(), isNull);
       },
     );
+
+    test('Öffnen erst am Samstag: ein lockerer Lauf der laufenden Woche '
+        'verdrängt die bewertete Woche nicht aus dem RPE-Fenster', () async {
+      await prepare();
+      var n = 0;
+      await runWeek(0, rpeOf: (u, i) => easy(u) ? (n++ < 2 ? 7 : 4) : 3);
+      // Samstag der laufenden Woche; ein lockerer Lauf (RPE 3) am Dienstag.
+      final current = (await week(1)).firstWhere(easy);
+      await addRun(current.day, current.minutes, unit: current, rpe: 3);
+      e.clock.set(DateTime(2026, 11, 28, 12));
+      final v = await opened();
+      expect(v?.reason, 'fatigue');
+    });
 
     test('RPE zählt nur lockere Läufe: ein freier Lauf mit RPE 8 macht aus '
         'einem lockeren mit RPE 7 keine Ermüdung', () async {
@@ -1446,7 +1446,7 @@ void main() {
     });
 
     test('RPE-Fenster: alte Bewertung ohne lockeren Lauf in der bewerteten '
-        'Woche löst nicht erneut aus (NB7 5)', () async {
+        'Woche löst nicht erneut aus', () async {
       await prepare();
       // Vorwoche: lockere Läufe mit RPE 8 (zählten damals).
       await runWeek(-1, rpeOf: (u, i) => easy(u) ? 8 : 3);
@@ -1459,9 +1459,9 @@ void main() {
     });
   });
 
-  group('Zieländerung am Prüftag (NB7 6)', () {
+  group('Zieländerung am Prüftag', () {
     test('goalChange am Montag bewertet die Vorwoche mit '
-        '(Grund goalChange mit Gründen, NB8 6)', () async {
+        '(Grund goalChange mit Gründen)', () async {
       final e = await _Env.open();
       e.clock.set(localAt(_day(-21)));
       await e.controller.saveGoal(_goal());
@@ -1479,7 +1479,7 @@ void main() {
     });
   });
 
-  group('Geh-Lauf wiederholen: Annahme am Donnerstag (NB5 2)', () {
+  group('Geh-Lauf wiederholen: Annahme am Donnerstag', () {
     test('die Abfolge beginnt heute, frühere Läufe bleiben und zählen nicht '
         'als Lauf 2 und 3', () async {
       final e = await _Env.open();
@@ -1554,7 +1554,7 @@ void main() {
     });
   });
 
-  group('Öffnen: Pausenregel vor Wochenprüfung (NB6)', () {
+  group('Öffnen: Pausenregel vor Wochenprüfung', () {
     Future<_Env> prepared(int pauseDays, {bool recorded = true}) async {
       final e = await _Env.open();
       e.clock.set(localAt(_day(-80)));
@@ -1601,7 +1601,7 @@ void main() {
     );
 
     test('offene Pausenfrage: Öffnen rechnet keine Wochenprüfung; nach „Ja“ '
-        'gilt die Pausenregel, danach nichts Neues (NB7 2)', () async {
+        'gilt die Pausenregel, danach nichts Neues', () async {
       final e = await prepared(10, recorded: false);
       final before = (await e.plans.history()).length;
       final service = HintService(session: e.session, clock: e.clock);
@@ -1662,7 +1662,7 @@ void main() {
     });
 
     test('„zu leicht“, dann Pause ab pauseMinDays: die Pause startet höchstens mit der '
-        'Woche, die vor der Rückmeldung galt (N4)', () async {
+        'Woche, die vor der Rückmeldung galt', () async {
       final e = await prepared(6, recorded: false);
       await e.controller.open();
       expect(e.controller.state.feedbackDue, isTrue);
@@ -1711,7 +1711,7 @@ void main() {
     });
 
     test('Ziel speichern am Prüftag bei offener Pausenfrage, dann „Ja“ -> '
-        'Fassung pause, 80 % der Basiswoche, noHardUntil (NB8 1)', () async {
+        'Fassung pause, 80 % der Basiswoche, noHardUntil', () async {
       final e = await prepared(10, recorded: false);
       final service = HintService(session: e.session, clock: e.clock);
       final q = await service.pauseQuestion();
@@ -1729,7 +1729,7 @@ void main() {
     });
 
     test('Ziel speichern bei offener Pausenfrage, dann „Nein“ -> '
-        'Wochenprüfung greift beim nächsten Öffnen (NB9 1)', () async {
+        'Wochenprüfung greift beim nächsten Öffnen', () async {
       final e = await prepared(10, recorded: false);
       final service = HintService(session: e.session, clock: e.clock);
       expect(await service.pauseQuestion(), isNotNull);
@@ -1744,7 +1744,7 @@ void main() {
     });
 
     test('offene Pausenfrage, Antwort „Nein“: die nächste Wochenprüfung läuft '
-        'normal (NB7 2)', () async {
+        'normal', () async {
       final e = await prepared(10, recorded: false);
       final before = (await e.plans.history()).length;
       await e.controller.open();
@@ -1766,7 +1766,7 @@ void main() {
     });
   });
 
-  group('Neuer Einstieg: Neustart möglich (NB5 5)', () {
+  group('Neuer Einstieg: Neustart möglich', () {
     Future<bool> possible(DateTime target) async {
       final e = await _Env.open();
       e.clock.set(localAt(_day(-80)));
@@ -1829,7 +1829,7 @@ void main() {
     });
   });
 
-  group('Öffnen: Warnsignal-Zeile und Plan stimmen überein (NB11 2)', () {
+  group('Öffnen: Warnsignal-Zeile und Plan stimmen überein', () {
     String sig(PlanUnit u) =>
         '${u.day}|${u.kind.name}|${u.minutes}|${u.pinned}|${u.fixed.name}';
     Future<List<String>> sigs(_Env e) async => [
@@ -2370,7 +2370,7 @@ void main() {
       });
     });
 
-    test('Neustart nach langer Pause ordnet den Lauf des Tages zu', () async {
+    test('Lauf über Mitternacht am Starttag beendet die lange Pause', () async {
       // Lange Pause (PAR-181) mit anstehendem neuem Einstieg.
       final e = await _Env.open();
       e.clock.set(localAt(_day(-80)));
@@ -2378,10 +2378,10 @@ void main() {
       e.clock.set(_now);
       await _finishedRun(e.session, 70);
       await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      expect(await e.controller.newStartPossible(), isTrue);
       // Ein Lauf, der heute nach Ortszeit des Laufs (UTC+14) um 22:00
-      // beginnt und nach Mitternacht endet: Die Pausenprüfung zählt ihn
-      // für morgen (Tag des Laufendes), die Pause besteht also heute
-      // noch; für den Plan zählt der Starttag (PAR-231), also heute.
+      // beginnt und nach Mitternacht endet, zählt am Starttag (PAR-237):
+      // Die Pause endet heute, ein Neustart steht nicht mehr an.
       final start = _today.add(const Duration(hours: 8));
       final r = await e.session.runs.create(startedAt: start);
       await e.session.runs.setState(
@@ -2390,12 +2390,7 @@ void main() {
         endedAt: start.add(const Duration(hours: 3)),
         endedUtcOffset: const Duration(hours: 14),
       );
-      expect(await e.controller.newStartPossible(), isTrue);
-      expect(
-        await e.controller.restartAfterLongPause(_goal(days: {1, 3, 5})),
-        PlanActionResult.done,
-      );
-      expect((await e.controller.unitOn(_today))!.runId, r.id);
+      expect(await e.controller.newStartPossible(), isFalse);
     });
   });
 }

@@ -126,35 +126,32 @@ Future<void> walk(
 }
 
 void main() {
-  test(
-    'Durchschnittspace: Zeit in GPS-Lücken zählt nicht (Review 1, Soll 3)',
-    () {
-      final clock = FakeClock(DateTime.utc(2030, 1, 1, 12));
-      final session = RecordingSession(clock: clock)..start();
-      for (var i = 1; i <= 30; i++) {
-        clock.advance(const Duration(seconds: 1));
-        session.addPosition(
-          LocationSample(
-            time: clock.now(),
-            latitude: 50 + i * 0.000027,
-            longitude: 8,
-            accuracyMeters: 5,
-          ),
-        );
-      }
-      clock.advance(const Duration(seconds: 30)); // keine Punkte mehr
-      final s = session.snapshot();
-      expect(s.movingTime, const Duration(seconds: 60), reason: 'läuft weiter');
-      // 30 s Lücke und 1 s vom Start bis zum ersten Punkt (ohne Strecke).
-      expect(s.positionLossMovingTime, const Duration(seconds: 31));
-      final km = s.distanceMeters! / 1000;
-      // Nur die 29 s mit Strecke gelten, nicht die 60 s Bewegungszeit.
-      expect(averagePaceSecondsPerKm(s)!, closeTo(29 / km, 0.001));
-    },
-  );
+  test('Durchschnittspace: Zeit in GPS-Lücken zählt nicht', () {
+    final clock = FakeClock(DateTime.utc(2030, 1, 1, 12));
+    final session = RecordingSession(clock: clock)..start();
+    for (var i = 1; i <= 30; i++) {
+      clock.advance(const Duration(seconds: 1));
+      session.addPosition(
+        LocationSample(
+          time: clock.now(),
+          latitude: 50 + i * 0.000027,
+          longitude: 8,
+          accuracyMeters: 5,
+        ),
+      );
+    }
+    clock.advance(const Duration(seconds: 30)); // keine Punkte mehr
+    final s = session.snapshot();
+    expect(s.movingTime, const Duration(seconds: 60), reason: 'läuft weiter');
+    // 30 s Lücke und 1 s vom Start bis zum ersten Punkt (ohne Strecke).
+    expect(s.positionLossMovingTime, const Duration(seconds: 31));
+    final km = s.distanceMeters! / 1000;
+    // Nur die 29 s mit Strecke gelten, nicht die 60 s Bewegungszeit.
+    expect(averagePaceSecondsPerKm(s)!, closeTo(29 / km, 0.001));
+  });
 
   test('Durchschnittspace: Lücke im erkannten Stillstand wird nicht '
-      'abgezogen (Review 2, Soll 2)', () {
+      'abgezogen', () {
     final clock = FakeClock(DateTime.utc(2030, 1, 1, 12));
     final session = RecordingSession(clock: clock, autoPause: true)..start();
     void gps(int from, int n, {required bool move}) {
@@ -204,7 +201,7 @@ void main() {
         await tester.tap(key('run_block_ask'));
         await tester.pumpAndSettle();
         expect(d.locationAccess.requestCount, 1);
-        // Nach der Blockade startet nichts von selbst (Review 1, Soll 5).
+        // Nach der Blockade startet nichts von selbst.
         expect(key('run_start_ready'), findsOneWidget);
         expect(key('run_pause'), findsNothing);
         expect(await d.session.runs.list(), isEmpty);
@@ -239,7 +236,7 @@ void main() {
       d.locationAccess.onRequest = LocationAccess.precise;
       await tester.tap(key('run_block_ask'));
       await tester.pumpAndSettle();
-      // Nach der Blockade startet nichts von selbst (Review 1, Soll 5).
+      // Nach der Blockade startet nichts von selbst.
       expect(key('run_start_ready'), findsOneWidget);
       expect(key('run_pause'), findsNothing);
       expect(await d.session.runs.list(), isEmpty);
@@ -259,7 +256,7 @@ void main() {
       d.locationAccess.gps = true;
       await tester.tap(key('run_block_recheck'));
       await tester.pumpAndSettle();
-      // Nach der Blockade startet nichts von selbst (Review 1, Soll 5).
+      // Nach der Blockade startet nichts von selbst.
       expect(key('run_start_ready'), findsOneWidget);
       expect(key('run_pause'), findsNothing);
       expect(await d.session.runs.list(), isEmpty);
@@ -278,7 +275,7 @@ void main() {
       d.locationAccess.fail = false;
       await tester.tap(key('run_block_recheck'));
       await tester.pumpAndSettle();
-      // Nach der Blockade startet nichts von selbst (Review 1, Soll 5).
+      // Nach der Blockade startet nichts von selbst.
       expect(key('run_start_ready'), findsOneWidget);
       expect(key('run_pause'), findsNothing);
       expect(await d.session.runs.list(), isEmpty);
@@ -300,7 +297,7 @@ void main() {
       access.current = LocationAccess.precise;
       await tester.tap(key('run_block_recheck'));
       await tester.pumpAndSettle();
-      // Nach der Blockade startet nichts von selbst (Review 1, Soll 5).
+      // Nach der Blockade startet nichts von selbst.
       expect(key('run_start_ready'), findsOneWidget);
       expect(key('run_pause'), findsNothing);
       expect(await d.session.runs.list(), isEmpty);
@@ -328,7 +325,7 @@ void main() {
           AppLifecycleState.resumed,
         );
         await tester.pumpAndSettle();
-        // Nach der Blockade startet nichts von selbst (Review 1, Soll 5).
+        // Nach der Blockade startet nichts von selbst.
         expect(key('run_start_ready'), findsOneWidget);
         expect(key('run_pause'), findsNothing);
         expect(await d.session.runs.list(), isEmpty);
@@ -626,7 +623,7 @@ void main() {
       expect(key('home_start_run'), findsOneWidget);
     });
 
-    // WP18 Review 1, Befund 7: Die Angaben zum Lauf sind in der Abschlussansicht
+    // Die Angaben zum Lauf sind in der Abschlussansicht
     // verdrahtet und speichern in den Speicher des Laufs.
     testWidgets('Beenden: Angaben zum Lauf in der Abschlussansicht', (
       tester,

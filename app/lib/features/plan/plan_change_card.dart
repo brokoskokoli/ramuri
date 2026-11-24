@@ -23,6 +23,8 @@ String planChangeReasonText(
       return l.planAdaptReasonReadiness;
     case planReasonAdaptationFixed:
       return l.planAdaptReasonFixed;
+    case planReasonUnderload:
+      return l.planChangeReasonUnderload;
     case 'weekly':
       final share = _ownShare(v);
       return share == null

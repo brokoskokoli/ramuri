@@ -105,6 +105,7 @@ class PlanViewState {
       feedbackDue = false,
       changeNotice = null,
       walkRunProposal = null,
+      underloadPrompt = null,
       adaptation = PlanAdaptationMode.fixed;
 
   const PlanViewState.failed()
@@ -120,6 +121,7 @@ class PlanViewState {
       feedbackDue = false,
       changeNotice = null,
       walkRunProposal = null,
+      underloadPrompt = null,
       adaptation = PlanAdaptationMode.fixed;
 
   const PlanViewState.ready({
@@ -134,6 +136,7 @@ class PlanViewState {
     this.feedbackDue = false,
     this.changeNotice,
     this.walkRunProposal,
+    this.underloadPrompt,
     this.adaptation = PlanAdaptationMode.fixed,
   }) : phase = PlanLoadPhase.ready;
 
@@ -193,6 +196,11 @@ class PlanViewState {
   /// Vorschlag „Woche wiederholen“ in der Geh-Lauf-Phase (PAR-140); die App
   /// fragt, der Nutzer entscheidet. Nicht unter Warnsignal.
   final WalkRunWeekProposal? walkRunProposal;
+
+  /// Offener Hinweis bzw. offene Frage der Unterforderung (PAR-236): nur bei
+  /// „adaptiv“, ohne Warnsignal, ohne Korrektur nach unten in dieser Woche
+  /// (PAR-201) und ohne Readiness nach PAR-173; sonst `null`.
+  final PlanUnderloadPrompt? underloadPrompt;
 
   bool get hasPlan => version != null;
 
@@ -292,6 +300,11 @@ class PlanController extends ChangeNotifier {
     } on Object {
       // Die Prüfung holt der nächste Start nach; die Seite zeigt den
       // gespeicherten Plan.
+    }
+    try {
+      await _advanceUnderload();
+    } on Object {
+      // Ohne lesbaren Stand bleibt die Stufe; das nächste Öffnen prüft neu.
     }
     // Läufe der Woche bis heute zählen für ihre offenen Einheiten (PAR-231).
     await _autoAssignQuietly();
@@ -437,16 +450,11 @@ class PlanController extends ChangeNotifier {
         }
       }
     }
-    final r = await recalculatePlan(
-      plans: _plans,
-      settings: session.settings,
+    final r = await _write(
       trigger: trigger,
       today: today,
-      now: clock.now(),
       reason: reason,
       inputs: inputs,
-      parameters: parameters,
-      warning: _warning,
       readiness: readiness,
       // `manual` bewertet die Woche nicht (ADR-0010 Nachtrag WP24, K63): Der
       // Prüftag bleibt, sonst fiele die fällige Wochenbewertung weg.
@@ -458,6 +466,32 @@ class PlanController extends ChangeNotifier {
     if (r.wasWritten) onChanged?.call();
     return r.wasWritten;
   }
+
+  /// Schreibt die Neuberechnung ([recalculatePlan]) mit den Läufen der
+  /// Woche für die Regel der Abweichung (PAR-235, [PlanDataReader.runFacts]):
+  /// Jede Fassung des Controllers rechnet mit ihnen, sonst fielen Kürzung,
+  /// Lockerung und Tausch beim nächsten Rechnen zurück.
+  Future<PlanRecalculation> _write({
+    required PlanTrigger trigger,
+    required DateTime today,
+    String? reason,
+    PlanInputs? inputs,
+    bool markChecked = true,
+    Iterable<PlanReadinessDay> readiness = const [],
+  }) async => recalculatePlan(
+    plans: _plans,
+    settings: session.settings,
+    trigger: trigger,
+    today: today,
+    now: clock.now(),
+    reason: reason,
+    inputs: inputs,
+    parameters: parameters,
+    warning: _warning,
+    markChecked: markChecked,
+    readiness: readiness,
+    runs: await reader.runFacts(today),
+  );
 
   /// Eingaben der Rechnung für [trigger]: beim Anlegen (oder ohne Fassung)
   /// die frischen aus [buildPlanInputs], sonst die der letzten Fassung mit den
@@ -529,6 +563,15 @@ class PlanController extends ChangeNotifier {
             if (c.kind != PinnedConflictKind.spacing && !c.day.isBefore(today))
               c,
           ...planSpacingConflicts(units, today, parameters: parameters),
+          // Bei „fix“ zusätzlich der Abstand der nächsten harten Einheit zu
+          // einem intensiven Lauf, wenn kein Tausch möglich war (PAR-235).
+          if (await _adaptation.read() == PlanAdaptationMode.fixed)
+            ...planRunSpacingConflicts(
+              units,
+              await _intensiveRunDays(today),
+              today,
+              parameters: parameters,
+            ),
         ],
       );
     }
@@ -589,8 +632,16 @@ class PlanController extends ChangeNotifier {
       );
       if (proposal != null && declined == proposal.lastDay) proposal = null;
     }
+    PlanUnderloadPrompt? underload;
+    if (version != null) {
+      final u = await _underloadState();
+      if (u.prompt != null && !await _underloadBlocked(history, warning)) {
+        underload = u.prompt;
+      }
+    }
     return PlanViewState.ready(
       adaptation: await _adaptation.read(),
+      underloadPrompt: underload,
       changeNotice: notice,
       walkRunProposal: proposal,
       warning: warning,
@@ -630,22 +681,24 @@ class PlanController extends ChangeNotifier {
     return first;
   }
 
-  /// Beendete Läufe mit Ortstag (Tag des Laufendes, [dayOfRun]) in
+  /// Beendete Läufe mit Ortstag (Tag des Laufbeginns, [dayOfRun], PAR-237) in
   /// `from <= Tag <= to`, für den Kalender (FR-0171) und die Prüfung beim
   /// Verschieben: [PlanCalendarRun.intensive] nach PAR-058
   /// ([PlanParameters.completedIntensive]) aus der Zeit bei mindestens 80 %
   /// HFmax (Laufwert [highHeartRateTimeValueKey]) oder der RPE-Angabe; ohne
   /// verfügbaren Wert zählt nur die RPE-Angabe.
   ///
-  /// Liest nur die Läufe, deren Ende höchstens den größten UTC-Versatz
-  /// ([maxRunEndUtcOffset]) außerhalb des Zeitraums liegt, und nur deren
-  /// subjektive Angaben und Laufwerte (Befund E2-6).
+  /// Liest nur die Läufe, deren Ende im Zeitraum samt Puffer liegt
+  /// ([runDayQueryBounds]: größter UTC-Versatz, hinten der Folgetag für einen
+  /// Lauf über Mitternacht), und nur deren subjektive Angaben und Laufwerte
+  /// (Befund E2-6).
   Future<List<PlanCalendarRun>> runsBetween(DateTime from, DateTime to) async {
     final f = planDay(from), t = planDay(to);
     final result = <PlanCalendarRun>[];
+    final bounds = runDayQueryBounds(f, t);
     for (final r in await session.runs.finishedBetween(
-      f.subtract(maxRunEndUtcOffset),
-      t.add(const Duration(days: 1) + maxRunEndUtcOffset),
+      bounds.from,
+      bounds.to,
     )) {
       final p = DateTime.parse(dayOfRun(r));
       final day = DateTime.utc(p.year, p.month, p.day);
@@ -669,6 +722,21 @@ class PlanController extends ChangeNotifier {
       );
     }
     return result;
+  }
+
+  /// Ortstage der intensiven Läufe und Sporteinheiten (PAR-058, PAR-233),
+  /// zu denen die harte Einheit der Woche von [today] Abstand halten muss
+  /// (PAR-059), wie [planIntensiveRunDays]; über [runsBetween], damit die
+  /// Seite nicht auf die Kennzahlen aller Läufe wartet.
+  Future<Set<DateTime>> _intensiveRunDays(DateTime today) async {
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    return {
+      for (final r in await runsBetween(
+        monday.subtract(Duration(days: parameters.minGapDays - 1)),
+        today,
+      ))
+        if (r.intensive) r.day,
+    };
   }
 
   /// Die zugeordneten Läufe der erledigten Einheiten in [units] (ohne
@@ -888,7 +956,6 @@ class PlanController extends ChangeNotifier {
             ?PlanRunCandidate.of(
               r,
               movingTime: overviews[r.id]?.summary.movingTime,
-              fallbackOffset: clock.utcOffsetAt(r.startedAt),
             ),
       ];
       final next = planAutoAssignments(
@@ -902,7 +969,62 @@ class PlanController extends ChangeNotifier {
     }
   }
 
+  /// Darf die Sporteinheit [runId] (FR-0221) die Einheit [unit] ersetzen
+  /// (PAR-233, [planSportReplacementBlock])? `null`: ja; sonst der Grund.
+  /// Ohne Plan oder ohne offene Einheit: [SportReplacementBlock.noEasyUnit].
+  /// Liest Puls, RPE und Zeit ab 80 % HFmax der Einheit; nie loggen.
+  Future<SportReplacementBlock?> sportReplacementBlock(
+    PlanUnit? unit,
+    int runId,
+  ) => _serial(() => _sportBlock(unit, runId));
+
+  Future<SportReplacementBlock?> _sportBlock(PlanUnit? unit, int runId) async {
+    final sport = await reader.sportFigures(runId);
+    if (sport == null) return SportReplacementBlock.noEasyUnit;
+    if (unit == null || unit.runId != null && unit.runId != runId) {
+      return SportReplacementBlock.noEasyUnit;
+    }
+    final units = await _plans.unitsBetween(DateTime.utc(2000), planFarFuture);
+    final sportIds = <int>{
+      for (final r in await session.runs.list())
+        if (!r.mode.isRunning) r.id,
+    };
+    double? highHr;
+    for (final v in await session.values.read(ValueOwner.run(runId))) {
+      if (v.current.key == highHeartRateTimeValueKey) highHr = v.current.value;
+    }
+    final percents = await ReserveZoneSettings.load(session.settings);
+    return planSportReplacementBlock(
+      unit: unit,
+      sport: sport,
+      units: units,
+      sportRunIds: sportIds,
+      rpe: (await session.subjective.read(runId))?.subjective.rpe,
+      highHrMinutes: highHr,
+      heartRate: resolveHeartRate(
+        await session.profile.read(),
+        currentYear: clock.now().year,
+      ).basis,
+      zoneBounds: [for (final p in percents) p / 100],
+      parameters: parameters,
+    );
+  }
+
   Future<void> _assignAndRecalculate(int unitId, int? runId) async {
+    // Eine andere Sportart ersetzt nur eine lockere Einheit nach PAR-233.
+    if (runId != null &&
+        !((await session.runs.get(runId))?.mode.isRunning ?? true)) {
+      PlanUnit? unit;
+      for (final u in await _plans.unitsBetween(
+        DateTime.utc(2000),
+        planFarFuture,
+      )) {
+        if (u.id == unitId) unit = u;
+      }
+      if (await _sportBlock(unit, runId) != null) {
+        throw const StorageException(StorageFailure.rejected);
+      }
+    }
     await _plans.assignRun(unitId, runId);
     _fresh = null;
     onChanged?.call();
@@ -1150,6 +1272,7 @@ class PlanController extends ChangeNotifier {
     parameters: parameters,
     measuredInputs: (goal, today) async =>
         (await reader.read(goal: goal, today: today)).inputs,
+    runFacts: reader.runFacts,
   );
 
   /// Antwort auf die Nachfrage (PAR-200). „Passt“ und „zu leicht“ am Regler
@@ -1185,16 +1308,11 @@ class PlanController extends ChangeNotifier {
       raise = result.raiseGoalSignal;
       final next = result.inputs;
       if (next != null) {
-        final w = await recalculatePlan(
-          plans: _plans,
-          settings: session.settings,
+        final w = await _write(
           trigger: PlanTrigger.feedback,
           markChecked: false, // bewertet die Woche (PAR-201) nicht
           today: today,
-          now: clock.now(),
           inputs: next,
-          parameters: parameters,
-          warning: _warning,
         );
         _fresh = w.generated;
         _lastChange = w.summary;
@@ -1276,17 +1394,12 @@ class PlanController extends ChangeNotifier {
       );
     }
     if (next != null) {
-      final r = await recalculatePlan(
-        plans: _plans,
-        settings: session.settings,
+      final r = await _write(
         // Der gewählte Einstieg ist eine Zieländerung des Nutzers (Stand neu):
         // `goalChange` hält sie fest, sonst bliebe sie ausstehend.
         trigger: chosen ? PlanTrigger.goalChange : PlanTrigger.pause,
         today: today,
-        now: clock.now(),
         inputs: next,
-        parameters: parameters,
-        warning: _warning,
       );
       _fresh = r.generated;
       _lastChange = r.summary;
@@ -1408,17 +1521,12 @@ class PlanController extends ChangeNotifier {
       proposal.suggestion,
       from: walkRunRepeatFrom(today, proposal.lastDay),
     ).copyWith(today: today);
-    final r = await recalculatePlan(
-      plans: _plans,
-      settings: session.settings,
+    final r = await _write(
       trigger: PlanTrigger.manual,
       reason: walkRunRepeatReason,
       markChecked: false, // bewertet die Woche nicht
       today: today,
-      now: clock.now(),
       inputs: inputs,
-      parameters: parameters,
-      warning: _warning,
     );
     _fresh = r.generated;
     _lastChange = r.summary;
@@ -1514,6 +1622,163 @@ class PlanController extends ChangeNotifier {
     );
   }
 
+  /// Gespeicherter Zustand der Unterforderung (PAR-236).
+  Future<PlanUnderloadState> _underloadState() async =>
+      PlanUnderloadState.parse(
+        await session.settings.get(planUnderloadStageKey),
+        await session.settings.get(planUnderloadSinceKey),
+      );
+
+  Future<void> _saveUnderload(PlanUnderloadState state) async {
+    final now = clock.now();
+    await session.settings.set(planUnderloadStageKey, state.stageText, at: now);
+    final since = state.sinceText;
+    if (since != null) {
+      await session.settings.set(planUnderloadSinceKey, since, at: now);
+    }
+  }
+
+  /// Weder Hinweis noch Frage der Unterforderung (PAR-236): bei „fix“
+  /// (FR-0216), bei einem gemeldeten Warnsignal (FR-0203), wenn PAR-201 in
+  /// dieser Woche nach unten korrigiert hat, oder wenn die Readiness von heute
+  /// in einem Band nach PAR-173 liegt. Ein Fehler beim Lesen sperrt
+  /// (fail-closed).
+  Future<bool> _underloadBlocked(
+    List<PlanVersionRecord> history,
+    WarningSignal? warning,
+  ) async {
+    if (await _adaptation.read() != PlanAdaptationMode.adaptive) return true;
+    if (warning != null) return true;
+    final today = _today();
+    if (planCorrectedDownThisWeek(history, today)) return true;
+    // Anders als die Lockerung ([_readinessOn]) unterscheidet die Sperre
+    // „kein Wert“ (nicht gesperrt) von „Fehler“ (gesperrt).
+    final load = readinessToday;
+    if (load == null) return false;
+    try {
+      final r = await load(today);
+      return r != null && planDay(r.day) == today && r.eases;
+    } on Object {
+      return true;
+    }
+  }
+
+  /// Schritt der Unterforderung beim Öffnen (PAR-236): Muster aus den Läufen
+  /// nach der letzten Stufe bzw. nach der letzten Änderung der HFmax
+  /// ([planUnderloadCountFrom]); erstes Muster → Hinweis, erneutes → Frage
+  /// ([planUnderloadAdvance]). Ändert den Plan nicht.
+  Future<void> _advanceUnderload() async {
+    final goal = await _goals.goal();
+    if (goal == null) return;
+    final history = await _plans.history();
+    if (history.isEmpty) return;
+    final state = await _underloadState();
+    final changed = DateTime.tryParse(
+      await session.settings.get(profileHrMaxChangedAtKey) ?? '',
+    )?.toUtc();
+    final runs = await reader.underloadRuns(
+      planUnderloadCountFrom(state, changed),
+    );
+    final pattern = planUnderloadPattern(runs, parameters: parameters);
+    if (!pattern) return;
+    // Sperre erst nach dem Muster prüfen: ohne Muster liest das Öffnen keine
+    // Readiness (FR-0158, Wochenprüfung nur wenn fällig).
+    final blocked = await _underloadBlocked(history, await _warning?.read());
+    var canRaise = false;
+    if (state.stage != PlanUnderloadStage.none) {
+      final today = _today();
+      final built = await reader.read(goal: goal, today: today);
+      canRaise =
+          applyPlanUnderloadRaise(
+            goal: goal,
+            inputs: _inputsFor(PlanTrigger.feedback, built, history.last),
+            today: today,
+            parameters: parameters,
+          ) !=
+          null;
+    }
+    final next = planUnderloadAdvance(
+      state: state,
+      pattern: pattern,
+      blocked: blocked,
+      canRaise: canRaise,
+      now: clock.now(),
+    );
+    if (next != null) await _saveUnderload(next);
+  }
+
+  /// Antwort auf den Hinweis „HFmax prüfen“ bzw. „Passt so“ (PAR-236): Der
+  /// Hinweis erscheint nicht wieder; die Zählung für die Frage läuft ab dem
+  /// Hinweis weiter. Ohne offenen Hinweis: `rejected`.
+  Future<PlanActionResult> answerUnderloadHint() => _act(() async {
+    final state = await _underloadState();
+    if (state.stage != PlanUnderloadStage.hint) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    await _saveUnderload(
+      PlanUnderloadState(
+        stage: PlanUnderloadStage.hintDone,
+        since: state.since,
+      ),
+    );
+  });
+
+  /// Antwort auf „Plan etwas steigern?“ (PAR-236). „Ja, steigern“: einmalig
+  /// ein zusätzlicher Schritt nach PAR-193 ([applyPlanUnderloadRaise]), neue
+  /// Fassung mit Auslöser `feedback` und Grund `underload`. „Nein“: keine
+  /// Änderung. Die Antwort wird erst nach dem Schreiben gespeichert;
+  /// danach zählen nur Läufe nach der Antwort. Ohne offene Frage oder ohne
+  /// mögliche Steigerung: `rejected`.
+  Future<PlanActionResult> answerUnderloadQuestion(bool raise) =>
+      _act(() async {
+        final state = await _underloadState();
+        if (state.stage != PlanUnderloadStage.question) {
+          throw const StorageException(StorageFailure.rejected);
+        }
+        if (raise) {
+          final goal = await _goals.goal();
+          if (goal == null) {
+            throw const StorageException(StorageFailure.notFound);
+          }
+          final history = await _plans.history();
+          if (history.isEmpty) {
+            throw const StorageException(StorageFailure.notFound);
+          }
+          if (await _underloadBlocked(history, await _warning?.read())) {
+            throw const StorageException(StorageFailure.rejected);
+          }
+          final today = _today();
+          final built = await reader.read(goal: goal, today: today);
+          final next = applyPlanUnderloadRaise(
+            goal: goal,
+            inputs: _inputsFor(PlanTrigger.feedback, built, history.last),
+            today: today,
+            parameters: parameters,
+          );
+          if (next == null) {
+            throw const StorageException(StorageFailure.rejected);
+          }
+          final w = await _write(
+            trigger: PlanTrigger.feedback,
+            reason: planReasonUnderload,
+            markChecked: false, // bewertet die Woche (PAR-201) nicht
+            today: today,
+            inputs: next,
+          );
+          _fresh = w.generated;
+          _lastChange = w.summary;
+          if (w.wasWritten) onChanged?.call();
+        }
+        await _saveUnderload(
+          PlanUnderloadState(
+            stage: raise
+                ? PlanUnderloadStage.accepted
+                : PlanUnderloadStage.declined,
+            since: clock.now().toUtc(),
+          ),
+        );
+      });
+
   /// Readiness von [day] aus [readinessToday]; ohne Quelle oder bei einem
   /// Fehler `null` (keine Lockerung).
   Future<PlanReadinessDay?> _readinessOn(DateTime day) async {
@@ -1579,7 +1844,8 @@ bool weeklyCheckDue(String? lastCheckDay, DateTime today) {
   return monday(last).isBefore(monday(today));
 }
 
-/// Ein beendeter Lauf im Kalender ([PlanController.runsBetween]).
+/// Ein beendeter Lauf oder eine Sporteinheit (FR-0221) im Kalender
+/// ([PlanController.runsBetween]).
 class PlanCalendarRun {
   const PlanCalendarRun({
     required this.id,
@@ -1589,7 +1855,7 @@ class PlanCalendarRun {
 
   final int id;
 
-  /// Ortstag des Laufendes.
+  /// Tag des Laufs ([dayOfRun], Ortstag des Beginns, PAR-237).
   final DateTime day;
 
   /// Gilt nach PAR-058 als intensiv (RPE-Angabe).

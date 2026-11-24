@@ -44,10 +44,20 @@ enum DebugPpgScenario {
 /// [speed] der beim Start festgehaltene Zeitraffer.
 typedef DebugPpgSensorTime = ({int run, double seconds, double speed});
 
+/// Bildrate eines nutzbaren Eintrags in [debugPpgCameras] ohne eigene Rate.
+const int debugPpgDefaultFps = 30;
+
+/// Bildrate der Aufnahme auf der nutzbaren Kamera [info]: [fixed], falls gesetzt, sonst die
+/// Rate aus der Liste, ohne sie [debugPpgDefaultFps].
+int debugPpgFrameRate(PpgCameraInfo info, int? fixed) =>
+    fixed ?? info.frameRate ?? debugPpgDefaultFps;
+
 /// Die drei erfundenen Rückkameras der Debug-Quelle (FR-0220), in der Reihenfolge von
 /// [PpgCamera.cameras]: Standardkamera, eine physische Kamera der Standardkamera (nutzbar)
 /// und eine Kamera ohne Blitz (nicht nutzbar). Bildrate: Standardkamera 60, die übrigen
-/// nutzbaren 30 (nur Anzeige der Liste; die Aufnahme nutzt [DebugTestPpgCamera.fps]).
+/// nutzbaren 30. Mit dieser Rate nimmt die Kamera auch auf (wie der Android-Teil mit der Rate
+/// aus der Liste); ein nutzbarer Eintrag ohne Rate nimmt mit [debugPpgDefaultFps] auf, ein
+/// gesetztes [DebugTestPpgCamera.fps] gilt für jede Kamera.
 const List<PpgCameraInfo> debugPpgCameras = [
   PpgCameraInfo(
     ref: PpgCameraRef('0'),
@@ -73,7 +83,10 @@ class DebugTestPpgCamera implements PpgCamera {
 
     /// Zeitraffer: 1 = Echtzeit, 30 = 60 s Messung in 2 s.
     this.speed = 1,
-    this.fps = 30,
+
+    /// Feste Bildrate für jede Kamera (Tests); `null` = Rate der gestarteten Kamera aus
+    /// [debugPpgCameras].
+    this.fps,
 
     /// Wanduhr (nur Tests); Vorgabe: eine laufende Stoppuhr.
     Duration Function()? wallClock,
@@ -106,9 +119,14 @@ class DebugTestPpgCamera implements PpgCamera {
   /// Gestartete Kameras in Reihenfolge (die tatsächlich geöffnete, wie `PpgCameraStarted`).
   final List<PpgCameraRef> startedCameras = [];
 
+  /// Angeforderte Diagnose-Schalter und Werte je Bild jedes gelungenen Starts
+  /// (gleiche Reihenfolge wie [startedCameras]).
+  final List<({Set<PpgCameraDiagnostic> diagnostics, bool ispFrames})>
+  startedRequests = [];
+
   /// Zeitraffer; über das Debug-Panel umschaltbar (gilt ab dem nächsten Start).
   double speed;
-  final int fps;
+  final int? fps;
   final Duration Function() _wall;
 
   static Duration Function() _stopwatchClock() {
@@ -162,7 +180,11 @@ class DebugTestPpgCamera implements PpgCamera {
   };
 
   @override
-  Stream<PpgCameraEvent> start({PpgCameraRef? camera}) {
+  Stream<PpgCameraEvent> start({
+    PpgCameraRef? camera,
+    Set<PpgCameraDiagnostic> diagnostics = const {},
+    bool ispFrames = false,
+  }) {
     late final StreamController<PpgCameraEvent> c;
     var cancelled = false;
     c = StreamController<PpgCameraEvent>(
@@ -189,21 +211,35 @@ class DebugTestPpgCamera implements PpgCamera {
           await c.close();
           return;
         }
+        final rate = debugPpgFrameRate(info!, fps);
         torchOn = true;
         startedCameras.add(ref);
-        c.add(PpgCameraStarted(fps, ref));
+        final requested = Set<PpgCameraDiagnostic>.unmodifiable(diagnostics);
+        startedRequests.add((diagnostics: requested, ispFrames: ispFrames));
+        // Die erfundene Kamera bietet jeden Schalter an: gesetzt ist, was angefordert
+        // wurde; Weißabgleich fest mit fester Matrix (Variante a, ADR-0011).
+        c.add(
+          PpgCameraStarted(
+            rate,
+            ref,
+            diagnostics: requested,
+            awbVariant: requested.contains(PpgCameraDiagnostic.awbFixed)
+                ? PpgAwbVariant.matrix
+                : null,
+          ),
+        );
         final weak = sc == DebugPpgScenario.weakSignal;
         final end = sc == DebugPpgScenario.disconnected
             ? 3.0
             : ppgSearchMaxRecordSeconds + 0.5;
-        final gen = _Generator(fps, weak, sc == DebugPpgScenario.noFinger);
+        final gen = _Generator(rate, weak, sc == DebugPpgScenario.noFinger);
         var locked = false;
         // Zeitraffer beim Start festhalten: eine Umschaltung im Panel gilt erst ab dem nächsten
         // Start (sonst spränge `due` und der Rest der Messung käme in einem Schwall).
         final sp = speed;
         final run = ++_runs;
         _sensorTime = (run: run, seconds: 0, speed: sp);
-        final delay = Duration(microseconds: (1e6 / fps / sp).round());
+        final delay = Duration(microseconds: (1e6 / rate / sp).round());
         // Die Sensorzeit folgt der Wanduhr (mal [speed]) wie bei einer echten Kamera:
         // Kommt die App zeitweise nicht zum Zug, kommen die versäumten Bilder
         // gebündelt nach, statt die Messung zu verlängern (sonst liefe sie bei hoher
@@ -214,10 +250,15 @@ class DebugTestPpgCamera implements PpgCamera {
           final due = (_wall() - startedAt).inMicroseconds / 1e6 * sp;
           do {
             framesGenerated++;
-            c.add(PpgCameraFrame(gen.frame(t)));
+            c.add(
+              PpgCameraFrame(
+                gen.frame(t),
+                ispFrames ? debugIspValues(t, rate, requested) : null,
+              ),
+            );
             if (!locked && t >= 2.5) {
               locked = true;
-              c.add(const PpgCameraExposureLocked());
+              c.add(PpgCameraExposureLocked(t));
               c.add(debugCameraDetails);
             }
             t = gen.nextTime();
@@ -243,11 +284,125 @@ class DebugTestPpgCamera implements PpgCamera {
     return c.stream;
   }
 
+  /// Kamerasuche im Wechsel statt gleichzeitig (PAR-227); über das Debug-Panel umschaltbar,
+  /// gilt ab der nächsten Vorschau.
+  bool previewAlternating = false;
+
+  /// Gestartete Vorschauen der Kamerasuche (Argument je [preview]).
+  final List<List<PpgCameraRef>> previewRequests = [];
+
+  /// Vorschau läuft (Taschenlampe an).
+  bool previewOn = false;
+
+  StreamController<PpgPreviewEvent>? _preview;
+
+  /// Synthetische Zahlen eines Vorschaubilds der Kamera [ref] zur Sensorzeit [t]: mit Finger
+  /// rot und hell (R 200, G 40), [DebugPpgScenario.noFinger] grau (R 167, G 194, R/G < 1,5);
+  /// Belichtung und ISO wie [debugCameraDetails]. Erfundene Werte.
+  PpgPreviewFrame previewFrame(PpgCameraRef ref, double t) {
+    final finger = scenarioOf(ref) != DebugPpgScenario.noFinger;
+    return PpgPreviewFrame(
+      camera: ref,
+      t: t,
+      r: finger ? 200 : 167,
+      g: finger ? 40 : 194,
+      exposureNs: debugCameraDetails.exposureTimeNs,
+      iso: debugCameraDetails.iso,
+    );
+  }
+
+  /// Kamerasuche ohne Hardware: liefert je nutzbarer Kamera aus [cameras] 10 Bilder je
+  /// Sekunde Sensorzeit (mal [speed]) ohne Texture; die Seite zeigt dafür eine Fläche in der
+  /// Farbe der Zahlen. Gleichzeitig oder, mit [previewAlternating], im Wechsel je PAR-227.
+  @override
+  Stream<PpgPreviewEvent> preview(List<PpgCameraRef> cameras) {
+    late final StreamController<PpgPreviewEvent> c;
+    var cancelled = false;
+    c = StreamController<PpgPreviewEvent>(
+      onListen: () async {
+        previewRequests.add(List.unmodifiable(cameras));
+        final stop = _stopOf(scenario);
+        if (stop != null) {
+          c.add(PpgPreviewStopped(stop));
+          await c.close();
+          return;
+        }
+        final live = <PpgCameraRef>[];
+        final alternating = previewAlternating;
+        c.add(
+          PpgPreviewStarted(
+            alternating
+                ? PpgPreviewMode.alternating
+                : PpgPreviewMode.simultaneous,
+          ),
+        );
+        for (final ref in cameras) {
+          final info = debugPpgCameras.where((i) => i.ref == ref).firstOrNull;
+          final reason = info == null
+              ? PpgCameraStopReason.noCamera
+              : !info.usable
+              ? PpgCameraStopReason.noFlash
+              : _stopOf(scenarioOf(ref));
+          if (reason != null) {
+            c.add(PpgPreviewCameraFailed(ref, reason));
+          } else {
+            live.add(ref);
+          }
+        }
+        if (live.isEmpty) return;
+        previewOn = true;
+        torchOn = true;
+        const step = 0.1;
+        final sp = speed;
+        final startedAt = _wall();
+        final delay = Duration(microseconds: (1e6 * step / sp).round());
+        var n = 0;
+        var turn = -1;
+        // [stop] schließt den Strom ohne Abbestellen: dann endet die Schleife ebenso.
+        while (!cancelled && !c.isClosed) {
+          final due = (_wall() - startedAt).inMicroseconds / 1e6 * sp;
+          do {
+            final t = n * step;
+            if (alternating) {
+              final k =
+                  (t / ppgCameraFinderTurnSeconds + 1e-9).floor() % live.length;
+              if (k != turn) {
+                turn = k;
+                c.add(PpgPreviewTurn(live[k]));
+              }
+              c.add(previewFrame(live[k], t));
+            } else {
+              for (final ref in live) {
+                c.add(previewFrame(ref, t));
+              }
+            }
+            n++;
+          } while (n * step <= due && !cancelled && !c.isClosed);
+          await Future<void>.delayed(delay);
+        }
+      },
+      // `async`: die Rückgabe von `cancel()` läuft in der Zone des Aufrufers (sonst die
+      // Null-Future der Root-Zone, die im FakeAsync eines Widget-Tests nie fertig wird).
+      onCancel: () async {
+        cancelled = true;
+        if (identical(_preview, c)) _preview = null;
+        previewOn = false;
+        torchOn = false;
+      },
+    );
+    _preview = c;
+    return c.stream;
+  }
+
   @override
   Future<void> stop() async {
     final c = _active;
     _active = null;
+    final p = _preview;
+    _preview = null;
+    previewOn = false;
     torchOn = false;
+    await p?.close();
     await c?.close();
   }
 }
@@ -261,6 +416,38 @@ const PpgCameraDetails debugCameraDetails = PpgCameraDetails(
   torchStrength: 1,
   saturatedFraction: 0.02,
 );
+
+/// Erfundene Werte der Bildverarbeitung eines Bildes zur Zeit [t] (s) in der Reihenfolge von
+/// [ppgIspValueCount] (ADR-0011, Nachtrag 2026-11-21): feste Farbverstärkungen, Modi nach den
+/// gesetzten Schaltern [set] (aus = `0`, sonst der übliche Modus der Kamera-API), AWB- und
+/// AE-Zustand ab der Sperre bei 2,5 s „gesperrt“, fester Fokus. Der Linsenzustand ist bei
+/// jedem 50. Bild „nicht gemeldet“ (NaN), damit der Weg leerer Felder geprüft wird.
+List<double> debugIspValues(double t, int fps, Set<PpgCameraDiagnostic> set) {
+  final locked = t >= 2.5;
+  final frame = (t * fps).round();
+  return [
+    2.0, 1.0, 1.0, 1.5, // Farbverstärkungen R, G gerade, G ungerade, B
+    locked ? 3 : 2, // AWB-Zustand: LOCKED bzw. CONVERGED
+    set.contains(PpgCameraDiagnostic.awbFixed)
+        ? 0
+        : 1, // AWB-Modus: OFF bzw. AUTO
+    set.contains(PpgCameraDiagnostic.awbFixed)
+        ? 0
+        : 1, // Farbkorrektur: MATRIX bzw. FAST
+    set.contains(PpgCameraDiagnostic.noiseReductionOff) ? 0 : 1,
+    set.contains(PpgCameraDiagnostic.edgeOff) ? 0 : 1,
+    set.contains(PpgCameraDiagnostic.tonemapLinear) ? 0 : 1,
+    set.contains(PpgCameraDiagnostic.shadingOff) ? 0 : 1,
+    debugCameraDetails.exposureTimeNs!.toDouble(),
+    debugCameraDetails.iso!.toDouble(),
+    locked ? 3 : 2, // AE-Zustand: LOCKED bzw. CONVERGED
+    (1e9 / fps).roundToDouble(), // Bilddauer (ns)
+    0, // AF-Modus OFF
+    10.0, // Fokusdistanz (Dioptrien)
+    0, // OIS aus
+    frame % 50 == 49 ? double.nan : 0, // Linsenzustand STATIONARY
+  ];
+}
 
 /// Mittlerer Schlagabstand der Fake-Kamera in s (ca. 70/min).
 const double debugPpgBeatPeriodSeconds = 0.85;

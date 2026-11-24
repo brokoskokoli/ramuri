@@ -111,15 +111,19 @@ class RunRecorder {
   /// unmittelbar danach (gleich bei fester Uhr).
   /// Startet den Lauf. Im Modus `treadmill` ist die Startgeschwindigkeit
   /// ([beltSpeedMetersPerSecond], m/s) Pflicht; ohne sie oder mit einem
-  /// unzulässigen Wert wird abgelehnt, bevor ein Lauf angelegt wird.
+  /// unzulässigen Wert wird abgelehnt, bevor ein Lauf angelegt wird. Im
+  /// Modus `sport` (FR-0221) ist [sport] Pflicht, sonst verboten; eine
+  /// falsche Kombination wird ebenso vor dem Anlegen abgelehnt.
   Future<CommandResult> start({
     RunMode mode = RunMode.gps,
+    OtherSport? sport,
     double? beltSpeedMetersPerSecond,
     double? inclinePercent,
   }) async {
     if (_starting || _session.phase != RecordingPhase.idle) {
       return CommandResult.rejected;
     }
+    if (!runModeMatchesSport(mode, sport)) return CommandResult.rejected;
     _starting = true;
     try {
       if (mode == RunMode.treadmill &&
@@ -132,10 +136,15 @@ class RunRecorder {
           )) {
         return CommandResult.rejected;
       }
-      final run = await _runs.create(startedAt: _clock.now(), mode: mode);
+      final run = await _runs.create(
+        startedAt: _clock.now(),
+        mode: mode,
+        sport: sport,
+      );
       _runId = run.id;
       final r = _session.start(
         mode: mode,
+        sport: sport,
         beltSpeedMetersPerSecond: beltSpeedMetersPerSecond,
         inclinePercent: inclinePercent,
       );
@@ -196,6 +205,7 @@ class RunRecorder {
       final gaps = await _markers.gaps(runId);
       final r = _session.restore(
         mode: run.mode,
+        sport: run.sport,
         startedAt: run.startedAt,
         raw: raw0,
         gaps: gaps,
@@ -277,7 +287,7 @@ class RunRecorder {
     if (r == CommandResult.rejected) return r;
     _processEvents();
     final endedAt = _session.snapshot().endedAt!;
-    // Lokaler Versatz am Laufende (für den lokalen Kalendertag der Tageswerte),
+    // Lokaler Versatz am Laufende (gilt auch für den Beginn, PAR-237),
     // über die Uhr, in ganzen Sekunden.
     final offset = Duration(seconds: _clock.utcOffsetAt(endedAt).inSeconds);
     await _write(() async {
@@ -364,7 +374,8 @@ class RunRecorder {
   }
 
   /// Nimmt [newSteps] neue Schritte des Telefonsensors an (FR-0202) und
-  /// speichert den Zähler des Laufs als `raw_steps` (GPS- und Bandlauf). Die
+  /// speichert den Zähler des Laufs als `raw_steps` (GPS- und Bandlauf, nie bei
+  /// einer anderen Sportart, FR-0221). Die
   /// Zeit ist die Sitzungszeit beim Empfang. Gespeichert wird höchstens ein
   /// Wert je Anzeigetakt.
   Intake addSteps(int newSteps) {

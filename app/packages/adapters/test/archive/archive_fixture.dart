@@ -20,7 +20,7 @@ Future<void> fillAllTables(AppDatabase db) async {
   await sql(
     db,
     // mode `treadmill` (Schema 10); die Rohdaten darunter sind nur Füllwerte.
-    "INSERT INTO runs VALUES (1, 'finished', 1000, 2000000000, 3600, 'treadmill')",
+    "INSERT INTO runs VALUES (1, 'finished', 1000, 2000000000, 3600, 'treadmill', NULL)",
   );
   // Laufbandeinstellungen (WP25): Steigung angegeben, unbekannt (NULL), Stillstand.
   await sql(
@@ -66,11 +66,12 @@ Future<void> fillAllTables(AppDatabase db) async {
     "INSERT INTO morning_rr_packets (measurement_id, time_us, source, rr) VALUES (1, 5001, 'strap', x'0004ffff0000'), (1, 5002, 'strap2', x'0004')",
   );
   // Kamera-Rohsignal (WP37, Schema 14): ein Bild (280 Byte) zur ersten Messung,
-  // mit der verwendeten Kamera (Schema 15).
+  // mit der verwendeten Kamera (Schema 15), ISP-Werten (152 Byte, Schema 17)
+  // und den Schaltern Kanten aus und Weißabgleich fest (Sperre).
   await sql(
     db,
-    'INSERT INTO morning_raw_signals (measurement_id, frame_count, frames, exposure_time_ns, iso, timestamp_source, rolling_shutter_skew_ns, torch_strength, frame_gap_count, frame_gap_total_s, saturated_fraction, camera_id, physical_camera_id, focal_length_mm) '
-    "VALUES (1, 1, zeroblob(280), 16666666, 100, 'realtime', NULL, 1, 0, 0.0, NULL, '0', '2', 2.2)",
+    'INSERT INTO morning_raw_signals (measurement_id, frame_count, frames, exposure_time_ns, iso, timestamp_source, rolling_shutter_skew_ns, torch_strength, frame_gap_count, frame_gap_total_s, saturated_fraction, camera_id, physical_camera_id, focal_length_mm, isp_frames, diag_noise_reduction_off, diag_edge_off, diag_awb_fixed, diag_tonemap_linear, diag_shading_off, diag_awb_variant) '
+    "VALUES (1, 1, zeroblob(280), 16666666, 100, 'realtime', NULL, 1, 0, 0.0, NULL, '0', '2', 2.2, zeroblob(152), 0, 1, 1, 0, 0, 'lock')",
   );
   // Warnsignal (WP23): eine Zeile, kein Fremdschlüssel auf den Lauf.
   await sql(

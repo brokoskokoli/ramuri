@@ -8,6 +8,7 @@ import '../permissions/method_channel_permission_status.dart';
 /// Kanalnamen zu `PpgCamera.kt`; dieselben Zeichenketten stehen dort (ein Test prüft das).
 const String ppgCameraChannelName = 'ramuri/ppg_camera';
 const String ppgCameraStreamChannelName = 'ramuri/ppg_camera_stream';
+const String ppgCameraPreviewChannelName = 'ramuri/ppg_camera_preview';
 
 /// [PpgCamera] über Camera2 im Android-Teil (ADR-0011). Über die Grenze gehen nur Zahlen je
 /// Bild (Zeitstempel, R/G der Mitte, 16 × R, 16 × G), nie Pixel. Die Rechteanfrage läuft über
@@ -17,12 +18,18 @@ class MethodChannelPpgCamera implements PpgCamera {
     MethodChannel? method,
     EventChannel? events,
     MethodChannel? permissions,
+    EventChannel? preview,
   }) : _method = method ?? const MethodChannel(ppgCameraChannelName),
        _events = events ?? const EventChannel(ppgCameraStreamChannelName),
+       _previewEvents =
+           preview ?? const EventChannel(ppgCameraPreviewChannelName),
        _permissions = permissions ?? permissionChannel;
 
   final MethodChannel _method;
   final EventChannel _events;
+  final EventChannel _previewEvents;
+  StreamController<PpgPreviewEvent>? _previewActive;
+  StreamSubscription<dynamic>? _previewSub;
   final MethodChannel _permissions;
 
   StreamController<PpgCameraEvent>? _active;
@@ -119,6 +126,25 @@ class MethodChannelPpgCamera implements PpgCamera {
 
   static int? _int(Object? v) => v is num && v.isFinite ? v.toInt() : null;
 
+  /// Werte der Bildverarbeitung eines Bilds: genau [ppgIspValueCount] Einträge
+  /// (Float64List von Kotlin), `null`, `NaN` oder Unpassendes je Eintrag = nicht
+  /// gemeldet (`NaN`). Fehlt die Liste oder hat sie eine andere Länge: `null`.
+  static List<double>? _isp(Object? v) {
+    if (v is! List || v.length != ppgIspValueCount) return null;
+    return List.unmodifiable([
+      for (final e in v) e is num && e.isFinite ? e.toDouble() : double.nan,
+    ]);
+  }
+
+  static Set<PpgCameraDiagnostic> _diagnostics(Object? v) => {
+    if (v is List)
+      for (final e in v) ?PpgCameraDiagnostic.fromWire(e),
+  };
+
+  /// Sensorzeit in Sekunden seit Aufnahmebeginn: endlich und nicht negativ.
+  static double? _time(Object? v) =>
+      v is num && v.isFinite && v >= 0 ? v.toDouble() : null;
+
   static double? _fraction(Object? v) =>
       v is num && v.isFinite && v >= 0 && v <= 1 ? v.toDouble() : null;
 
@@ -143,6 +169,7 @@ class MethodChannelPpgCamera implements PpgCamera {
             r16: r16,
             g16: g16,
           ),
+          _isp(event['isp']),
         );
       case 'details':
         return PpgCameraDetails(
@@ -160,29 +187,66 @@ class MethodChannelPpgCamera implements PpgCamera {
       case 'started':
         final fps = event['fps'];
         final camera = _ref(event);
-        return fps is int && camera != null
-            ? PpgCameraStarted(fps, camera)
-            : null;
+        if (fps is! int || camera == null) return null;
+        final diagnostics = _diagnostics(event['diagnostics']);
+        return PpgCameraStarted(
+          fps,
+          camera,
+          diagnostics: diagnostics,
+          awbVariant: diagnostics.contains(PpgCameraDiagnostic.awbFixed)
+              ? PpgAwbVariant.fromWire(event['awbVariant'])
+              : null,
+        );
       case 'locked':
-        return const PpgCameraExposureLocked();
+        // Ohne gültige Zeit (ältere Gegenseite): wie bisher, t = null.
+        return PpgCameraExposureLocked(_time(event['t']));
+      case 'relocking':
+        final t = _time(event['t']);
+        return t == null ? null : PpgCameraRelocking(t);
       case 'stopped':
         return PpgCameraStopped(_reason(event['reason']));
     }
     return null;
   }
 
+  /// Argument für den Kanal: `null` ohne jede Angabe, sonst die Kamera und nur
+  /// bei Anforderung `diagnostics` (Namen in fester Reihenfolge) und `ispFrames`.
+  static Map<String, Object?>? startArguments({
+    PpgCameraRef? camera,
+    Set<PpgCameraDiagnostic> diagnostics = const {},
+    bool ispFrames = false,
+  }) {
+    if (camera == null && diagnostics.isEmpty && !ispFrames) return null;
+    return <String, Object?>{
+      if (camera != null) ...{
+        'cameraId': camera.cameraId,
+        'physicalCameraId': camera.physicalCameraId,
+      },
+      if (diagnostics.isNotEmpty)
+        'diagnostics': [
+          for (final d in PpgCameraDiagnostic.values)
+            if (diagnostics.contains(d)) d.wire,
+        ],
+      if (ispFrames) 'ispFrames': true,
+    };
+  }
+
   /// Bewusst kein `async*`: Abbestellen eines Generators wirkt erst am nächsten `yield`,
   /// die Kamera bliebe mit Torch an. Abbestellen meldet sich in Kotlin über onCancel
   /// (Torch aus, Sitzung und Gerät zu).
   @override
-  Stream<PpgCameraEvent> start({PpgCameraRef? camera}) {
-    // Ohne Angabe kein Argument: Kotlin nimmt die Standardkamera wie vor FR-0220.
-    final args = camera == null
-        ? null
-        : <String, Object?>{
-            'cameraId': camera.cameraId,
-            'physicalCameraId': camera.physicalCameraId,
-          };
+  Stream<PpgCameraEvent> start({
+    PpgCameraRef? camera,
+    Set<PpgCameraDiagnostic> diagnostics = const {},
+    bool ispFrames = false,
+  }) {
+    // Ohne Angabe kein Argument: Kotlin nimmt die Standardkamera wie vor FR-0220;
+    // Schalter und ISP-Werte nur, wenn angefordert (sonst die Vorgabe).
+    final args = startArguments(
+      camera: camera,
+      diagnostics: diagnostics,
+      ispFrames: ispFrames,
+    );
     late final StreamController<PpgCameraEvent> out;
     out = StreamController<PpgCameraEvent>(
       onListen: () {
@@ -214,8 +278,111 @@ class MethodChannelPpgCamera implements PpgCamera {
     return out.stream;
   }
 
+  /// Argument der Kamerasuche für den Kanal: die Kameras in Reihenfolge.
+  static Map<String, Object?> previewArguments(List<PpgCameraRef> cameras) => {
+    'cameras': [
+      for (final c in cameras)
+        {'cameraId': c.cameraId, 'physicalCameraId': c.physicalCameraId},
+    ],
+  };
+
+  static PpgPreviewMode? _mode(Object? s) => switch (s) {
+    'simultaneous' => PpgPreviewMode.simultaneous,
+    'alternating' => PpgPreviewMode.alternating,
+    _ => null,
+  };
+
+  /// Wandelt eine Nachricht der Kamerasuche von Kotlin; Unpassendes entfällt (nie ein Fehler).
+  static PpgPreviewEvent? parsePreview(Object? event) {
+    if (event is! Map) return null;
+    switch (event['type']) {
+      case 'started':
+        final mode = _mode(event['mode']);
+        if (mode == null) return null;
+        final textures = <PpgCameraRef, int>{};
+        final list = event['textures'];
+        if (list is List) {
+          for (final t in list) {
+            if (t is! Map) continue;
+            final ref = _ref(t);
+            final id = t['textureId'];
+            if (ref != null && id is int && id >= 0) textures[ref] = id;
+          }
+        }
+        return PpgPreviewStarted(mode, Map.unmodifiable(textures));
+      case 'frame':
+        final camera = _ref(event);
+        final t = _time(event['t']);
+        final r = event['r'];
+        final g = event['g'];
+        if (camera == null || t == null || r is! num || g is! num) return null;
+        if (!r.isFinite || !g.isFinite) return null;
+        final exposure = _int(event['exposureNs']);
+        final iso = _int(event['iso']);
+        return PpgPreviewFrame(
+          camera: camera,
+          t: t,
+          r: r.toDouble(),
+          g: g.toDouble(),
+          exposureNs: exposure != null && exposure > 0 ? exposure : null,
+          iso: iso != null && iso > 0 ? iso : null,
+        );
+      case 'turn':
+        final camera = _ref(event);
+        return camera == null ? null : PpgPreviewTurn(camera);
+      case 'failed':
+        final camera = _ref(event);
+        return camera == null
+            ? null
+            : PpgPreviewCameraFailed(camera, _reason(event['reason']));
+      case 'stopped':
+        return PpgPreviewStopped(_reason(event['reason']));
+    }
+    return null;
+  }
+
+  /// Wie [start] bewusst kein `async*`: Abbestellen schließt in Kotlin sofort alles
+  /// (Taschenlampe aus). Nichts davon geht in ein Log.
+  @override
+  Stream<PpgPreviewEvent> preview(List<PpgCameraRef> cameras) {
+    late final StreamController<PpgPreviewEvent> out;
+    out = StreamController<PpgPreviewEvent>(
+      onListen: () {
+        _previewSub = _previewEvents
+            .receiveBroadcastStream(previewArguments(cameras))
+            .listen(
+              (event) {
+                final e = parsePreview(event);
+                if (e == null) return;
+                out.add(e);
+                if (e is PpgPreviewStopped) out.close();
+              },
+              onError: (Object error) {
+                final code = error is PlatformException ? error.code : null;
+                out.add(PpgPreviewStopped(_reason(code)));
+                out.close();
+              },
+              onDone: out.close,
+            );
+      },
+      onCancel: () {
+        if (!identical(_previewActive, out)) return null;
+        _previewActive = null;
+        return _previewSub?.cancel();
+      },
+    );
+    _previewActive = out;
+    return out.stream;
+  }
+
   @override
   Future<void> stop() async {
+    final p = _previewActive;
+    _previewActive = null;
+    final psub = _previewSub;
+    _previewSub = null;
+    await psub?.cancel();
+    await p?.close();
     final a = _active;
     _active = null;
     final sub = _sub;

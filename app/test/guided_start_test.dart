@@ -172,7 +172,7 @@ void main() {
 
   group('Ablauf bis zur Zusammenfassung', () {
     testWidgets('„Einheit starten“, Lauf, Beenden: Zusammenfassung zeigt '
-        '„Aus dem Plan“ sofort (Review 2, M2)', (tester) async {
+        '„Aus dem Plan“ sofort', (tester) async {
       final d = Device();
       await _open(d);
       await d.start(tester, const Locale('de'));
@@ -256,9 +256,7 @@ void main() {
     });
 
     testWidgets('Absturz, Fortsetzen, Beenden: Zusammenfassung zeigt „Aus dem '
-        'Plan“, der Lauf wird nach dem Schließen zugeordnet (NB4)', (
-      tester,
-    ) async {
+        'Plan“, der Lauf wird nach dem Schließen zugeordnet', (tester) async {
       final d = Device();
       await _open(d);
       await d.start(tester, const Locale('de'));
@@ -319,7 +317,7 @@ void main() {
 
     testWidgets('Freier Lauf, Absturz, Fortsetzen: „Aus dem Plan“ wie die '
         'Zuordnung in der Datenbank, der Lauf zählt als offene Einheit des '
-        'Tags (NB5, PAR-231)', (tester) async {
+        'Tags (PAR-231)', (tester) async {
       final d = Device();
       await _open(d);
       await d.start(tester, const Locale('de'));
@@ -335,9 +333,7 @@ void main() {
     });
 
     testWidgets('Lauf begann vor dem Merker: nicht über den Merker, sondern '
-        'als offene Einheit des Tags zugeordnet (NB5, PAR-231)', (
-      tester,
-    ) async {
+        'als offene Einheit des Tags zugeordnet (PAR-231)', (tester) async {
       final d = Device();
       await _open(d);
       await d.start(tester, const Locale('de'));
@@ -363,9 +359,7 @@ void main() {
     });
 
     testWidgets('Einheit durch Neuberechnung ersetzt (neue Kennung): '
-        '„Aus dem Plan“ wie die Zuordnung in der Datenbank (NB5)', (
-      tester,
-    ) async {
+        '„Aus dem Plan“ wie die Zuordnung in der Datenbank', (tester) async {
       final d = Device();
       await _open(d);
       await d.start(tester, const Locale('de'));
@@ -402,7 +396,7 @@ void main() {
     });
 
     testWidgets('Einheit verschoben (Kennung gleich, Tag besetzt): „Aus dem '
-        'Plan“ zeigt die Einheit der Kennung wie die Zuordnung (NB6 3)', (
+        'Plan“ zeigt die Einheit der Kennung wie die Zuordnung', (
       tester,
     ) async {
       final d = Device();
@@ -709,7 +703,7 @@ void main() {
   });
 
   group('„Aus dem Plan“ in der Zusammenfassung', () {
-    testWidgets('Detailseite der Historie zeigt „Aus dem Plan“ (NB4)', (
+    testWidgets('Detailseite der Historie zeigt „Aus dem Plan“', (
       tester,
     ) async {
       final d = Device();

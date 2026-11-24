@@ -131,7 +131,7 @@ void main() {
         expect(lines.first, {
           'type': 'manifest',
           'format': 2,
-          'schema_version': 16,
+          'schema_version': 19,
           'created_at_us': DateTime.utc(2026, 11, 7, 12).microsecondsSinceEpoch,
         });
         final sections = [

@@ -460,7 +460,7 @@ void main() {
     });
 
     testWidgets('abgewiesene Angabe: alter Chip wieder gewählt, nichts '
-        'gespeichert, Banner (Review 3 Befund 4)', (tester) async {
+        'gespeichert, Banner', (tester) async {
       final d = await _start(tester, coefficients: LoadCoefficients.male);
       await _openSettings(tester);
       await _tap(tester, 'load_profile_banister');

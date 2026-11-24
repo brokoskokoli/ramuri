@@ -27,6 +27,11 @@ const Set<String> archiveExcludedSettingKeys = {
   SettingKeys.developerMode,
   SettingKeys.ppgCameraManual,
   SettingKeys.ppgCameraAuto,
+  SettingKeys.ppgDiagNoiseReductionOff,
+  SettingKeys.ppgDiagEdgeOff,
+  SettingKeys.ppgDiagAwbFixed,
+  SettingKeys.ppgDiagTonemapLinear,
+  SettingKeys.ppgDiagShadingOff,
   HealthImportService.lastImportKey,
   SettingKeys.errorCounts,
 };

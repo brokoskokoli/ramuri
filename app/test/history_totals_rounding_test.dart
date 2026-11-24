@@ -63,7 +63,7 @@ void main() {
     expect(shownSum - rowsSum, greaterThanOrEqualTo(0));
   });
 
-  // WP17 NB1 (Befund 1): Der echte Weg bis zur Oberfläche. Ein Lauf mit
+  // Der echte Weg bis zur Oberfläche. Ein Lauf mit
   // Stillstand hat eine Gesamtzeit, die länger ist als die Bewegungszeit;
   // Zeile und Zeitsumme zeigen die Gesamtzeit (FR-0212).
   testWidgets(

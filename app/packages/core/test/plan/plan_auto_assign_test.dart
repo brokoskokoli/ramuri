@@ -33,6 +33,7 @@ StoredRun _run(
   int minutes = 30,
   Duration? offset = _cet,
   RunState state = RunState.finished,
+  OtherSport? sport,
 }) {
   final start = _d(day)
       .add(Duration(hours: hour, minutes: minute))
@@ -45,21 +46,15 @@ StoredRun _run(
         ? start.add(Duration(minutes: minutes))
         : null,
     endedUtcOffset: state == RunState.finished ? offset : null,
+    mode: sport == null ? RunMode.gps : RunMode.sport,
+    sport: sport,
   );
 }
 
 List<PlanRunCandidate> _candidates(
   List<StoredRun> runs, {
   Map<int, Duration> moving = const {},
-  Duration fallbackOffset = _cet,
-}) => [
-  for (final r in runs)
-    ?PlanRunCandidate.of(
-      r,
-      movingTime: moving[r.id],
-      fallbackOffset: fallbackOffset,
-    ),
-];
+}) => [for (final r in runs) ?PlanRunCandidate.of(r, movingTime: moving[r.id])];
 
 List<PlanRunAssignment> _assign(
   List<PlanUnit> units,
@@ -84,6 +79,26 @@ void main() {
       // Der Plan beginnt heute (Mi); der Lauf lief vor dem Anlegen.
       final units = [_u(1, 2), _u(2, 4)];
       expect(_assign(units, [_run(7, 2)]), [_a(1, 7)]);
+    });
+
+    test('andere Sportart (FR-0221): nie einer Einheit zugeordnet, der Lauf '
+        'desselben Tags schon', () {
+      final units = [_u(1, 2)];
+      for (final s in OtherSport.values) {
+        expect(_assign(units, [_run(7, 2, sport: s)]), isEmpty);
+      }
+      final runs = [_run(7, 2, hour: 7, sport: OtherSport.rope), _run(8, 2)];
+      expect(
+        _assign(
+          units,
+          runs,
+          moving: {
+            7: const Duration(minutes: 60),
+            8: const Duration(minutes: 20),
+          },
+        ),
+        [_a(1, 8)],
+      );
     });
 
     test('Lauf gestern, Plan heute: keine Einheit gestern, nichts '
@@ -218,12 +233,7 @@ void main() {
       );
       final units = [_u(1, 0), _u(2, 1)];
       final runs = [
-        for (final r in [run])
-          ?PlanRunCandidate.of(
-            r,
-            movingTime: null,
-            fallbackOffset: const Duration(hours: -5),
-          ),
+        for (final r in [run]) ?PlanRunCandidate.of(r, movingTime: null),
       ];
       expect(
         planAutoAssignments(
@@ -237,16 +247,19 @@ void main() {
       expect(runs.single.day, _d(1));
     });
 
-    test('Lauf ohne gespeicherten Versatz: Ersatzversatz', () {
-      // Beginn Mo 23:30 UTC; in UTC+1 ist das Dienstag.
+    test('Lauf ohne gespeicherten Versatz: UTC-Tag wie dayOfRun '
+        '(PAR-237)', () {
+      // Beginn Mo 23:30 UTC; in UTC+1 wäre das Dienstag, ohne Versatz am
+      // Lauf zählt aber der UTC-Tag, nie der Versatz des Geräts.
       final run = StoredRun(
         id: 7,
         state: RunState.finished,
         startedAt: _d(0).add(const Duration(hours: 23, minutes: 30)),
         endedAt: _d(1).add(const Duration(minutes: 10)),
       );
-      expect(planRunStartDay(run, fallbackOffset: _cet), _d(1));
-      expect(planRunStartDay(run, fallbackOffset: Duration.zero), _d(0));
+      expect(planRunStartDay(run), _d(0));
+      expect(isoDay(planRunStartDay(run)), dayOfRun(run));
+      expect(PlanRunCandidate.of(run, movingTime: null)!.day, _d(0));
     });
 
     test('verschobene Einheit: Lauf am neuen Tag zählt, am alten nicht', () {

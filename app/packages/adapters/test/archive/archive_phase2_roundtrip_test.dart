@@ -82,6 +82,10 @@ final _planSettings = <String, String>{
   WarningSettingKeys.planChangeSeen: '2',
   // Schalter Plananpassung an Erholung (FR-0216).
   planAdaptationKey: 'adaptive',
+  // Unterforderung (PAR-236): Stufe und Zeitpunkt, letzte Änderung der HFmax.
+  planUnderloadStageKey: 'hintDone',
+  planUnderloadSinceKey: '2026-11-24T06:00:00.000Z',
+  profileHrMaxChangedAtKey: '2026-11-23T18:00:00.000Z',
 };
 
 /// Technische Merker der Planung: gehören nicht ins Archiv.

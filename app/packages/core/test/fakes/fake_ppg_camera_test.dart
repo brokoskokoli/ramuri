@@ -10,6 +10,14 @@ PpgFrame _frame(double t) => PpgFrame(
 );
 
 void main() {
+  test('syntheticIsp: 19 Gleitkommawerte, Linsenzustand nicht gemeldet', () {
+    final v = FakePpgCamera.syntheticIsp(1.5);
+    expect(v, isA<List<double>>());
+    expect(v, hasLength(ppgIspValueCount));
+    expect(v[16], 11.5);
+    expect(v[18].isNaN, isTrue);
+  });
+
   test(
     'Torch ist nur an, solange der Strom läuft; Abbestellen schaltet aus',
     () async {
@@ -51,6 +59,28 @@ void main() {
         PpgCameraStopReason.background,
       );
       expect(events.whereType<PpgCameraFrame>(), hasLength(1));
+    },
+  );
+
+  test(
+    'Sperre mit und ohne Sensorzeit, Neu-Einschwingen mit Sensorzeit',
+    () async {
+      final cam = FakePpgCamera();
+      final events = <PpgCameraEvent>[];
+      cam.start().listen(events.add);
+      await pumpEvents();
+      cam.emitLocked(2.5);
+      cam.emitRelocking(24);
+      cam.emitLocked(26.5);
+      cam.emitLocked();
+      await pumpEvents();
+      final rest = events.where((e) => e is! PpgCameraStarted).toList();
+      expect(rest, hasLength(4));
+      expect((rest[0] as PpgCameraExposureLocked).t, 2.5);
+      expect((rest[1] as PpgCameraRelocking).t, 24);
+      expect((rest[2] as PpgCameraExposureLocked).t, 26.5);
+      expect((rest[3] as PpgCameraExposureLocked).t, isNull);
+      await cam.stop();
     },
   );
 

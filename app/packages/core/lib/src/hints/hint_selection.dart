@@ -135,6 +135,7 @@ class HintTraining {
     this.rpe,
     this.wellbeing,
     required this.isRun,
+    this.countsForIncrease = true,
   }) : day = warningDay(day);
 
   /// Ortstag.
@@ -147,6 +148,11 @@ class HintTraining {
   /// Befinden 1 bis 5, nur bei Läufen (PAR-169).
   final int? wellbeing;
   final bool isRun;
+
+  /// Zählt für den Anstieg der Bewegungszeit (PAR-178). Eine andere Sportart
+  /// (FR-0221) zählt nur, wenn sie eine lockere Einheit ersetzt (PAR-233);
+  /// sonst zählt sie nur für Belastung und Pausenende (DEC-0056).
+  final bool countsForIncrease;
 }
 
 /// Eine abgeschlossene, locker geplante Einheit mit der RPE ihres Laufs.
@@ -495,6 +501,7 @@ Hint? _steepIncrease(HintInputs i, HintParameters p) {
   var last7 = 0;
   var before21 = 0;
   for (final t in i.trainings) {
+    if (!t.countsForIncrease) continue;
     final ago = _daysBetween(t.day, i.today);
     if (ago < 0) continue;
     if (ago <= 6) {
