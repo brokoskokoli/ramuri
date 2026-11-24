@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:running_app/features/measure/resting_measure_controller.dart';
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart' as ft show test;
 
 import 'measure_support.dart';
 
@@ -59,6 +60,15 @@ class Rig {
     return src;
   }
 }
+
+/// Zeitlimit auf Gruppen-Ebene für Gruppen, die lange Sensorzeit Bild für
+/// Bild mit echter Auswertung einspielen. `group` aus flutter_test nimmt kein
+/// `timeout`; deshalb deklariert jede solche Gruppe zu Beginn
+/// `final test = longTest;`, und jeder ihrer Fälle bekommt dieses Limit.
+const longGroupTimeout = Timeout(Duration(minutes: 2));
+
+void longTest(String description, Future<void> Function() body) =>
+    ft.test(description, body, timeout: longGroupTimeout);
 
 void main() {
   group('vor dem Start (Kamerasuche, FR-0220)', () {
@@ -519,6 +529,11 @@ void main() {
   group(
     'Neusperre der Belichtung nach Helligkeitssprung (PAR-245, PAR-246)',
     () {
+      // Zeitlimit der Gruppe (longGroupTimeout): bis zu 120 s Sensorzeit Bild
+      // für Bild mit echter Auswertung (evaluatePpg, evaluatePpgBestWindow,
+      // checkPpgRecording); im vollen Lauf unter Last sonst über 30 s je Fall.
+      final test = longTest;
+
       RestingMeasureController search(
         Rig r, {
         PpgEvaluate? evaluate,
@@ -1438,15 +1453,25 @@ void main() {
         })
       >
     >
-    record(PulseSource src, double until) async {
+    record(PulseSource src, double until, {bool pulse = true}) async {
       PpgMeasurement? stage;
       final r = await Rig.make(
         evaluate: (f, w) async {
-          final m = evaluatePpg(f, window: w);
-          if (!identical(w, ppgStandardWindow) &&
-              w.dataEnd - w.start <= restingLiveStageWindowSeconds + 1e-9) {
-            stage = m;
+          final live = !identical(w, ppgStandardWindow);
+          final isStage =
+              live &&
+              w.dataEnd - w.start <= restingLiveStageWindowSeconds + 1e-9;
+          // Ohne [pulse] läuft das 12-s-Pulsfenster über einen Stub: Stufe und
+          // Hinweis kommen allein aus dem 5-s-Fenster, nur der angezeigte
+          // Puls fehlt dann. Spart den größten Teil der Rechenzeit.
+          if (live && !isStage && !pulse) {
+            return const PpgMeasurement(
+              quality: PpgQuality.unusable,
+              reasons: [],
+            );
           }
+          final m = evaluatePpg(f, window: w);
+          if (isStage) stage = m;
           return m;
         },
       );
@@ -1496,7 +1521,11 @@ void main() {
       test(
         'sauberes Signal ${bpm.round()}/min: stabil „gut“ über 20 s',
         () async {
-          final rows = await record(PulseSource.bpm(bpm), full + 20);
+          final rows = await record(
+            PulseSource.bpm(bpm),
+            full + 20,
+            pulse: false,
+          );
           final after = rows.where((e) => e.t >= full).toList();
           expect(after.length, greaterThanOrEqualTo(20));
           expect(after.map((e) => e.q), everyElement(PpgQuality.good));
@@ -1512,6 +1541,7 @@ void main() {
         final rows = await record(
           PulseSource(periodAt: (_) => 1.0, dropBeats: {k}),
           35,
+          pulse: false,
         );
         final after = rows.where((e) => e.t >= full).toList();
         expect(
@@ -1535,6 +1565,7 @@ void main() {
           spikes: [probe.midAfterBeat(k)],
         ),
         35,
+        pulse: false,
       );
       final two = rows.where(
         (e) => e.m != null && e.m!.intervals - e.m!.validIntervals == 2,
@@ -1588,7 +1619,7 @@ void main() {
           () async {
             for (final a in [20.0, 20.25, 20.5, 20.75]) {
               final b = a + 3;
-              final rows = await record(make(bpm, a, b), b + 10);
+              final rows = await record(make(bpm, a, b), b + 10, pulse: false);
               final why = 'Störung ab $a s';
               expect(
                 rows.where((e) => e.t >= full && e.t <= a).map((e) => e.q),
@@ -1623,6 +1654,7 @@ void main() {
           final rows = await record(
             PulseSource(periodAt: (_) => 60 / bpm, flatAt: (t) => t >= a),
             a + 12,
+            pulse: false,
           );
           final why = 'flach ab $a s';
           expect(
