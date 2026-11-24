@@ -556,14 +556,17 @@ class _RunFlowScreenState extends State<RunFlowScreen>
 
   /// Meldet eine geänderte Wahl „Geplante Einheit“/„Freier Lauf“ dem Start
   /// (Merker für die Zuordnung); ein Fehler dort hält den Lauf nicht auf.
+  /// Maßgeblich ist die Wahl, nicht die Führung: Eine andere Sportart über
+  /// „Einheit starten“ läuft ohne Führung und bleibt der Einheit gemerkt
+  /// (FR-0222).
   Future<void> _announceChoice() async {
     final unit = widget.plannedUnit;
     final callback = widget.onGuidanceChosen;
     if (!_preparing || callback == null) return;
     final initial = widget.startPlanned && unit != null;
-    if (_guided == initial) return;
+    if (_planned == initial) return;
     try {
-      await callback(_guided ? unit : null);
+      await callback(_planned ? unit : null);
     } on Object {
       // Ohne Merker ordnet nur der normale Weg zu.
     }

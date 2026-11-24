@@ -9,7 +9,8 @@ import 'guidance_parameters.dart';
 /// letzten 3 lockeren Einheiten liegen im Plan nie weiter zurück als dies).
 const Duration walkBreakLookback = Duration(days: 120);
 
-/// Die letzten lockeren Einheiten (Art `easy`, Lauf zugeordnet) bis [today],
+/// Die letzten lockeren Einheiten (Art `easy`, Lauf zugeordnet, keine
+/// andere Sportart) bis [today],
 /// neueste zuerst, höchstens [walkBreakHintRunCount]. Quelle der Pulsanteile:
 /// die gespeicherten Zonenzeiten des Laufs. Ein Lauf ohne gespeicherte
 /// Zonenzeiten bleibt als „kein Beleg“ (bekannte Zeit 0) in der Reihe und
@@ -29,7 +30,15 @@ Future<List<EasyRunExposure>> recentEasyRunExposures(
           .where((u) => u.kind == PlanUnitKind.easy && u.runId != null)
           .toList()
         ..sort((a, b) => b.day.compareTo(a.day));
-  final last = easy.take(walkBreakHintRunCount).toList();
+  // Nur Läufe: Eine Sporteinheit, die nach PAR-233 eine lockere Einheit
+  // ersetzt, ist kein Beleg für Gehpausen beim Laufen (FR-0222).
+  final last = <PlanUnit>[];
+  for (final u in easy) {
+    if (last.length >= walkBreakHintRunCount) break;
+    final run = await session.runs.get(u.runId!);
+    if (run != null && !run.mode.isRunning) continue;
+    last.add(u);
+  }
   if (last.isEmpty) return const [];
   final values = await session.values.readRunValues(runLoadValueKeys);
   return [for (final u in last) _exposure(values[u.runId])];

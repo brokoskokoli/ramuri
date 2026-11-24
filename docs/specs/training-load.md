@@ -185,7 +185,7 @@ Der Nutzer kann ein Training mit Datum, Art, Dauer und RPE nachtragen. Es geht i
 - [ ] Ein nachgetragenes Training erscheint in der Belastung als gekennzeichneter umgerechneter sRPE-Wert, solange der Faktor nach PAR-086 fehlt als „nicht bewertet“.
 - [ ] Es erzeugt keine VO₂max-Schätzung.
 - [ ] „Sonstiges“ zählt für Belastung und Pausenende, aber nicht für Trainingsstand und längste Einheit (OQ-0058).
-- [ ] Eine Sporteinheit mit Puls (FR-0221) zählt für die Belastung; für den Plan zählt sie nur, wenn sie eine lockere Einheit ersetzt; solange diese Ersatzregel nicht spezifiziert ist, zählt sie für den Plan nicht.
+- [ ] Eine Sporteinheit mit Puls (FR-0221) zählt für die Belastung; für den Plan zählt sie nur, wenn sie nach PAR-233 eine lockere Einheit ersetzt (FR-0222), und als intensive Einheit für den Abstand zu harten Einheiten.
 - [ ] Ein aus Health Connect importiertes Training lässt sich „als Training übernehmen“: Das legt einen Nachtrag mit vorausgefüllter Dauer an, die RPE fragt die App. Erst dann zählt es in Belastung und Pausenregel; vorher wird es nur angezeigt (FR-0023, K62 Punkt 2).
 
 **Umsetzung der Übernahme (WP32, K64):** Vorbelegt sind Tag, Art und Dauer, die RPE fragt die App. Der Nachtrag merkt sich die Health-Connect-ID (`manual_trainings.hc_id`), damit dieselbe Einheit nur einmal übernommen wird; beim Ändern bleibt sie erhalten. Das Löschen der importierten Daten lässt den Nachtrag stehen.
