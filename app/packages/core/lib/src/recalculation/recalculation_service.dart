@@ -468,7 +468,8 @@ class RecalculationService {
   /// nie neu gerechnet (L11), das Angebot käme nach jeder Bestätigung wieder.
   /// Aus demselben Grund zählen nur Tageswerte an Tagen, die [confirm] neu
   /// rechnet ([ValueCalculationService.recalculableDays]); ein Tageswert an
-  /// einem Tag ohne Lauf zählt immer, [confirm] entfernt ihn (PAR-237). Fehlt einem Lauf,
+  /// einem Tag ohne Lauf zählt nicht (ein gelöschter Lauf ist keine neue
+  /// Version), [confirm] entfernt ihn (PAR-237). Fehlt einem Lauf,
   /// den die Neuberechnung erfasst ([hasRecalculatedRunValue]), die Zeit bei
   /// mindestens 80 % HFmax (Lauf von vor dieser Methode), ist das ebenfalls
   /// eine neue Methodenversion: [confirm] legt sie an (ADR-0004). Die
@@ -518,17 +519,18 @@ class RecalculationService {
   }
 
   /// Trägt ein gespeicherter Tageswert (`current`) an einem Tag, den [confirm]
-  /// neu rechnet, eine andere Methode oder Version als [dayValueMethods], oder
-  /// steht er an einem Tag ohne Lauf (PAR-237)? Alle Tage in einer Abfrage.
+  /// neu rechnet, eine andere Methode oder Version als [dayValueMethods]?
+  /// Alle Tage in einer Abfrage.
   Future<bool> _dayValuesOutdated() async {
     final stored = await session.values.readDayValues(dayValueKeys);
     if (stored.isEmpty) return false;
     final days = await _calc.recalculableDays();
     for (final MapEntry(key: day, value: values) in stored.entries) {
-      // Ein Tageswert an einem Tag ohne Lauf (Endtag eines Laufs über
-      // Mitternacht nach der alten Tageszuordnung, PAR-237) ist veraltet:
-      // [confirm] entfernt ihn.
-      if (!days.contains(day)) return true;
+      // Ein Tageswert an einem Tag ohne Lauf (Lauf gelöscht) löst kein
+      // Angebot aus. Den Endtag eines Laufs über Mitternacht nach der alten
+      // Tageszuordnung meldet die Kettenstufe `day` der Laufwerte (PAR-237);
+      // [confirm] entfernt solche Tageswerte.
+      if (!days.contains(day)) continue;
       for (final v in values.values) {
         // Ohne Zuordnung nicht vergleichen; ein Test verlangt sie für jeden
         // Schlüssel aus [dayValueKeys].
