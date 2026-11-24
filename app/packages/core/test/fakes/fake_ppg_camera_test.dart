@@ -10,6 +10,14 @@ PpgFrame _frame(double t) => PpgFrame(
 );
 
 void main() {
+  test('syntheticIsp: 19 Gleitkommawerte, Linsenzustand nicht gemeldet', () {
+    final v = FakePpgCamera.syntheticIsp(1.5);
+    expect(v, isA<List<double>>());
+    expect(v, hasLength(ppgIspValueCount));
+    expect(v[16], 11.5);
+    expect(v[18].isNaN, isTrue);
+  });
+
   test(
     'Torch ist nur an, solange der Strom läuft; Abbestellen schaltet aus',
     () async {

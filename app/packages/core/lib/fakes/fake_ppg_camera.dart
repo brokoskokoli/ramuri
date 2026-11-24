@@ -158,7 +158,7 @@ class FakePpgCamera implements PpgCamera {
 
   /// Synthetische ISP-Werte eines Bilds (keine Messwerte): feste Modi, die
   /// Fokusdistanz aus dem Zeitstempel, `LENS_STATE` nicht gemeldet.
-  static List<double> syntheticIsp(double t) => List.unmodifiable([
+  static List<double> syntheticIsp(double t) => List.unmodifiable(<double>[
     1.5, 1.0, 1.0, 2.25, // Farbverstärkungen
     2, 1, 1, 1, 1, 1, 1, // AWB-Zustand und -Modus, Modi
     16666666, 100, 2, 16666666, // Belichtung, Empfindlichkeit, AE, Bilddauer
