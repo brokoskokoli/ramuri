@@ -1521,28 +1521,34 @@ Future<FakePpgCamera> _startViaHost(
             ),
     ),
   );
-  Future<void> settle() async {
-    for (var i = 0; i < 4; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
-  }
+  bool has(String key) => find.byKey(Key(key)).evaluate().isNotEmpty;
 
-  Future<void> tap(String key) async {
+  // Wartet auf das Ereignis des nächsten Schritts, nicht auf eine feste Zeit.
+  Future<void> tap(String key, bool Function() next, String what) async {
     final f = find.byKey(Key(key));
     await tester.ensureVisible(f);
     await tester.pump();
     await tester.tap(f);
-    await settle();
+    await settleStorage(tester, until: next, what: what);
   }
 
-  await settle();
+  bool started() => cam.startCount > 0 && has('measure_cancel');
   if (morning) {
-    await tap('morning_start');
-    await tap('morning_skip_rest');
+    await settleStorage(
+      tester,
+      until: () => has('morning_start'),
+      what: 'Einstieg',
+    );
+    await tap('morning_start', () => has('morning_skip_rest'), 'Ruhephase');
+    await tap('morning_skip_rest', started, 'Kamera gestartet');
   } else {
-    await tap('measure_mode_now');
-    await tap('measure_start');
+    await settleStorage(
+      tester,
+      until: () => has('measure_mode_now'),
+      what: 'Einstieg',
+    );
+    await tap('measure_mode_now', () => has('measure_start'), 'Start');
+    await tap('measure_start', started, 'Kamera gestartet');
   }
   expect(cam.startCount, 1);
   return cam;
