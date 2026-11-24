@@ -12,6 +12,16 @@ object PpgCameraLogic {
     /** Einschwingen: Belichtung und Weißabgleich werden 2,5 s nach Aufnahmebeginn gesperrt (ALGORITHMUS.md Abschn. 2). */
     const val AE_LOCK_AT_SECONDS = 2.5
 
+    /** Helligkeitssprung nach der Sperre: Rot-Sekundenmittel weicht um mehr als 20 % vom Bezug ab (PAR-245). */
+    const val JUMP_RELATIVE = 0.20
+
+    /** Ruhe nach dem Sprung: zwei aufeinanderfolgende Rot-Sekundenmittel weichen um höchstens 5 % ab (PAR-246). */
+    const val CALM_RELATIVE = 0.05
+
+    /** Bezug nach jeder Sperre: Mittel von Rot der Bilder 0,5 bis 1,5 s nach der Sperre (PAR-245). */
+    const val REFERENCE_FROM_SECONDS = 0.5
+    const val REFERENCE_TO_SECONDS = 1.5
+
     /** Zielgröße der Bildanalyse. */
     const val WIDTH = 320
     const val HEIGHT = 240
@@ -324,6 +334,9 @@ class PpgCaptureInfo(
 /** Was der Controller an der Kamera tut. Jeder Schritt darf scheitern, ohne die übrigen zu verhindern. */
 interface PpgHardware {
     fun lockExposure()
+
+    /** Zurück auf die Automatik der ersten Phase (AE an, ohne Sperre), für die Neusperre (PAR-246). */
+    fun unlockExposure()
     fun torchOff()
     fun closeSession()
     fun closeDevice()
@@ -394,6 +407,108 @@ class PpgThreadGuard(private val quit: () -> Unit) {
     }
 }
 
+/**
+ * Wann die Belichtung gesperrt und wann sie neu eingeschwungen wird (PAR-245, PAR-246), nur aus Sensorzeit
+ * [frame] `t` (Sekunden seit dem ersten Bild) und Rot-Mittel `r` je Bild:
+ * - Einschwingen: [PpgCameraLogic.AE_LOCK_AT_SECONDS] nach Beginn (bzw. nach dem Beginn des
+ *   Neu-Einschwingens) wird gesperrt ([Step.LOCK]).
+ * - Bezug: Mittel von Rot der Bilder 0,5 bis 1,5 s nach der Sperre.
+ * - Danach je volle Sekunde Sensorzeit (`[k, k + 1)`, erste volle Sekunde nach dem Bezug) das Rot-Mittel;
+ *   weicht es um mehr als [PpgCameraLogic.JUMP_RELATIVE] vom Bezug ab, ist das ein Sprung ([Step.JUMP],
+ *   mit dem Bild, das diese Sekunde abschließt).
+ * - Nach dem Sprung ruhig, sobald zwei aufeinanderfolgende Sekundenmittel um höchstens
+ *   [PpgCameraLogic.CALM_RELATIVE] voneinander abweichen: dann Neu-Einschwingen ([Step.RELOCK]) mit dem Bild,
+ *   das die zweite ruhige Sekunde abschließt. Keine Höchstzahl.
+ * Keine Werte ins Log (ADR-0011 Entscheidung 7).
+ */
+class PpgExposureWatch {
+    /** [JUMP] meldet nur den erkannten Sprung (Test, Ablauf); gehandelt wird bei [LOCK] und [RELOCK]. */
+    enum class Step { NONE, LOCK, JUMP, RELOCK }
+
+    private enum class Phase { SETTLING, REFERENCE, WATCHING, JUMPED }
+
+    private var phase = Phase.SETTLING
+    private var settleFrom = 0.0
+    private var lockAt = 0.0
+    private var refSum = 0.0
+    private var refCount = 0
+    private var reference = 0.0
+    private var firstSecond = 0L
+    private var second = Long.MIN_VALUE
+    private var secondSum = 0.0
+    private var secondCount = 0
+    private var previousSecond = Long.MIN_VALUE
+    private var previousMean = 0.0
+
+    fun frame(t: Double, r: Double): Step = when (phase) {
+        Phase.SETTLING -> if (t - settleFrom >= PpgCameraLogic.AE_LOCK_AT_SECONDS) {
+            phase = Phase.REFERENCE
+            lockAt = t
+            refSum = 0.0
+            refCount = 0
+            Step.LOCK
+        } else {
+            Step.NONE
+        }
+        Phase.REFERENCE -> {
+            val d = t - lockAt
+            if (d > PpgCameraLogic.REFERENCE_TO_SECONDS) {
+                // Ohne Bild im Bezugsfenster (Bildlücke) gilt das erste Bild danach.
+                reference = if (refCount > 0) refSum / refCount else r
+                phase = Phase.WATCHING
+                firstSecond = Math.ceil(lockAt + PpgCameraLogic.REFERENCE_TO_SECONDS).toLong()
+                second = Long.MIN_VALUE
+                previousSecond = Long.MIN_VALUE
+                watch(t, r)
+            } else {
+                if (d >= PpgCameraLogic.REFERENCE_FROM_SECONDS) {
+                    refSum += r
+                    refCount++
+                }
+                Step.NONE
+            }
+        }
+        Phase.WATCHING, Phase.JUMPED -> watch(t, r)
+    }
+
+    private fun watch(t: Double, r: Double): Step {
+        val k = Math.floor(t).toLong()
+        if (k < firstSecond) return Step.NONE
+        var step = Step.NONE
+        if (k != second) {
+            if (secondCount > 0) step = closeSecond(second, secondSum / secondCount)
+            if (step == Step.RELOCK) {
+                phase = Phase.SETTLING
+                settleFrom = t
+                secondCount = 0
+                return step
+            }
+            second = k
+            secondSum = 0.0
+            secondCount = 0
+        }
+        secondSum += r
+        secondCount++
+        return step
+    }
+
+    /** Wertet ein abgeschlossenes Sekundenmittel aus: [Step.JUMP], [Step.RELOCK] (ruhig nach dem Sprung) oder nichts. */
+    private fun closeSecond(k: Long, mean: Double): Step {
+        if (phase == Phase.WATCHING) {
+            if (Math.abs(mean - reference) <= PpgCameraLogic.JUMP_RELATIVE * reference) return Step.NONE
+            phase = Phase.JUMPED
+            previousSecond = k
+            previousMean = mean
+            return Step.JUMP
+        }
+        val calm = previousSecond == k - 1 &&
+            Math.abs(mean - previousMean) <= PpgCameraLogic.CALM_RELATIVE * previousMean
+        previousSecond = k
+        previousMean = mean
+        return if (calm) Step.RELOCK else Step.NONE
+    }
+}
+
 /** Wohin der Controller meldet (Android: EventChannel auf dem Hauptthread; Test: Liste). */
 interface PpgSink {
     fun event(map: Map<String, Any>)
@@ -401,7 +516,8 @@ interface PpgSink {
 }
 
 /**
- * Ablauf einer Aufnahme: Zeit seit dem ersten Bild, Sperre nach 2,5 s und das Beenden. Beenden
+ * Ablauf einer Aufnahme: Zeit seit dem ersten Bild, Sperre nach 2,5 s, Neusperre nach einem
+ * Helligkeitssprung ([PpgExposureWatch]) und das Beenden. Beenden
  * (Abbruch mit Grund, Hintergrund, Abbestellen) schaltet immer zuerst den Torch aus, schließt dann
  * Sitzung und Gerät und beendet den Strom genau einmal. Danach wird nichts mehr gemeldet.
  */
@@ -413,6 +529,7 @@ class PpgController(
 ) {
     private var firstNs = -1L
     private var locked = false
+    private val watch = PpgExposureWatch()
     private var finished = false
     private var frames = 0L
     private var saturatedSum = 0.0
@@ -457,9 +574,16 @@ class PpgController(
         sink.event(m)
         frames++
         saturatedSum += stats.saturated
-        if (!locked && t >= PpgCameraLogic.AE_LOCK_AT_SECONDS) {
+        val step = watch.frame(t, stats.r)
+        if (step == PpgExposureWatch.Step.RELOCK) {
+            // Neu einschwingen nach einem Helligkeitssprung (PAR-246); die Sperre folgt 2,5 s später.
+            attempt { hw.unlockExposure() }
+            sink.event(mapOf("type" to "relocking", "t" to t))
+        }
+        if (step == PpgExposureWatch.Step.LOCK) {
             locked = true
-            if (attempt { hw.lockExposure() }) sink.event(mapOf("type" to "locked"))
+            // Bei jeder Sperre mit ihrer Sensorzeit.
+            if (attempt { hw.lockExposure() }) sink.event(mapOf("type" to "locked", "t" to t))
         } else if (locked) {
             // Kamera-Angaben erst, wenn die Sperre gegriffen hat (30 Bilder nach dem Sperren), dann
             // gelegentlich erneuert, damit der Anteil gesättigter Pixel mitwächst; der letzte Stand gilt.

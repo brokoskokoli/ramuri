@@ -7,16 +7,41 @@ import 'dart:io';
 import 'package:core/core.dart';
 import 'package:test/test.dart';
 
-/// Alle `const int <name>MethodVersion = <n>;` in lib/src/preprocessing.
+/// Alle Deklarationen `<name>MethodVersion` in lib/src/preprocessing und
+/// seinen Unterordnern: auf oberster Ebene und `static`, als `const` mit oder
+/// ohne Typ `int` und als `final`. Ein Wert, der kein einfaches
+/// Ganzzahl-Literal ist, macht den Test rot (Datei und Name in der Meldung).
 Map<String, int> _stageConstants() {
-  final pattern = RegExp(r'const\s+int\s+(\w+MethodVersion)\s*=\s*(\d+)\s*;');
-  return {
-    for (final f in Directory(
-      'lib/src/preprocessing',
-    ).listSync().whereType<File>().where((f) => f.path.endsWith('.dart')))
-      for (final m in pattern.allMatches(f.readAsStringSync()))
-        m.group(1)!: int.parse(m.group(2)!),
-  };
+  final pattern = RegExp(
+    r'(?<![\w$])(?:static\s+)?(?:const|final)\s+(?:int\s+)?'
+    r'(\w*MethodVersion)\s*=\s*([^;]*);',
+  );
+  final literal = RegExp(r'^\d+$');
+  final files =
+      Directory('lib/src/preprocessing')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  final stages = <String, int>{};
+  for (final f in files) {
+    for (final m in pattern.allMatches(f.readAsStringSync())) {
+      final name = m.group(1)!;
+      final value = m.group(2)!.trim();
+      if (!literal.hasMatch(value)) {
+        fail(
+          '${f.path}: $name = $value ist kein einfaches Ganzzahl-Literal; '
+          'die Konstante als Literal schreiben (z. B. `const int $name = 1;`)',
+        );
+      }
+      if (stages.containsKey(name)) {
+        fail('${f.path}: $name ist mehrfach deklariert');
+      }
+      stages[name] = int.parse(value);
+    }
+  }
+  return stages;
 }
 
 void main() {
@@ -65,6 +90,17 @@ void main() {
       ),
       preprocessingChainVersion(steps: stepsMethodVersion + 1),
     ];
+    // Die Suche findet genau die Stufen, die dieser Test erhöht.
+    expect(_stageConstants().keys.toSet(), {
+      'heartRateMethodVersion',
+      'paceMethodVersion',
+      'movementMethodVersion',
+      'positionMethodVersion',
+      'altitudeMethodVersion',
+      'settlingMethodVersion',
+      'sectionQualityMethodVersion',
+      'stepsMethodVersion',
+    });
     expect(raised, hasLength(_stageConstants().length));
     for (final r in raised) {
       expect(r, isNot(now));
@@ -77,6 +113,13 @@ void main() {
   test('Kette der Bestandswerte (vor Schema 19) ist die heutige', () {
     // Gilt bis zur ersten Stufenerhöhung; dann diesen Test streichen, die
     // Konstante bleibt unverändert (Bestandswerte bekommen ein Angebot).
-    expect(legacyPreprocessingChainVersion, preprocessingChainVersion());
+    expect(
+      legacyPreprocessingChainVersion,
+      preprocessingChainVersion(),
+      reason:
+          'Nach einer Stufenerhöhung wird dieser Test gestrichen; '
+          'legacyPreprocessingChainVersion bleibt unverändert, sonst bekommen '
+          'Bestandswerte (vor Schema 19) kein Angebot zur Neuberechnung.',
+    );
   });
 }

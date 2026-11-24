@@ -15,7 +15,7 @@ import 'steps_series.dart';
 /// gespeicherte von der aktuellen ab, bietet die App eine Neuberechnung an
 /// (`RecalculationService.checkVersions`). Jede neue Stufe mit eigener
 /// `*MethodVersion` muss hier eingetragen werden; ein Test findet alle
-/// Konstanten in `preprocessing/` und prüft das.
+/// Konstanten in `preprocessing/` und seinen Unterordnern und prüft das.
 ///
 /// Die Parameter dienen nur Tests (eine Stufe um 1 erhöht); die App ruft die
 /// Funktion ohne Argumente.
