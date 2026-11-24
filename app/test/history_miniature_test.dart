@@ -253,7 +253,7 @@ void main() {
       expect(w.captures, 3);
       expect(w.thumbs.writtenKeys.length, 3);
       expect(w.thumbs.writtenKeys.every((k) => k.startsWith('thumb:')), isTrue);
-      // Die Quelle steht einmal unter der Liste, nicht unter jedem Bild und nicht im Bild (WP13 N5).
+      // Die Quelle steht einmal unter der Liste, nicht unter jedem Bild und nicht im Bild.
       expect(find.text('Kartenquelle: Quelle-Test'), findsOneWidget);
       expect(key('history_attribution'), findsOneWidget);
       expect(key('miniature_attribution'), findsNothing);
@@ -298,7 +298,7 @@ void main() {
   );
 
   testWidgets(
-    'Aufnahme, die nach Pause und Rückkehr ein Bild liefert: dieses Bild wird nicht gespeichert, neu aufgenommen (Review 3, S4)',
+    'Aufnahme, die nach Pause und Rückkehr ein Bild liefert: dieses Bild wird nicht gespeichert, neu aufgenommen',
     (tester) async {
       final (d, w) = await _start(tester, consent: true, runs: [2]);
       w.hold = Completer<void>(); // Aufnahme ignoriert die Absage und liefert nach der Rückkehr ein Bild
@@ -350,7 +350,7 @@ void main() {
   });
 
   testWidgets(
-    'Neuaufbau und Sprung im selben Bild: gezeigte Bilder werden nicht zu hoch gezählt (S1)',
+    'Neuaufbau und Sprung im selben Bild: gezeigte Bilder werden nicht zu hoch gezählt',
     (tester) async {
       await _start(tester, consent: true, runs: List.filled(14, 2));
       tester.view.physicalSize = const Size(411, 600);
@@ -404,7 +404,7 @@ void main() {
   );
 
   testWidgets(
-    'Quellenangabe nur mit gezeigtem Kartenbild: Fehler und Linie zeigen keine (WP13 N5)',
+    'Quellenangabe nur mit gezeigtem Kartenbild: Fehler und Linie zeigen keine',
     (tester) async {
       final (_, w) = await _start(tester, consent: true, runs: [2, 3]);
       w.captureFails = true;
@@ -418,7 +418,7 @@ void main() {
   );
 
   testWidgets(
-    'Bild, das sich nicht darstellen lässt: Zeichnung statt Karte, keine Quellenangabe, einmal neu erzeugt (WP13 N5)',
+    'Bild, das sich nicht darstellen lässt: Zeichnung statt Karte, keine Quellenangabe, einmal neu erzeugt',
     (tester) async {
       final handle = tester.ensureSemantics();
       final (_, w) = await _start(tester, consent: true, runs: [2]);
@@ -437,7 +437,7 @@ void main() {
   );
 
   testWidgets(
-    'Unlesbares Bild im Speicher: wird entfernt und neu erzeugt, ohne Neuaufbau (WP13 N5)',
+    'Unlesbares Bild im Speicher: wird entfernt und neu erzeugt, ohne Neuaufbau',
     (tester) async {
       final (d, w) = await _start(tester, consent: true, runs: [2]);
       final id = (await d.session.runs.list()).first.id;
@@ -494,43 +494,42 @@ void main() {
     },
   );
 
-  testWidgets(
-    'Karte der Route und Quelle erst, wenn das Bild gemalt ist (WP13 N5)',
-    (tester) async {
-      final handle = tester.ensureSemantics();
-      PaintingBinding.instance.imageCache
-          .clear(); // sonst steht das Bild schon aus einem früheren Test bereit
-      final (d, w) = await _start(tester, consent: true, runs: [2]);
-      final id = (await d.session.runs.list()).first.id;
-      w.thumbs.data[thumbnailKey(miniatureVariant(_styleOf(tester)), id)] =
-          png1x1;
-      d.clock.set(
-        DateTime.utc(2030, 1, 15, 12),
-      ); // Monat der Läufe: „Alle“ nicht nötig
-      await tester.tap(key('home_history'));
-      // Ohne echte Zeit: das Bild liegt vor, ist aber noch nicht entschlüsselt.
-      for (var i = 0; i < 20; i++) {
-        await tester.pump(const Duration(milliseconds: 20));
-      }
-      expect(key('miniature_image'), findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp('Kleine Karte')), findsNothing);
-      expect(key('history_attribution'), findsNothing);
-      await _settle(tester);
-      expect(
-        find.bySemanticsLabel(RegExp('Kleine Karte der Route')),
-        findsOneWidget,
-      );
-      expect(
-        find.bySemanticsLabel(RegExp('Quelle: Quelle-Test')),
-        findsOneWidget,
-      );
-      expect(key('history_attribution'), findsOneWidget);
-      handle.dispose();
-    },
-  );
+  testWidgets('Karte der Route und Quelle erst, wenn das Bild gemalt ist', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    PaintingBinding.instance.imageCache
+        .clear(); // sonst steht das Bild schon aus einem früheren Test bereit
+    final (d, w) = await _start(tester, consent: true, runs: [2]);
+    final id = (await d.session.runs.list()).first.id;
+    w.thumbs.data[thumbnailKey(miniatureVariant(_styleOf(tester)), id)] =
+        png1x1;
+    d.clock.set(
+      DateTime.utc(2030, 1, 15, 12),
+    ); // Monat der Läufe: „Alle“ nicht nötig
+    await tester.tap(key('home_history'));
+    // Ohne echte Zeit: das Bild liegt vor, ist aber noch nicht entschlüsselt.
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(key('miniature_image'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Kleine Karte')), findsNothing);
+    expect(key('history_attribution'), findsNothing);
+    await _settle(tester);
+    expect(
+      find.bySemanticsLabel(RegExp('Kleine Karte der Route')),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel(RegExp('Quelle: Quelle-Test')),
+      findsOneWidget,
+    );
+    expect(key('history_attribution'), findsOneWidget);
+    handle.dispose();
+  });
 
   testWidgets(
-    'Gescheiterter Lauf: kehrt der Eintrag wieder, wird er neu versucht, höchstens $miniatureMaxAttempts Mal (WP13 N5)',
+    'Gescheiterter Lauf: kehrt der Eintrag wieder, wird er neu versucht, höchstens $miniatureMaxAttempts Mal',
     (tester) async {
       tester.view.physicalSize = const Size(800, 600);
       tester.view.devicePixelRatio = 1;

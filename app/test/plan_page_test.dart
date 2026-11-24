@@ -577,7 +577,7 @@ void main() {
     }
 
     testWidgets('entfallener Tag als Ruhetag festgelegt: „Ruhetag“, kein '
-        '„Lauftag entfällt“ (Befund E2b 1)', (tester) async {
+        '„Lauftag entfällt“', (tester) async {
       final friday = DateTime.utc(2026, 11, 13);
       final (session, clock) = await tester.runAsync(() async {
         final (session, clock) = await _withPlan(_goal());
@@ -652,7 +652,7 @@ void main() {
     });
   });
 
-  group('Nachbesserung Teil B', () {
+  group('Wochenzeile, Einschätzung und Wochenkopf', () {
     PlanUnit unit(
       DateTime day, {
       int? runId,
@@ -1104,7 +1104,7 @@ void main() {
     });
 
     testWidgets('Wochenkopf ab der dritten Woche nach dem Anker: Zeit und '
-        'Nummer der Woche von heute (Nachbesserung E)', (tester) async {
+        'Nummer der Woche von heute', (tester) async {
       // Anker zwei Wochen vor dieser Woche; die Rechnung beginnt mit dieser
       // Woche (Nummer 3). Jede Woche hat eine eigene Zeit.
       await pumpFixed(
@@ -1127,7 +1127,7 @@ void main() {
     });
 
     test('planWeekMinutes: Woche über den Montag, nicht über die Position ab '
-        'dem Anker (Nachbesserung E)', () {
+        'dem Anker', () {
       final s = _state(
         anchorWeeksEarlier: 2,
         weekMinutes: [100, 110, 120, 130, 140, 150],
@@ -1327,7 +1327,7 @@ void main() {
     });
   });
 
-  group('E2E-Nachbesserung 2', () {
+  group('Neu berechnen auf der Plan-Seite', () {
     /// Plan mit Ziel, darin Sa 14.11. auf So 15.11. verschoben (ohne
     /// Bestätigung, wie eine abweichende ältere Fassung), und bestätigter
     /// Termin Do 12.11. → Fr 13.11. Eine Neuberechnung muss damit eine neue

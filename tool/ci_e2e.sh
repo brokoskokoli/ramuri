@@ -7,6 +7,9 @@
 #   treadmill-plan  e2e_treadmill_test.dart TREADMILL_PLAN=true: gefuehrte Einheit aus dem Plan auf dem Laufband
 #                   in Echtzeit (~5 min Abschnitt); eigene Stufe wegen frischem Speicher ohne Ziel und der Dauer,
 #                   im Shard sammlung (der kuerzere), kein Prozessende
+#   sport-plan      e2e_other_sport_test.dart SPORT_PLAN=true: andere Sportart ersetzt die lockere Einheit des Tages
+#                   (FR-0222), zuerst zu intensiv (keine Zuordnung), dann locker in Echtzeit (~2,5 min); eigene Stufe
+#                   wegen frischem Speicher ohne Ziel, im Shard stufen (der kuerzere), kein Prozessende
 #   storage-a/-b    e2e_storage_test.dart PHASE=write, Prozessende, PHASE=read
 #   recover-a/-b    e2e_recover_test.dart PHASE=a (Lauf laeuft), Prozessende, PHASE=b
 #   m2-flow         e2e_m2_flow_test.dart: Plan, gefuehrte Einheit in Echtzeit (~5,5 min), Anpassung;
@@ -25,7 +28,8 @@
 # der Host fuehrt `adb shell am force-stop` aus. Die Stufen davor laufen mit
 # --no-uninstall, damit Daten und Schluessel bis zur Folgestufe bleiben.
 # GPS: Der Emulator bekommt im Hintergrund synthetische Positionen
-# (`adb emu geo fix`, ca. 3 m/s nach Norden); Rechte werden per `pm grant` gesetzt.
+# (`adb emu geo fix`, ca. 3 m/s nach Norden); Rechte werden per `pm grant` gesetzt. Am Ende jeder Stufe meldet der
+# Host "geo fix fehlgeschlagen: <n> von <m>" (Aufrufe waehrend der Stufe, nur Zaehler, nie Koordinaten).
 # Auswahl: E2E_SHARD=sammlung|stufen (so ruft .github/workflows/e2e.yml auf; die Zuordnung
 # Shard -> Stufen steht nur hier) oder lokal E2E_STUFEN="recover-a recover-b"; beides zusammen
 # oder ein unbekannter Name ist ein Fehler (Exit 1), ebenso ein Lauf ohne eine einzige Stufe.
@@ -107,7 +111,7 @@ for f in app/integration_test/e2e_*_test.dart; do
 done
 
 shard_sammlung="sammlung treadmill-plan"
-shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness plan-adapt m3-flow"
+shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness plan-adapt m3-flow sport-plan"
 alle_stufen="$shard_sammlung $shard_stufen"
 # Zeitlimit je Stufe in s, fuer die gesamte Laufzeit von flutter test (Build, Install, Tests).
 # Herleitung: das Doppelte der laengsten gemessenen Dauer (Zeilen "STUFE ... dauer=") aus sechs gruenen Laeufen
@@ -117,17 +121,20 @@ alle_stufen="$shard_sammlung $shard_stufen"
 # plan-adapt (neu, noch ohne Messung) wie readiness: 5 min.
 # m3-flow: im PR #101 gemessen 82 s (API 31) und 83 s (API 36), doppelt 166 s, also 5 min; im Shard stufen, weil der kuerzer ist (auf main
 # zuletzt ca. 15 min Job gegen ca. 20 min fuer sammlung).
+# sport-plan (neu, noch ohne Messung): erwartet etwa 6 min (Build, Install, 1 min und 2,5 min Aufzeichnung),
+# doppelt 12 min, also 720 s.
 # Waechst eine Stufe deutlich, hier neu messen und nachziehen.
 grenze_s() {
   case "$1" in
     sammlung) echo 1500 ;;
     treadmill-plan) echo 780 ;;
+    sport-plan) echo 720 ;;
     storage-a) echo 660 ;;
     storage-b | recover-a | recover-b | m2-flow | readiness | plan-adapt | m3-flow) echo 300 ;;
   esac
 }
 # Stufen mit gefuehrter Einheit, die kurz vor Mitternacht den Tageswechsel abwarten (waitPastLateEvening).
-tageswechsel_stufen="m2-flow treadmill-plan"
+tageswechsel_stufen="m2-flow treadmill-plan sport-plan"
 # Obergrenze des Wartens in s: das Fenster dauert hoechstens 15 min (23:45-00:00), dazu 1 min Spielraum. Haengt
 # der Test im Warten oder bleibt die Uhr stehen, zaehlt die Zeit darueber wieder gegen das Zeitlimit.
 tageswechsel_max_s=960
@@ -233,14 +240,20 @@ shot_watch() {
   done
 }
 
+# Je `geo fix`-Aufruf eine Zeile in $geo_zaehler: 0 erfolgreich, 1 fehlgeschlagen (nie Koordinaten). Die Datei liegt
+# ausserhalb des Ausgabeordners (kein Artefakt); stufe() meldet daraus je Stufe "geo fix fehlgeschlagen: <n> von <m>".
+geo_zaehler=$(mktemp) || exit 1
 gps_feed() {
   lat=10.0
   while :; do
     lat=$(awk -v l="$lat" 'BEGIN { printf "%.6f", l + 0.00003 }')
-    a emu geo fix 20.0 "$lat" >/dev/null 2>&1
+    if a emu geo fix 20.0 "$lat" >/dev/null 2>&1; then echo 0; else echo 1; fi >>"$geo_zaehler"
     sleep 1
   done
 }
+
+# geo_stand: "<aufrufe> <fehlgeschlagen>" bisher, in einem Lesevorgang (der Zufuehrer schreibt nebenher weiter).
+geo_stand() { awk '{ m++ } $0 == "1" { n++ } END { print m + 0, n + 0 }' "$geo_zaehler"; }
 
 # Rechte setzen: Wartebedingung mit Ende. `pm grant` schlaegt fehl, solange die App
 # nicht installiert ist; sobald alle Rechte gewaehrt und per dumpsys bestaetigt
@@ -291,6 +304,7 @@ stufe() {
   tw_bis=""
   pause=0
   t0=$(date +%s)
+  geo_vorher=$(geo_stand)
   a logcat -c
   : >"$log"
   # $shots_define ist leer oder ein Wort ohne Leerzeichen (ungequotet: leer = kein Argument).
@@ -357,6 +371,9 @@ stufe() {
   # Nach dem Zeitlimit immer rot, auch wenn NEED_KILL schon kam.
   [ "$zeitlimit" = 0 ] || rc=1
   echo "STUFE $name rc=$rc dauer=$(($(date +%s) - t0))s"
+  # Aufrufe des GPS-Zufuehrers waehrend der Stufe (Differenz zum Stand bei Stufenbeginn), nur Zaehler.
+  geo_nachher=$(geo_stand)
+  echo "geo fix fehlgeschlagen: $((${geo_nachher#* } - ${geo_vorher#* })) von $((${geo_nachher% *} - ${geo_vorher% *}))"
   # Nur Zeilen ohne "E2E_" (Wertausgaben der Tests) in das oeffentliche Log.
   grep -v 'E2E_' "$log" >"$log.pub"
   # Alle Schrittmarken der Stufe (die letzten Zeilen unten zeigen bei langen Stufen nur das Ende).
@@ -388,7 +405,7 @@ stufe() {
 a uninstall "$pkg" >/dev/null 2>&1
 gps_feed &
 fpid=$!
-trap 'beende_baum "$fpid"' EXIT
+trap 'beende_baum "$fpid"; rm -f "$geo_zaehler"' EXIT
 
 stufe sammlung 0 integration_test/all_test.dart
 stufe treadmill-plan 0 integration_test/e2e_treadmill_test.dart --dart-define=TREADMILL_PLAN=true
@@ -400,5 +417,6 @@ stufe m2-flow 0 integration_test/e2e_m2_flow_test.dart
 stufe readiness 0 integration_test/e2e_readiness_test.dart
 stufe plan-adapt 0 integration_test/e2e_plan_adapt_test.dart
 stufe m3-flow 0 integration_test/e2e_m3_flow_test.dart
+stufe sport-plan 0 integration_test/e2e_other_sport_test.dart --dart-define=SPORT_PLAN=true
 [ "$ran" -gt 0 ] || { echo "keine Stufe gelaufen (Auswahl: '$auswahl')"; exit 1; }
 exit "$rc_all"

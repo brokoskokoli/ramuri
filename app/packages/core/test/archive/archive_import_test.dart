@@ -383,7 +383,8 @@ void main() {
           if (e.value.isNotEmpty)
             e.key: e.key == 'runs'
                 ? [
-                    for (final r in e.value) {...r, 'mode': 'gps'},
+                    for (final r in e.value)
+                      {...r, 'mode': 'gps', 'sport': null},
                   ]
                 : e.value,
       });
@@ -516,12 +517,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 16: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 19: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 17);
+        final lines = valid()..[0] = _manifest(schema: 20);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":17,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":20,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -703,7 +704,7 @@ void main() {
         });
         await c.run(await _archive(l));
         expect(c.sink.rows['runs'], [
-          {...run(), 'mode': 'gps'},
+          {...run(), 'mode': 'gps', 'sport': null},
         ]);
       },
     );
@@ -1388,8 +1389,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 16 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 17, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 19 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 20, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -1868,6 +1869,162 @@ void main() {
       'speed_mps': speed,
       'incline_percent': incline,
     };
+
+    test(
+      'Schema 18: runs.sport am Zeilenende; Schema 17 liest sich mit null; '
+      'sport in Schema 17, fehlend in Schema 18 oder falscher Typ: beschädigt',
+      () async {
+        expect(archiveSectionsFor(18).first.columns.last.name, 'sport');
+        expect([
+          for (final c in archiveSectionsFor(17).first.columns) c.name,
+        ], isNot(contains('sport')));
+        Map<String, Object?> run(int id, String mode, String? sport) =>
+            _row(archiveSections[0], id, schema: 18)
+              ..['mode'] = mode
+              ..['sport'] = sport;
+        await c.run(
+          await file(
+            v2(
+              schema: 18,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'runs': [
+                  run(1, 'gps', null),
+                  run(2, 'sport', 'rope'),
+                  run(3, 'sport', 'cycling'),
+                  run(4, 'sport', 'rowing'),
+                  run(5, 'sport', 'other'),
+                ],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        expect(
+          [for (final r in c.sink.rows['runs']!) '${r['mode']}:${r['sport']}'],
+          [
+            'gps:null',
+            'sport:rope',
+            'sport:cycling',
+            'sport:rowing',
+            'sport:other',
+          ],
+        );
+        // Schema 17 kennt die Spalte nicht: der Leser setzt null.
+        c = _Case(dir);
+        await c.run(
+          await file(
+            v2(
+              schema: 17,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'runs': [
+                  _row(archiveSections[0], 1, schema: 17)
+                    ..['mode'] = 'treadmill',
+                ],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['runs']!.single['sport'], isNull);
+        expect(c.sink.rows['runs']!.single['mode'], 'treadmill');
+        for (final (schema, bad) in <(int, Map<String, Object?>)>[
+          (17, run(1, 'sport', 'rope')),
+          (18, run(1, 'gps', null)..remove('sport')),
+          (18, run(1, 'sport', null)..['sport'] = 3),
+        ]) {
+          c = _Case(dir);
+          await rejectsV2(
+            v2(
+              schema: schema,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'runs': [bad],
+              },
+            ),
+          );
+        }
+      },
+    );
+
+    test('Schema 19: computed_values.preprocessing_version am Zeilenende und '
+        'unverändert übernommen; Schema 18 liest Laufwerte mit der Kette von '
+        'damals, Tageswerte mit null; falscher Typ: beschädigt', () async {
+      final spec = archiveSections.firstWhere(
+        (s) => s.name == 'computed_values',
+      );
+      expect(
+        archiveSectionsFor(19)
+            .firstWhere((s) => s.name == 'computed_values')
+            .columns
+            .last
+            .name,
+        'preprocessing_version',
+      );
+      expect([
+        for (final c in archiveSectionsFor(
+          18,
+        ).firstWhere((s) => s.name == 'computed_values').columns)
+          c.name,
+      ], isNot(contains('preprocessing_version')));
+      Map<String, Object?> value(int id, {required int schema, int? run}) =>
+          _row(spec, id, schema: schema)
+            ..['run_id'] = run
+            ..['day'] = run == null ? '2026-11-0$id' : null;
+      List<String> lines(int schema, List<Map<String, Object?>> values) => v2(
+        schema: schema,
+        trainings: [mt()..['hc_id'] = null],
+        extra: {'computed_values': values},
+      );
+      await c.run(
+        await file(
+          lines(19, [
+            value(1, schema: 19, run: 1)..['preprocessing_version'] = 'hr9.neu',
+            value(2, schema: 19)..['preprocessing_version'] = null,
+          ]),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(
+        [
+          for (final r in c.sink.rows['computed_values']!)
+            r['preprocessing_version'],
+        ],
+        ['hr9.neu', null],
+      );
+      // Schema 18 kennt die Spalte nicht: wie die Migration 18 -> 19.
+      c = _Case(dir);
+      await c.run(
+        await file(
+          lines(18, [
+            value(1, schema: 18, run: 1),
+            value(2, schema: 18),
+            value(3, schema: 18, run: 2),
+          ]),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(
+        [
+          for (final r in c.sink.rows['computed_values']!)
+            r['preprocessing_version'],
+        ],
+        [
+          legacyPreprocessingChainVersion,
+          null,
+          legacyPreprocessingChainVersion,
+        ],
+      );
+      for (final (schema, bad) in <(int, Map<String, Object?>)>[
+        (18, value(1, schema: 18, run: 1)..['preprocessing_version'] = 'x'),
+        (19, value(1, schema: 19, run: 1)..remove('preprocessing_version')),
+        (19, value(1, schema: 19, run: 1)..['preprocessing_version'] = 3),
+      ]) {
+        c = _Case(dir);
+        await rejectsV2(lines(schema, [bad]));
+      }
+    });
 
     test(
       'Schema 10: mode und treadmill_settings, Steigung unbekannt (null)',
@@ -2404,6 +2561,150 @@ void main() {
       },
     );
 
+    test('Schema 17: ISP-Werte und Schalter am Ende von Abschnitt 34; '
+        'Schema 16 liest sich mit null/0', () async {
+      Map<String, Object?> mm(int id) => {
+        'id': id,
+        'measured_at_us': 5000 + id,
+        'utc_offset_s': 0,
+        'posture': 'lying',
+        'device_manufacturer': 'Testhersteller',
+        'device_model': 'Testmodell',
+        'method': 'camera-ppg',
+        'method_version': 5,
+        'quality': 'good',
+        'resting_hr_bpm': 52.3,
+        'rmssd_ms': null,
+        'timing_noise_ms': null,
+        'sleep_band': null,
+        'before_validation': 0,
+        'outside_window': 0,
+        'camera_ibi': '',
+        'window_start_s': 5.0,
+        'window_end_s': 65.0,
+        'rest_skipped_after_s': null,
+        'unusable_reason': null,
+        'chosen': 0,
+      };
+      // Ein Bild: 35 float64 (280 Byte) bzw. 19 float64 (152 Byte), synthetisch.
+      final frame = '00' * 280;
+      final isp = '00' * 144 + '000000000000f87f'; // letzter Wert NaN
+      Map<String, Object?> rs(int id, {bool s17 = false, bool diag = false}) =>
+          {
+            'measurement_id': id,
+            'frame_count': 1,
+            'frames': frame,
+            'exposure_time_ns': null,
+            'iso': null,
+            'timestamp_source': null,
+            'rolling_shutter_skew_ns': null,
+            'torch_strength': null,
+            'frame_gap_count': 0,
+            'frame_gap_total_s': 0.0,
+            'saturated_fraction': null,
+            'camera_id': null,
+            'physical_camera_id': null,
+            'focal_length_mm': null,
+            if (s17) ...{
+              'isp_frames': diag ? isp : null,
+              'diag_noise_reduction_off': diag ? 1 : 0,
+              'diag_edge_off': 0,
+              'diag_awb_fixed': diag ? 1 : 0,
+              'diag_tonemap_linear': 0,
+              'diag_shading_off': diag ? 1 : 0,
+              'diag_awb_variant': diag ? 'matrix' : null,
+            },
+          };
+      expect(
+        [
+          for (final c in archiveSectionsFor(
+            17,
+          ).firstWhere((s) => s.name == 'morning_raw_signals').columns.skip(14))
+            c.name,
+        ],
+        [
+          'isp_frames',
+          'diag_noise_reduction_off',
+          'diag_edge_off',
+          'diag_awb_fixed',
+          'diag_tonemap_linear',
+          'diag_shading_off',
+          'diag_awb_variant',
+        ],
+      );
+      Future<void> load(int schema, List<Map<String, Object?>> raws) async =>
+          c.run(
+            await file(
+              v2(
+                schema: schema,
+                trainings: [mt()..['hc_id'] = null],
+                extra: {
+                  'morning_measurements': [mm(1), mm(2)],
+                  'morning_raw_signals': raws,
+                },
+              ),
+            ),
+          );
+      await load(17, [rs(1, s17: true, diag: true), rs(2, s17: true)]);
+      expect(c.sink.commits, 1);
+      var r = c.sink.rows['morning_raw_signals']!;
+      expect(r[0]['isp_frames'], isA<Uint8List>());
+      expect((r[0]['isp_frames']! as Uint8List).length, 152);
+      expect(
+        [
+          for (final k in [
+            'diag_noise_reduction_off',
+            'diag_awb_fixed',
+            'diag_shading_off',
+            'diag_edge_off',
+          ])
+            r[0][k],
+        ],
+        [1, 1, 1, 0],
+      );
+      expect(r[0]['diag_awb_variant'], 'matrix');
+      expect(r[1]['isp_frames'], isNull);
+      expect(r[1]['diag_awb_variant'], isNull);
+      // Schema 16 kennt die Spalten nicht: nicht aufgezeichnet, keine Schalter.
+      c = _Case(dir);
+      await load(16, [rs(1), rs(2)]);
+      expect(c.sink.commits, 1);
+      r = c.sink.rows['morning_raw_signals']!;
+      for (final row in r) {
+        expect(row['isp_frames'], isNull);
+        expect(row['diag_awb_variant'], isNull);
+        for (final k in [
+          'diag_noise_reduction_off',
+          'diag_edge_off',
+          'diag_awb_fixed',
+          'diag_tonemap_linear',
+          'diag_shading_off',
+        ]) {
+          expect(row[k], 0, reason: k);
+        }
+      }
+      // Spalten in Schema 16, fehlend in Schema 17 oder falscher Typ: beschädigt.
+      for (final (schema, bad) in <(int, Map<String, Object?>)>[
+        (16, rs(1, s17: true)),
+        (17, rs(1)),
+        (17, rs(1, s17: true)..['diag_edge_off'] = 2),
+        (17, rs(1, s17: true)..['isp_frames'] = 'XY'),
+        (17, rs(1, s17: true)..['diag_awb_variant'] = 3),
+      ]) {
+        c = _Case(dir);
+        await rejectsV2(
+          v2(
+            schema: schema,
+            trainings: [mt()..['hc_id'] = null],
+            extra: {
+              'morning_measurements': [mm(1)],
+              'morning_raw_signals': [bad],
+            },
+          ),
+        );
+      }
+    });
+
     test('mode: Schema 9 mit mode oder Schema 10 ohne mode sowie falscher Typ in treadmill_settings: beschädigt', () async {
       await rejectsV2(
         v2(
@@ -2614,9 +2915,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 17: neueres Archiv', () async {
+    test('Schema 20: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":17,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":20,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

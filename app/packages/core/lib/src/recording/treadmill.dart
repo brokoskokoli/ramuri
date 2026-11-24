@@ -3,13 +3,20 @@
 library;
 
 /// Art des Laufs (Spalte `runs.mode`, Archiv Abschnitt 1). `gps` ist die
-/// Vorgabe und der Wert aller Läufe vor Schema 10.
+/// Vorgabe und der Wert aller Läufe vor Schema 10. [sport] ist eine andere
+/// Sportart mit Puls (FR-0221, ab Schema 18) mit [OtherSport] in `runs.sport`.
 enum RunMode {
   gps,
-  treadmill;
+  treadmill,
+  sport;
 
   /// Wert in Datenbank und Archiv.
   String get wire => name;
+
+  /// Ein Lauf (GPS oder Band): nur dann gibt es Laufwerte (Strecke, Pace,
+  /// Splits, VO₂max, aerobe Effizienz, Bestwerte, Prognose, Plan-Eingaben;
+  /// FR-0221, DEC-0056).
+  bool get isRunning => this != sport;
 
   /// `null` bei unbekanntem Text.
   static RunMode? fromWire(String? s) {
@@ -19,6 +26,30 @@ enum RunMode {
     return null;
   }
 }
+
+/// Sportart einer Einheit mit [RunMode.sport] (Spalte `runs.sport`, FR-0221).
+enum OtherSport {
+  rope,
+  cycling,
+  rowing,
+  other;
+
+  /// Wert in Datenbank und Archiv.
+  String get wire => name;
+
+  /// `null` bei unbekanntem Text.
+  static OtherSport? fromWire(String? s) {
+    for (final v in values) {
+      if (v.wire == s) return v;
+    }
+    return null;
+  }
+}
+
+/// `true`, wenn Art und Sportart zusammenpassen: [OtherSport] genau bei
+/// [RunMode.sport] (wie der CHECK in `runs`).
+bool runModeMatchesSport(RunMode mode, OtherSport? sport) =>
+    (mode == RunMode.sport) == (sport != null);
 
 /// PAR-209: Bandgeschwindigkeit 1 bis 25 km/h in Schritten von 0,1 km/h.
 const double treadmillSpeedMinKmh = 1;

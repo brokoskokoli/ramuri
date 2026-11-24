@@ -342,6 +342,37 @@ Future<void> _values(StorageContractHarness h) async {
     0,
     'keine Schlüssel, keine Antwort (Tage)',
   );
+
+  // Kettenversion der Vorverarbeitung (ADR-0004): steht am Wert, übersteht
+  // Anlegen, Tausch, Lesen und die gebündelte Abfrage; null bleibt null.
+  final chained = (await s.runs.create(startedAt: at(2))).id;
+  final co = ValueOwner.run(chained);
+  await s.values.createOriginals(co, [
+    sampleValue('vo2max', 41, chain: 'hr1.alt'),
+    sampleValue('ohne', 2),
+  ]);
+  await s.values.swapCurrent(co, [sampleValue('vo2max', 42, chain: 'hr2.neu')]);
+  final cr = await s.values.read(co);
+  expectEq(
+    [
+      for (final p in cr)
+        '${p.original.key}:${p.original.preprocessingVersion}:'
+            '${p.current.preprocessingVersion}',
+    ],
+    ['ohne:null:null', 'vo2max:hr1.alt:hr2.neu'],
+    'Kette an original und current',
+  );
+  final cb = await s.values.readRunValues({'vo2max', 'ohne'});
+  expectEq(
+    cb[chained]!['vo2max']!.preprocessingVersion,
+    'hr2.neu',
+    'gebündelte Abfrage liest die Kette des current',
+  );
+  expectEq(
+    cb[chained]!['ohne']!.preprocessingVersion,
+    null,
+    'ohne Kette bleibt null',
+  );
   await s.close();
 }
 
@@ -767,5 +798,61 @@ Future<void> _writeAll(StorageContractHarness h) async {
   final p = (await s.values.read(d)).single;
   expectEq(p.original.value, 1.0, 'original bleibt');
   expectEq(p.current.value, 7.0, 'current getauscht');
+
+  // Tage entfernen (neue Tageszuordnung, PAR-237): original und current samt
+  // Abschnitten weg, in derselben Transaktion wie Anlegen und Tauschen.
+  const gone = ValueOwner.day('2030-01-05');
+  const moved = ValueOwner.day('2030-01-04');
+  await s.values.createOriginals(gone, [
+    sampleValue('a', 2, sections: sampleValueSections()),
+    sampleValue('b', 3),
+  ]);
+  final runsBefore = (await s.values.read(r1)).map(describePair).join();
+  // Tausch an einem entfernten Tag: notFound, nichts entfernt.
+  await expectFails(
+    () => s.values.writeAll(
+      swap: {
+        gone: [sampleValue('a', 8)],
+      },
+      removeDays: {'2030-01-05'},
+    ),
+    StorageFailure.notFound,
+    'Tausch an entferntem Tag',
+  );
+  expectEq((await s.values.read(gone)).length, 2, 'nichts entfernt');
+  // Anlegen scheitert: auch das Entfernen gilt nicht.
+  await expectFails(
+    () => s.values.writeAll(
+      create: {
+        r1: [sampleValue('a', 9)],
+      },
+      removeDays: {'2030-01-05'},
+    ),
+    StorageFailure.rejected,
+    'Anlegen scheitert',
+  );
+  expectEq((await s.values.read(gone)).length, 2, 'nichts entfernt (2)');
+  await s.values.writeAll(
+    create: {
+      moved: [sampleValue('a', 4)],
+      gone: [sampleValue('b', 5)],
+    },
+    swap: {
+      d: [sampleValue('a', 6)],
+    },
+    removeDays: {'2030-01-05', '2030-01-06'},
+  );
+  final again = (await s.values.read(gone)).single;
+  expectEq(again.original.key, 'b', 'entfernter Tag neu angelegt');
+  expectEq(again.original.value, 5.0, 'neues original');
+  expectEq((await s.values.read(moved)).single.current.value, 4.0, 'angelegt');
+  expectEq((await s.values.read(d)).single.current.value, 6.0, 'getauscht');
+  expectEq(
+    (await s.values.read(r1)).map(describePair).join(),
+    runsBefore,
+    'Laufwerte unberührt',
+  );
+  final days = await s.values.readDayValues({'a', 'b'});
+  expectEq(days['2030-01-05']?.keys.toSet(), {'b'}, 'nur der neue Wert');
   await s.close();
 }

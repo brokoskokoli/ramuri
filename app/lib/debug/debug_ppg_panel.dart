@@ -9,7 +9,8 @@ import 'debug_test_ppg_camera.dart';
 /// Szenario die Liste zeigt und setzt (Vorgabe: Standardkamera). Für E2E per UI
 /// Automator: die `Semantics.identifier` sind `debug_ppg_toggle`,
 /// `debug_ppg_camera_<n>` (n = Stelle in [debugPpgCameras], 0 = Standardkamera),
-/// `debug_ppg_<szenario>` (z. B. `debug_ppg_goodPulse`) und `debug_ppg_speed`;
+/// `debug_ppg_<szenario>` (z. B. `debug_ppg_goodPulse`), `debug_ppg_speed` und
+/// `debug_ppg_preview` (Kamerasuche gleichzeitig oder im Wechsel);
 /// die Texte beginnen mit „PPG“. Kein Code der Release-Einstiegsdatei importiert diese Datei.
 ///
 /// Zugeklappt belegt das Feld einen festen Streifen von [collapsedWidth] am
@@ -105,6 +106,18 @@ class _DebugPpgPanelState extends State<DebugPpgPanel> {
                         selected: cam.speed != 1,
                         onTap: () => setState(
                           () => cam.speed = cam.speed == 1 ? fastSpeed : 1,
+                        ),
+                      ),
+                      // Kamerasuche (FR-0220, PAR-227): gilt ab dem nächsten Start der Vorschau.
+                      _Tile(
+                        id: 'debug_ppg_preview',
+                        label: cam.previewAlternating
+                            ? 'PPG Suche im Wechsel'
+                            : 'PPG Suche gleichzeitig',
+                        selected: cam.previewAlternating,
+                        onTap: () => setState(
+                          () =>
+                              cam.previewAlternating = !cam.previewAlternating,
                         ),
                       ),
                     ],

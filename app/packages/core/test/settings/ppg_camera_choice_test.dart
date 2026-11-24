@@ -133,6 +133,100 @@ void main() {
     });
   });
 
+  group('SettingsPpgCameraDiagnosticsStore (FR-0217)', () {
+    late StorageSession session;
+    late SettingsPpgCameraDiagnosticsStore store;
+    setUp(() async {
+      session = await FakeStorage().open(Uint8List(32));
+      store = SettingsPpgCameraDiagnosticsStore(
+        session.settings,
+        FakeClock(DateTime.utc(2026, 11, 18, 7)),
+      );
+    });
+
+    test('Vorgabe aus; je Schalter setzen und löschen, getrennt', () async {
+      expect(await store.read(), isEmpty);
+      for (final d in PpgCameraDiagnostic.values) {
+        await store.set(d, on: true);
+        expect(await store.read(), {d});
+        expect(await session.settings.get('ppg.diag.${d.wire}'), '1');
+        await store.set(d, on: false);
+        expect(await store.read(), isEmpty);
+      }
+      await store.set(PpgCameraDiagnostic.edgeOff, on: true);
+      await store.set(PpgCameraDiagnostic.shadingOff, on: true);
+      expect(await store.read(), {
+        PpgCameraDiagnostic.edgeOff,
+        PpgCameraDiagnostic.shadingOff,
+      });
+    });
+
+    test('Schlüssel ppg.diag.*; unbekannter Wert gilt als aus', () async {
+      expect(
+        [
+          for (final d in PpgCameraDiagnostic.values)
+            ppgDiagnosticSettingKey(d),
+        ],
+        [
+          'ppg.diag.noise_reduction_off',
+          'ppg.diag.edge_off',
+          'ppg.diag.awb_fixed',
+          'ppg.diag.tonemap_linear',
+          'ppg.diag.shading_off',
+        ],
+      );
+      await session.settings.set(
+        SettingKeys.ppgDiagEdgeOff,
+        'true',
+        at: DateTime.utc(2026),
+      );
+      expect(await store.read(), isEmpty);
+    });
+
+    test('Alles löschen setzt alle zurück', () async {
+      for (final d in PpgCameraDiagnostic.values) {
+        await store.set(d, on: true);
+      }
+      await session.deleteAll();
+      expect(await store.read(), isEmpty);
+    });
+
+    test('kein Archivinhalt', () {
+      for (final d in PpgCameraDiagnostic.values) {
+        expect(
+          archiveExcludedSettingKeys,
+          contains(ppgDiagnosticSettingKey(d)),
+          reason: d.name,
+        );
+      }
+    });
+
+    test('Morgenmessung fordert nur im Entwicklermodus an', () async {
+      await store.set(PpgCameraDiagnostic.noiseReductionOff, on: true);
+      var dev = false;
+      var r = await morningCameraDiagnostics(
+        developerMode: () async => dev,
+        store: store,
+      );
+      expect(r.diagnostics, isEmpty);
+      expect(r.ispFrames, isFalse);
+      dev = true;
+      r = await morningCameraDiagnostics(
+        developerMode: () async => dev,
+        store: store,
+      );
+      expect(r.diagnostics, {PpgCameraDiagnostic.noiseReductionOff});
+      expect(r.ispFrames, isTrue);
+      // Lesefehler: Vorgabe, die Messung läuft wie ohne Diagnose.
+      r = await morningCameraDiagnostics(
+        developerMode: () async => throw StateError('x'),
+        store: store,
+      );
+      expect(r.diagnostics, isEmpty);
+      expect(r.ispFrames, isFalse);
+    });
+  });
+
   group('choosePpgCamera', () {
     late StorageSession session;
     late SettingsPpgCameraChoiceStore store;
@@ -183,6 +277,128 @@ void main() {
           choice: store,
         ),
         isNull,
+      );
+    });
+  });
+
+  group('ppgCameraFinderNeeded (FR-0220)', () {
+    const one = [
+      PpgCameraInfo(ref: _std, isDefault: true),
+      PpgCameraInfo(ref: _broken, unusable: PpgCameraUnusable.noFlash),
+    ];
+    const two = [
+      PpgCameraInfo(ref: _std, isDefault: true),
+      PpgCameraInfo(ref: _second),
+    ];
+    bool needed({
+      List<PpgCameraInfo> cameras = _cameras,
+      bool dev = false,
+      PpgCameraRef? manual,
+      PpgCameraRef? auto,
+    }) => ppgCameraFinderNeeded(
+      cameras: cameras,
+      developerMode: dev,
+      manual: manual,
+      auto: auto,
+    );
+
+    test('mehr als eine nutzbare Kamera, kein Ergebnis: Suche', () {
+      expect(needed(), isTrue);
+      expect(needed(cameras: two), isTrue);
+    });
+
+    test(
+      'nur eine nutzbare Kamera (eine weitere nicht nutzbar): keine Suche',
+      () {
+        expect(needed(cameras: one), isFalse);
+        expect(needed(cameras: const []), isFalse);
+      },
+    );
+
+    test(
+      'gültiges Ergebnis der Suche: keine Suche (auch die Standardkamera)',
+      () {
+        expect(needed(auto: _second), isFalse);
+        expect(needed(auto: _std), isFalse);
+      },
+    );
+
+    test('Ergebnis verschwunden oder nicht nutzbar: Suche', () {
+      expect(needed(auto: const PpgCameraRef('9')), isTrue);
+      expect(needed(auto: _broken), isTrue);
+    });
+
+    test('Entwicklermodus mit gültiger Wahl von Hand: keine Suche', () {
+      expect(needed(dev: true, manual: _second), isFalse);
+    });
+
+    test('Wahl von Hand ohne Entwicklermodus oder ungültig: Suche', () {
+      expect(needed(manual: _second), isTrue);
+      expect(needed(dev: true, manual: _broken), isTrue);
+      expect(needed(dev: true, manual: const PpgCameraRef('9')), isTrue);
+    });
+  });
+
+  group('needsPpgCameraFinder', () {
+    late SettingsPpgCameraChoiceStore store;
+    late FakePpgCamera camera;
+    setUp(() async {
+      final session = await FakeStorage().open(Uint8List(32));
+      store = SettingsPpgCameraChoiceStore(
+        session.settings,
+        FakeClock(DateTime.utc(2026, 11, 18, 7)),
+      );
+      camera = FakePpgCamera()..cameraList = _cameras;
+    });
+
+    test('liest Kameras und Wahl', () async {
+      expect(
+        await needsPpgCameraFinder(
+          camera: camera,
+          developerMode: () async => false,
+          choice: store,
+        ),
+        isTrue,
+      );
+      await store.setAuto(_second);
+      expect(
+        await needsPpgCameraFinder(
+          camera: camera,
+          developerMode: () async => false,
+          choice: store,
+        ),
+        isFalse,
+      );
+    });
+
+    test('Wahl von Hand zählt nur im Entwicklermodus', () async {
+      await store.setManual(_second);
+      expect(
+        await needsPpgCameraFinder(
+          camera: camera,
+          developerMode: () async => false,
+          choice: store,
+        ),
+        isTrue,
+      );
+      expect(
+        await needsPpgCameraFinder(
+          camera: camera,
+          developerMode: () async => true,
+          choice: store,
+        ),
+        isFalse,
+      );
+    });
+
+    test('Fehler beim Lesen: keine Suche', () async {
+      expect(
+        await needsPpgCameraFinder(
+          camera: camera,
+          developerMode: () async => throw StateError('x'),
+          choice: store,
+        ),
+        isFalse,
       );
     });
   });

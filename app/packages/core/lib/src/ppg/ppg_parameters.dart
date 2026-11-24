@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../algorithm_category.dart';
 
 /// Kennung und Version des Kamera-PPG-Verfahrens (NFR-0001, NFR-0005).
@@ -10,8 +12,9 @@ import '../algorithm_category.dart';
 /// Nachtrag 2026-11-21); Auswertung unverändert.
 /// Version 5 = wie 4, dazu Antibanding aus und nach der Einschwingzeit die längste Belichtung bei
 /// der Bildrate (ADR-0011, Nachtrag 2026-11-22); Auswertung unverändert.
+/// Version 6 = wie 5, dazu Neusperre der Belichtung nach einem Helligkeitssprung (PAR-245, PAR-246).
 const String ppgMethod = 'camera-ppg';
-const int ppgMethodVersion = 5;
+const int ppgMethodVersion = 6;
 
 /// Stand der Referenz, aus der das Verfahren portiert ist.
 const String ppgReference = 'algo-v0.4-frozen';
@@ -154,6 +157,20 @@ const double ppgSearchStepSeconds = 1.0;
 const double ppgSearchFilterLeadSeconds = 2.0;
 const double ppgSearchFilterTailSeconds = 1.5;
 
+/// Einschwingzeit der Belichtung in s: Die Kamera sperrt sie so lange nach Aufnahmebeginn und nach
+/// jedem Neu-Einschwingen (PAR-246; Kotlin `PpgCameraLogic.AE_LOCK_AT_SECONDS`).
+const double ppgExposureLockSeconds = 2.5;
+
+/// Frühester Fensterbeginn der Fenstersuche (ALGORITHMUS.md Abschn. 2): `ppgStandardWindow.start`,
+/// nach einer Neusperre der Belichtung bei Sensorzeit [relockedAt] (PAR-246) so lange nach ihr wie
+/// beim ersten Mal (`ppgStandardWindow.start - ppgExposureLockSeconds`, also 2,5 s), nie früher.
+double ppgSearchStartMin({double? relockedAt}) => relockedAt == null
+    ? ppgStandardWindow.start
+    : math.max(
+        ppgStandardWindow.start,
+        relockedAt + (ppgStandardWindow.start - ppgExposureLockSeconds),
+      );
+
 /// Längen der jüngsten Abschnitte (s), die für die Anzeige des guten Stücks zusätzlich einzeln
 /// analysiert werden (ALGORITHMUS.md Abschn. 2).
 const List<double> ppgGoodStretchRecentSeconds = [ppgSearchWindowSeconds, 30.0];
@@ -194,3 +211,24 @@ const double ppgMaxFrameGapSeconds = 1.0;
 /// (`PpgQualityReason.noFinger`). Mit Blitz auf der Haut absorbiert das Blut Grün weit stärker
 /// als Rot; eine freie Szene hat Rot/Grün um 1 und darunter. Die Referenz prüft nur die Anzeige.
 const double ppgMinRedGreenRatio = 1.5;
+
+/// Kennung und Version der Kamerasuche (FR-0220, NFR-0001): Fingerprüfung und Lichtmenge je
+/// Kamera aus den Vorschaubildern und die Empfehlung (PAR-227, PAR-228). Keine Pulsauswertung,
+/// nur Anzeige und Vorschlag; gespeichert wird nur die gewählte Kamera.
+const String ppgCameraFinderMethod = 'camera-finder';
+const int ppgCameraFinderMethodVersion = 1;
+
+/// Kamerasuche im Wechsel (PAR-227): so lange ist jede Kamera nacheinander offen (Sekunden).
+const double ppgCameraFinderTurnSeconds = 1.5;
+
+/// Kamerasuche (PAR-227): gleitendes Mittel für Fingerprüfung und Lichtmenge über die Bilder
+/// der letzten so vielen Sekunden Sensorzeit je Kamera (im Wechsel: der letzte Durchgang).
+const double ppgCameraFinderWindowSeconds = 1.5;
+
+/// Lichtmenge (PAR-228): Bezug der Empfindlichkeit; Lichtmenge = Rot / (Belichtungszeit in s ×
+/// ISO / [ppgCameraFinderIsoReference]).
+const double ppgCameraFinderIsoReference = 100;
+
+/// Empfehlung (PAR-228): Liegt die zweitbeste Lichtmenge weniger als dieser Anteil unter der
+/// besten, gilt die frühere der beiden in der Reihenfolge von `cameras()` (gegen Springen).
+const double ppgCameraFinderLightTieRelative = 0.10;

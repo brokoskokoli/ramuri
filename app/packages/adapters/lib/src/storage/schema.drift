@@ -25,7 +25,12 @@ CREATE TABLE runs (
   ended_utc_offset_s INTEGER CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800),
   -- Seit Version 10 (WP25, FR-0196, K57): Art des Laufs. Läufe aus früheren
   -- Versionen sind GPS-Läufe (Vorgabe). Nach dem Anlegen nicht mehr geändert.
-  mode TEXT NOT NULL DEFAULT 'gps' CHECK (mode IN ('gps', 'treadmill'))
+  -- Seit Version 18 (FR-0221) auch 'sport' (andere Sportart mit Puls).
+  mode TEXT NOT NULL DEFAULT 'gps' CHECK (mode IN ('gps', 'treadmill', 'sport')),
+  -- Seit Version 18 (FR-0221): Sportart, gesetzt genau bei mode = 'sport'.
+  -- Läufe aus früheren Versionen haben NULL. Nach dem Anlegen nicht geändert.
+  sport TEXT CHECK (sport IN ('rope', 'cycling', 'rowing', 'other')),
+  CHECK ((mode = 'sport') = (sport IS NOT NULL))
 );
 
 CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs
@@ -320,6 +325,13 @@ CREATE TABLE computed_values (
   hr_max_bpm INTEGER CHECK (hr_max_bpm > 0),
   hr_rest_bpm INTEGER CHECK (hr_rest_bpm > 0),
   hr_max_is_estimated BOOLEAN CHECK (hr_max_is_estimated IN (0, 1)),
+  -- Seit Version 19 (ADR-0004): Kettenversion der Vorverarbeitung, aus der
+  -- ein Laufwert entstand (preprocessingChainVersion im Core, etwa
+  -- 'hr1.pace1.mov2.pos2.alt1.set1.sq2.st1'). NULL an Tageswerten. Die
+  -- Migration 18 -> 19 setzt an allen Laufwerten die Kette von damals
+  -- (legacyPreprocessingChainVersion), damit nach dem Update kein falsches
+  -- Angebot zur Neuberechnung entsteht.
+  preprocessing_version TEXT,
   CHECK ((run_id IS NULL) <> (day IS NULL))
 );
 CREATE UNIQUE INDEX computed_values_run_unique
@@ -754,8 +766,12 @@ CREATE INDEX morning_rr_packets_measurement ON morning_rr_packets (measurement_i
 -- Gesamtdauer in Sekunden. Verwendete Kamera (Version 15, FR-0220), NULL =
 -- nicht bekannt: camera_id (Camera2-ID der geöffneten Kamera),
 -- physical_camera_id (physische Kamera einer logischen Mehrfachkamera, nur mit
--- camera_id), focal_length_mm (kleinste Brennweite in mm). Abschnitt 34 des
--- Archivs.
+-- camera_id), focal_length_mm (kleinste Brennweite in mm). Diagnose der
+-- Bildverarbeitung (Version 17, FR-0217): isp_frames = NULL (nicht
+-- aufgezeichnet) oder frame_count Bilder zu je 19 float64 little endian (152
+-- Byte, Reihenfolge PpgIspValue, NaN = nicht gemeldet); diag_* = tatsächlich
+-- gesetzte Diagnose-Schalter (0 = Vorgabe), diag_awb_variant ('matrix' oder
+-- 'lock') nur mit diag_awb_fixed. Abschnitt 34 des Archivs.
 CREATE TABLE morning_raw_signals (
   measurement_id INTEGER NOT NULL PRIMARY KEY REFERENCES morning_measurements (id) ON DELETE CASCADE,
   frame_count INTEGER NOT NULL CHECK (frame_count >= 0),
@@ -770,5 +786,12 @@ CREATE TABLE morning_raw_signals (
   saturated_fraction REAL CHECK (saturated_fraction BETWEEN 0 AND 1),
   camera_id TEXT,
   physical_camera_id TEXT CHECK (physical_camera_id IS NULL OR camera_id IS NOT NULL),
-  focal_length_mm REAL CHECK (focal_length_mm > 0)
+  focal_length_mm REAL CHECK (focal_length_mm > 0),
+  isp_frames BLOB CHECK (isp_frames IS NULL OR length(isp_frames) = frame_count * 152),
+  diag_noise_reduction_off BOOLEAN NOT NULL DEFAULT 0,
+  diag_edge_off BOOLEAN NOT NULL DEFAULT 0,
+  diag_awb_fixed BOOLEAN NOT NULL DEFAULT 0,
+  diag_tonemap_linear BOOLEAN NOT NULL DEFAULT 0,
+  diag_shading_off BOOLEAN NOT NULL DEFAULT 0,
+  diag_awb_variant TEXT CHECK (diag_awb_variant IS NULL OR (diag_awb_fixed = 1 AND diag_awb_variant IN ('matrix', 'lock')))
 ) AS MorningRawSignalRow;

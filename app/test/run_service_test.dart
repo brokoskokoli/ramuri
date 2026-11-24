@@ -449,7 +449,7 @@ void main() {
       );
     });
 
-    test('Verdrahtung: Standortrecht und Timeout gehen an den Controller', () {
+    test('Verdrahtung: Standort-, Aktivitäts- und Bluetooth-Recht und Timeout gehen an den Controller', () {
       // Die Entscheidungen testet die JVM; hier nur, dass State sie genau so ruft.
       expect(state, contains('Runnable { controller.onTimeout() }'));
       expect(
@@ -458,6 +458,8 @@ void main() {
           r'context\.checkSelfPermission\(Manifest\.permission\.ACCESS_FINE_LOCATION\) ==\s*'
           r'PackageManager\.PERMISSION_GRANTED,\s*mode,\s*'
           r'context\.checkSelfPermission\(Manifest\.permission\.ACTIVITY_RECOGNITION\) ==\s*'
+          r'PackageManager\.PERMISSION_GRANTED,\s*'
+          r'context\.checkSelfPermission\(Manifest\.permission\.BLUETOOTH_CONNECT\) ==\s*'
           r'PackageManager\.PERMISSION_GRANTED,\s*\)',
         ).hasMatch(state),
         isTrue,
@@ -646,11 +648,12 @@ class _FailingStart extends RunRecorder {
     RunMode mode = RunMode.gps,
     double? beltSpeedMetersPerSecond,
     double? inclinePercent,
+    OtherSport? sport,
   }) async => throw StateError('kein Speicher');
 }
 
 /// Kotlin-Quelltext ohne Kommentare, damit ein auskommentierter Aufruf eine
-/// Verdrahtungsprüfung nicht erfüllt (Review 4b).
+/// Verdrahtungsprüfung nicht erfüllt.
 String _code(String kotlin) => kotlin
     .replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '')
     .replaceAll(RegExp(r'(^|[ \t])//[^\n]*', multiLine: true), '');

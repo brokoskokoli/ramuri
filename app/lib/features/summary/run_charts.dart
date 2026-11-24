@@ -17,10 +17,14 @@ class RunPaceHeartChart extends StatelessWidget {
     super.key,
     required this.data,
     required this.formatter,
+    this.showPace = true,
   });
 
   final RunDetailData data;
   final UnitFormatter formatter;
+
+  /// `false` bei einer anderen Sportart (FR-0221): nur der Puls, keine Pace.
+  final bool showPace;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +44,11 @@ class RunPaceHeartChart extends StatelessWidget {
       note: l10n.detHrSmoothed(data.heartRateSmoothing.inSeconds),
     );
     bool empty(ChartLayer l) => l.parts.every((p) => p.isEmpty);
+    if (!showPace) {
+      return empty(hr)
+          ? Text(l10n.sumNoHeartRate, key: const Key('detail_hr_none'))
+          : _detailChart(context, data, const Key('detail_hr'), [hr]);
+    }
     final noPace = empty(pace);
     final noHr = empty(hr);
     if (noPace && noHr) {

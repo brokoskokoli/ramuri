@@ -69,11 +69,12 @@ class Probe implements RawDataStore, RunStore {
   Future<StoredRun> create({
     required DateTime startedAt,
     RunMode mode = RunMode.gps,
+    OtherSport? sport,
   }) {
     if (failNext == StorageFailure.failed && appends == -1) {
       throw const StorageException(StorageFailure.failed);
     }
-    return runs.create(startedAt: startedAt, mode: mode);
+    return runs.create(startedAt: startedAt, mode: mode, sport: sport);
   }
 
   @override

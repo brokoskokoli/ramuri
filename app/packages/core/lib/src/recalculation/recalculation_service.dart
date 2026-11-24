@@ -460,13 +460,20 @@ class RecalculationService {
   /// verwendet: VO2max, TRIMP und die Zeit bei mindestens 80 % HFmax (die
   /// Basis ändert sich mit dem Profil, das Ergebnis mit der Methode) sowie
   /// alle Tageswerte aus [dayValueKeys]
-  /// ([dayValueMethods]). Zonenzeiten gehören bewusst nicht dazu: sie werden
+  /// ([dayValueMethods]). Bei denselben Laufwerten zählt auch die
+  /// Kettenversion der Vorverarbeitung ([ComputedValue.preprocessingVersion],
+  /// ADR-0004): weicht sie von [ValueCalculationService.preprocessingVersion]
+  /// ab, ist das eine neue Methodenversion, und [confirm] schreibt die neue
+  /// Kette. Zonenzeiten gehören bewusst nicht dazu: sie werden
   /// nie neu gerechnet (L11), das Angebot käme nach jeder Bestätigung wieder.
   /// Aus demselben Grund zählen nur Tageswerte an Tagen, die [confirm] neu
-  /// rechnet ([ValueCalculationService.recalculableDays]). Fehlt einem Lauf,
+  /// rechnet ([ValueCalculationService.recalculableDays]); ein Tageswert an
+  /// einem Tag ohne Lauf zählt nicht (ein gelöschter Lauf ist keine neue
+  /// Version), [confirm] entfernt ihn (PAR-237). Fehlt einem Lauf,
   /// den die Neuberechnung erfasst ([hasRecalculatedRunValue]), die Zeit bei
   /// mindestens 80 % HFmax (Lauf von vor dieser Methode), ist das ebenfalls
-  /// eine neue Methodenversion: [confirm] legt sie an (ADR-0004).
+  /// eine neue Methodenversion: [confirm] legt sie an (ADR-0004). Die
+  /// Laufwerte aller Läufe kommen aus einer Abfrage (`readRunValues`).
   Future<RecalculationOffer?> checkVersions() async {
     const estimator = AcsmReserveVo2maxEstimator();
     const high = HighHeartRateTime();
@@ -474,17 +481,20 @@ class RecalculationService {
     // vergleichen (die Rückweg-Ursache deckt das ab, [loadBasisChanged]).
     final resolution = await _calc.loadResolution(await _calc.profileBasis());
     final LoadModel? trimp = resolution.model;
+    final all = await session.values.readRunValues({
+      ...recalculatedRunValueKeys,
+      highHeartRateTimeValueKey,
+    });
     for (final r in await session.runs.list()) {
-      final stored = await session.values.read(ValueOwner.run(r.id));
+      final stored = all[r.id] ?? const <String, ComputedValue>{};
       if (r.state == RunState.finished &&
           r.endedAt != null &&
-          hasRecalculatedRunValue(stored) &&
-          !stored.any((p) => p.original.key == highHeartRateTimeValueKey)) {
+          hasRecalculatedRunKey(stored.keys) &&
+          !stored.containsKey(highHeartRateTimeValueKey)) {
         return _offer(RecalculationCause.algorithmVersion);
       }
-      for (final p in stored) {
-        final c = p.current;
-        final (method, version) = switch (p.original.key) {
+      for (final c in stored.values) {
+        final (method, version) = switch (c.key) {
           vo2maxRunValueKey => (estimator.method, estimator.methodVersion),
           highHeartRateTimeValueKey => (high.method, high.methodVersion),
           trimpRunValueKey when trimp != null => (
@@ -496,7 +506,8 @@ class RecalculationService {
         if (method == null) continue;
         if (c.parameterVersion != _calc.fitness.parameterVersion ||
             c.method != method ||
-            c.methodVersion != version) {
+            c.methodVersion != version ||
+            c.preprocessingVersion != _calc.preprocessingVersion) {
           return _offer(RecalculationCause.algorithmVersion);
         }
       }
@@ -508,13 +519,17 @@ class RecalculationService {
   }
 
   /// Trägt ein gespeicherter Tageswert (`current`) an einem Tag, den [confirm]
-  /// neu rechnet, eine andere Methode oder Version als [dayValueMethods]? Alle
-  /// Tage in einer Abfrage.
+  /// neu rechnet, eine andere Methode oder Version als [dayValueMethods]?
+  /// Alle Tage in einer Abfrage.
   Future<bool> _dayValuesOutdated() async {
     final stored = await session.values.readDayValues(dayValueKeys);
     if (stored.isEmpty) return false;
     final days = await _calc.recalculableDays();
     for (final MapEntry(key: day, value: values) in stored.entries) {
+      // Ein Tageswert an einem Tag ohne Lauf (Lauf gelöscht) löst kein
+      // Angebot aus. Den Endtag eines Laufs über Mitternacht nach der alten
+      // Tageszuordnung meldet die Kettenstufe `day` der Laufwerte (PAR-237);
+      // [confirm] entfernt solche Tageswerte.
       if (!days.contains(day)) continue;
       for (final v in values.values) {
         // Ohne Zuordnung nicht vergleichen; ein Test verlangt sie für jeden
@@ -578,10 +593,19 @@ class RecalculationService {
       final swap = {...snapshot.runValues, ...snapshot.dayValues};
       // Neue Laufwerte (Lauf von vor einer Methode) in derselben Transaktion
       // wie der Tausch.
-      if (snapshot.runCreates.isEmpty) {
+      // Tageswerte an Tagen ohne Lauf entfallen, fehlende an Tagen mit Lauf
+      // werden angelegt (neue Tageszuordnung, PAR-237), ebenfalls in derselben
+      // Transaktion.
+      if (snapshot.runCreates.isEmpty &&
+          snapshot.dayCreates.isEmpty &&
+          snapshot.removedDays.isEmpty) {
         await session.values.swapCurrentAll(swap);
       } else {
-        await session.values.writeAll(create: snapshot.runCreates, swap: swap);
+        await session.values.writeAll(
+          create: {...snapshot.runCreates, ...snapshot.dayCreates},
+          swap: swap,
+          removeDays: snapshot.removedDays,
+        );
       }
     }
     // Ab hier ist getauscht: ein Fehler beim Erledigen des Angebots darf nicht
@@ -656,7 +680,7 @@ class RecalculationService {
     }
     return RecalculationResult(
       runCount: snapshot.runCount,
-      dayCount: snapshot.dayValues.length,
+      dayCount: snapshot.dayValues.length + snapshot.dayCreates.length,
       offerCleared: cleared,
     );
   }
@@ -728,16 +752,19 @@ class RecalculationService {
     return offer;
   }
 
-  Future<List<int>> _affectedRuns() async => [
-    for (final r in await session.runs.list())
-      if (r.state == RunState.finished && r.endedAt != null)
-        // Laufwert (VO2max) ODER TRIMP: ein Lauf nur mit TRIMP wechselt beim
-        // Profilwechsel mit, `buildSnapshot` tauscht dann nur den TRIMP.
-        if (hasRecalculatedRunValue(
-          await session.values.read(ValueOwner.run(r.id)),
-        ))
+  /// Läufe mit Laufwert (VO2max) ODER TRIMP: ein Lauf nur mit TRIMP wechselt
+  /// beim Profilwechsel mit, `buildSnapshot` tauscht dann nur den TRIMP. Die
+  /// Werte aller Läufe in einer Abfrage.
+  Future<List<int>> _affectedRuns() async {
+    final all = await session.values.readRunValues(recalculatedRunValueKeys);
+    return [
+      for (final r in await session.runs.list())
+        if (r.state == RunState.finished &&
+            r.endedAt != null &&
+            hasRecalculatedRunKey(all[r.id]?.keys ?? const <String>[]))
           r.id,
-  ];
+    ];
+  }
 
   Future<Set<RecalculationCause>> _pendingCauses() async {
     final raw = await session.settings.get(pendingKey) ?? '';

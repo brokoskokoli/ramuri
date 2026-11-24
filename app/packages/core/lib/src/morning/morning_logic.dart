@@ -1,6 +1,12 @@
 import '../../ports/clock.dart';
 import '../../ports/ppg_camera.dart'
-    show PpgCameraDetails, PpgCameraInfo, PpgCameraRef;
+    show
+        PpgAwbVariant,
+        PpgCameraDetails,
+        PpgCameraDiagnostic,
+        PpgCameraInfo,
+        PpgCameraRef,
+        ppgIspValueCount;
 import '../../ports/storage.dart' show StorageException, StorageFailure;
 import '../../ports/storage_morning.dart';
 import '../../ports/storage_settings.dart';
@@ -209,12 +215,25 @@ MorningMeasurement? buildMorningMeasurement({
 /// [cameras] die Liste aus `PpgCamera.cameras()`; die Brennweite kommt von dem
 /// Eintrag mit derselben Kamera (FR-0220). Ohne Kamera oder ohne passenden
 /// Eintrag ist die jeweilige Angabe `null`.
+/// [ispFrames] sind die Werte der Bildverarbeitung je Bild (`PpgCameraFrame.isp`,
+/// im Entwicklermodus angefordert), [diagnostics] und [awbVariant] die
+/// tatsächlich gesetzten Diagnose-Schalter (`PpgCameraStarted`); sie gehen
+/// unverändert ins Rohsignal und nie in die Auswertung (FR-0217). [ispFrames]
+/// muss so lang sein wie [frames].
 MorningRawSignal buildMorningRawSignal(
   List<PpgFrame> frames, {
   PpgCameraDetails? details,
   PpgCameraRef? camera,
   List<PpgCameraInfo> cameras = const [],
+  List<List<double>>? ispFrames,
+  Set<PpgCameraDiagnostic> diagnostics = const {},
+  PpgAwbVariant? awbVariant,
 }) {
+  if (ispFrames != null &&
+      (ispFrames.length != frames.length ||
+          ispFrames.any((v) => v.length != ppgIspValueCount))) {
+    throw ArgumentError.value(ispFrames.length, 'ispFrames');
+  }
   double? focal;
   if (camera != null) {
     for (final c in cameras) {
@@ -246,6 +265,15 @@ MorningRawSignal buildMorningRawSignal(
     cameraId: camera?.cameraId,
     physicalCameraId: camera?.physicalCameraId,
     focalLengthMm: focal,
+    ispFrames: ispFrames == null
+        ? null
+        : List.unmodifiable([
+            for (final v in ispFrames) List<double>.unmodifiable(v),
+          ]),
+    diagnostics: Set.unmodifiable(diagnostics),
+    awbVariant: diagnostics.contains(PpgCameraDiagnostic.awbFixed)
+        ? awbVariant
+        : null,
   );
 }
 

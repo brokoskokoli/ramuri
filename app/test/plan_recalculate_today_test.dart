@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 
-/// WP22-Befund „Neu berechnen macht die heutige offene Einheit zum
+/// Fehlerbild „Neu berechnen macht die heutige offene Einheit zum
 /// Ruhetag“ (WP23 C1): in der App-Schicht (PlanController, gemessene
 /// Eingaben, lokales „heute“) nicht reproduzierbar; diese Prüfung hält fest,
 /// dass die heutige offene Einheit nach [PlanController.recalculate] bleibt.

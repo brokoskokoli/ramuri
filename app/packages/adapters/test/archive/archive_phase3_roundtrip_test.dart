@@ -202,6 +202,7 @@ void main() {
     final before = await m0.list();
     final after = await m1.list();
     expect(after.map((e) => e.id), before.map((e) => e.id));
+    var withIsp = 0;
     for (var i = 0; i < before.length; i++) {
       final a = before[i].value, b = after[i].value;
       expect(b.measuredAt, a.measuredAt);
@@ -229,9 +230,21 @@ void main() {
         expect(r1!.frames.length, r0.frames.length);
         expect(r1.frames.last.g16, r0.frames.last.g16);
         expect(r1.cameraId, r0.cameraId);
+        // ISP-Werte bitgenau (auch NaN) und Schalter (Schema 17).
+        expect(r1.ispFrames == null, r0.ispFrames == null);
+        if (r0.ispFrames != null) {
+          withIsp++;
+          expect(
+            encodeIspFrames(r1.ispFrames!),
+            encodeIspFrames(r0.ispFrames!),
+          );
+        }
+        expect(r1.diagnostics, r0.diagnostics);
+        expect(r1.awbVariant, r0.awbVariant);
       }
     }
 
+    expect(withIsp, 1, reason: 'ein Rohsignal mit ISP-Werten');
     // Health Connect je Datenart.
     final h0 = (source as HealthStorage).health;
     final h1 = (target as HealthStorage).health;
@@ -458,6 +471,21 @@ Future<void> _mornings(MorningStore m) async {
               cameraId: '0',
               physicalCameraId: '2',
               focalLengthMm: 4.2,
+              // Schema 17: ISP-Werte je Bild (eins ohne Ergebnis, NaN) und
+              // gesetzte Schalter.
+              ispFrames: [
+                for (var i = 0; i < 12; i++)
+                  [
+                    for (var k = 0; k < ppgIspValueCount; k++)
+                      i == 5 || k == 16 ? double.nan : 1.0 + i + k / 8,
+                  ],
+              ],
+              diagnostics: const {
+                PpgCameraDiagnostic.edgeOff,
+                PpgCameraDiagnostic.awbFixed,
+                PpgCameraDiagnostic.tonemapLinear,
+              },
+              awbVariant: PpgAwbVariant.lock,
             )
           : null,
     );

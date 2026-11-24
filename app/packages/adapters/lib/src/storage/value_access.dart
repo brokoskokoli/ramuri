@@ -50,6 +50,7 @@ class DriftComputedValueStore implements ComputedValueStore {
     hrMaxBpm: Value(v.heartRateBasis?.maxBpm),
     hrRestBpm: Value(v.heartRateBasis?.restingBpm),
     hrMaxIsEstimated: Value(v.heartRateBasis?.maxIsEstimated),
+    preprocessingVersion: Value(v.preprocessingVersion),
     unit: v.unit,
     computedAtUs: usOf(v.computedAt),
     dataFromUs: Value(usOfOrNull(v.dataFrom)),
@@ -123,8 +124,21 @@ class DriftComputedValueStore implements ComputedValueStore {
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
+    Set<String> removeDays = const {},
   }) => guarded(
     () => _db.transaction(() async {
+      // Entfallende Tage zuerst, Abschnitte vor den Werten (die Kaskade ist nur
+      // der zweite Boden); ein Tausch an einem solchen Tag ist so `notFound`.
+      for (final day in removeDays) {
+        await _db.customStatement(
+          'DELETE FROM value_sections WHERE computed_value_id IN ('
+          'SELECT id FROM computed_values WHERE day = ?)',
+          [day],
+        );
+        await (_db.delete(
+          _db.computedValues,
+        )..where((t) => t.day.equals(day))).go();
+      }
       // Tauschen vor Anlegen: ein Schlüssel in beiden ist so `notFound`.
       for (final e in swap.entries) {
         await _swapIn(e.key, e.value);
@@ -166,6 +180,7 @@ class DriftComputedValueStore implements ComputedValueStore {
               hrMaxBpm: Value(v.heartRateBasis?.maxBpm),
               hrRestBpm: Value(v.heartRateBasis?.restingBpm),
               hrMaxIsEstimated: Value(v.heartRateBasis?.maxIsEstimated),
+              preprocessingVersion: Value(v.preprocessingVersion),
               unit: Value(v.unit),
               computedAtUs: Value(usOf(v.computedAt)),
               dataFromUs: Value(usOfOrNull(v.dataFrom)),
@@ -204,6 +219,7 @@ class DriftComputedValueStore implements ComputedValueStore {
             restingBpm: r.hrRestBpm,
             maxIsEstimated: r.hrMaxIsEstimated!,
           ),
+    preprocessingVersion: r.preprocessingVersion,
     unit: r.unit,
     computedAt: timeOf(r.computedAtUs),
     dataFrom: timeOfOrNull(r.dataFromUs),

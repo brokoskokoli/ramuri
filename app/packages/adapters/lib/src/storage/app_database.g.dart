@@ -278,9 +278,18 @@ class Runs extends Table with TableInfo<Runs, Run> {
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    $customConstraints:
-        'NOT NULL DEFAULT \'gps\' CHECK (mode IN (\'gps\', \'treadmill\'))',
+    $customConstraints: 'NOT NULL DEFAULT \'gps\' CHECK (mode IN (\'gps\', \'treadmill\', \'sport\'))',
     defaultValue: const CustomExpression('\'gps\''),
+  );
+  static const VerificationMeta _sportMeta = const VerificationMeta('sport');
+  late final GeneratedColumn<String> sport = GeneratedColumn<String>(
+    'sport',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (sport IN (\'rope\', \'cycling\', \'rowing\', \'other\'))',
   );
   @override
   List<GeneratedColumn> get $columns => [
@@ -290,6 +299,7 @@ class Runs extends Table with TableInfo<Runs, Run> {
     endedAtUs,
     endedUtcOffsetS,
     mode,
+    sport,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -346,6 +356,12 @@ class Runs extends Table with TableInfo<Runs, Run> {
         mode.isAcceptableOrUnknown(data['mode']!, _modeMeta),
       );
     }
+    if (data.containsKey('sport')) {
+      context.handle(
+        _sportMeta,
+        sport.isAcceptableOrUnknown(data['sport']!, _sportMeta),
+      );
+    }
     return context;
   }
 
@@ -379,6 +395,10 @@ class Runs extends Table with TableInfo<Runs, Run> {
         DriftSqlType.string,
         data['${effectivePrefix}mode'],
       )!,
+      sport: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sport'],
+      ),
     );
   }
 
@@ -387,6 +407,10 @@ class Runs extends Table with TableInfo<Runs, Run> {
     return Runs(attachedDatabase, alias);
   }
 
+  @override
+  List<String> get customConstraints => const [
+    'CHECK((mode = \'sport\')=(sport IS NOT NULL))',
+  ];
   @override
   bool get dontWriteConstraints => true;
 }
@@ -407,7 +431,12 @@ class Run extends DataClass implements Insertable<Run> {
 
   /// Seit Version 10 (WP25, FR-0196, K57): Art des Laufs. Läufe aus früheren
   /// Versionen sind GPS-Läufe (Vorgabe). Nach dem Anlegen nicht mehr geändert.
+  /// Seit Version 18 (FR-0221) auch 'sport' (andere Sportart mit Puls).
   final String mode;
+
+  /// Seit Version 18 (FR-0221): Sportart, gesetzt genau bei mode = 'sport'.
+  /// Läufe aus früheren Versionen haben NULL. Nach dem Anlegen nicht geändert.
+  final String? sport;
   const Run({
     required this.id,
     required this.state,
@@ -415,6 +444,7 @@ class Run extends DataClass implements Insertable<Run> {
     this.endedAtUs,
     this.endedUtcOffsetS,
     required this.mode,
+    this.sport,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -429,6 +459,9 @@ class Run extends DataClass implements Insertable<Run> {
       map['ended_utc_offset_s'] = Variable<int>(endedUtcOffsetS);
     }
     map['mode'] = Variable<String>(mode);
+    if (!nullToAbsent || sport != null) {
+      map['sport'] = Variable<String>(sport);
+    }
     return map;
   }
 
@@ -444,6 +477,9 @@ class Run extends DataClass implements Insertable<Run> {
           ? const Value.absent()
           : Value(endedUtcOffsetS),
       mode: Value(mode),
+      sport: sport == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sport),
     );
   }
 
@@ -459,6 +495,7 @@ class Run extends DataClass implements Insertable<Run> {
       endedAtUs: serializer.fromJson<int?>(json['ended_at_us']),
       endedUtcOffsetS: serializer.fromJson<int?>(json['ended_utc_offset_s']),
       mode: serializer.fromJson<String>(json['mode']),
+      sport: serializer.fromJson<String?>(json['sport']),
     );
   }
   @override
@@ -471,6 +508,7 @@ class Run extends DataClass implements Insertable<Run> {
       'ended_at_us': serializer.toJson<int?>(endedAtUs),
       'ended_utc_offset_s': serializer.toJson<int?>(endedUtcOffsetS),
       'mode': serializer.toJson<String>(mode),
+      'sport': serializer.toJson<String?>(sport),
     };
   }
 
@@ -481,6 +519,7 @@ class Run extends DataClass implements Insertable<Run> {
     Value<int?> endedAtUs = const Value.absent(),
     Value<int?> endedUtcOffsetS = const Value.absent(),
     String? mode,
+    Value<String?> sport = const Value.absent(),
   }) => Run(
     id: id ?? this.id,
     state: state ?? this.state,
@@ -490,6 +529,7 @@ class Run extends DataClass implements Insertable<Run> {
         ? endedUtcOffsetS.value
         : this.endedUtcOffsetS,
     mode: mode ?? this.mode,
+    sport: sport.present ? sport.value : this.sport,
   );
   Run copyWithCompanion(RunsCompanion data) {
     return Run(
@@ -503,6 +543,7 @@ class Run extends DataClass implements Insertable<Run> {
           ? data.endedUtcOffsetS.value
           : this.endedUtcOffsetS,
       mode: data.mode.present ? data.mode.value : this.mode,
+      sport: data.sport.present ? data.sport.value : this.sport,
     );
   }
 
@@ -514,14 +555,22 @@ class Run extends DataClass implements Insertable<Run> {
           ..write('startedAtUs: $startedAtUs, ')
           ..write('endedAtUs: $endedAtUs, ')
           ..write('endedUtcOffsetS: $endedUtcOffsetS, ')
-          ..write('mode: $mode')
+          ..write('mode: $mode, ')
+          ..write('sport: $sport')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, state, startedAtUs, endedAtUs, endedUtcOffsetS, mode);
+  int get hashCode => Object.hash(
+    id,
+    state,
+    startedAtUs,
+    endedAtUs,
+    endedUtcOffsetS,
+    mode,
+    sport,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -531,7 +580,8 @@ class Run extends DataClass implements Insertable<Run> {
           other.startedAtUs == this.startedAtUs &&
           other.endedAtUs == this.endedAtUs &&
           other.endedUtcOffsetS == this.endedUtcOffsetS &&
-          other.mode == this.mode);
+          other.mode == this.mode &&
+          other.sport == this.sport);
 }
 
 class RunsCompanion extends UpdateCompanion<Run> {
@@ -541,6 +591,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
   final Value<int?> endedAtUs;
   final Value<int?> endedUtcOffsetS;
   final Value<String> mode;
+  final Value<String?> sport;
   const RunsCompanion({
     this.id = const Value.absent(),
     this.state = const Value.absent(),
@@ -548,6 +599,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     this.endedAtUs = const Value.absent(),
     this.endedUtcOffsetS = const Value.absent(),
     this.mode = const Value.absent(),
+    this.sport = const Value.absent(),
   });
   RunsCompanion.insert({
     this.id = const Value.absent(),
@@ -556,6 +608,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     this.endedAtUs = const Value.absent(),
     this.endedUtcOffsetS = const Value.absent(),
     this.mode = const Value.absent(),
+    this.sport = const Value.absent(),
   }) : state = Value(state),
        startedAtUs = Value(startedAtUs);
   static Insertable<Run> custom({
@@ -565,6 +618,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     Expression<int>? endedAtUs,
     Expression<int>? endedUtcOffsetS,
     Expression<String>? mode,
+    Expression<String>? sport,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -573,6 +627,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
       if (endedAtUs != null) 'ended_at_us': endedAtUs,
       if (endedUtcOffsetS != null) 'ended_utc_offset_s': endedUtcOffsetS,
       if (mode != null) 'mode': mode,
+      if (sport != null) 'sport': sport,
     });
   }
 
@@ -583,6 +638,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     Value<int?>? endedAtUs,
     Value<int?>? endedUtcOffsetS,
     Value<String>? mode,
+    Value<String?>? sport,
   }) {
     return RunsCompanion(
       id: id ?? this.id,
@@ -591,6 +647,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
       endedAtUs: endedAtUs ?? this.endedAtUs,
       endedUtcOffsetS: endedUtcOffsetS ?? this.endedUtcOffsetS,
       mode: mode ?? this.mode,
+      sport: sport ?? this.sport,
     );
   }
 
@@ -615,6 +672,9 @@ class RunsCompanion extends UpdateCompanion<Run> {
     if (mode.present) {
       map['mode'] = Variable<String>(mode.value);
     }
+    if (sport.present) {
+      map['sport'] = Variable<String>(sport.value);
+    }
     return map;
   }
 
@@ -626,7 +686,8 @@ class RunsCompanion extends UpdateCompanion<Run> {
           ..write('startedAtUs: $startedAtUs, ')
           ..write('endedAtUs: $endedAtUs, ')
           ..write('endedUtcOffsetS: $endedUtcOffsetS, ')
-          ..write('mode: $mode')
+          ..write('mode: $mode, ')
+          ..write('sport: $sport')
           ..write(')'))
         .toString();
   }
@@ -7239,6 +7300,17 @@ class ComputedValues extends Table
     requiredDuringInsert: false,
     $customConstraints: 'CHECK (hr_max_is_estimated IN (0, 1))',
   );
+  static const VerificationMeta _preprocessingVersionMeta =
+      const VerificationMeta('preprocessingVersion');
+  late final GeneratedColumn<String> preprocessingVersion =
+      GeneratedColumn<String>(
+        'preprocessing_version',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        $customConstraints: '',
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -7261,6 +7333,7 @@ class ComputedValues extends Table
     hrMaxBpm,
     hrRestBpm,
     hrMaxIsEstimated,
+    preprocessingVersion,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -7432,6 +7505,15 @@ class ComputedValues extends Table
         ),
       );
     }
+    if (data.containsKey('preprocessing_version')) {
+      context.handle(
+        _preprocessingVersionMeta,
+        preprocessingVersion.isAcceptableOrUnknown(
+          data['preprocessing_version']!,
+          _preprocessingVersionMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -7521,6 +7603,10 @@ class ComputedValues extends Table
         DriftSqlType.bool,
         data['${effectivePrefix}hr_max_is_estimated'],
       ),
+      preprocessingVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}preprocessing_version'],
+      ),
     );
   }
 
@@ -7576,6 +7662,14 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
   final int? hrMaxBpm;
   final int? hrRestBpm;
   final bool? hrMaxIsEstimated;
+
+  /// Seit Version 19 (ADR-0004): Kettenversion der Vorverarbeitung, aus der
+  /// ein Laufwert entstand (preprocessingChainVersion im Core, etwa
+  /// 'hr1.pace1.mov2.pos2.alt1.set1.sq2.st1'). NULL an Tageswerten. Die
+  /// Migration 18 -> 19 setzt an allen Laufwerten die Kette von damals
+  /// (legacyPreprocessingChainVersion), damit nach dem Update kein falsches
+  /// Angebot zur Neuberechnung entsteht.
+  final String? preprocessingVersion;
   const ComputedValue({
     required this.id,
     this.runId,
@@ -7597,6 +7691,7 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     this.hrMaxBpm,
     this.hrRestBpm,
     this.hrMaxIsEstimated,
+    this.preprocessingVersion,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -7639,6 +7734,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     if (!nullToAbsent || hrMaxIsEstimated != null) {
       map['hr_max_is_estimated'] = Variable<bool>(hrMaxIsEstimated);
     }
+    if (!nullToAbsent || preprocessingVersion != null) {
+      map['preprocessing_version'] = Variable<String>(preprocessingVersion);
+    }
     return map;
   }
 
@@ -7680,6 +7778,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       hrMaxIsEstimated: hrMaxIsEstimated == null && nullToAbsent
           ? const Value.absent()
           : Value(hrMaxIsEstimated),
+      preprocessingVersion: preprocessingVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(preprocessingVersion),
     );
   }
 
@@ -7711,6 +7812,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       hrMaxBpm: serializer.fromJson<int?>(json['hr_max_bpm']),
       hrRestBpm: serializer.fromJson<int?>(json['hr_rest_bpm']),
       hrMaxIsEstimated: serializer.fromJson<bool?>(json['hr_max_is_estimated']),
+      preprocessingVersion: serializer.fromJson<String?>(
+        json['preprocessing_version'],
+      ),
     );
   }
   @override
@@ -7737,6 +7841,7 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       'hr_max_bpm': serializer.toJson<int?>(hrMaxBpm),
       'hr_rest_bpm': serializer.toJson<int?>(hrRestBpm),
       'hr_max_is_estimated': serializer.toJson<bool?>(hrMaxIsEstimated),
+      'preprocessing_version': serializer.toJson<String?>(preprocessingVersion),
     };
   }
 
@@ -7761,6 +7866,7 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     Value<int?> hrMaxBpm = const Value.absent(),
     Value<int?> hrRestBpm = const Value.absent(),
     Value<bool?> hrMaxIsEstimated = const Value.absent(),
+    Value<String?> preprocessingVersion = const Value.absent(),
   }) => ComputedValue(
     id: id ?? this.id,
     runId: runId.present ? runId.value : this.runId,
@@ -7786,6 +7892,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     hrMaxIsEstimated: hrMaxIsEstimated.present
         ? hrMaxIsEstimated.value
         : this.hrMaxIsEstimated,
+    preprocessingVersion: preprocessingVersion.present
+        ? preprocessingVersion.value
+        : this.preprocessingVersion,
   );
   ComputedValue copyWithCompanion(ComputedValuesCompanion data) {
     return ComputedValue(
@@ -7823,6 +7932,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       hrMaxIsEstimated: data.hrMaxIsEstimated.present
           ? data.hrMaxIsEstimated.value
           : this.hrMaxIsEstimated,
+      preprocessingVersion: data.preprocessingVersion.present
+          ? data.preprocessingVersion.value
+          : this.preprocessingVersion,
     );
   }
 
@@ -7848,13 +7960,14 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           ..write('unavailableReason: $unavailableReason, ')
           ..write('hrMaxBpm: $hrMaxBpm, ')
           ..write('hrRestBpm: $hrRestBpm, ')
-          ..write('hrMaxIsEstimated: $hrMaxIsEstimated')
+          ..write('hrMaxIsEstimated: $hrMaxIsEstimated, ')
+          ..write('preprocessingVersion: $preprocessingVersion')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     runId,
     day,
@@ -7875,7 +7988,8 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     hrMaxBpm,
     hrRestBpm,
     hrMaxIsEstimated,
-  );
+    preprocessingVersion,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -7899,7 +8013,8 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           other.unavailableReason == this.unavailableReason &&
           other.hrMaxBpm == this.hrMaxBpm &&
           other.hrRestBpm == this.hrRestBpm &&
-          other.hrMaxIsEstimated == this.hrMaxIsEstimated);
+          other.hrMaxIsEstimated == this.hrMaxIsEstimated &&
+          other.preprocessingVersion == this.preprocessingVersion);
 }
 
 class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
@@ -7923,6 +8038,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
   final Value<int?> hrMaxBpm;
   final Value<int?> hrRestBpm;
   final Value<bool?> hrMaxIsEstimated;
+  final Value<String?> preprocessingVersion;
   const ComputedValuesCompanion({
     this.id = const Value.absent(),
     this.runId = const Value.absent(),
@@ -7944,6 +8060,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     this.hrMaxBpm = const Value.absent(),
     this.hrRestBpm = const Value.absent(),
     this.hrMaxIsEstimated = const Value.absent(),
+    this.preprocessingVersion = const Value.absent(),
   });
   ComputedValuesCompanion.insert({
     this.id = const Value.absent(),
@@ -7966,6 +8083,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     this.hrMaxBpm = const Value.absent(),
     this.hrRestBpm = const Value.absent(),
     this.hrMaxIsEstimated = const Value.absent(),
+    this.preprocessingVersion = const Value.absent(),
   }) : valueKey = Value(valueKey),
        role = Value(role),
        unit = Value(unit),
@@ -7997,6 +8115,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     Expression<int>? hrMaxBpm,
     Expression<int>? hrRestBpm,
     Expression<bool>? hrMaxIsEstimated,
+    Expression<String>? preprocessingVersion,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -8019,6 +8138,8 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
       if (hrMaxBpm != null) 'hr_max_bpm': hrMaxBpm,
       if (hrRestBpm != null) 'hr_rest_bpm': hrRestBpm,
       if (hrMaxIsEstimated != null) 'hr_max_is_estimated': hrMaxIsEstimated,
+      if (preprocessingVersion != null)
+        'preprocessing_version': preprocessingVersion,
     });
   }
 
@@ -8043,6 +8164,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     Value<int?>? hrMaxBpm,
     Value<int?>? hrRestBpm,
     Value<bool?>? hrMaxIsEstimated,
+    Value<String?>? preprocessingVersion,
   }) {
     return ComputedValuesCompanion(
       id: id ?? this.id,
@@ -8065,6 +8187,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
       hrMaxBpm: hrMaxBpm ?? this.hrMaxBpm,
       hrRestBpm: hrRestBpm ?? this.hrRestBpm,
       hrMaxIsEstimated: hrMaxIsEstimated ?? this.hrMaxIsEstimated,
+      preprocessingVersion: preprocessingVersion ?? this.preprocessingVersion,
     );
   }
 
@@ -8131,6 +8254,11 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     if (hrMaxIsEstimated.present) {
       map['hr_max_is_estimated'] = Variable<bool>(hrMaxIsEstimated.value);
     }
+    if (preprocessingVersion.present) {
+      map['preprocessing_version'] = Variable<String>(
+        preprocessingVersion.value,
+      );
+    }
     return map;
   }
 
@@ -8156,7 +8284,8 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
           ..write('unavailableReason: $unavailableReason, ')
           ..write('hrMaxBpm: $hrMaxBpm, ')
           ..write('hrRestBpm: $hrRestBpm, ')
-          ..write('hrMaxIsEstimated: $hrMaxIsEstimated')
+          ..write('hrMaxIsEstimated: $hrMaxIsEstimated, ')
+          ..write('preprocessingVersion: $preprocessingVersion')
           ..write(')'))
         .toString();
   }
@@ -18207,6 +18336,89 @@ class MorningRawSignals extends Table
     requiredDuringInsert: false,
     $customConstraints: 'CHECK (focal_length_mm > 0)',
   );
+  static const VerificationMeta _ispFramesMeta = const VerificationMeta(
+    'ispFrames',
+  );
+  late final GeneratedColumn<Uint8List> ispFrames = GeneratedColumn<Uint8List>(
+    'isp_frames',
+    aliasedName,
+    true,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (isp_frames IS NULL OR length(isp_frames) = frame_count * 152)',
+  );
+  static const VerificationMeta _diagNoiseReductionOffMeta =
+      const VerificationMeta('diagNoiseReductionOff');
+  late final GeneratedColumn<bool> diagNoiseReductionOff =
+      GeneratedColumn<bool>(
+        'diag_noise_reduction_off',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        $customConstraints: 'NOT NULL DEFAULT 0',
+        defaultValue: const CustomExpression('0'),
+      );
+  static const VerificationMeta _diagEdgeOffMeta = const VerificationMeta(
+    'diagEdgeOff',
+  );
+  late final GeneratedColumn<bool> diagEdgeOff = GeneratedColumn<bool>(
+    'diag_edge_off',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0',
+    defaultValue: const CustomExpression('0'),
+  );
+  static const VerificationMeta _diagAwbFixedMeta = const VerificationMeta(
+    'diagAwbFixed',
+  );
+  late final GeneratedColumn<bool> diagAwbFixed = GeneratedColumn<bool>(
+    'diag_awb_fixed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0',
+    defaultValue: const CustomExpression('0'),
+  );
+  static const VerificationMeta _diagTonemapLinearMeta = const VerificationMeta(
+    'diagTonemapLinear',
+  );
+  late final GeneratedColumn<bool> diagTonemapLinear = GeneratedColumn<bool>(
+    'diag_tonemap_linear',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0',
+    defaultValue: const CustomExpression('0'),
+  );
+  static const VerificationMeta _diagShadingOffMeta = const VerificationMeta(
+    'diagShadingOff',
+  );
+  late final GeneratedColumn<bool> diagShadingOff = GeneratedColumn<bool>(
+    'diag_shading_off',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0',
+    defaultValue: const CustomExpression('0'),
+  );
+  static const VerificationMeta _diagAwbVariantMeta = const VerificationMeta(
+    'diagAwbVariant',
+  );
+  late final GeneratedColumn<String> diagAwbVariant = GeneratedColumn<String>(
+    'diag_awb_variant',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (diag_awb_variant IS NULL OR(diag_awb_fixed = 1 AND diag_awb_variant IN (\'matrix\', \'lock\')))',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     measurementId,
@@ -18223,6 +18435,13 @@ class MorningRawSignals extends Table
     cameraId,
     physicalCameraId,
     focalLengthMm,
+    ispFrames,
+    diagNoiseReductionOff,
+    diagEdgeOff,
+    diagAwbFixed,
+    diagTonemapLinear,
+    diagShadingOff,
+    diagAwbVariant,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -18358,6 +18577,66 @@ class MorningRawSignals extends Table
         ),
       );
     }
+    if (data.containsKey('isp_frames')) {
+      context.handle(
+        _ispFramesMeta,
+        ispFrames.isAcceptableOrUnknown(data['isp_frames']!, _ispFramesMeta),
+      );
+    }
+    if (data.containsKey('diag_noise_reduction_off')) {
+      context.handle(
+        _diagNoiseReductionOffMeta,
+        diagNoiseReductionOff.isAcceptableOrUnknown(
+          data['diag_noise_reduction_off']!,
+          _diagNoiseReductionOffMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diag_edge_off')) {
+      context.handle(
+        _diagEdgeOffMeta,
+        diagEdgeOff.isAcceptableOrUnknown(
+          data['diag_edge_off']!,
+          _diagEdgeOffMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diag_awb_fixed')) {
+      context.handle(
+        _diagAwbFixedMeta,
+        diagAwbFixed.isAcceptableOrUnknown(
+          data['diag_awb_fixed']!,
+          _diagAwbFixedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diag_tonemap_linear')) {
+      context.handle(
+        _diagTonemapLinearMeta,
+        diagTonemapLinear.isAcceptableOrUnknown(
+          data['diag_tonemap_linear']!,
+          _diagTonemapLinearMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diag_shading_off')) {
+      context.handle(
+        _diagShadingOffMeta,
+        diagShadingOff.isAcceptableOrUnknown(
+          data['diag_shading_off']!,
+          _diagShadingOffMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diag_awb_variant')) {
+      context.handle(
+        _diagAwbVariantMeta,
+        diagAwbVariant.isAcceptableOrUnknown(
+          data['diag_awb_variant']!,
+          _diagAwbVariantMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -18423,6 +18702,34 @@ class MorningRawSignals extends Table
         DriftSqlType.double,
         data['${effectivePrefix}focal_length_mm'],
       ),
+      ispFrames: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}isp_frames'],
+      ),
+      diagNoiseReductionOff: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}diag_noise_reduction_off'],
+      )!,
+      diagEdgeOff: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}diag_edge_off'],
+      )!,
+      diagAwbFixed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}diag_awb_fixed'],
+      )!,
+      diagTonemapLinear: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}diag_tonemap_linear'],
+      )!,
+      diagShadingOff: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}diag_shading_off'],
+      )!,
+      diagAwbVariant: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}diag_awb_variant'],
+      ),
     );
   }
 
@@ -18451,6 +18758,13 @@ class MorningRawSignalRow extends DataClass
   final String? cameraId;
   final String? physicalCameraId;
   final double? focalLengthMm;
+  final Uint8List? ispFrames;
+  final bool diagNoiseReductionOff;
+  final bool diagEdgeOff;
+  final bool diagAwbFixed;
+  final bool diagTonemapLinear;
+  final bool diagShadingOff;
+  final String? diagAwbVariant;
   const MorningRawSignalRow({
     required this.measurementId,
     required this.frameCount,
@@ -18466,6 +18780,13 @@ class MorningRawSignalRow extends DataClass
     this.cameraId,
     this.physicalCameraId,
     this.focalLengthMm,
+    this.ispFrames,
+    required this.diagNoiseReductionOff,
+    required this.diagEdgeOff,
+    required this.diagAwbFixed,
+    required this.diagTonemapLinear,
+    required this.diagShadingOff,
+    this.diagAwbVariant,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -18502,6 +18823,17 @@ class MorningRawSignalRow extends DataClass
     if (!nullToAbsent || focalLengthMm != null) {
       map['focal_length_mm'] = Variable<double>(focalLengthMm);
     }
+    if (!nullToAbsent || ispFrames != null) {
+      map['isp_frames'] = Variable<Uint8List>(ispFrames);
+    }
+    map['diag_noise_reduction_off'] = Variable<bool>(diagNoiseReductionOff);
+    map['diag_edge_off'] = Variable<bool>(diagEdgeOff);
+    map['diag_awb_fixed'] = Variable<bool>(diagAwbFixed);
+    map['diag_tonemap_linear'] = Variable<bool>(diagTonemapLinear);
+    map['diag_shading_off'] = Variable<bool>(diagShadingOff);
+    if (!nullToAbsent || diagAwbVariant != null) {
+      map['diag_awb_variant'] = Variable<String>(diagAwbVariant);
+    }
     return map;
   }
 
@@ -18537,6 +18869,17 @@ class MorningRawSignalRow extends DataClass
       focalLengthMm: focalLengthMm == null && nullToAbsent
           ? const Value.absent()
           : Value(focalLengthMm),
+      ispFrames: ispFrames == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ispFrames),
+      diagNoiseReductionOff: Value(diagNoiseReductionOff),
+      diagEdgeOff: Value(diagEdgeOff),
+      diagAwbFixed: Value(diagAwbFixed),
+      diagTonemapLinear: Value(diagTonemapLinear),
+      diagShadingOff: Value(diagShadingOff),
+      diagAwbVariant: diagAwbVariant == null && nullToAbsent
+          ? const Value.absent()
+          : Value(diagAwbVariant),
     );
   }
 
@@ -18566,6 +18909,15 @@ class MorningRawSignalRow extends DataClass
         json['physical_camera_id'],
       ),
       focalLengthMm: serializer.fromJson<double?>(json['focal_length_mm']),
+      ispFrames: serializer.fromJson<Uint8List?>(json['isp_frames']),
+      diagNoiseReductionOff: serializer.fromJson<bool>(
+        json['diag_noise_reduction_off'],
+      ),
+      diagEdgeOff: serializer.fromJson<bool>(json['diag_edge_off']),
+      diagAwbFixed: serializer.fromJson<bool>(json['diag_awb_fixed']),
+      diagTonemapLinear: serializer.fromJson<bool>(json['diag_tonemap_linear']),
+      diagShadingOff: serializer.fromJson<bool>(json['diag_shading_off']),
+      diagAwbVariant: serializer.fromJson<String?>(json['diag_awb_variant']),
     );
   }
   @override
@@ -18586,6 +18938,15 @@ class MorningRawSignalRow extends DataClass
       'camera_id': serializer.toJson<String?>(cameraId),
       'physical_camera_id': serializer.toJson<String?>(physicalCameraId),
       'focal_length_mm': serializer.toJson<double?>(focalLengthMm),
+      'isp_frames': serializer.toJson<Uint8List?>(ispFrames),
+      'diag_noise_reduction_off': serializer.toJson<bool>(
+        diagNoiseReductionOff,
+      ),
+      'diag_edge_off': serializer.toJson<bool>(diagEdgeOff),
+      'diag_awb_fixed': serializer.toJson<bool>(diagAwbFixed),
+      'diag_tonemap_linear': serializer.toJson<bool>(diagTonemapLinear),
+      'diag_shading_off': serializer.toJson<bool>(diagShadingOff),
+      'diag_awb_variant': serializer.toJson<String?>(diagAwbVariant),
     };
   }
 
@@ -18604,6 +18965,13 @@ class MorningRawSignalRow extends DataClass
     Value<String?> cameraId = const Value.absent(),
     Value<String?> physicalCameraId = const Value.absent(),
     Value<double?> focalLengthMm = const Value.absent(),
+    Value<Uint8List?> ispFrames = const Value.absent(),
+    bool? diagNoiseReductionOff,
+    bool? diagEdgeOff,
+    bool? diagAwbFixed,
+    bool? diagTonemapLinear,
+    bool? diagShadingOff,
+    Value<String?> diagAwbVariant = const Value.absent(),
   }) => MorningRawSignalRow(
     measurementId: measurementId ?? this.measurementId,
     frameCount: frameCount ?? this.frameCount,
@@ -18633,6 +19001,15 @@ class MorningRawSignalRow extends DataClass
     focalLengthMm: focalLengthMm.present
         ? focalLengthMm.value
         : this.focalLengthMm,
+    ispFrames: ispFrames.present ? ispFrames.value : this.ispFrames,
+    diagNoiseReductionOff: diagNoiseReductionOff ?? this.diagNoiseReductionOff,
+    diagEdgeOff: diagEdgeOff ?? this.diagEdgeOff,
+    diagAwbFixed: diagAwbFixed ?? this.diagAwbFixed,
+    diagTonemapLinear: diagTonemapLinear ?? this.diagTonemapLinear,
+    diagShadingOff: diagShadingOff ?? this.diagShadingOff,
+    diagAwbVariant: diagAwbVariant.present
+        ? diagAwbVariant.value
+        : this.diagAwbVariant,
   );
   MorningRawSignalRow copyWithCompanion(MorningRawSignalsCompanion data) {
     return MorningRawSignalRow(
@@ -18672,6 +19049,25 @@ class MorningRawSignalRow extends DataClass
       focalLengthMm: data.focalLengthMm.present
           ? data.focalLengthMm.value
           : this.focalLengthMm,
+      ispFrames: data.ispFrames.present ? data.ispFrames.value : this.ispFrames,
+      diagNoiseReductionOff: data.diagNoiseReductionOff.present
+          ? data.diagNoiseReductionOff.value
+          : this.diagNoiseReductionOff,
+      diagEdgeOff: data.diagEdgeOff.present
+          ? data.diagEdgeOff.value
+          : this.diagEdgeOff,
+      diagAwbFixed: data.diagAwbFixed.present
+          ? data.diagAwbFixed.value
+          : this.diagAwbFixed,
+      diagTonemapLinear: data.diagTonemapLinear.present
+          ? data.diagTonemapLinear.value
+          : this.diagTonemapLinear,
+      diagShadingOff: data.diagShadingOff.present
+          ? data.diagShadingOff.value
+          : this.diagShadingOff,
+      diagAwbVariant: data.diagAwbVariant.present
+          ? data.diagAwbVariant.value
+          : this.diagAwbVariant,
     );
   }
 
@@ -18691,13 +19087,20 @@ class MorningRawSignalRow extends DataClass
           ..write('saturatedFraction: $saturatedFraction, ')
           ..write('cameraId: $cameraId, ')
           ..write('physicalCameraId: $physicalCameraId, ')
-          ..write('focalLengthMm: $focalLengthMm')
+          ..write('focalLengthMm: $focalLengthMm, ')
+          ..write('ispFrames: $ispFrames, ')
+          ..write('diagNoiseReductionOff: $diagNoiseReductionOff, ')
+          ..write('diagEdgeOff: $diagEdgeOff, ')
+          ..write('diagAwbFixed: $diagAwbFixed, ')
+          ..write('diagTonemapLinear: $diagTonemapLinear, ')
+          ..write('diagShadingOff: $diagShadingOff, ')
+          ..write('diagAwbVariant: $diagAwbVariant')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     measurementId,
     frameCount,
     $driftBlobEquality.hash(frames),
@@ -18712,7 +19115,14 @@ class MorningRawSignalRow extends DataClass
     cameraId,
     physicalCameraId,
     focalLengthMm,
-  );
+    $driftBlobEquality.hash(ispFrames),
+    diagNoiseReductionOff,
+    diagEdgeOff,
+    diagAwbFixed,
+    diagTonemapLinear,
+    diagShadingOff,
+    diagAwbVariant,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -18730,7 +19140,14 @@ class MorningRawSignalRow extends DataClass
           other.saturatedFraction == this.saturatedFraction &&
           other.cameraId == this.cameraId &&
           other.physicalCameraId == this.physicalCameraId &&
-          other.focalLengthMm == this.focalLengthMm);
+          other.focalLengthMm == this.focalLengthMm &&
+          $driftBlobEquality.equals(other.ispFrames, this.ispFrames) &&
+          other.diagNoiseReductionOff == this.diagNoiseReductionOff &&
+          other.diagEdgeOff == this.diagEdgeOff &&
+          other.diagAwbFixed == this.diagAwbFixed &&
+          other.diagTonemapLinear == this.diagTonemapLinear &&
+          other.diagShadingOff == this.diagShadingOff &&
+          other.diagAwbVariant == this.diagAwbVariant);
 }
 
 class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
@@ -18748,6 +19165,13 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
   final Value<String?> cameraId;
   final Value<String?> physicalCameraId;
   final Value<double?> focalLengthMm;
+  final Value<Uint8List?> ispFrames;
+  final Value<bool> diagNoiseReductionOff;
+  final Value<bool> diagEdgeOff;
+  final Value<bool> diagAwbFixed;
+  final Value<bool> diagTonemapLinear;
+  final Value<bool> diagShadingOff;
+  final Value<String?> diagAwbVariant;
   const MorningRawSignalsCompanion({
     this.measurementId = const Value.absent(),
     this.frameCount = const Value.absent(),
@@ -18763,6 +19187,13 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     this.cameraId = const Value.absent(),
     this.physicalCameraId = const Value.absent(),
     this.focalLengthMm = const Value.absent(),
+    this.ispFrames = const Value.absent(),
+    this.diagNoiseReductionOff = const Value.absent(),
+    this.diagEdgeOff = const Value.absent(),
+    this.diagAwbFixed = const Value.absent(),
+    this.diagTonemapLinear = const Value.absent(),
+    this.diagShadingOff = const Value.absent(),
+    this.diagAwbVariant = const Value.absent(),
   });
   MorningRawSignalsCompanion.insert({
     this.measurementId = const Value.absent(),
@@ -18779,6 +19210,13 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     this.cameraId = const Value.absent(),
     this.physicalCameraId = const Value.absent(),
     this.focalLengthMm = const Value.absent(),
+    this.ispFrames = const Value.absent(),
+    this.diagNoiseReductionOff = const Value.absent(),
+    this.diagEdgeOff = const Value.absent(),
+    this.diagAwbFixed = const Value.absent(),
+    this.diagTonemapLinear = const Value.absent(),
+    this.diagShadingOff = const Value.absent(),
+    this.diagAwbVariant = const Value.absent(),
   }) : frameCount = Value(frameCount),
        frames = Value(frames),
        frameGapCount = Value(frameGapCount),
@@ -18798,6 +19236,13 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     Expression<String>? cameraId,
     Expression<String>? physicalCameraId,
     Expression<double>? focalLengthMm,
+    Expression<Uint8List>? ispFrames,
+    Expression<bool>? diagNoiseReductionOff,
+    Expression<bool>? diagEdgeOff,
+    Expression<bool>? diagAwbFixed,
+    Expression<bool>? diagTonemapLinear,
+    Expression<bool>? diagShadingOff,
+    Expression<String>? diagAwbVariant,
   }) {
     return RawValuesInsertable({
       if (measurementId != null) 'measurement_id': measurementId,
@@ -18815,6 +19260,14 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
       if (cameraId != null) 'camera_id': cameraId,
       if (physicalCameraId != null) 'physical_camera_id': physicalCameraId,
       if (focalLengthMm != null) 'focal_length_mm': focalLengthMm,
+      if (ispFrames != null) 'isp_frames': ispFrames,
+      if (diagNoiseReductionOff != null)
+        'diag_noise_reduction_off': diagNoiseReductionOff,
+      if (diagEdgeOff != null) 'diag_edge_off': diagEdgeOff,
+      if (diagAwbFixed != null) 'diag_awb_fixed': diagAwbFixed,
+      if (diagTonemapLinear != null) 'diag_tonemap_linear': diagTonemapLinear,
+      if (diagShadingOff != null) 'diag_shading_off': diagShadingOff,
+      if (diagAwbVariant != null) 'diag_awb_variant': diagAwbVariant,
     });
   }
 
@@ -18833,6 +19286,13 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     Value<String?>? cameraId,
     Value<String?>? physicalCameraId,
     Value<double?>? focalLengthMm,
+    Value<Uint8List?>? ispFrames,
+    Value<bool>? diagNoiseReductionOff,
+    Value<bool>? diagEdgeOff,
+    Value<bool>? diagAwbFixed,
+    Value<bool>? diagTonemapLinear,
+    Value<bool>? diagShadingOff,
+    Value<String?>? diagAwbVariant,
   }) {
     return MorningRawSignalsCompanion(
       measurementId: measurementId ?? this.measurementId,
@@ -18849,6 +19309,14 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
       cameraId: cameraId ?? this.cameraId,
       physicalCameraId: physicalCameraId ?? this.physicalCameraId,
       focalLengthMm: focalLengthMm ?? this.focalLengthMm,
+      ispFrames: ispFrames ?? this.ispFrames,
+      diagNoiseReductionOff:
+          diagNoiseReductionOff ?? this.diagNoiseReductionOff,
+      diagEdgeOff: diagEdgeOff ?? this.diagEdgeOff,
+      diagAwbFixed: diagAwbFixed ?? this.diagAwbFixed,
+      diagTonemapLinear: diagTonemapLinear ?? this.diagTonemapLinear,
+      diagShadingOff: diagShadingOff ?? this.diagShadingOff,
+      diagAwbVariant: diagAwbVariant ?? this.diagAwbVariant,
     );
   }
 
@@ -18899,6 +19367,29 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
     if (focalLengthMm.present) {
       map['focal_length_mm'] = Variable<double>(focalLengthMm.value);
     }
+    if (ispFrames.present) {
+      map['isp_frames'] = Variable<Uint8List>(ispFrames.value);
+    }
+    if (diagNoiseReductionOff.present) {
+      map['diag_noise_reduction_off'] = Variable<bool>(
+        diagNoiseReductionOff.value,
+      );
+    }
+    if (diagEdgeOff.present) {
+      map['diag_edge_off'] = Variable<bool>(diagEdgeOff.value);
+    }
+    if (diagAwbFixed.present) {
+      map['diag_awb_fixed'] = Variable<bool>(diagAwbFixed.value);
+    }
+    if (diagTonemapLinear.present) {
+      map['diag_tonemap_linear'] = Variable<bool>(diagTonemapLinear.value);
+    }
+    if (diagShadingOff.present) {
+      map['diag_shading_off'] = Variable<bool>(diagShadingOff.value);
+    }
+    if (diagAwbVariant.present) {
+      map['diag_awb_variant'] = Variable<String>(diagAwbVariant.value);
+    }
     return map;
   }
 
@@ -18918,7 +19409,14 @@ class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
           ..write('saturatedFraction: $saturatedFraction, ')
           ..write('cameraId: $cameraId, ')
           ..write('physicalCameraId: $physicalCameraId, ')
-          ..write('focalLengthMm: $focalLengthMm')
+          ..write('focalLengthMm: $focalLengthMm, ')
+          ..write('ispFrames: $ispFrames, ')
+          ..write('diagNoiseReductionOff: $diagNoiseReductionOff, ')
+          ..write('diagEdgeOff: $diagEdgeOff, ')
+          ..write('diagAwbFixed: $diagAwbFixed, ')
+          ..write('diagTonemapLinear: $diagTonemapLinear, ')
+          ..write('diagShadingOff: $diagShadingOff, ')
+          ..write('diagAwbVariant: $diagAwbVariant')
           ..write(')'))
         .toString();
   }
@@ -19730,6 +20228,7 @@ typedef $RunsCreateCompanionBuilder = RunsCompanion Function({
   Value<int?> endedAtUs,
   Value<int?> endedUtcOffsetS,
   Value<String> mode,
+  Value<String?> sport,
 });
 typedef $RunsUpdateCompanionBuilder = RunsCompanion Function({
   Value<int> id,
@@ -19738,6 +20237,7 @@ typedef $RunsUpdateCompanionBuilder = RunsCompanion Function({
   Value<int?> endedAtUs,
   Value<int?> endedUtcOffsetS,
   Value<String> mode,
+  Value<String?> sport,
 });
 
 final class $RunsReferences extends BaseReferences<_$AppDatabase, Runs, Run> {
@@ -20107,6 +20607,11 @@ class $RunsFilterComposer extends Composer<_$AppDatabase, Runs> {
 
   ColumnFilters<String> get mode => $composableBuilder(
     column: $table.mode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sport => $composableBuilder(
+    column: $table.sport,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -20573,6 +21078,11 @@ class $RunsOrderingComposer extends Composer<_$AppDatabase, Runs> {
     column: $table.mode,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sport => $composableBuilder(
+    column: $table.sport,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
@@ -20604,6 +21114,9 @@ class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
 
   GeneratedColumn<String> get mode =>
       $composableBuilder(column: $table.mode, builder: (column) => column);
+
+  GeneratedColumn<String> get sport =>
+      $composableBuilder(column: $table.sport, builder: (column) => column);
 
   Expression<T> lapsRefs<T extends Object>(
     Expression<T> Function($LapsAnnotationComposer a) f,
@@ -21083,6 +21596,7 @@ class $RunsTableManager
                 Value<int?> endedAtUs = const Value.absent(),
                 Value<int?> endedUtcOffsetS = const Value.absent(),
                 Value<String> mode = const Value.absent(),
+                Value<String?> sport = const Value.absent(),
               }) => RunsCompanion(
                 id: id,
                 state: state,
@@ -21090,6 +21604,7 @@ class $RunsTableManager
                 endedAtUs: endedAtUs,
                 endedUtcOffsetS: endedUtcOffsetS,
                 mode: mode,
+                sport: sport,
               ),
           createCompanionCallback:
               ({
@@ -21099,6 +21614,7 @@ class $RunsTableManager
                 Value<int?> endedAtUs = const Value.absent(),
                 Value<int?> endedUtcOffsetS = const Value.absent(),
                 Value<String> mode = const Value.absent(),
+                Value<String?> sport = const Value.absent(),
               }) => RunsCompanion.insert(
                 id: id,
                 state: state,
@@ -21106,6 +21622,7 @@ class $RunsTableManager
                 endedAtUs: endedAtUs,
                 endedUtcOffsetS: endedUtcOffsetS,
                 mode: mode,
+                sport: sport,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -26054,6 +26571,7 @@ typedef $ComputedValuesCreateCompanionBuilder =
       Value<int?> hrMaxBpm,
       Value<int?> hrRestBpm,
       Value<bool?> hrMaxIsEstimated,
+      Value<String?> preprocessingVersion,
     });
 typedef $ComputedValuesUpdateCompanionBuilder =
     ComputedValuesCompanion Function({
@@ -26077,6 +26595,7 @@ typedef $ComputedValuesUpdateCompanionBuilder =
       Value<int?> hrMaxBpm,
       Value<int?> hrRestBpm,
       Value<bool?> hrMaxIsEstimated,
+      Value<String?> preprocessingVersion,
     });
 
 final class $ComputedValuesReferences
@@ -26220,6 +26739,11 @@ class $ComputedValuesFilterComposer
 
   ColumnFilters<bool> get hrMaxIsEstimated => $composableBuilder(
     column: $table.hrMaxIsEstimated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get preprocessingVersion => $composableBuilder(
+    column: $table.preprocessingVersion,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -26376,6 +26900,11 @@ class $ComputedValuesOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get preprocessingVersion => $composableBuilder(
+    column: $table.preprocessingVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $RunsOrderingComposer get runId {
     final $RunsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -26480,6 +27009,11 @@ class $ComputedValuesAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get preprocessingVersion => $composableBuilder(
+    column: $table.preprocessingVersion,
+    builder: (column) => column,
+  );
+
   $RunsAnnotationComposer get runId {
     final $RunsAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -26577,6 +27111,7 @@ class $ComputedValuesTableManager
                 Value<int?> hrMaxBpm = const Value.absent(),
                 Value<int?> hrRestBpm = const Value.absent(),
                 Value<bool?> hrMaxIsEstimated = const Value.absent(),
+                Value<String?> preprocessingVersion = const Value.absent(),
               }) => ComputedValuesCompanion(
                 id: id,
                 runId: runId,
@@ -26598,6 +27133,7 @@ class $ComputedValuesTableManager
                 hrMaxBpm: hrMaxBpm,
                 hrRestBpm: hrRestBpm,
                 hrMaxIsEstimated: hrMaxIsEstimated,
+                preprocessingVersion: preprocessingVersion,
               ),
           createCompanionCallback:
               ({
@@ -26621,6 +27157,7 @@ class $ComputedValuesTableManager
                 Value<int?> hrMaxBpm = const Value.absent(),
                 Value<int?> hrRestBpm = const Value.absent(),
                 Value<bool?> hrMaxIsEstimated = const Value.absent(),
+                Value<String?> preprocessingVersion = const Value.absent(),
               }) => ComputedValuesCompanion.insert(
                 id: id,
                 runId: runId,
@@ -26642,6 +27179,7 @@ class $ComputedValuesTableManager
                 hrMaxBpm: hrMaxBpm,
                 hrRestBpm: hrRestBpm,
                 hrMaxIsEstimated: hrMaxIsEstimated,
+                preprocessingVersion: preprocessingVersion,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -33507,6 +34045,13 @@ typedef $MorningRawSignalsCreateCompanionBuilder =
       Value<String?> cameraId,
       Value<String?> physicalCameraId,
       Value<double?> focalLengthMm,
+      Value<Uint8List?> ispFrames,
+      Value<bool> diagNoiseReductionOff,
+      Value<bool> diagEdgeOff,
+      Value<bool> diagAwbFixed,
+      Value<bool> diagTonemapLinear,
+      Value<bool> diagShadingOff,
+      Value<String?> diagAwbVariant,
     });
 typedef $MorningRawSignalsUpdateCompanionBuilder =
     MorningRawSignalsCompanion Function({
@@ -33524,6 +34069,13 @@ typedef $MorningRawSignalsUpdateCompanionBuilder =
       Value<String?> cameraId,
       Value<String?> physicalCameraId,
       Value<double?> focalLengthMm,
+      Value<Uint8List?> ispFrames,
+      Value<bool> diagNoiseReductionOff,
+      Value<bool> diagEdgeOff,
+      Value<bool> diagAwbFixed,
+      Value<bool> diagTonemapLinear,
+      Value<bool> diagShadingOff,
+      Value<String?> diagAwbVariant,
     });
 
 final class $MorningRawSignalsReferences
@@ -33625,6 +34177,41 @@ class $MorningRawSignalsFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<Uint8List> get ispFrames => $composableBuilder(
+    column: $table.ispFrames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get diagNoiseReductionOff => $composableBuilder(
+    column: $table.diagNoiseReductionOff,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get diagEdgeOff => $composableBuilder(
+    column: $table.diagEdgeOff,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get diagAwbFixed => $composableBuilder(
+    column: $table.diagAwbFixed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get diagTonemapLinear => $composableBuilder(
+    column: $table.diagTonemapLinear,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get diagShadingOff => $composableBuilder(
+    column: $table.diagShadingOff,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get diagAwbVariant => $composableBuilder(
+    column: $table.diagAwbVariant,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $MorningMeasurementsFilterComposer get measurementId {
     final $MorningMeasurementsFilterComposer composer = $composerBuilder(
       composer: this,
@@ -33723,6 +34310,41 @@ class $MorningRawSignalsOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<Uint8List> get ispFrames => $composableBuilder(
+    column: $table.ispFrames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get diagNoiseReductionOff => $composableBuilder(
+    column: $table.diagNoiseReductionOff,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get diagEdgeOff => $composableBuilder(
+    column: $table.diagEdgeOff,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get diagAwbFixed => $composableBuilder(
+    column: $table.diagAwbFixed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get diagTonemapLinear => $composableBuilder(
+    column: $table.diagTonemapLinear,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get diagShadingOff => $composableBuilder(
+    column: $table.diagShadingOff,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get diagAwbVariant => $composableBuilder(
+    column: $table.diagAwbVariant,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $MorningMeasurementsOrderingComposer get measurementId {
     final $MorningMeasurementsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -33815,6 +34437,39 @@ class $MorningRawSignalsAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<Uint8List> get ispFrames =>
+      $composableBuilder(column: $table.ispFrames, builder: (column) => column);
+
+  GeneratedColumn<bool> get diagNoiseReductionOff => $composableBuilder(
+    column: $table.diagNoiseReductionOff,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get diagEdgeOff => $composableBuilder(
+    column: $table.diagEdgeOff,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get diagAwbFixed => $composableBuilder(
+    column: $table.diagAwbFixed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get diagTonemapLinear => $composableBuilder(
+    column: $table.diagTonemapLinear,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get diagShadingOff => $composableBuilder(
+    column: $table.diagShadingOff,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get diagAwbVariant => $composableBuilder(
+    column: $table.diagAwbVariant,
+    builder: (column) => column,
+  );
+
   $MorningMeasurementsAnnotationComposer get measurementId {
     final $MorningMeasurementsAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -33881,6 +34536,13 @@ class $MorningRawSignalsTableManager
                 Value<String?> cameraId = const Value.absent(),
                 Value<String?> physicalCameraId = const Value.absent(),
                 Value<double?> focalLengthMm = const Value.absent(),
+                Value<Uint8List?> ispFrames = const Value.absent(),
+                Value<bool> diagNoiseReductionOff = const Value.absent(),
+                Value<bool> diagEdgeOff = const Value.absent(),
+                Value<bool> diagAwbFixed = const Value.absent(),
+                Value<bool> diagTonemapLinear = const Value.absent(),
+                Value<bool> diagShadingOff = const Value.absent(),
+                Value<String?> diagAwbVariant = const Value.absent(),
               }) => MorningRawSignalsCompanion(
                 measurementId: measurementId,
                 frameCount: frameCount,
@@ -33896,6 +34558,13 @@ class $MorningRawSignalsTableManager
                 cameraId: cameraId,
                 physicalCameraId: physicalCameraId,
                 focalLengthMm: focalLengthMm,
+                ispFrames: ispFrames,
+                diagNoiseReductionOff: diagNoiseReductionOff,
+                diagEdgeOff: diagEdgeOff,
+                diagAwbFixed: diagAwbFixed,
+                diagTonemapLinear: diagTonemapLinear,
+                diagShadingOff: diagShadingOff,
+                diagAwbVariant: diagAwbVariant,
               ),
           createCompanionCallback:
               ({
@@ -33913,6 +34582,13 @@ class $MorningRawSignalsTableManager
                 Value<String?> cameraId = const Value.absent(),
                 Value<String?> physicalCameraId = const Value.absent(),
                 Value<double?> focalLengthMm = const Value.absent(),
+                Value<Uint8List?> ispFrames = const Value.absent(),
+                Value<bool> diagNoiseReductionOff = const Value.absent(),
+                Value<bool> diagEdgeOff = const Value.absent(),
+                Value<bool> diagAwbFixed = const Value.absent(),
+                Value<bool> diagTonemapLinear = const Value.absent(),
+                Value<bool> diagShadingOff = const Value.absent(),
+                Value<String?> diagAwbVariant = const Value.absent(),
               }) => MorningRawSignalsCompanion.insert(
                 measurementId: measurementId,
                 frameCount: frameCount,
@@ -33928,6 +34604,13 @@ class $MorningRawSignalsTableManager
                 cameraId: cameraId,
                 physicalCameraId: physicalCameraId,
                 focalLengthMm: focalLengthMm,
+                ispFrames: ispFrames,
+                diagNoiseReductionOff: diagNoiseReductionOff,
+                diagEdgeOff: diagEdgeOff,
+                diagAwbFixed: diagAwbFixed,
+                diagTonemapLinear: diagTonemapLinear,
+                diagShadingOff: diagShadingOff,
+                diagAwbVariant: diagAwbVariant,
               ),
           withReferenceMapper: (p0) => p0
               .map(

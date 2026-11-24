@@ -6,6 +6,7 @@ import '../../ui/ui.dart';
 import '../sensors/run_heart_rate.dart';
 import '../settings/unit_format.dart';
 import 'live_run_view.dart';
+import 'other_sport.dart';
 import 'run_controller.dart';
 import 'treadmill_controls.dart';
 
@@ -140,6 +141,11 @@ class LiveValues extends StatelessWidget {
     final na = l10n.runUnavailable;
     final paused = s.phase == RecordingPhase.paused;
     final belt = controller.runMode == RunMode.treadmill;
+    // Andere Sportart (FR-0221): Zeit, Bewegungszeit, Puls und Bereich; keine
+    // Strecke, Pace, Anstieg, Kadenz, Runde, kein GPS.
+    final sport = controller.runMode == RunMode.sport;
+    final noGps = belt || sport;
+    final sportType = controller.runSport;
 
     final avg = averagePaceSecondsPerKm(s);
     final ascent = pre?.altitude.ascentMeters;
@@ -266,7 +272,7 @@ class LiveValues extends StatelessWidget {
           controller: controller,
           paused: paused,
           gps: gpsState,
-          showGps: !belt,
+          showGps: !noGps,
         ),
         const SizedBox(height: 12),
         if (s.phase == RecordingPhase.autoPaused)
@@ -290,7 +296,7 @@ class LiveValues extends StatelessWidget {
             Text(l10n.runStorageFailed, key: const Key('run_banner_storage')),
             error: true,
           ),
-        if (!belt && gpsState != _GpsState.good)
+        if (!noGps && gpsState != _GpsState.good)
           LiveBanner(
             Text(switch (gpsState) {
               _GpsState.error => l10n.runGpsError,
@@ -320,51 +326,75 @@ class LiveValues extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Center(
-          child: LiveValueText(
-            id: 'run_distance',
-            value: distValue,
-            unit: distUnit,
-            valueStyle: type.distance,
-            unitStyle: type.unitLarge,
+        if (sport)
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (sportType != null) ...[
+                  Icon(otherSportIcon(sportType)),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Text(
+                    sportType == null
+                        ? l10n.otherSportMode
+                        : otherSportName(l10n, sportType),
+                    key: const Key('live_other_sport'),
+                    style: text.titleLarge,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          Center(
+            child: LiveValueText(
+              id: 'run_distance',
+              value: distValue,
+              unit: distUnit,
+              valueStyle: type.distance,
+              unitStyle: type.unitLarge,
+            ),
           ),
-        ),
         if (belt) ...[
           const SizedBox(height: 10),
           TreadmillControls(controller: controller, formatter: formatter),
         ],
         const SizedBox(height: 14),
-        pair(
-          (
-            '88:88',
-            numberStyle,
-            l10n.livePaceNow,
-            paceUnit ?? formatter.paceLabel,
+        if (!sport) ...[
+          pair(
+            (
+              '88:88',
+              numberStyle,
+              l10n.livePaceNow,
+              paceUnit ?? formatter.paceLabel,
+            ),
+            tile(
+              l10n.livePaceNow,
+              'run_pace',
+              paceValue,
+              paceUnit,
+              style: numberStyle,
+              unitInLabel: true,
+            ),
+            tile(
+              l10n.runAvgPace,
+              'run_avg_pace',
+              avgValue,
+              avgUnit,
+              style: numberStyle,
+              unitInLabel: true,
+            ),
+            (
+              '88:88',
+              numberStyle,
+              l10n.runAvgPace,
+              avgUnit ?? formatter.paceLabel,
+            ),
           ),
-          tile(
-            l10n.livePaceNow,
-            'run_pace',
-            paceValue,
-            paceUnit,
-            style: numberStyle,
-            unitInLabel: true,
-          ),
-          tile(
-            l10n.runAvgPace,
-            'run_avg_pace',
-            avgValue,
-            avgUnit,
-            style: numberStyle,
-            unitInLabel: true,
-          ),
-          (
-            '88:88',
-            numberStyle,
-            l10n.runAvgPace,
-            avgUnit ?? formatter.paceLabel,
-          ),
-        ),
-        const SizedBox(height: 10),
+          const SizedBox(height: 10),
+        ],
         _HeartCard(
           bpm: bpm,
           zoneNumber: zone.kind == LiveZoneKind.zone ? zone.zone : null,
@@ -381,19 +411,21 @@ class LiveValues extends StatelessWidget {
             formatClock(s.movingTime),
             null,
           ),
-          belt
+          noGps
               ? null
               : tile(l10n.runAscent, 'run_ascent', ascentValue, ascentUnit),
-          belt ? null : ('+8888', null, l10n.runAscent, null),
+          noGps ? null : ('+8888', null, l10n.runAscent, null),
         ),
-        const SizedBox(height: 10),
-        // FR-0202: Wert nur mit Berechtigung und Sensor, sonst „nicht verfügbar“.
-        pair(
-          ('888', null, l10n.runCadence, null),
-          tile(l10n.runCadence, 'run_cadence', cadence, cadenceUnit),
-          null,
-        ),
-        if (!belt && gapCount > 0) ...[
+        if (!sport) ...[
+          const SizedBox(height: 10),
+          // FR-0202: Wert nur mit Berechtigung und Sensor, sonst „nicht verfügbar“.
+          pair(
+            ('888', null, l10n.runCadence, null),
+            tile(l10n.runCadence, 'run_cadence', cadence, cadenceUnit),
+            null,
+          ),
+        ],
+        if (!noGps && gapCount > 0) ...[
           const SizedBox(height: 10),
           Text(
             l10n.runGpsGaps(gapCount),
@@ -401,8 +433,10 @@ class LiveValues extends StatelessWidget {
             style: text.bodySmall,
           ),
         ],
-        const SizedBox(height: 10),
-        _LiveCard(child: LiveLaps(laps: s.laps)),
+        if (!sport) ...[
+          const SizedBox(height: 10),
+          _LiveCard(child: LiveLaps(laps: s.laps)),
+        ],
         if (controller.sensors case final run?) ...[
           const SizedBox(height: 10),
           _SensorPanel(run: run),

@@ -13,6 +13,7 @@ import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recording/belt_track.dart';
+import '../recording/sport_moving_time.dart';
 
 /// Schlüssel der gespeicherten Werte (`ComputedValue.key`).
 const String vo2maxRunValueKey = 'vo2max_run';
@@ -78,8 +79,12 @@ class RunAnalysis {
   DateTime get endedAt => run.endedAt!;
 
   /// Der VO₂max-Laufwert mit den Angaben aus FR-0053 und allen bewerteten
-  /// Abschnitten (FR-0073), auch den abgelehnten, in Zeitreihenfolge.
-  ComputedValue vo2maxValue(DateTime computedAt) {
+  /// Abschnitten (FR-0073), auch den abgelehnten, in Zeitreihenfolge, und der
+  /// Kettenversion der Vorverarbeitung [preprocessingVersion] (ADR-0004).
+  ComputedValue vo2maxValue(
+    DateTime computedAt, {
+    required String preprocessingVersion,
+  }) {
     final sections = valueSectionsOf(selection, estimate);
     return toComputedValue(
       key: vo2maxRunValueKey,
@@ -88,6 +93,7 @@ class RunAnalysis {
       computedAt: computedAt,
       sections: sections,
       heartRateBasis: snapshotOf(basis),
+      preprocessingVersion: preprocessingVersion,
     );
   }
 }
@@ -129,6 +135,8 @@ List<ValueSection> valueSectionsOf(
 
 /// Überträgt einen fortgeschrittenen Wert in die Speicherform. „Nicht
 /// bestimmbar“ wird ohne Wert, aber mit Grund gespeichert (FR-0068).
+/// [preprocessingVersion] nur bei Laufwerten (Kettenversion der
+/// Vorverarbeitung), bei Tageswerten `null`.
 ComputedValue toComputedValue({
   required String key,
   required String unit,
@@ -136,6 +144,7 @@ ComputedValue toComputedValue({
   required DateTime computedAt,
   List<ValueSection> sections = const [],
   HeartRateBasis? heartRateBasis,
+  String? preprocessingVersion,
 }) {
   final m = value.metadata;
   return ComputedValue(
@@ -143,6 +152,7 @@ ComputedValue toComputedValue({
     value: value.value,
     unavailableReason: value.reason,
     heartRateBasis: heartRateBasis,
+    preprocessingVersion: preprocessingVersion,
     unit: unit,
     computedAt: computedAt,
     dataFrom: m.dataFrom,
@@ -263,13 +273,22 @@ class RunAnalyzer {
                 resumedAt: pre.movement.resumedAt,
               ),
             );
-      selection = Vo2maxSectionSelector(parameters: fitness).select(
-        run: pre,
-        basis: basis,
-        runStart: run.startedAt,
-        until: end,
-        belt: belt,
-      );
+      // Keine Laufwerte für eine andere Sportart (FR-0221, DEC-0056): keine
+      // Abschnitte, also keine VO₂max und keine aerobe Effizienz.
+      selection = run.mode.isRunning
+          ? Vo2maxSectionSelector(parameters: fitness).select(
+              run: pre,
+              basis: basis,
+              runStart: run.startedAt,
+              until: end,
+              belt: belt,
+            )
+          : SectionSelection(
+              parameterVersion: fitness.parameterVersion,
+              basis: basis,
+              sections: const [],
+              excluded: const [],
+            );
     }
     final estimate = const AcsmReserveVo2maxEstimator().estimate(
       selection: selection,
@@ -359,5 +378,23 @@ RunPreprocessing replayRunPreprocessing({
   for (final e in indexed) {
     e.$2.apply();
   }
-  return pre.result(at: end);
+  final result = pre.result(at: end);
+  // Andere Sportart (FR-0221): Bewegungszeit nach PAR-232, also die
+  // Aufzeichnungszeit ohne Pause-Taste und Unterbrechung, ohne Autopause und
+  // Stillstandserkennung. Zonen, TRIMP und Pulsabdeckung folgen dieser Zeit
+  // wie beim Lauf.
+  final spans = sportMovingIntervalsOfRun(run, end, gaps);
+  if (spans == null) return result;
+  final m = result.movement;
+  return result.withMovement(
+    MovementResult(
+      parameterVersion: m.parameterVersion,
+      totalTime: m.totalTime,
+      movingTime: spans.fold(Duration.zero, (a, s) => a + s.duration),
+      movingIntervals: spans,
+      autoPauseState: AutoPauseState.moving,
+      manuallyPaused: m.manuallyPaused,
+      resumedAt: m.resumedAt,
+    ),
+  );
 }

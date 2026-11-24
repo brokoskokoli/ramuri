@@ -69,7 +69,7 @@ void main() {
     expect(l.sumClassSame(2, '5:00'), contains('last 2 runs'));
   });
 
-  // E2E 36 (NB5): "Neuberechnet: 1 Läufe", "Recalculated: 1 runs".
+  // E2E 36: "Neuberechnet: 1 Läufe", "Recalculated: 1 runs".
   test('Neuberechnet im Singular und Plural (de, en)', () {
     final de = lookupAppLocalizations(const Locale('de'));
     final en = lookupAppLocalizations(const Locale('en'));

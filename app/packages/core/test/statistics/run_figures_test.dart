@@ -22,6 +22,47 @@ void main() {
       );
     }
 
+    test(
+      'Art der Einheit: Lauf bei GPS und Band, nicht bei Sport (FR-0221)',
+      () async {
+        final w = await RecalcWorld.create();
+        final id = await w.seedRun(DateTime.utc(2030, 2, 25, 8));
+        final stored = (await w.session.runs.get(id))!;
+        final raw = await w.session.rawData.read(id);
+        final pre = replayRunPreprocessing(
+          run: stored,
+          end: stored.endedAt!,
+          raw: raw,
+          gaps: const [],
+          parameters: const PreprocessingParameters.v4(),
+        );
+        for (final (mode, running) in [
+          (RunMode.gps, true),
+          (RunMode.treadmill, true),
+          (RunMode.sport, false),
+        ]) {
+          final run = StoredRun(
+            id: id,
+            state: RunState.finished,
+            startedAt: stored.startedAt,
+            endedAt: stored.endedAt,
+            mode: mode,
+          );
+          final f = RunFigures.fromRun(
+            run: run,
+            preprocessing: pre,
+            laps: const [],
+          );
+          expect(f.isRunning, running, reason: 'fromRun $mode');
+          expect(
+            RunOverview(run: run).toFigures().isRunning,
+            running,
+            reason: 'toFigures $mode',
+          );
+        }
+      },
+    );
+
     test('30 min mit 3 m/s: Strecke, Pace, Bestpace, Puls, Tag', () async {
       final w = await RecalcWorld.create();
       final id = await w.seedRun(

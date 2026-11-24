@@ -142,6 +142,9 @@ class RestingMeasureResult {
     this.frames = const [],
     this.cameraDetails,
     this.camera,
+    this.ispFrames,
+    this.cameraDiagnostics = const {},
+    this.awbVariant,
   });
 
   final PpgMeasurement measurement;
@@ -176,6 +179,17 @@ class RestingMeasureResult {
   /// Fenstersuche, `null` ohne Meldung).
   final PpgCameraRef? camera;
 
+  /// Werte der Bildverarbeitung je Bild aus [frames] (gleiche Reihenfolge,
+  /// [ppgIspValueCount] Werte, NaN = nicht gemeldet); `null`, wenn sie nicht
+  /// angefordert waren (nur Morgenmessung im Entwicklermodus, FR-0217).
+  final List<List<double>>? ispFrames;
+
+  /// Tatsächlich gesetzte Diagnose-Schalter ([PpgCameraStarted.diagnostics]).
+  final Set<PpgCameraDiagnostic> cameraDiagnostics;
+
+  /// Variante „Weißabgleich fest“ ([PpgCameraStarted.awbVariant]).
+  final PpgAwbVariant? awbVariant;
+
   /// Ganzzahliger Puls; `null`: kein Wert (nur bei „unbrauchbar“).
   int? get bpm => measurement.hasResult ? measurement.bpm!.round() : null;
   bool get hasValue => bpm != null;
@@ -198,21 +212,29 @@ typedef PpgEvaluate = Future<PpgMeasurement> Function(
 );
 
 /// Endergebnis der Aufnahme mit Fenstersuche ([evaluatePpgBestWindow]) auf genau
-/// den übergebenen Bildern.
+/// den übergebenen Bildern; [relockedAt] ist die Sensorzeit der letzten Neusperre
+/// der Belichtung (PAR-246), `null` ohne Neusperre.
 typedef PpgBestEvaluate = Future<PpgWindowedMeasurement> Function(
-  List<PpgFrame> frames,
-);
+  List<PpgFrame> frames, {
+  double? relockedAt,
+});
 
-/// Prüfung der laufenden Aufnahme ([checkPpgRecording]).
+/// Prüfung der laufenden Aufnahme ([checkPpgRecording]); [relockedAt] wie bei
+/// [PpgBestEvaluate].
 typedef PpgRecordingCheckRun = Future<PpgRecordingCheck> Function(
-  List<PpgFrame> frames,
-);
+  List<PpgFrame> frames, {
+  double? relockedAt,
+});
 
-Future<PpgWindowedMeasurement> _evaluateBestInIsolate(List<PpgFrame> frames) =>
-    Isolate.run(() => evaluatePpgBestWindow(frames));
+Future<PpgWindowedMeasurement> _evaluateBestInIsolate(
+  List<PpgFrame> frames, {
+  double? relockedAt,
+}) => Isolate.run(() => evaluatePpgBestWindow(frames, relockedAt: relockedAt));
 
-Future<PpgRecordingCheck> _checkInIsolate(List<PpgFrame> frames) =>
-    Isolate.run(() => checkPpgRecording(frames));
+Future<PpgRecordingCheck> _checkInIsolate(
+  List<PpgFrame> frames, {
+  double? relockedAt,
+}) => Isolate.run(() => checkPpgRecording(frames, relockedAt: relockedAt));
 
 Future<PpgMeasurement> _evaluateInIsolate(
   List<PpgFrame> frames,
@@ -235,6 +257,8 @@ class RestingMeasureController extends ChangeNotifier {
     this.autoTick = true,
     this.searchWindow = false,
     this.cameraChoice,
+    this.cameraDiagnostics,
+    this.beforeStart,
     PpgBestEvaluate? evaluateBest,
     PpgRecordingCheckRun? check,
   }) : _evaluate = evaluate ?? _evaluateInIsolate,
@@ -246,6 +270,18 @@ class RestingMeasureController extends ChangeNotifier {
   /// Welche Kamera die Messung startet (FR-0220, [choosePpgCamera]); `null` als
   /// Ergebnis oder ohne Angabe: die Standardkamera ([PpgCamera.start] ohne Angabe).
   final Future<PpgCameraRef?> Function()? cameraChoice;
+
+  /// Diagnose-Schalter und Werte der Bildverarbeitung je Bild, die die Messung
+  /// anfordert (nur Morgenmessung im Entwicklermodus, FR-0217,
+  /// [morningCameraDiagnostics]); ohne Angabe oder bei einem Fehler nichts.
+  final Future<({Set<PpgCameraDiagnostic> diagnostics, bool ispFrames})>
+  Function()?
+  cameraDiagnostics;
+
+  /// Vor Ruhephase bzw. sofortiger Messung (FR-0220): zeigt bei Bedarf die Kamerasuche und
+  /// liefert, ob die Messung beginnt. `false` (oder ein Fehler): kein Start, der Einstieg
+  /// bleibt. Die Zeit darin zählt nicht zur Ruhephase. Ohne Angabe beginnt sie sofort.
+  final Future<bool> Function()? beforeStart;
 
   /// Die Kamera, die zuletzt gestartet wurde ([PpgCameraStarted.camera]); `null`
   /// vor dem Start.
@@ -289,11 +325,25 @@ class RestingMeasureController extends ChangeNotifier {
   Duration? _subscribedAt;
   bool _cameraStarted = false;
   double? _lastImageT;
+
+  // Neusperre der Belichtung (PAR-246): Sensorzeit der letzten Neusperre (während
+  // des Neu-Einschwingens vorläufig die früheste mögliche), ob das Einschwingen
+  // gerade läuft, Zahl der Neusperren (verwirft eine Prüfung über einen älteren
+  // Stand) und ob eine im festen Fenster lag (Ruhepuls-Messung).
+  double? _relockedAt;
+  bool _relocking = false;
+  int _relocks = 0;
+  bool _relockInWindow = false;
   PpgCameraDetails? _details;
 
   int _run = 0;
   StreamSubscription<PpgCameraEvent>? _sub;
   final List<PpgFrame> _frames = [];
+
+  /// Werte der Bildverarbeitung zu [_frames] (gleicher Index); `null` ohne Anforderung.
+  List<List<double>>? _isp;
+  Set<PpgCameraDiagnostic> _diagnostics = const {};
+  PpgAwbVariant? _awbVariant;
   double _elapsed = 0;
   bool _evaluating = false;
   int? _livePulse;
@@ -334,8 +384,12 @@ class RestingMeasureController extends ChangeNotifier {
   /// schlechtem Signal weiter).
   double get elapsedSeconds => _elapsed;
 
-  /// Das Einschwingen (vor dem Messfenster) läuft noch.
-  bool get settling => _elapsed < ppgStandardWindow.start;
+  /// Das Einschwingen (vor dem Messfenster) läuft noch: zu Beginn und nach einem
+  /// Helligkeitssprung von `relocking` bis 2,5 s nach der neuen Sperre (PAR-246).
+  bool get settling => _relocking || _elapsed < _startMin;
+
+  /// Frühester Beginn eines Fensters (Fenstersuche) bzw. der Live-Auswertung.
+  double get _startMin => ppgSearchStartMin(relockedAt: _relockedAt);
 
   /// Fortschritt des Messfensters von 0 bis 1.
   double get progress {
@@ -418,9 +472,11 @@ class RestingMeasureController extends ChangeNotifier {
     _notify();
   }
 
-  /// Startet die Ruhephase. Noch keine Kamera und kein Kamera-Recht.
-  void startRest() {
-    if (_phase != RestingMeasurePhase.entry) return;
+  /// Startet die Ruhephase. Noch keine Kamera und kein Kamera-Recht (außer in der
+  /// Kamerasuche davor, [beforeStart]).
+  Future<void> startRest() async {
+    if (_phase != RestingMeasurePhase.entry || _preparing) return;
+    if (beforeStart != null && !await _prepare()) return;
     _phase = RestingMeasurePhase.resting;
     _restStart = clock.monotonic();
     _restRemaining = Duration(minutes: _restMinutes);
@@ -432,8 +488,29 @@ class RestingMeasureController extends ChangeNotifier {
 
   /// Misst sofort, ohne Ruhephase.
   Future<void> startNow() async {
-    if (_phase != RestingMeasurePhase.entry) return;
+    if (_phase != RestingMeasurePhase.entry || _preparing) return;
+    if (beforeStart != null && !await _prepare()) return;
     await _begin(restElapsed: null);
+  }
+
+  bool _preparing = false;
+
+  /// Läuft [beforeStart] gerade (Kamerasuche offen).
+  bool get preparing => _preparing;
+
+  /// Ruft [beforeStart] auf; `true` = Start. Ohne [beforeStart] rufen die Starts das nicht
+  /// auf und beginnen im selben Takt.
+  Future<bool> _prepare() async {
+    final gate = beforeStart!;
+    _preparing = true;
+    bool go;
+    try {
+      go = await gate();
+    } catch (_) {
+      go = false;
+    }
+    _preparing = false;
+    return go && !_disposed && _phase == RestingMeasurePhase.entry;
   }
 
   /// Beendet die Ruhephase vorzeitig und misst („Ich bin schon entspannt“).
@@ -568,6 +645,24 @@ class RestingMeasureController extends ChangeNotifier {
         return;
       }
     }
+    var requested = const <PpgCameraDiagnostic>{};
+    var ispFrames = false;
+    final diag = cameraDiagnostics;
+    if (diag != null) {
+      try {
+        (diagnostics: requested, :ispFrames) = await diag();
+      } catch (_) {
+        // Rückfall auf die Vorgabe: keine Schalter, keine Werte je Bild.
+        requested = const {};
+        ispFrames = false;
+      }
+      if (run != _run) return;
+      if (!_foreground) {
+        await _fail(run, RestingStopCause.background);
+        return;
+      }
+    }
+    _isp = ispFrames ? <List<double>>[] : null;
     _phase = RestingMeasurePhase.measuring;
     _notify();
     // Die Startfrist läuft ab dem Abonnieren, auch wenn „gestartet“ ausbleibt.
@@ -581,7 +676,7 @@ class RestingMeasureController extends ChangeNotifier {
       );
     }
     _sub = camera
-        .start(camera: chosen)
+        .start(camera: chosen, diagnostics: requested, ispFrames: ispFrames)
         .listen(
           (e) => _onEvent(run, e),
           onError: (Object _) =>
@@ -604,12 +699,19 @@ class RestingMeasureController extends ChangeNotifier {
 
   void _resetMeasurement() {
     _frames.clear();
+    _isp = null;
+    _diagnostics = const {};
+    _awbVariant = null;
     _lastImageAt = null;
     _lastCheckAt = null;
     _subscribedAt = null;
     _cameraStarted = false;
     _startedCamera = null;
     _lastImageT = null;
+    _relockedAt = null;
+    _relocking = false;
+    _relocks = 0;
+    _relockInWindow = false;
     _details = null;
     _elapsed = 0;
     _evaluating = false;
@@ -634,22 +736,51 @@ class RestingMeasureController extends ChangeNotifier {
       return;
     }
     switch (e) {
-      case PpgCameraStarted(camera: final c):
+      case PpgCameraStarted(
+        camera: final c,
+        :final diagnostics,
+        :final awbVariant,
+      ):
         _cameraStarted = true;
         _startedCamera = c;
+        _diagnostics = diagnostics;
+        _awbVariant = awbVariant;
         _lastImageAt = clock.monotonic();
-      case PpgCameraExposureLocked():
-        break;
+      case PpgCameraExposureLocked(:final t):
+        // Die erste Sperre (ohne vorheriges Neu-Einschwingen) ändert nichts.
+        if (_relocking) {
+          _relocking = false;
+          if (t != null) _relockedAt = t;
+          _notify();
+        }
+      case PpgCameraRelocking(:final t):
+        _onRelocking(t);
       case PpgCameraDetails():
         _details = e;
       case PpgCameraStopped(:final reason):
         unawaited(_fail(run, _causeOfReason(reason)));
-      case PpgCameraFrame(:final frame):
-        _onFrame(run, frame);
+      case PpgCameraFrame(:final frame, :final isp):
+        _onFrame(run, frame, isp);
     }
   }
 
-  void _onFrame(int run, PpgFrame f) {
+  /// Helligkeitssprung und Ruhe erkannt, die Belichtung schwingt neu ein (PAR-246):
+  /// Fenster vor 2,5 s nach der neuen Sperre entfallen sofort (vorläufig ab der
+  /// frühesten möglichen Sperre), die Anzeige zeigt wieder „Einschwingen“. Im
+  /// festen Fenster der Ruhepuls-Messung macht das die Messung unbrauchbar.
+  void _onRelocking(double t) {
+    _relocking = true;
+    _relocks++;
+    _relockedAt = t + ppgExposureLockSeconds;
+    final w = ppgStandardWindow;
+    if (!searchWindow && t >= w.start && t <= w.end) _relockInWindow = true;
+    _livePulse = null;
+    _liveQuality = null;
+    _liveHint = null;
+    _notify();
+  }
+
+  void _onFrame(int run, PpgFrame f, List<double>? isp) {
     final w = ppgStandardWindow;
     final prevT = _lastImageT;
     _cameraStarted = true;
@@ -660,7 +791,14 @@ class RestingMeasureController extends ChangeNotifier {
       return;
     }
     final dataEnd = searchWindow ? ppgSearchMaxRecordSeconds : w.dataEnd;
-    if (f.t <= dataEnd) _frames.add(f);
+    if (f.t <= dataEnd) {
+      _frames.add(f);
+      _isp?.add(
+        isp != null && isp.length == ppgIspValueCount
+            ? isp
+            : List.filled(ppgIspValueCount, double.nan),
+      );
+    }
     _elapsed = f.t;
     _curve = _recentCurve();
     if (f.t >= dataEnd) {
@@ -668,7 +806,8 @@ class RestingMeasureController extends ChangeNotifier {
       return;
     }
     if (searchWindow && _checkDue(f.t)) unawaited(_runCheck(run, f.t));
-    if (f.t > w.start &&
+    if (f.t > _startMin &&
+        !_relocking &&
         !_liveBusy &&
         f.t - _lastLiveT >= restingLiveIntervalSeconds) {
       unawaited(_liveUpdate(run, f.t));
@@ -693,11 +832,14 @@ class RestingMeasureController extends ChangeNotifier {
     _checkBusy = true;
     _lastCheckT = t;
     final snapshot = List.of(_frames);
+    final relocks = _relocks;
     try {
-      final r = await _check(snapshot);
+      final r = await _check(snapshot, relockedAt: _relockedAt);
+      // Kam inzwischen eine Neusperre, gilt das Ergebnis nicht mehr (PAR-246).
       if (run != _run ||
           _phase != RestingMeasurePhase.measuring ||
-          _evaluating) {
+          _evaluating ||
+          relocks != _relocks) {
         return;
       }
       _goodStretch = r.goodStretchSeconds;
@@ -760,7 +902,7 @@ class RestingMeasureController extends ChangeNotifier {
   PpgWindow _liveWindow(double t, double seconds) {
     final w = ppgStandardWindow;
     final lead = w.start - w.filterStart;
-    final start = math.max(w.start, t - seconds);
+    final start = math.max(_startMin, t - seconds);
     return PpgWindow(
       filterStart: start - lead,
       start: start,
@@ -796,6 +938,8 @@ class RestingMeasureController extends ChangeNotifier {
     _notify();
     await _releaseCamera();
     final all = frames ?? List.of(_frames);
+    // [frames] ist ein früherer Stand von [_frames]: die ersten Werte gehören dazu.
+    final isp = _isp?.take(all.length).toList();
     final PpgMeasurement m;
     double? windowStart;
     double? windowEnd;
@@ -803,11 +947,18 @@ class RestingMeasureController extends ChangeNotifier {
     try {
       if (searchWindow) {
         // Endete die Aufnahme durch die Prüfung, gilt genau das bestätigte Fenster.
-        final r = confirmed ?? await _evaluateBest(all);
+        final r =
+            confirmed ?? await _evaluateBest(all, relockedAt: _relockedAt);
         m = r.measurement;
         windowStart = r.windowStartSeconds;
         windowEnd = r.windowEndSeconds;
         stretch = r.goodStretchSeconds;
+      } else if (_relockInWindow) {
+        // Neusperre im festen Fenster (PAR-246): unbrauchbar statt verfälscht.
+        m = const PpgMeasurement(
+          quality: PpgQuality.unusable,
+          reasons: [PpgQualityReason.tooManyDisturbances],
+        );
       } else {
         m = await _evaluate(all, ppgStandardWindow);
       }
@@ -817,6 +968,7 @@ class RestingMeasureController extends ChangeNotifier {
     }
     if (run != _run) return;
     _frames.clear();
+    _isp = null;
     _curve = const [];
     final result = RestingMeasureResult(
       measurement: m,
@@ -830,6 +982,9 @@ class RestingMeasureController extends ChangeNotifier {
       frames: searchWindow ? all : const [],
       cameraDetails: searchWindow ? _details : null,
       camera: searchWindow ? _startedCamera : null,
+      ispFrames: searchWindow ? isp : null,
+      cameraDiagnostics: searchWindow ? _diagnostics : const {},
+      awbVariant: searchWindow ? _awbVariant : null,
     );
     try {
       final p = profile;
@@ -868,6 +1023,7 @@ class RestingMeasureController extends ChangeNotifier {
     _stopTicker();
     await _releaseCamera();
     _frames.clear();
+    _isp = null;
     _curve = const [];
     _evaluating = false;
     _stopCause = cause;

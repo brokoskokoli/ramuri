@@ -38,6 +38,7 @@ class RunController extends ChangeNotifier {
     this.resumeRunId,
     this.initialAutoPause,
     this.mode = RunMode.gps,
+    this.sport,
     this.startBeltSpeedMetersPerSecond,
     this.startInclinePercent,
     this.tickEvery = const Duration(seconds: 1),
@@ -109,6 +110,10 @@ class RunController extends ChangeNotifier {
   /// des Laufs, nicht dieser Wert.
   final RunMode mode;
 
+  /// Sportart eines neuen Laufs mit [RunMode.sport] (FR-0221, Pflicht dort,
+  /// sonst `null`). Beim Fortsetzen gilt die gespeicherte Sportart.
+  final OtherSport? sport;
+
   /// Startgeschwindigkeit des Bands in m/s (Pflicht im Modus `treadmill`,
   /// FR-0196, K57) und optionale Steigung in %.
   final double? startBeltSpeedMetersPerSecond;
@@ -177,6 +182,11 @@ class RunController extends ChangeNotifier {
   /// Art des Laufs (nach dem Start die gespeicherte Art).
   RunMode get runMode =>
       _snapshot.phase == RecordingPhase.idle ? mode : _snapshot.mode;
+
+  /// Sportart bei [RunMode.sport] (nach dem Start die gespeicherte), sonst
+  /// `null`.
+  OtherSport? get runSport =>
+      _snapshot.phase == RecordingPhase.idle ? sport : _snapshot.sport;
 
   /// Ändert die Bandgeschwindigkeit (m/s) ab jetzt (FR-0196); gespeichert als
   /// Einstellung des Laufs. Gibt `false` zurück, wenn abgelehnt (kein
@@ -431,9 +441,9 @@ class RunController extends ChangeNotifier {
           return;
         }
       }
-      // Laufband: der Dienst zuerst, denn ohne sein Recht startet der Lauf
-      // nicht (K57) und es soll kein leerer Lauf entstehen.
-      if (runMode == RunMode.treadmill) {
+      // Laufband und andere Sportart: der Dienst zuerst, denn ohne sein Recht
+      // startet der Lauf nicht (K57) und es soll kein leerer Lauf entstehen.
+      if (runMode != RunMode.gps) {
         await _startService(runMode);
         if (_startDenied != null) return;
         if (_serviceFailed) {
@@ -451,6 +461,7 @@ class RunController extends ChangeNotifier {
         final r = resume == null
             ? await _recorder.start(
                 mode: runMode,
+                sport: runMode == RunMode.sport ? sport : null,
                 beltSpeedMetersPerSecond: startBeltSpeedMetersPerSecond,
                 inclinePercent: startInclinePercent,
               )
@@ -458,13 +469,13 @@ class RunController extends ChangeNotifier {
         if (r == CommandResult.rejected) {
           _startFailed = true;
           _startFailedResume = resume != null;
-          if (runMode == RunMode.treadmill) _stopService();
+          if (runMode != RunMode.gps) _stopService();
           return;
         }
       } on Object {
         _startFailed = true;
         _startFailedResume = resume != null;
-        if (runMode == RunMode.treadmill) _stopService();
+        if (runMode != RunMode.gps) _stopService();
         return;
       }
       // Der Schnappschuss der geführten Einheit sofort, vor Dienst und
@@ -480,7 +491,8 @@ class RunController extends ChangeNotifier {
         );
         unawaited(_saveGuided());
       }
-      // Das Laufband hat keine Positionen und braucht keinen Standort.
+      // Laufband und andere Sportart haben keine Positionen und brauchen
+      // keinen Standort.
       if (runMode == RunMode.gps) {
         _locationSub = location.samples().listen(
           (s) {
@@ -506,7 +518,8 @@ class RunController extends ChangeNotifier {
         _update();
         _guide();
       });
-      unawaited(_startCadence());
+      // Eine andere Sportart hat keine Schritte und keine Kadenz (FR-0221).
+      if (runMode != RunMode.sport) unawaited(_startCadence());
       if (runMode == RunMode.gps) await _startService(runMode);
       // Zuletzt und ohne Warten: Die Vorbereitung liest den Speicher und darf
       // den Start der Aufzeichnung nie aufhalten (Review 1, M1).
@@ -695,11 +708,7 @@ class RunController extends ChangeNotifier {
     if (s == null) return;
     _serviceWanted = true;
     try {
-      await s.start(
-        mode: runMode == RunMode.treadmill
-            ? RecordingServiceMode.treadmill
-            : RecordingServiceMode.gps,
-      );
+      await s.start(mode: RecordingServiceMode.of(runMode));
       _serviceFailed = false;
     } on RecordingStartDenied catch (e) {
       // Kein Lauf ohne das Recht (Laufband): eigener Zustand statt Fehler.

@@ -145,9 +145,18 @@ class ComputedValue {
     this.sections = const [],
     this.unavailableReason,
     this.heartRateBasis,
+    this.preprocessingVersion,
   });
 
   final String key;
+
+  /// Kettenversion der Vorverarbeitung, aus der der Wert entstand
+  /// (`preprocessingChainVersion`, ADR-0004): gesetzt an jedem Laufwert,
+  /// `null` an Tageswerten (sie rechnen aus Laufwerten, nicht aus der
+  /// Vorverarbeitung). Werte von vor Schema 19 tragen
+  /// `legacyPreprocessingChainVersion`. Eine Abweichung von der aktuellen
+  /// Kette ist ein Angebot zur Neuberechnung (`checkVersions`).
+  final String? preprocessingVersion;
 
   /// Herzfrequenzbasis, mit der der Wert gerechnet wurde (OQ-0065): HFmax,
   /// HFRuhe und ob HFmax eine Schätzung ist, unverändert und nie neu gelesen.
@@ -227,9 +236,18 @@ abstract interface class ComputedValueStore {
   /// rückgängig. Derselbe Schlüssel bei demselben Besitzer in [create] und
   /// [swap] ist `rejected` bzw. `notFound`, weil ein Wert nicht zugleich fehlen
   /// und vorhanden sein kann.
+  ///
+  /// [removeDays]: Tage (`JJJJ-MM-TT`), deren Tageswerte ganz entfallen
+  /// (`original` und `current` samt Abschnitten), zuerst und in derselben
+  /// Transaktion. Für die Neuberechnung nach einer neuen Tageszuordnung
+  /// (PAR-237): ein Tag ohne Lauf behält keinen Tageswert. Ein Tag ohne Werte
+  /// ändert nichts; ein Tag in [removeDays] und [swap] ist `notFound`, in
+  /// [removeDays] und [create] wird er neu angelegt. Laufwerte und Rohdaten
+  /// bleiben unberührt.
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
+    Set<String> removeDays = const {},
   });
 
   /// Alle Werte des Besitzers, nach Schlüssel sortiert.

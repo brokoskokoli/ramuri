@@ -64,7 +64,8 @@ class _Vals implements ComputedValueStore {
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
-  }) => i.writeAll(create: create, swap: swap);
+    Set<String> removeDays = const {},
+  }) => i.writeAll(create: create, swap: swap, removeDays: removeDays);
   @override
   Future<List<ValuePair>> read(ValueOwner o) {
     c.valueReads++;
@@ -107,7 +108,8 @@ class _Runs implements RunStore {
   Future<StoredRun> create({
     required DateTime startedAt,
     RunMode mode = RunMode.gps,
-  }) => i.create(startedAt: startedAt, mode: mode);
+    OtherSport? sport,
+  }) => i.create(startedAt: startedAt, mode: mode, sport: sport);
   @override
   Future<void> setState(
     int runId,

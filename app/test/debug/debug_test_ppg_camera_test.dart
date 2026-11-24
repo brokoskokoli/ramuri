@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app_dependencies.dart';
@@ -16,6 +18,12 @@ void main() {
     final events = await _run(cam);
     expect(events.first, isA<PpgCameraStarted>());
     expect(events.whereType<PpgCameraExposureLocked>(), hasLength(1));
+    // Sperre mit Sensorzeit, frühestens nach der Automatik-Phase (2,5 s).
+    expect(
+      events.whereType<PpgCameraExposureLocked>().single.t,
+      greaterThanOrEqualTo(2.5),
+    );
+    expect(events.whereType<PpgCameraRelocking>(), isEmpty);
     expect(
       events.whereType<PpgCameraDetails>().first.iso,
       debugCameraDetails.iso,
@@ -31,6 +39,59 @@ void main() {
     final cam = DebugTestPpgCamera(speed: 100000);
     final frames = _frames(await _run(cam));
     expect(frames.last.t, greaterThanOrEqualTo(ppgSearchMaxRecordSeconds));
+  });
+
+  test('ohne Anforderung: keine ISP-Werte, keine Schalter', () async {
+    final cam = DebugTestPpgCamera(speed: 100000);
+    final events = await _run(cam);
+    final started = events.first as PpgCameraStarted;
+    expect(started.diagnostics, isEmpty);
+    expect(started.awbVariant, isNull);
+    expect(
+      events.whereType<PpgCameraFrame>().map((f) => f.isp),
+      everyElement(isNull),
+    );
+    expect(cam.startedRequests, hasLength(1));
+    expect(cam.startedRequests.single.diagnostics, isEmpty);
+    expect(cam.startedRequests.single.ispFrames, isFalse);
+  });
+
+  test('mit Anforderung: angeforderte Schalter gesetzt, 19 ISP-Werte je Bild, '
+      'Auswertung gleich', () async {
+    final plain = _frames(await _run(DebugTestPpgCamera(speed: 100000)));
+    final cam = DebugTestPpgCamera(speed: 100000);
+    final events = await cam
+        .start(
+          diagnostics: {
+            PpgCameraDiagnostic.noiseReductionOff,
+            PpgCameraDiagnostic.awbFixed,
+          },
+          ispFrames: true,
+        )
+        .toList();
+    final started = events.first as PpgCameraStarted;
+    expect(started.diagnostics, {
+      PpgCameraDiagnostic.noiseReductionOff,
+      PpgCameraDiagnostic.awbFixed,
+    });
+    expect(started.awbVariant, PpgAwbVariant.matrix);
+    final frames = events.whereType<PpgCameraFrame>().toList();
+    expect(frames, isNotEmpty);
+    for (final f in frames) {
+      expect(f.isp, hasLength(ppgIspValueCount));
+    }
+    final isp = frames.first.isp!;
+    expect(isp[7], 0); // Rauschunterdrückung aus
+    expect(isp[8], 1); // Kanten unverändert
+    expect(isp[5], 0); // AWB OFF
+    expect(isp[11], debugCameraDetails.exposureTimeNs);
+    // Einzelne Felder „nicht gemeldet“ kommen vor.
+    expect(frames.where((f) => f.isp![18].isNaN), isNotEmpty);
+    // Bildstatistik und damit die Auswertung wie ohne Anforderung.
+    expect(
+      frames.map((f) => f.frame.r).toList(),
+      plain.map((f) => f.r).toList(),
+    );
   });
 
   test('schlechtes Signal: Auswertung unbrauchbar, kein Wert', () async {
@@ -196,6 +257,8 @@ void main() {
       expect([for (final c in list) c.isDefault], [true, false, false]);
       expect([for (final c in list) c.usable], [true, true, false]);
       expect(list[2].unusable, PpgCameraUnusable.noFlash);
+      // Bildrate: Standard 60, die übrigen nutzbaren 30, die nicht nutzbare ohne.
+      expect([for (final c in list) c.frameRate], [60, 30, null]);
     });
 
     test('ohne Rückkamera ist die Liste leer', () async {
@@ -288,5 +351,215 @@ void main() {
       );
       expect(cam.startedCameras, isEmpty);
     });
+  });
+
+  group('Bildrate je Kamera (FR-0220)', () {
+    Future<(PpgCameraStarted, List<PpgFrame>)> start(
+      DebugTestPpgCamera cam, [
+      PpgCameraRef? camera,
+    ]) async {
+      final events = await cam.start(camera: camera, ispFrames: true).toList();
+      return (events.first as PpgCameraStarted, _frames(events));
+    }
+
+    void expectSpacing(List<PpgFrame> frames, int fps) {
+      expect(frames.length, greaterThan(2));
+      expect(frames[1].t - frames[0].t, closeTo(1 / fps, 1e-9));
+      expect(
+        frames.last.t - frames[frames.length - 2].t,
+        closeTo(1 / fps, 1e-9),
+      );
+    }
+
+    test('ohne Angabe: Standardkamera nimmt mit 60 Bildern/s auf', () async {
+      final cam = DebugTestPpgCamera(speed: 100000);
+      final (started, frames) = await start(cam);
+      expect(started.camera, const PpgCameraRef('0'));
+      expect(started.fps, 60);
+      expectSpacing(frames, 60);
+    });
+
+    test('zweite nutzbare Kamera nimmt mit 30 Bildern/s auf', () async {
+      final cam = DebugTestPpgCamera(speed: 100000);
+      final (started, frames) = await start(cam, const PpgCameraRef('0', '2'));
+      expect(started.camera, const PpgCameraRef('0', '2'));
+      expect(started.fps, 30);
+      expectSpacing(frames, 30);
+    });
+
+    test(
+      'Rate gilt je Start: dieselbe Quelle erst Standard-, dann zweite Kamera',
+      () async {
+        final cam = DebugTestPpgCamera(speed: 100000);
+        expect((await start(cam)).$1.fps, 60);
+        final (started, frames) = await start(
+          cam,
+          const PpgCameraRef('0', '2'),
+        );
+        expect(started.fps, 30);
+        expectSpacing(frames, 30);
+        expect((await start(cam)).$1.fps, 60);
+      },
+    );
+
+    test('Bilddauer der ISP-Werte folgt der Rate der Kamera', () async {
+      final cam = DebugTestPpgCamera(speed: 100000);
+      final events = await cam.start(ispFrames: true).toList();
+      final isp = events.whereType<PpgCameraFrame>().first.isp!;
+      expect(isp[14], (1e9 / 60).roundToDouble());
+    });
+
+    test('feste Rate gilt für jede nutzbare Kamera', () async {
+      for (final ref in [
+        null,
+        const PpgCameraRef('0'),
+        const PpgCameraRef('0', '2'),
+      ]) {
+        final cam = DebugTestPpgCamera(speed: 100000, fps: 25);
+        final (started, frames) = await start(cam, ref);
+        expect(started.fps, 25, reason: '$ref');
+        expectSpacing(frames, 25);
+      }
+    });
+
+    // Takt ohne Nachliefern: Die Wanduhr steht, also sendet jeder Takt genau ein Bild. Nach
+    // 10,5 Bildabständen der Kamera sind es 11 Bilder (bei t = 0 und nach jedem der 10 Takte).
+    for (final (name, ref, fixed, rate) in [
+      ('Standardkamera', null, null, 60),
+      ('zweite nutzbare Kamera', const PpgCameraRef('0', '2'), null, 30),
+      ('feste Rate auf der Standardkamera', null, 25, 25),
+      (
+        'feste Rate auf der zweiten Kamera',
+        const PpgCameraRef('0', '2'),
+        25,
+        25,
+      ),
+    ]) {
+      // testWidgets: Timer laufen auf der Testuhr, `pump` rückt sie vor.
+      testWidgets('Takt folgt der Rate: $name sendet je 1/$rate s ein Bild', (
+        tester,
+      ) async {
+        final cam = DebugTestPpgCamera(
+          speed: 1,
+          fps: fixed,
+          wallClock: () => Duration.zero,
+        );
+        final sub = cam.start(camera: ref).listen((_) {});
+        await tester.pump();
+        expect(cam.framesGenerated, 1);
+        final tick = Duration(microseconds: (1e6 / rate).round());
+        await tester.pump(tick * 10 + tick ~/ 2);
+        expect(cam.framesGenerated, 11);
+        // Nicht abwarten: Unter der Testuhr kehrt das Abbestellen sonst nicht zurück.
+        unawaited(sub.cancel());
+        await tester.pump(tick);
+        expect(cam.framesGenerated, 11);
+      });
+    }
+
+    test('nutzbarer Eintrag ohne Rate: 30 Bilder/s, feste Rate geht vor', () {
+      const info = PpgCameraInfo(ref: PpgCameraRef('5'), focalLengthMm: 4);
+      expect(debugPpgFrameRate(info, null), 30);
+      expect(debugPpgDefaultFps, 30);
+      expect(debugPpgFrameRate(info, 25), 25);
+      expect(debugPpgFrameRate(debugPpgCameras.first, null), 60);
+    });
+
+    test('auch mit fester Rate: Kamera ohne Blitz und unbekannte Kamera '
+        'brechen vor jedem Bild ab', () async {
+      for (final (ref, reason) in [
+        (const PpgCameraRef('1'), PpgCameraStopReason.noFlash),
+        (const PpgCameraRef('7'), PpgCameraStopReason.noCamera),
+      ]) {
+        for (final fps in [null, 25]) {
+          final cam = DebugTestPpgCamera(speed: 100000, fps: fps);
+          final events = await cam.start(camera: ref).toList();
+          expect(events, hasLength(1));
+          expect((events.single as PpgCameraStopped).reason, reason);
+          expect(cam.framesGenerated, 0);
+          expect(cam.startedCameras, isEmpty);
+        }
+      }
+    });
+  });
+  group('Kamerasuche (FR-0220, PAR-227)', () {
+    const std = PpgCameraRef('0');
+    const second = PpgCameraRef('0', '2');
+    const noFlash = PpgCameraRef('1');
+
+    /// Bis zur Sensorzeit [until] sammeln (Wanduhr fest auf [until], also ein Durchlauf),
+    /// dann abbestellen.
+    Future<List<PpgPreviewEvent>> collect(
+      DebugTestPpgCamera cam,
+      double until,
+    ) async {
+      final events = <PpgPreviewEvent>[];
+      final done = Completer<void>();
+      late final StreamSubscription<PpgPreviewEvent> sub;
+      sub = cam.preview(const [std, second, noFlash]).listen((e) {
+        events.add(e);
+        if (e is PpgPreviewFrame && e.t >= until && !done.isCompleted) {
+          done.complete();
+        }
+      });
+      await done.future;
+      expect(cam.previewOn, isTrue);
+      expect(cam.torchOn, isTrue);
+      await sub.cancel();
+      expect(cam.previewOn, isFalse);
+      expect(cam.torchOn, isFalse);
+      return events;
+    }
+
+    DebugTestPpgCamera camera({required bool alternating, required double t}) =>
+        DebugTestPpgCamera(
+            wallClock: () => Duration(milliseconds: (t * 1000).round()),
+          )
+          ..previewAlternating = alternating
+          ..setScenario(std, DebugPpgScenario.noFinger)
+          ..setScenario(second, DebugPpgScenario.goodPulse);
+
+    test('gleichzeitig: Bilder beider nutzbarer Kameras, Fläche rot bzw. grau, '
+        'Kamera ohne Blitz mit Grund', () async {
+      final e = await collect(camera(alternating: false, t: 1), 1);
+      expect(e.first, isA<PpgPreviewStarted>());
+      expect((e.first as PpgPreviewStarted).mode, PpgPreviewMode.simultaneous);
+      final failed = e.whereType<PpgPreviewCameraFailed>().single;
+      expect(failed.camera, noFlash);
+      expect(failed.reason, PpgCameraStopReason.noFlash);
+      expect(e.whereType<PpgPreviewTurn>(), isEmpty);
+      final frames = e.whereType<PpgPreviewFrame>().toList();
+      final a = frames.where((f) => f.camera == std).toList();
+      final b = frames.where((f) => f.camera == second).toList();
+      // Je Takt ein Bild beider Kameras (das letzte Paar evtl. erst halb gesammelt).
+      expect(a.length - b.length, inInclusiveRange(0, 1));
+      expect(a.length, greaterThanOrEqualTo(10));
+      expect(frames.any((f) => f.camera == noFlash), isFalse);
+      // Finger: rot (R/G 5), kein Finger: grau (R/G < 1,5).
+      expect(b.first.r / b.first.g, 5);
+      expect(a.first.r / a.first.g, lessThan(ppgMinRedGreenRatio));
+      expect(a.first.exposureNs, isNotNull);
+      expect(a.first.iso, isNotNull);
+    });
+
+    test(
+      'im Wechsel: Reihenfolge der Anfrage, je Kamera 1,5 s, dann von vorn',
+      () async {
+        final e = await collect(camera(alternating: true, t: 3.2), 3.2);
+        expect((e.first as PpgPreviewStarted).mode, PpgPreviewMode.alternating);
+        final turns = [for (final t in e.whereType<PpgPreviewTurn>()) t.camera];
+        expect(turns, const [std, second, std]);
+        PpgCameraRef? live;
+        for (final x in e) {
+          if (x is PpgPreviewTurn) live = x.camera;
+          if (x is PpgPreviewFrame) {
+            // Nur die Kamera, die dran ist, liefert Bilder; Wechsel bei 1,5 s und 3,0 s.
+            expect(x.camera, live);
+            final k = (x.t / ppgCameraFinderTurnSeconds + 1e-9).floor() % 2;
+            expect(x.camera, k == 0 ? std : second, reason: 't ${x.t}');
+          }
+        }
+      },
+    );
   });
 }

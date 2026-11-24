@@ -118,7 +118,7 @@ void main() {
     expect(_shape(same), '2x1');
   });
 
-  // Review 4, Muss 2: jedes Zielfeld trennt, sonst zeigte die Gruppe die Ziele des ersten Abschnitts.
+  // Jedes Zielfeld trennt, sonst zeigte die Gruppe die Ziele des ersten Abschnitts.
   PlanTargetIntensity target({
     int rpeMin = 6,
     int rpeMax = 7,

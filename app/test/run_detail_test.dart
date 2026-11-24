@@ -351,7 +351,7 @@ void main() {
       },
     );
 
-    // Runde 4: Bei fast konstanter Pace (Spanne 7 s) füllt Rauschen nicht die
+    // Bei fast konstanter Pace (Spanne 7 s) füllt Rauschen nicht die
     // Höhe; die Achse ist mindestens 60 s breit, um den Kernbereich zentriert.
     ChartLayer steady({List<double> extra = const []}) => ChartLayer.pace(
       name: 'Pace',
@@ -750,7 +750,7 @@ void main() {
     expect(key('route_paint'), findsOneWidget);
     // Die Kopfzeile des Höhenprofils muss wirklich im Bild sein: Außerhalb
     // des Sichtbereichs wird sie nicht gelayoutet und ein Überlauf bliebe
-    // unbemerkt (WP18 Review 1, Befund 4).
+    // unbemerkt.
     await tester.scrollUntilVisible(
       key('detail_ascent'),
       300,

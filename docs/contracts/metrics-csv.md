@@ -35,7 +35,7 @@ format_version,owner,day,run_id,run_started_at,run_mode,role,value_key,value,uni
 |---|---|---|---|
 | `format_version` | Formatversion | ganze Zahl, `1` | nie |
 | `owner` | Besitzer des Werts | `run` oder `day` | nie |
-| `day` | Tag des Tageswerts | Datum `JJJJ-MM-TT` | `owner` = `run` |
+| `day` | Tag des Tageswerts: Ortstag des Laufs nach PAR-237 (Tag seines Starts) | Datum `JJJJ-MM-TT` | `owner` = `run` |
 | `run_id` | Kennung des Laufs im Speicher | ganze Zahl | `owner` = `day` |
 | `run_started_at` | Start des Laufs | UTC-Zeitpunkt | `owner` = `day` |
 | `run_mode` | Art des Laufs | `gps` oder `treadmill` | `owner` = `day` |

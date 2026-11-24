@@ -18,11 +18,19 @@ const String planMethod = 'weekly-time-course';
 /// Verschiebung und absolviertem Lauf erhalten. 6: Lockerung nach PAR-173
 /// bei „adaptiv“ (FR-0216, `applyRecoveryEase`); eine gelockerte Einheit vor
 /// heute zählt als harte Einheit ihrer Woche (`generatePlan(easedHardDays:)`).
-const int planMethodVersion = 6;
+/// 7: Abweichung von der Einheit (PAR-235): bei „adaptiv“ zählt ein deutlich
+/// längerer oder härterer Lauf mit der echten Bewegungszeit
+/// (`generatePlan(countedMinutes:)`), ein intensiv gelaufener lockerer Lauf
+/// als harte Einheit der Woche (`generatePlan(intensiveRunDays:)`); bei „fix“
+/// tauscht die nächste harte Einheit den Tag (`applyRunSpacingSwap`).
+/// 8: Eine andere Sportart, die eine lockere Einheit ersetzt (PAR-233), zählt
+/// mit Bewegungszeit und RPE für die Wochenprüfung (PAR-201); eine intensive
+/// andere Sportart zählt für den Abstand zu harten Einheiten (PAR-059).
+const int planMethodVersion = 8;
 
 /// Stand der Parameter (ADR-0010 Punkt 1: `parameter_version`). Steigt, wenn
 /// sich ein Wert in [PlanParameters] ändert.
-const int planParameterVersion = 2;
+const int planParameterVersion = 4;
 
 /// Alle Zahlen des Wochenzeit-Verlaufs, jede mit ihrer Regel. Nichts davon
 /// steht außerhalb dieser Klasse. Voreinstellung sind die Werte aus
@@ -76,6 +84,10 @@ class PlanParameters {
     this.minGapDays = 2,
     this.completedIntensiveMinRpe = 7,
     this.completedIntensiveMinHighHrMinutes = 10,
+    this.deviationTimeFactor = 2.0,
+    this.deviationRpeSteps = 3,
+    this.replaceMinShare = 2 / 3,
+    this.replaceMaxPerWeek = 1,
     this.continuousRunMinutes = 30,
     this.peakFallbackShort = 35,
     this.peakFallbackTen = 65,
@@ -93,6 +105,8 @@ class PlanParameters {
     this.fatigueRuns = 2,
     this.fatigueWindowRuns = 3,
     this.fatigueReduction = 0.10,
+    this.underloadRuns = 2,
+    this.underloadWindowRuns = 3,
     this.pauseMinDays = 7,
     this.pauseLongDays = 14,
     this.pauseNewStartDays = 56,
@@ -204,6 +218,14 @@ class PlanParameters {
   /// `high_hr_time`, Verfahren `high-hr-time`).
   final int completedIntensiveMinHighHrMinutes;
 
+  /// PAR-235: „Deutlich mehr“ ab dieser Bewegungszeit als Vielfaches der
+  /// geplanten Dauer der Einheit (2,0).
+  final double deviationTimeFactor;
+
+  /// PAR-235: „Deutlich mehr“ ab so vielen RPE-Stufen über der Obergrenze der
+  /// Vorgabe der Einheit (PAR-105), 3.
+  final int deviationRpeSteps;
+
   /// PAR-058 für einen absolvierten Lauf: intensiv bei mindestens
   /// [completedIntensiveMinHighHrMinutes] Minuten bei mindestens 80 % HFmax
   /// ODER einer RPE-Angabe ab [completedIntensiveMinRpe]. [highHrMinutes] ist
@@ -270,6 +292,21 @@ class PlanParameters {
   final int fatigueRuns;
   final int fatigueWindowRuns;
   final double fatigueReduction;
+
+  /// PAR-233: Die Bewegungszeit einer Sporteinheit, die eine lockere Einheit
+  /// ersetzt, ist mindestens dieser Anteil der geplanten Dauer (zwei Drittel).
+  final double replaceMinShare;
+
+  /// PAR-233: höchstens so viele ersetzte Einheiten je Planwoche (Montag bis
+  /// Sonntag).
+  final int replaceMaxPerWeek;
+
+  /// PAR-236: so viele der letzten [underloadWindowRuns] lockeren Läufe mit
+  /// Puls und RPE sind „hart nach Puls, leicht empfunden“ (2 von 3).
+  final int underloadRuns;
+
+  /// PAR-236: Fenster der lockeren Läufe mit Puls und RPE (die letzten 3).
+  final int underloadWindowRuns;
 
   /// PAR-202: Pause ab 7 Tagen; ab 14 Tagen die zweite Stufe; ab 56 Tagen
   /// neuer Start (PAR-192).

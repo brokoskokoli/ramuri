@@ -7,6 +7,7 @@ import '../fitness/fitness_parameters.dart';
 import '../fitness/heart_rate_basis.dart';
 import '../fitness/load_profile.dart';
 import '../fitness/vo2max_long_term.dart';
+import '../preprocessing/preprocessing_chain.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../recording/treadmill.dart' show RunMode;
 import '../statistics/run_overview.dart' show overviewOf;
@@ -18,6 +19,9 @@ import 'high_heart_rate_value.dart';
 import 'run_analysis.dart';
 import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'run_load_values.dart';
+import '../run_day/run_day.dart';
+
+export '../run_day/run_day.dart';
 
 /// Die Werte, die nach einem Lauf entstehen.
 class RunCalculationResult {
@@ -48,11 +52,23 @@ class ValueSnapshot {
     required this.runValues,
     required this.dayValues,
     this.runCreates = const {},
+    this.dayCreates = const {},
+    this.removedDays = const {},
   });
 
   final Map<ValueOwner, List<ComputedValue>> runValues;
   final Map<ValueOwner, List<ComputedValue>> dayValues;
   final Map<ValueOwner, List<ComputedValue>> runCreates;
+
+  /// Tageswerte, die neu angelegt werden: Tage mit einem Lauf mit Laufwert,
+  /// die noch keine haben (z. B. der Starttag eines Laufs über Mitternacht
+  /// nach der neuen Tageszuordnung, PAR-237).
+  final Map<ValueOwner, List<ComputedValue>> dayCreates;
+
+  /// Tage mit gespeicherten Tageswerten, aber ohne beendeten Lauf ([dayOfRun]):
+  /// ihre Tageswerte entfallen (z. B. der Endtag eines Laufs über
+  /// Mitternacht, PAR-237).
+  final Set<String> removedDays;
 
   /// Läufe mit getauschten oder neu angelegten Werten.
   int get runCount => {...runValues.keys, ...runCreates.keys}.length;
@@ -63,24 +79,20 @@ class ValueSnapshot {
 /// ist noch nicht gerechnet und bekommt alle Werte mit seiner Berechnung. Die
 /// EINE Stelle für [ValueCalculationService.buildSnapshot], die betroffenen
 /// Läufe und die Prüfung auf fehlende Werte im Angebot.
-bool hasRecalculatedRunValue(Iterable<ValuePair> stored) => stored.any(
-  (p) =>
-      p.original.key == vo2maxRunValueKey || p.original.key == trimpRunValueKey,
-);
+bool hasRecalculatedRunValue(Iterable<ValuePair> stored) =>
+    hasRecalculatedRunKey(stored.map((p) => p.original.key));
 
-/// ISO-Datum (UTC) `JJJJ-MM-TT` eines Zeitpunkts.
-String isoDay(DateTime t) {
-  final u = t.toUtc();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${u.year.toString().padLeft(4, '0')}-${two(u.month)}-${two(u.day)}';
-}
+/// [hasRecalculatedRunValue] über die Schlüssel der gespeicherten Werte (für
+/// die Sammelabfrage `readRunValues` mit [recalculatedRunValueKeys]).
+bool hasRecalculatedRunKey(Iterable<String> keys) =>
+    keys.any(recalculatedRunValueKeys.contains);
 
-/// Besitzertag der Tageswerte eines Laufs: der LOKALE Kalendertag des
-/// Laufendes, also `endedAt + endedUtcOffset`. Fehlt der Versatz (alter Lauf,
-/// unbekannt), gilt der UTC-Tag. Die EINE Stelle für Speichern, Neuberechnung
-/// und Löschen.
-String dayOfRun(StoredRun run) =>
-    isoDay(run.endedAt!.toUtc().add(run.endedUtcOffset ?? Duration.zero));
+/// Schlüssel der Laufwerte, die einen Lauf zur Neuberechnung gehören lassen
+/// ([hasRecalculatedRunValue]).
+const Set<String> recalculatedRunValueKeys = {
+  vo2maxRunValueKey,
+  trimpRunValueKey,
+};
 
 /// Rechnet VO₂max-Laufwert, Langzeitwert und aerobe Effizienz aus den
 /// gespeicherten Rohdaten (FR-0066 bis FR-0087), dazu die Laufwerte für Zonen
@@ -89,10 +101,11 @@ String dayOfRun(StoredRun run) =>
 /// Abschnitten (FR-0073) und der verwendeten Herzfrequenzbasis (OQ-0065).
 /// Netzwerkfrei (SEC-0006), Zeit nur über [Clock].
 ///
-/// Tageswerte (Langzeitwert, aerobe Effizienz) gehören dem lokalen
-/// Kalendertag des Laufendes ([dayOfRun]); sie gelten für das Ende dieses
-/// Tages (mit dem Versatz des zuletzt endenden Laufs des Tages), für den
-/// heutigen Tag für jetzt. Gibt es für den Tag schon einen Wert, wird sein
+/// Tageswerte (Langzeitwert, aerobe Effizienz) gehören dem Tag des Laufs,
+/// dem Ortstag seines Beginns ([dayOfRun], PAR-237); sie gelten für das Ende
+/// dieses Tages (mit dem Versatz des zuletzt endenden Laufs des Tages, bei
+/// einem Lauf über Mitternacht für dessen Ende), für den heutigen Tag für
+/// jetzt. Gibt es für den Tag schon einen Wert, wird sein
 /// `current` getauscht, das `original` ist dann der erste Wert des Tages.
 ///
 /// Herzfrequenzbasis der aeroben Effizienz: jeder Lauf mit gespeichertem
@@ -112,7 +125,9 @@ class ValueCalculationService {
     this.preprocessing = const PreprocessingParameters.v4(),
     this.longTerm = const SmoothedVo2maxLongTerm(),
     this.efficiency = const MedianAerobicEfficiency(),
-  });
+    String? preprocessingVersion,
+  }) : preprocessingVersion =
+           preprocessingVersion ?? preprocessingChainVersion();
 
   final StorageSession session;
   final Clock clock;
@@ -120,6 +135,12 @@ class ValueCalculationService {
   final PreprocessingParameters preprocessing;
   final Vo2maxLongTerm longTerm;
   final AerobicEfficiency efficiency;
+
+  /// Kettenversion der Vorverarbeitung, die an jeden neuen Laufwert kommt
+  /// und gegen die `RecalculationService.checkVersions` die gespeicherten
+  /// prüft (ADR-0004). Ohne Angabe die der App ([preprocessingChainVersion]);
+  /// Tests setzen eine Kette mit erhöhter Stufe.
+  final String preprocessingVersion;
 
   /// Herzfrequenzbasis des gespeicherten Profils (FR-0003, FR-0004), wie sie
   /// an Werten gespeichert wird.
@@ -188,18 +209,23 @@ class ValueCalculationService {
     final profile = await _profileBasis();
     final analysis = await _analyzer(profile)
         .analyze(session, run, calculatedAt: now);
-    final runValue = analysis.vo2maxValue(now);
+    final runValue = analysis.vo2maxValue(
+      now,
+      preprocessingVersion: preprocessingVersion,
+    );
 
     final runs = await _finishedRuns();
-    final runValues = <int, ComputedValue>{runId: runValue};
-    for (final other in runs) {
-      if (other.id == runId) continue;
-      final stored = await _runValue(other.id);
-      if (stored != null) runValues[other.id] = stored.current;
-    }
+    final stored = await session.values.readRunValues({vo2maxRunValueKey});
+    final runValues = <int, ComputedValue>{
+      runId: runValue,
+      for (final other in runs)
+        if (other.id != runId) other.id: ?stored[other.id]?[vo2maxRunValueKey],
+    };
     final day = dayOfRun(run);
     final cache = <int, RunAnalysis>{runId: analysis};
     final values = await _dayValues(
+      day: day,
+      runs: runs,
       asOf: _asOf(day, runs, now),
       computedAt: now,
       runValues: runValues,
@@ -208,8 +234,10 @@ class ValueCalculationService {
           cache[r.id] ??= await _analyzer(basis)
               .analyze(session, r, calculatedAt: now),
     );
-    final plan = _DayPlan();
-    await plan.add(session, day, values.all);
+    // Tageswerte des Tags und aller späteren Tage in EINER Abfrage; geschrieben
+    // wird erst am Ende, alle Entscheidungen sehen also denselben Stand.
+    final plan = _DayPlan(await session.values.readDayValues(dayValueKeys));
+    plan.add(day, values.all);
     final select = refreshDay ?? (d, runDay) => d.compareTo(runDay) > 0;
     final later = <String>{
       for (final r in runs)
@@ -217,6 +245,8 @@ class ValueCalculationService {
     }.where((d) => select(d, day)).toList()..sort();
     for (final d in later) {
       final dayValues = await _dayValues(
+        day: d,
+        runs: runs,
         asOf: _asOf(d, runs, now),
         computedAt: now,
         runValues: runValues,
@@ -225,7 +255,7 @@ class ValueCalculationService {
             cache[r.id] ??= await _analyzer(basis)
                 .analyze(session, r, calculatedAt: now),
       );
-      await plan.add(session, d, dayValues.all);
+      plan.add(d, dayValues.all);
     }
     // Zonenzeiten und TRIMP mit den Zonengrenzen und der Basis zum Laufende;
     // Zonenzeiten werden nie neu gerechnet (L11), TRIMP nur bei geänderter
@@ -239,6 +269,7 @@ class ValueCalculationService {
       fitness: fitness.copyWith(reserveZoneBounds: bounds),
       sources: analysis.sources,
       computedAt: now,
+      preprocessingVersion: preprocessingVersion,
       loadProfile: await loadResolution(profile),
     );
     // Zeit bei mindestens 80 % HFmax (PAR-058) mit der Basis zum Laufende.
@@ -249,6 +280,7 @@ class ValueCalculationService {
       fitness: fitness,
       sources: analysis.sources,
       computedAt: now,
+      preprocessingVersion: preprocessingVersion,
     );
     // Kurzfassung für Historie und Vergleich (vor den Werten: scheitert sie,
     // ist nichts geschrieben und ein neuer Versuch möglich).
@@ -261,6 +293,7 @@ class ValueCalculationService {
           computedAt: now,
           lapCount: (await session.markers.laps(runId)).length,
           belt: analysis.belt,
+          isRunning: run.mode.isRunning,
         ),
       );
       // Angaben zum Lauf, die schon vor der Berechnung gemacht wurden: sRPE
@@ -412,7 +445,7 @@ class ValueCalculationService {
   }
 
   /// Rechnet die offenen Läufe [runs] ([calculateAfterRun]) in der
-  /// Reihenfolge ihres Endes: Jeder Lauf rechnet die späteren Tage nur bis vor
+  /// Reihenfolge ihres Tages ([dayOfRun]), am selben Tag ihres Endes: Jeder Lauf rechnet die späteren Tage nur bis vor
   /// den Tag des nächsten (der rechnet sie ohnehin), so wird jeder spätere Tag
   /// höchstens einmal neu gerechnet. Scheitert ein Lauf nach einem gelungenen,
   /// rechnet der nächste gelungene die Tage ab dem Tag des gescheiterten mit;
@@ -425,7 +458,7 @@ class ValueCalculationService {
     required CalculationFailures counter,
     required Future<void> Function(int runId) onComputed,
   }) async {
-    final toCalculate = [...runs]..sort(_byEnd);
+    final toCalculate = [...runs]..sort(_byDay);
     Object? failure;
     // Tag, ab dem (einschließlich) Tageswerte nach einem gescheiterten Lauf
     // noch einen früher gerechneten Laufwert brauchen.
@@ -475,7 +508,9 @@ class ValueCalculationService {
     return (computed: computed, failure: failure);
   }
 
-  static int _byEnd(StoredRun a, StoredRun b) {
+  static int _byDay(StoredRun a, StoredRun b) {
+    final d = dayOfRun(a).compareTo(dayOfRun(b));
+    if (d != 0) return d;
     final c = a.endedAt!.compareTo(b.endedAt!);
     return c != 0 ? c : a.id.compareTo(b.id);
   }
@@ -582,15 +617,16 @@ class ValueCalculationService {
   Future<void> _refreshDays({String? from}) async {
     final now = clock.now();
     final runs = await _finishedRuns();
-    final runValues = <int, ComputedValue>{};
-    for (final r in runs) {
-      final stored = await _runValue(r.id);
-      if (stored != null) runValues[r.id] = stored.current;
-    }
+    final stored = await session.values.readRunValues({vo2maxRunValueKey});
+    final runValues = <int, ComputedValue>{
+      for (final r in runs) r.id: ?stored[r.id]?[vo2maxRunValueKey],
+    };
     if (runValues.isEmpty) return;
     final profile = await _profileBasis();
     final cache = <int, RunAnalysis>{};
-    final plan = _DayPlan();
+    // Tageswerte aller Tage in EINER Abfrage (erst nach dem Ausstieg ohne
+    // Laufwert); geschrieben wird erst am Ende.
+    final plan = _DayPlan(await session.values.readDayValues(dayValueKeys));
     final days = <String>{
       for (final r in runs)
         if (runValues.containsKey(r.id) &&
@@ -599,6 +635,8 @@ class ValueCalculationService {
     };
     for (final day in days.toList()..sort()) {
       final values = await _dayValues(
+        day: day,
+        runs: runs,
         asOf: _asOf(day, runs, now),
         computedAt: now,
         runValues: runValues,
@@ -607,7 +645,7 @@ class ValueCalculationService {
             cache[r.id] ??= await _analyzer(basis)
                 .analyze(session, r, calculatedAt: now),
       );
-      await plan.add(session, day, values.all);
+      plan.add(day, values.all);
     }
     await session.values.writeAll(create: plan.create, swap: plan.swap);
   }
@@ -624,7 +662,9 @@ class ValueCalculationService {
 
   /// Rechnet alle Läufe mit gespeichertem Laufwert und deren Tageswerte mit
   /// der aktuellen Profilbasis neu, ohne etwas zu speichern (Zwischenstand der
-  /// Neuberechnung). Tageswerte nur für Tage, die schon einen haben.
+  /// Neuberechnung). Tageswerte für Tage, die schon einen haben, und für Tage
+  /// mit einem Lauf mit Laufwert ([ValueSnapshot.dayCreates]); Tageswerte an
+  /// Tagen ohne Lauf entfallen ([ValueSnapshot.removedDays], PAR-237).
   ///
   /// [loadProfile]: das Belastungsprofil, mit dem der TRIMP gerechnet wird
   /// (Wechsel nach Bestätigung, OQ-0053); ohne Angabe das aktive. Ist das
@@ -650,12 +690,19 @@ class ValueCalculationService {
     Future<RunAnalysis> analysisOf(StoredRun r, HeartRateBasis _) async =>
         cache[r.id] ??= await analyzer.analyze(session, r, calculatedAt: now);
 
+    // Laufwerte aller Läufe in EINER Abfrage (nur die Schlüssel zählen, keine
+    // Abschnitte nötig).
+    final storedRuns = await session.values.readRunValues({
+      ...recalculatedRunValueKeys,
+      highHeartRateTimeValueKey,
+    });
     final runValues = <int, ComputedValue>{};
     final runOwners = <ValueOwner, List<ComputedValue>>{};
     final runCreates = <ValueOwner, List<ComputedValue>>{};
     for (final r in runs) {
-      final stored = await session.values.read(ValueOwner.run(r.id));
-      if (!hasRecalculatedRunValue(stored)) continue;
+      final stored = storedRuns[r.id]?.keys.toSet() ?? const <String>{};
+      if (!hasRecalculatedRunKey(stored)) continue;
+      final hasTrimp = stored.contains(trimpRunValueKey);
       final analysis = await analysisOf(r, profile);
       final high = buildHighHeartRateTimeValue(
         run: r,
@@ -664,40 +711,68 @@ class ValueCalculationService {
         fitness: fitness,
         sources: analysis.sources,
         computedAt: now,
+        preprocessingVersion: preprocessingVersion,
       );
       // Vorhanden: tauschen (hängt an HFmax wie der TRIMP); fehlt er (Lauf
       // von vor dieser Methode): anlegen.
-      if (stored.any((p) => p.original.key == highHeartRateTimeValueKey)) {
+      if (stored.contains(highHeartRateTimeValueKey)) {
         runOwners[ValueOwner.run(r.id)] = [high];
       } else {
         runCreates[ValueOwner.run(r.id)] = [high];
       }
-      if (await _runValue(r.id) == null) {
+      if (!stored.contains(vo2maxRunValueKey)) {
         // Lauf mit TRIMP, aber ohne Laufwert (VO2max): nur der TRIMP wird
         // getauscht, sonst bliebe er nach einem Profilwechsel im alten Modell
         // und ATL/CTL mischten Skalen (FR-0097, FR-0197).
-        final trimp = await _trimpSwap(r, analysis, profile, resolution, now);
+        final trimp = _trimpSwap(
+          r,
+          analysis,
+          profile,
+          resolution,
+          now,
+          hasTrimp: hasTrimp,
+        );
         if (trimp.isNotEmpty) {
           (runOwners[ValueOwner.run(r.id)] ??= []).addAll(trimp);
         }
         continue;
       }
-      final value = analysis.vo2maxValue(now);
+      final value = analysis.vo2maxValue(
+        now,
+        preprocessingVersion: preprocessingVersion,
+      );
       runValues[r.id] = value;
       (runOwners[ValueOwner.run(r.id)] ??= []).addAll([
         value,
-        ...await _trimpSwap(r, analysis, profile, resolution, now),
+        ..._trimpSwap(
+          r,
+          analysis,
+          profile,
+          resolution,
+          now,
+          hasTrimp: hasTrimp,
+        ),
       ]);
     }
     final dayOwners = <ValueOwner, List<ComputedValue>>{};
+    final dayCreates = <ValueOwner, List<ComputedValue>>{};
     final days = _daysWithRun(runs);
+    // Tage mit einem Lauf mit Laufwert: fehlen dort Tageswerte (der Lauf
+    // gehörte nach der alten Tageszuordnung einem anderen Tag), werden sie
+    // angelegt.
+    final daysWithValue = {
+      for (final r in runs)
+        if (runValues.containsKey(r.id)) dayOfRun(r),
+    };
+    // Tageswerte aller Tage in EINER Abfrage; alle Tagesschlüssel stehen in
+    // [dayValueKeys] (_DayPlan prüft das beim Schreiben).
+    final storedDays = await session.values.readDayValues(dayValueKeys);
     for (final day in days.toList()..sort()) {
-      final existing = {
-        for (final p in await session.values.read(ValueOwner.day(day)))
-          p.original.key,
-      };
-      if (existing.isEmpty) continue;
+      final existing = storedDays[day]?.keys.toSet() ?? const <String>{};
+      if (existing.isEmpty && !daysWithValue.contains(day)) continue;
       final values = await _dayValues(
+        day: day,
+        runs: runs,
         asOf: _asOf(day, runs, now),
         computedAt: now,
         runValues: runValues,
@@ -709,26 +784,34 @@ class ValueCalculationService {
           if (existing.contains(v.key)) v,
       ];
       if (swappable.isNotEmpty) dayOwners[ValueOwner.day(day)] = swappable;
+      if (existing.isEmpty) dayCreates[ValueOwner.day(day)] = values.all;
     }
     return ValueSnapshot(
       runValues: runOwners,
       dayValues: dayOwners,
       runCreates: runCreates,
+      dayCreates: dayCreates,
+      removedDays: {
+        for (final day in storedDays.keys)
+          if (!days.contains(day)) day,
+      },
     );
   }
 
   /// TRIMP des Laufs mit der neuen Basis, wenn der Lauf schon einen gespeicherten
   /// TRIMP hat (FR-0006, OQ-0031: TRIMP hängt an HFmax; `original` bleibt).
   /// Zonenzeiten werden nie neu gerechnet (L11), ein Lauf ohne gespeicherten
-  /// TRIMP (vor dieser Entscheidung) bekommt keinen.
-  Future<List<ComputedValue>> _trimpSwap(
+  /// TRIMP (vor dieser Entscheidung) bekommt keinen. [hasTrimp]: hat der Lauf
+  /// einen gespeicherten TRIMP (auch „nicht verfügbar“)?
+  List<ComputedValue> _trimpSwap(
     StoredRun r,
     RunAnalysis analysis,
     HeartRateBasis profile,
     LoadProfileResolution resolution,
-    DateTime now,
-  ) async {
-    if (!await _hasTrimp(r.id) || !resolution.applicable) return const [];
+    DateTime now, {
+    required bool hasTrimp,
+  }) {
+    if (!hasTrimp || !resolution.applicable) return const [];
     return [
       for (final v in buildRunLoadValues(
         run: r,
@@ -737,6 +820,7 @@ class ValueCalculationService {
         fitness: fitness,
         sources: analysis.sources,
         computedAt: now,
+        preprocessingVersion: preprocessingVersion,
         loadProfile: resolution,
       ))
         if (v.key == trimpRunValueKey) v,
@@ -745,7 +829,8 @@ class ValueCalculationService {
 
   /// Zeitpunkt, für den der Tageswert des lokalen Tages [day] gilt: Ende des
   /// Tages (mit dem Versatz des zuletzt endenden Laufs des Tages; unbekannt:
-  /// UTC), für den heutigen Tag jetzt.
+  /// UTC), bei einem Lauf des Tages über Mitternacht (PAR-237) dessen Ende,
+  /// für den heutigen Tag jetzt.
   DateTime _asOf(String day, List<StoredRun> runs, DateTime now) {
     StoredRun? last;
     for (final r in runs) {
@@ -753,37 +838,38 @@ class ValueCalculationService {
       if (last == null || r.endedAt!.isAfter(last.endedAt!)) last = r;
     }
     final offset = last?.endedUtcOffset ?? Duration.zero;
-    final end = DateTime.parse('${day}T00:00:00Z')
+    var end = DateTime.parse('${day}T00:00:00Z')
         .add(const Duration(days: 1))
         .subtract(offset)
         .subtract(const Duration(microseconds: 1));
+    if (last != null && last.endedAt!.isAfter(end)) end = last.endedAt!;
     return end.isAfter(now) ? now : end;
   }
 
-  /// Hat der Lauf einen gespeicherten TRIMP (auch „nicht verfügbar“)?
-  Future<bool> _hasTrimp(int runId) async =>
-      (await session.values.read(ValueOwner.run(runId)))
-          .any((p) => p.original.key == trimpRunValueKey);
-
-  Future<ValuePair?> _runValue(int runId) async {
-    for (final p in await session.values.read(ValueOwner.run(runId))) {
-      if (p.original.key == vo2maxRunValueKey) return p;
-    }
-    return null;
-  }
-
-  /// Langzeitwert und aerobe Effizienz zum Zeitpunkt [asOf]. Die Basis eines
-  /// Laufs im Fenster ist die an seinem Laufwert in [runValues] gespeicherte;
-  /// ohne Laufwert [fallback]; ist sie unbekannt, entfällt die Effizienz.
+  /// Langzeitwert und aerobe Effizienz des Tages [day] zum Zeitpunkt [asOf].
+  /// Es zählen die Läufe aus [runs] bis zu diesem Tag (Tag des Laufs nach
+  /// [dayOfRun], PAR-237), ein Lauf über Mitternacht also schon an seinem
+  /// Starttag. Die Basis eines Laufs im Fenster ist die an seinem Laufwert in
+  /// [runValues] gespeicherte; ohne Laufwert [fallback]; ist sie unbekannt,
+  /// entfällt die Effizienz.
   Future<_DayValues> _dayValues({
+    required String day,
+    required List<StoredRun> runs,
     required DateTime asOf,
     required DateTime computedAt,
     required Map<int, ComputedValue> runValues,
     required HeartRateBasis fallback,
     required Future<RunAnalysis> Function(StoredRun, HeartRateBasis) analysisOf,
   }) async {
+    final upToDay = {
+      for (final r in runs)
+        if (dayOfRun(r).compareTo(day) <= 0) r.id,
+    };
     final long = longTerm.compute(
-      runs: [for (final v in runValues.values) ?toAdvancedValue(v)],
+      runs: [
+        for (final MapEntry(key: id, value: v) in runValues.entries)
+          if (upToDay.contains(id)) ?toAdvancedValue(v),
+      ],
       p: fitness,
       now: asOf,
     );
@@ -799,11 +885,12 @@ class ValueCalculationService {
     final sources = <String>{};
     final bases = <HeartRateBasis>[];
     var unknown = false;
-    for (final r in await _finishedRuns()) {
+    for (final r in runs) {
       final end = r.endedAt!;
-      if (end.isBefore(from) || end.isAfter(asOf)) continue;
-      // Bandläufe nicht: das Tempo ist eingestellt, nicht gemessen (FR-0196).
-      if (r.mode == RunMode.treadmill) continue;
+      if (end.isBefore(from) || !upToDay.contains(r.id)) continue;
+      // Nur GPS-Läufe: beim Band ist das Tempo eingestellt, nicht gemessen
+      // (FR-0196); eine andere Sportart hat kein Tempo (FR-0221).
+      if (r.mode != RunMode.gps) continue;
       final stored = runValues[r.id];
       // Ein Laufwert braucht eine Basis (nach Schlüssel, nicht nach Inhalt):
       // fehlt sie am Wert, ist sie unbekannt und wird nie ersetzt.
@@ -872,23 +959,26 @@ class _DayValues {
 
 /// Sammelt, was zu schreiben ist: je Tag neu anlegen (kein Wert vorhanden)
 /// oder tauschen (vorhanden).
+///
+/// [stored]: die gespeicherten Tageswerte aller Tage aus EINER Sammelabfrage
+/// mit [dayValueKeys] (`readDayValues`), gelesen vor dem Schreiben. Ein Tag,
+/// der darin fehlt, hat keine Tageswerte; seine Werte werden angelegt.
+/// `original` und `current` tragen denselben Schlüssel, und jeder Schlüssel,
+/// der hier geschrieben wird, steht in [dayValueKeys] (Prüfung in [add]).
 class _DayPlan {
+  _DayPlan(this.stored);
+
+  final Map<String, Map<String, ComputedValue>> stored;
   final create = <ValueOwner, List<ComputedValue>>{};
   final swap = <ValueOwner, List<ComputedValue>>{};
 
-  Future<void> add(
-    StorageSession session,
-    String day,
-    List<ComputedValue> values,
-  ) async {
+  void add(String day, List<ComputedValue> values) {
     assert(
       values.every((v) => dayValueKeys.contains(v.key)),
       'Tagesschlüssel fehlt in dayValueKeys (Export, run_analysis.dart)',
     );
     final owner = ValueOwner.day(day);
-    final existing = {
-      for (final p in await session.values.read(owner)) p.original.key,
-    };
+    final existing = stored[day]?.keys.toSet() ?? const <String>{};
     final toSwap = [
       for (final v in values)
         if (existing.contains(v.key)) v,

@@ -4,11 +4,13 @@ import 'package:intl/intl.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../measure/camera_finder_screen.dart';
 
 /// Karte „Kamera für die Pulsmessung“ auf den Entwicklereinstellungen
 /// (FR-0220, nur Entwicklermodus): „Standard“ löscht die Wahl von Hand, darunter
 /// je Rückkamera aus [PpgCamera.cameras] ein Eintrag. Nicht nutzbare Kameras sind
-/// sichtbar, aber nicht wählbar, mit Grund. Die Liste braucht kein Kamera-Recht.
+/// sichtbar, aber nicht wählbar, mit Grund. Darunter „Kamera suchen“ öffnet die
+/// Kamerasuche ([CameraFinderScreen]). Die Liste braucht kein Kamera-Recht.
 /// Kennungen und Liste werden nicht geloggt.
 class PpgCameraSection extends StatefulWidget {
   const PpgCameraSection({
@@ -59,17 +61,44 @@ class _PpgCameraSectionState extends State<PpgCameraSection> {
     });
   }
 
+  /// Speichert die Wahl. Scheitert das Speichern, erscheint
+  /// `settingsSaveFailed` (ohne Kennung, SEC-0009) und die bisherige Wahl
+  /// bleibt markiert.
   Future<void> _select(String? key) async {
     final ref = PpgCameraRef.parse(key);
-    await widget.choice.setManual(ref);
+    final messenger = ScaffoldMessenger.of(context);
+    final failed = AppLocalizations.of(context).settingsSaveFailed;
+    try {
+      await widget.choice.setManual(ref);
+    } on StorageException {
+      messenger.showSnackBar(SnackBar(content: Text(failed)));
+      return;
+    }
     if (!mounted) return;
     setState(() => _manual = ref);
+  }
+
+  /// Öffnet die Kamerasuche (FR-0220) mit Zahlen und „Als feste Wahl setzen“; danach
+  /// gilt die neu gelesene Wahl.
+  Future<void> _find() async {
+    await Navigator.of(context).push<PpgCameraRef>(
+      MaterialPageRoute(
+        builder: (_) => CameraFinderScreen(
+          camera: widget.camera,
+          choice: widget.choice,
+          developerMode: true,
+          allowManual: true,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _load();
   }
 
   String? _reason(AppLocalizations l10n, PpgCameraUnusable? u) => switch (u) {
     null => null,
     PpgCameraUnusable.noFlash => l10n.devCameraNoFlash,
-    PpgCameraUnusable.frameRate => l10n.devCameraFrameRate,
+    PpgCameraUnusable.frameRate => l10n.devCameraNoFrameRate,
     PpgCameraUnusable.other => l10n.devCameraUnusable,
   };
 
@@ -141,11 +170,27 @@ class _PpgCameraSectionState extends State<PpgCameraSection> {
                   subtitle: _subtitle([
                     if (cam.focalLengthMm != null)
                       l10n.devCameraFocal(nf.format(cam.focalLengthMm)),
+                    // Bildrate nur bei nutzbaren Kameras; nicht nutzbare zeigen ihren Grund.
+                    if (cam.usable && cam.frameRate != null)
+                      l10n.devCameraFrameRate(cam.frameRate!),
                     if (cam.isDefault) l10n.devCameraDefaultChoice,
                     ?_reason(l10n, cam.unusable),
                   ], muted),
                 ),
             ],
+          ),
+        ),
+      );
+    }
+    if (cameras != null && cameras.isNotEmpty) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: OutlinedButton.icon(
+            key: const Key('about_ppg_camera_find'),
+            icon: const Icon(Icons.camera_alt_outlined),
+            label: Text(l10n.devCameraFind),
+            onPressed: _find,
           ),
         ),
       );
