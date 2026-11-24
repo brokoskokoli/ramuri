@@ -473,6 +473,29 @@ void main() {
       expect(dayOf(r, DateTime.utc(2030, 2, 19)).load, 10);
     });
 
+    test('Sporteinheit über Mitternacht zählt am lokalen Endtag wie ein Lauf '
+        '(FR-0071, FR-0221)', () async {
+      // 23:40 bis 00:10 Ortszeit (+2 h): Ende 22:10 UTC am 20.2. = 21.2. lokal.
+      for (final sport in OtherSport.values) {
+        await addRun(
+          DateTime.utc(2030, 2, 20, 22, 10),
+          trimp: trimpValue(10),
+          offset: const Duration(hours: 2),
+          sport: sport,
+        );
+      }
+      // Derselbe Zeitraum als Lauf eine Woche vorher.
+      await addRun(
+        DateTime.utc(2030, 2, 13, 22, 10),
+        trimp: trimpValue(40),
+        offset: const Duration(hours: 2),
+      );
+      final r = await service.load();
+      expect(dayOf(r, DateTime.utc(2030, 2, 21)).load, 40);
+      expect(dayOf(r, DateTime.utc(2030, 2, 20)).load, isNull);
+      expect(dayOf(r, DateTime.utc(2030, 2, 14)).load, 40);
+    });
+
     test('Heute ist der lokale Tag der Uhr (Versatz)', () async {
       w.clock.utcOffset = const Duration(
         hours: 13,
