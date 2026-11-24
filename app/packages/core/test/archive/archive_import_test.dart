@@ -1871,6 +1871,84 @@ void main() {
     };
 
     test(
+      'Schema 18: runs.sport am Zeilenende; Schema 17 liest sich mit null; '
+      'sport in Schema 17, fehlend in Schema 18 oder falscher Typ: beschädigt',
+      () async {
+        expect(archiveSectionsFor(18).first.columns.last.name, 'sport');
+        expect([
+          for (final c in archiveSectionsFor(17).first.columns) c.name,
+        ], isNot(contains('sport')));
+        Map<String, Object?> run(int id, String mode, String? sport) =>
+            _row(archiveSections[0], id, schema: 18)
+              ..['mode'] = mode
+              ..['sport'] = sport;
+        await c.run(
+          await file(
+            v2(
+              schema: 18,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'runs': [
+                  run(1, 'gps', null),
+                  run(2, 'sport', 'rope'),
+                  run(3, 'sport', 'cycling'),
+                  run(4, 'sport', 'rowing'),
+                  run(5, 'sport', 'other'),
+                ],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        expect(
+          [for (final r in c.sink.rows['runs']!) '${r['mode']}:${r['sport']}'],
+          [
+            'gps:null',
+            'sport:rope',
+            'sport:cycling',
+            'sport:rowing',
+            'sport:other',
+          ],
+        );
+        // Schema 17 kennt die Spalte nicht: der Leser setzt null.
+        c = _Case(dir);
+        await c.run(
+          await file(
+            v2(
+              schema: 17,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'runs': [
+                  _row(archiveSections[0], 1, schema: 17)
+                    ..['mode'] = 'treadmill',
+                ],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['runs']!.single['sport'], isNull);
+        expect(c.sink.rows['runs']!.single['mode'], 'treadmill');
+        for (final (schema, bad) in <(int, Map<String, Object?>)>[
+          (17, run(1, 'sport', 'rope')),
+          (18, run(1, 'gps', null)..remove('sport')),
+          (18, run(1, 'sport', null)..['sport'] = 3),
+        ]) {
+          c = _Case(dir);
+          await rejectsV2(
+            v2(
+              schema: schema,
+              trainings: [mt()..['hc_id'] = null],
+              extra: {
+                'runs': [bad],
+              },
+            ),
+          );
+        }
+      },
+    );
+
+    test(
       'Schema 10: mode und treadmill_settings, Steigung unbekannt (null)',
       () async {
         final runs = [
