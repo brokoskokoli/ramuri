@@ -508,12 +508,12 @@ Future<void> cameraDiagnostics(
       (await t.runAsync(store.read))!;
   expect(await read(), isEmpty, reason: 'S7d Vorgabe: alle Schalter aus');
   await reveal();
+  SwitchListTile tile() => t.widget<SwitchListTile>(find.byKey(const Key(key)));
+  // Der Abschnitt entsteht erst beim Hinscrollen; bis die Schalter gelesen
+  // sind, ist der Schalter gesperrt und ein Tipp wirkungslos.
+  await waitFor(t, () => tile().onChanged != null, 'S7d Schalter bedienbar');
   await tapKey(t, key);
-  await waitFor(
-    t,
-    () => t.widget<SwitchListTile>(find.byKey(const Key(key))).value,
-    'S7d Schalter an',
-  );
+  await waitFor(t, () => tile().value, 'S7d Schalter an');
   expect(await read(), {
     PpgCameraDiagnostic.noiseReductionOff,
   }, reason: 'S7d Schalter gespeichert');
@@ -578,12 +578,14 @@ Future<void> cameraDiagnostics(
     'S7d Entwicklereinstellungen',
   );
   await reveal();
-  await tapKey(t, key);
+  // Neu aufgebaut: erst tippen, wenn der gespeicherte Stand (an) gelesen ist.
   await waitFor(
     t,
-    () => !t.widget<SwitchListTile>(find.byKey(const Key(key))).value,
-    'S7d Schalter aus',
+    () => tile().onChanged != null && tile().value,
+    'S7d Schalter gelesen',
   );
+  await tapKey(t, key);
+  await waitFor(t, () => !tile().value, 'S7d Schalter aus');
   expect(await read(), isEmpty, reason: 'S7d Schalter wieder aus');
   // Fuer S8 wieder nach oben zum Schalter Entwicklermodus.
   await t.scrollUntilVisible(
