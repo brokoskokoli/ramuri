@@ -213,7 +213,7 @@ class _Rig {
       evaluate: (frames, window) async => identical(window, ppgStandardWindow)
           ? rig.next
           : const PpgMeasurement(quality: PpgQuality.unusable, reasons: []),
-      check: (frames) async {
+      check: (frames, {relockedAt}) async {
         rig.checkSizes.add(frames.length);
         rig.maxChecksRunning = math.max(
           rig.maxChecksRunning,
@@ -238,7 +238,7 @@ class _Rig {
           rig.checksRunning--;
         }
       },
-      evaluateBest: (frames) async {
+      evaluateBest: (frames, {relockedAt}) async {
         rig.evaluated.add(frames);
         final s = _goodStart(frames, strict: false);
         return PpgWindowedMeasurement(
@@ -1061,7 +1061,7 @@ void main() {
           expect(r.c.outcome, MorningOutcome.limited);
           expect(r.c.stored!.restingHrBpm, 52.4);
           expect(r.c.stored!.rmssdMs, isNull);
-          expect(r.c.stored!.methodVersion, 5);
+          expect(r.c.stored!.methodVersion, ppgMethodVersion);
           expect(find.byKey(const Key('morning_no_rmssd')), findsOneWidget);
           expect(
             tester

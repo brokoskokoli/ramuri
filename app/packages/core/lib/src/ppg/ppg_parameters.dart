@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../algorithm_category.dart';
 
 /// Kennung und Version des Kamera-PPG-Verfahrens (NFR-0001, NFR-0005).
@@ -10,8 +12,9 @@ import '../algorithm_category.dart';
 /// Nachtrag 2026-11-21); Auswertung unverändert.
 /// Version 5 = wie 4, dazu Antibanding aus und nach der Einschwingzeit die längste Belichtung bei
 /// der Bildrate (ADR-0011, Nachtrag 2026-11-22); Auswertung unverändert.
+/// Version 6 = wie 5, dazu Neusperre der Belichtung nach einem Helligkeitssprung (PAR-245, PAR-246).
 const String ppgMethod = 'camera-ppg';
-const int ppgMethodVersion = 5;
+const int ppgMethodVersion = 6;
 
 /// Stand der Referenz, aus der das Verfahren portiert ist.
 const String ppgReference = 'algo-v0.4-frozen';
@@ -153,6 +156,20 @@ const double ppgSearchStepSeconds = 1.0;
 /// Werte: PAR-214 (2 s), PAR-215 (1,5 s).
 const double ppgSearchFilterLeadSeconds = 2.0;
 const double ppgSearchFilterTailSeconds = 1.5;
+
+/// Einschwingzeit der Belichtung in s: Die Kamera sperrt sie so lange nach Aufnahmebeginn und nach
+/// jedem Neu-Einschwingen (PAR-246; Kotlin `PpgCameraLogic.AE_LOCK_AT_SECONDS`).
+const double ppgExposureLockSeconds = 2.5;
+
+/// Frühester Fensterbeginn der Fenstersuche (ALGORITHMUS.md Abschn. 2): `ppgStandardWindow.start`,
+/// nach einer Neusperre der Belichtung bei Sensorzeit [relockedAt] (PAR-246) so lange nach ihr wie
+/// beim ersten Mal (`ppgStandardWindow.start - ppgExposureLockSeconds`, also 2,5 s), nie früher.
+double ppgSearchStartMin({double? relockedAt}) => relockedAt == null
+    ? ppgStandardWindow.start
+    : math.max(
+        ppgStandardWindow.start,
+        relockedAt + (ppgStandardWindow.start - ppgExposureLockSeconds),
+      );
 
 /// Längen der jüngsten Abschnitte (s), die für die Anzeige des guten Stücks zusätzlich einzeln
 /// analysiert werden (ALGORITHMUS.md Abschn. 2).

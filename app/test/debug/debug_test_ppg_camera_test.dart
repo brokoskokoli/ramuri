@@ -18,6 +18,12 @@ void main() {
     final events = await _run(cam);
     expect(events.first, isA<PpgCameraStarted>());
     expect(events.whereType<PpgCameraExposureLocked>(), hasLength(1));
+    // Sperre mit Sensorzeit, frühestens nach der Automatik-Phase (2,5 s).
+    expect(
+      events.whereType<PpgCameraExposureLocked>().single.t,
+      greaterThanOrEqualTo(2.5),
+    );
+    expect(events.whereType<PpgCameraRelocking>(), isEmpty);
     expect(
       events.whereType<PpgCameraDetails>().first.iso,
       debugCameraDetails.iso,

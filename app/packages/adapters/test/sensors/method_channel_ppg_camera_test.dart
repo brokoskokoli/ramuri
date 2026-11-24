@@ -142,6 +142,40 @@ void main() {
     await sub.cancel();
   });
 
+  test('Sperre mit Sensorzeit; ohne Zeit t == null (ältere Gegenseite)', () {
+    final withT = MethodChannelPpgCamera.parse({
+      'type': 'locked',
+      't': 26.5,
+    }) as PpgCameraExposureLocked;
+    expect(withT.t, 26.5);
+    final withoutT = MethodChannelPpgCamera.parse({
+      'type': 'locked',
+    }) as PpgCameraExposureLocked;
+    expect(withoutT.t, isNull);
+    // Unbrauchbare Zeit: die Sperre bleibt, nur ohne Zeit.
+    for (final bad in <Object?>['26.5', double.nan, double.infinity, -1]) {
+      final e = MethodChannelPpgCamera.parse({
+        'type': 'locked',
+        't': bad,
+      }) as PpgCameraExposureLocked;
+      expect(e.t, isNull, reason: '$bad');
+    }
+  });
+
+  test('Neu-Einschwingen mit Sensorzeit; ohne gültige Zeit ignoriert', () {
+    final e = MethodChannelPpgCamera.parse({'type': 'relocking', 't': 24});
+    expect(e, isA<PpgCameraRelocking>());
+    expect((e! as PpgCameraRelocking).t, 24.0);
+    for (final bad in <Object?>[null, '24', double.nan, -0.5]) {
+      expect(
+        MethodChannelPpgCamera.parse({'type': 'relocking', 't': bad}),
+        isNull,
+        reason: '$bad',
+      );
+    }
+    expect(MethodChannelPpgCamera.parse({'type': 'relocking'}), isNull);
+  });
+
   test('Kameraliste aus Kotlin, ohne Rechteanfrage', () async {
     cameraList = [
       {

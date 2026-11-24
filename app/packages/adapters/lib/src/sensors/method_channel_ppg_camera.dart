@@ -134,6 +134,10 @@ class MethodChannelPpgCamera implements PpgCamera {
       for (final e in v) ?PpgCameraDiagnostic.fromWire(e),
   };
 
+  /// Sensorzeit in Sekunden seit Aufnahmebeginn: endlich und nicht negativ.
+  static double? _time(Object? v) =>
+      v is num && v.isFinite && v >= 0 ? v.toDouble() : null;
+
   static double? _fraction(Object? v) =>
       v is num && v.isFinite && v >= 0 && v <= 1 ? v.toDouble() : null;
 
@@ -187,7 +191,11 @@ class MethodChannelPpgCamera implements PpgCamera {
               : null,
         );
       case 'locked':
-        return const PpgCameraExposureLocked();
+        // Ohne gültige Zeit (ältere Gegenseite): wie bisher, t = null.
+        return PpgCameraExposureLocked(_time(event['t']));
+      case 'relocking':
+        final t = _time(event['t']);
+        return t == null ? null : PpgCameraRelocking(t);
       case 'stopped':
         return PpgCameraStopped(_reason(event['reason']));
     }

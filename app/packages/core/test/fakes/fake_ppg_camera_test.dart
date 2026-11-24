@@ -63,6 +63,28 @@ void main() {
   );
 
   test(
+    'Sperre mit und ohne Sensorzeit, Neu-Einschwingen mit Sensorzeit',
+    () async {
+      final cam = FakePpgCamera();
+      final events = <PpgCameraEvent>[];
+      cam.start().listen(events.add);
+      await pumpEvents();
+      cam.emitLocked(2.5);
+      cam.emitRelocking(24);
+      cam.emitLocked(26.5);
+      cam.emitLocked();
+      await pumpEvents();
+      final rest = events.where((e) => e is! PpgCameraStarted).toList();
+      expect(rest, hasLength(4));
+      expect((rest[0] as PpgCameraExposureLocked).t, 2.5);
+      expect((rest[1] as PpgCameraRelocking).t, 24);
+      expect((rest[2] as PpgCameraExposureLocked).t, 26.5);
+      expect((rest[3] as PpgCameraExposureLocked).t, isNull);
+      await cam.stop();
+    },
+  );
+
+  test(
     'ohne Kamera, Blitz oder Recht: Ergebnis mit Grund, Torch bleibt aus',
     () async {
       for (final (a, r) in [

@@ -258,7 +258,7 @@ class DebugTestPpgCamera implements PpgCamera {
             );
             if (!locked && t >= 2.5) {
               locked = true;
-              c.add(const PpgCameraExposureLocked());
+              c.add(PpgCameraExposureLocked(t));
               c.add(debugCameraDetails);
             }
             t = gen.nextTime();

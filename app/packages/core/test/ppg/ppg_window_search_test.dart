@@ -491,4 +491,97 @@ void main() {
       );
     });
   });
+  group('Neusperre der Belichtung (PAR-246, PAR-211 bis PAR-215)', () {
+    /// Gut bis 20 s, dann Sprung (nicht auswertbar) bis zur Neusperre bei [relock], danach gut.
+    List<PpgFrame> jumpThenRelock(double relock, double to) => [
+      ...frames(good(), to: 20),
+      ...frames(bad(), from: 20, to: relock),
+      ...frames(good(), from: relock, to: to),
+    ];
+
+    test('frühester Beginn: 5 s ohne Neusperre, sonst 2,5 s nach ihr', () {
+      expect(ppgSearchStartMin(), ppgStandardWindow.start);
+      expect(ppgSearchStartMin(relockedAt: 26), 28.5);
+      expect(ppgSearchStartMin(relockedAt: 26.5), 29.0);
+      // Nie vor dem Standard, auch bei einer (gedachten) frühen Sperre.
+      expect(ppgSearchStartMin(relockedAt: 1.0), ppgStandardWindow.start);
+    });
+
+    test('Neusperre bei 26 s: kein Fenster beginnt vor 28,5 s', () {
+      final fr = jumpThenRelock(26, 120);
+      final r = evaluatePpgBestWindow(fr, relockedAt: 26);
+      expect(r.measurement.quality, PpgQuality.good);
+      expect(r.windowStartSeconds, greaterThanOrEqualTo(28.5));
+      expect(r.windowEndSeconds, r.windowStartSeconds! + 60);
+      final c = checkPpgRecording(frames(good(), to: 90.1), relockedAt: 26);
+      expect(c.goodWindowReached, isTrue);
+      expect(c.confirmed!.windowStartSeconds, greaterThanOrEqualTo(28.5));
+      // Erst 60 s Fenster samt Rand nach 28,5 s: nicht vor 90 s.
+      expect(
+        checkPpgRecording(
+          frames(good(), to: 89.9),
+          relockedAt: 26,
+        ).goodWindowReached,
+        isFalse,
+      );
+    });
+
+    test('ohne Neusperre unverändert: frühester Beginn 5 s', () {
+      final r = evaluatePpgBestWindow(frames(good(), to: 120));
+      expect(r.windowStartSeconds, ppgStandardWindow.start);
+      expect(
+        checkPpgRecording(frames(good(), to: 66.6))
+            .confirmed!
+            .windowStartSeconds,
+        ppgStandardWindow.start,
+      );
+    });
+
+    test('Neusperre bei 70 s: kein Fenster von 60 s mehr, wie zu wenig Daten', () {
+      final fr = jumpThenRelock(70, 120);
+      final r = evaluatePpgBestWindow(fr, relockedAt: 70);
+      final short = evaluatePpgBestWindow(frames(good(), to: 40));
+      expect(r.windowStartSeconds, isNull);
+      expect(r.measurement.quality, PpgQuality.unusable);
+      expect(r.measurement.reasons, [PpgQualityReason.insufficientData]);
+      expect(r.measurement.reasons, short.measurement.reasons);
+      // Letzter möglicher Beginn bei der Höchstdauer: 120 − 1,5 − 60 = 58,5 s.
+      final last = evaluatePpgBestWindow(
+        jumpThenRelock(56, 120),
+        relockedAt: 56,
+      );
+      expect(last.windowStartSeconds, 58.5);
+      expect(
+        evaluatePpgBestWindow(
+          jumpThenRelock(57, 120),
+          relockedAt: 56.01,
+        ).windowStartSeconds,
+        isNull,
+      );
+    });
+
+    test(
+      'Bilder vor der Neusperre zählen nicht, auch nicht für das gute Stück',
+      () {
+        // 50 s gutes Signal, Neusperre bei 50 s, erst 1 s danach aufgenommen.
+        final fr = frames(good(), to: 51);
+        expect(checkPpgRecording(fr).goodStretchSeconds, greaterThan(30));
+        expect(checkPpgRecording(fr, relockedAt: 50).goodStretchSeconds, 0.0);
+      },
+    );
+
+    test(
+      'gutes Stück vor der Neusperre (abzüglich Filterrand) zählt nicht',
+      () {
+        // 45 s gut, danach schlecht bis 70 s, Neusperre bei 50 s: gelesen wird
+        // erst ab 50,5 s, das gute Stück davor zählt nicht.
+        final fr = [
+          ...frames(good(), to: 45),
+          ...frames(bad(), from: 45, to: 70),
+        ];
+        expect(checkPpgRecording(fr).goodStretchSeconds, greaterThan(30));
+        expect(checkPpgRecording(fr, relockedAt: 50).goodStretchSeconds, 0.0);
+      },
+    );
+  });
 }

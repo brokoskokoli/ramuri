@@ -288,9 +288,21 @@ final class PpgCameraStarted extends PpgCameraEvent {
   final PpgAwbVariant? awbVariant;
 }
 
-/// Belichtung und Weißabgleich sind gesperrt (2,5 s nach Aufnahmebeginn).
+/// Belichtung und Weißabgleich sind gesperrt: 2,5 s nach Aufnahmebeginn und nach
+/// jedem Neu-Einschwingen ([PpgCameraRelocking], PAR-246). [t] ist die Sensorzeit
+/// der Sperre (Sekunden seit Aufnahmebeginn wie [PpgFrame.t]); `null`, wenn die
+/// Gegenseite sie nicht meldet (ältere Fassung: Verhalten wie bei der ersten Sperre).
 final class PpgCameraExposureLocked extends PpgCameraEvent {
-  const PpgCameraExposureLocked();
+  const PpgCameraExposureLocked([this.t]);
+  final double? t;
+}
+
+/// Nach einem Helligkeitssprung im Rot (PAR-245) und anschließender Ruhe beginnt
+/// bei Sensorzeit [t] das Neu-Einschwingen der Belichtung; die neue Sperre folgt
+/// 2,5 s später mit [PpgCameraExposureLocked] (PAR-246).
+final class PpgCameraRelocking extends PpgCameraEvent {
+  const PpgCameraRelocking(this.t);
+  final double t;
 }
 
 /// Die Aufnahme wurde beendet: Torch aus, Sitzung und Gerät geschlossen.
