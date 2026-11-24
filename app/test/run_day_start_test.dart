@@ -164,6 +164,38 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Verlauf: Lauf Dienstag 23:30 bis Mittwoch 00:40 steht unter '
+      'einem Nachtrag vom Mittwoch derselben Woche (FR-0212, PAR-237)', (
+    tester,
+  ) async {
+    final d = await started(tester);
+    d.clock.set(DateTime(2026, 6, 18, 12)); // Donnerstag, Woche ab 15. Juni
+    // Versatz 0: Ortstag = UTC-Tag in jeder Zone der Zeitzonen-Matrix.
+    final run = await seedRun(
+      d.session,
+      DateTime.utc(2026, 6, 16, 23, 30),
+      minutes: 70,
+    );
+    final training = await d.session.manualTrainings.add(
+      ManualTraining(
+        day: DateTime.utc(2026, 6, 17),
+        kind: ManualTrainingKind.other,
+        duration: const Duration(minutes: 30),
+        rpe: 3,
+      ),
+    );
+    await tester.tap(key('home_history'));
+    await tester.pumpAndSettle();
+    await showAllRuns(tester);
+    // Neuester zuerst: der Nachtrag vom Mittwoch über dem Dienstagslauf,
+    // obwohl der Lauf erst am Mittwoch 00:40 endet.
+    expect(
+      tester.getTopLeft(key('manual_training_${training.id}')).dy,
+      lessThan(tester.getTopLeft(key('history_run_$run')).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Startseite: Lauf Sonntag 23:30 bis Montag 00:40 zählt nicht '
       'in der Woche ab Montag, letzter Lauf am Sonntag (FR-0209, PAR-237)', (
     tester,
