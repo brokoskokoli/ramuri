@@ -33,6 +33,59 @@ void main() {
     expect(frames.last.t, greaterThanOrEqualTo(ppgSearchMaxRecordSeconds));
   });
 
+  test('ohne Anforderung: keine ISP-Werte, keine Schalter', () async {
+    final cam = DebugTestPpgCamera(speed: 100000);
+    final events = await _run(cam);
+    final started = events.first as PpgCameraStarted;
+    expect(started.diagnostics, isEmpty);
+    expect(started.awbVariant, isNull);
+    expect(
+      events.whereType<PpgCameraFrame>().map((f) => f.isp),
+      everyElement(isNull),
+    );
+    expect(cam.startedRequests, hasLength(1));
+    expect(cam.startedRequests.single.diagnostics, isEmpty);
+    expect(cam.startedRequests.single.ispFrames, isFalse);
+  });
+
+  test('mit Anforderung: angeforderte Schalter gesetzt, 19 ISP-Werte je Bild, '
+      'Auswertung gleich', () async {
+    final plain = _frames(await _run(DebugTestPpgCamera(speed: 100000)));
+    final cam = DebugTestPpgCamera(speed: 100000);
+    final events = await cam
+        .start(
+          diagnostics: {
+            PpgCameraDiagnostic.noiseReductionOff,
+            PpgCameraDiagnostic.awbFixed,
+          },
+          ispFrames: true,
+        )
+        .toList();
+    final started = events.first as PpgCameraStarted;
+    expect(started.diagnostics, {
+      PpgCameraDiagnostic.noiseReductionOff,
+      PpgCameraDiagnostic.awbFixed,
+    });
+    expect(started.awbVariant, PpgAwbVariant.matrix);
+    final frames = events.whereType<PpgCameraFrame>().toList();
+    expect(frames, isNotEmpty);
+    for (final f in frames) {
+      expect(f.isp, hasLength(ppgIspValueCount));
+    }
+    final isp = frames.first.isp!;
+    expect(isp[7], 0); // Rauschunterdrückung aus
+    expect(isp[8], 1); // Kanten unverändert
+    expect(isp[5], 0); // AWB OFF
+    expect(isp[11], debugCameraDetails.exposureTimeNs);
+    // Einzelne Felder „nicht gemeldet“ kommen vor.
+    expect(frames.where((f) => f.isp![18].isNaN), isNotEmpty);
+    // Bildstatistik und damit die Auswertung wie ohne Anforderung.
+    expect(
+      frames.map((f) => f.frame.r).toList(),
+      plain.map((f) => f.r).toList(),
+    );
+  });
+
   test('schlechtes Signal: Auswertung unbrauchbar, kein Wert', () async {
     final cam = DebugTestPpgCamera(
       scenario: DebugPpgScenario.weakSignal,
