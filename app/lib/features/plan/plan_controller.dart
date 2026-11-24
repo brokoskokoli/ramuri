@@ -712,7 +712,6 @@ class PlanController extends ChangeNotifier {
         PlanCalendarRun(
           id: r.id,
           day: day,
-          running: r.mode.isRunning,
           intensive: parameters.completedIntensive(
             rpe: rpe,
             highHrMinutes: highHr,
@@ -1844,19 +1843,16 @@ bool weeklyCheckDue(String? lastCheckDay, DateTime today) {
   return monday(last).isBefore(monday(today));
 }
 
-/// Ein beendeter Lauf im Kalender ([PlanController.runsBetween]).
+/// Ein beendeter Lauf oder eine Sporteinheit (FR-0221) im Kalender
+/// ([PlanController.runsBetween]).
 class PlanCalendarRun {
   const PlanCalendarRun({
     required this.id,
     required this.day,
     required this.intensive,
-    this.running = true,
   });
 
   final int id;
-
-  /// Ein Lauf, keine andere Sportart (FR-0221).
-  final bool running;
 
   /// Ortstag des Laufendes.
   final DateTime day;
