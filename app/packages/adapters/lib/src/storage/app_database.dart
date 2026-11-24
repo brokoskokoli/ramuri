@@ -1,4 +1,5 @@
-import 'package:core/core.dart' show StorageFailure;
+import 'package:core/core.dart'
+    show StorageFailure, legacyPreprocessingChainVersion;
 import 'package:drift/drift.dart';
 
 import 'connection_setup.dart' show ConnectionSetupFailure;
@@ -36,11 +37,13 @@ class AppDatabase extends _$AppDatabase {
   /// Version 16: gewählte Morgenmessung des Tages (`morning_measurements.chosen`,
   /// PAR-160K). Version 17: Diagnose der Bildverarbeitung im Rohsignal
   /// (`morning_raw_signals.isp_frames`, `diag_*`, FR-0217). Version 18: andere
-  /// Sportart (`runs.mode` 'sport', `runs.sport`, FR-0221). Jede spätere Änderung erhöht die
+  /// Sportart (`runs.mode` 'sport', `runs.sport`, FR-0221). Version 19:
+  /// Kettenversion der Vorverarbeitung an berechneten Werten
+  /// (`computed_values.preprocessing_version`, ADR-0004). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -325,6 +328,21 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('DROP TABLE runs_old');
       await m.create(runsOffsetInsert);
       await m.create(runsOffsetUpdate);
+    },
+    // 18 -> 19 (ADR-0004): Kettenversion der Vorverarbeitung am Wert. Alle
+    // bestehenden Laufwerte (original und current) sind mit der Kette von
+    // damals gerechnet und bekommen sie, damit nach dem Update kein falsches
+    // Angebot entsteht; Tageswerte bleiben NULL. Das Original ist per Trigger
+    // unveränderlich: nur hierfür ausnehmen (wie Schritt 2 -> 3).
+    18: (Migrator m) async {
+      await m.addColumn(computedValues, computedValues.preprocessingVersion);
+      await m.drop(computedValuesOriginalImmutable);
+      await customStatement(
+        'UPDATE computed_values SET preprocessing_version = ? '
+        'WHERE run_id IS NOT NULL',
+        [legacyPreprocessingChainVersion],
+      );
+      await m.create(computedValuesOriginalImmutable);
     },
   };
 

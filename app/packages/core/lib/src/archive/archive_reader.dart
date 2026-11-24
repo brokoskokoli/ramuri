@@ -172,7 +172,9 @@ class ArchiveLineValidator {
     if (spec.columns.length != _full(spec).columns.length) {
       final full = <String, Object?>{};
       for (final c in _full(spec).columns) {
-        full[c.name] = out.containsKey(c.name) ? out[c.name] : c.olderValue;
+        full[c.name] = out.containsKey(c.name)
+            ? out[c.name]
+            : c.olderValueFor(out);
       }
       out
         ..clear()

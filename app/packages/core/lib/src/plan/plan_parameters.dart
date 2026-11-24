@@ -18,11 +18,16 @@ const String planMethod = 'weekly-time-course';
 /// Verschiebung und absolviertem Lauf erhalten. 6: Lockerung nach PAR-173
 /// bei „adaptiv“ (FR-0216, `applyRecoveryEase`); eine gelockerte Einheit vor
 /// heute zählt als harte Einheit ihrer Woche (`generatePlan(easedHardDays:)`).
-const int planMethodVersion = 6;
+/// 7: Abweichung von der Einheit (PAR-235): bei „adaptiv“ zählt ein deutlich
+/// längerer oder härterer Lauf mit der echten Bewegungszeit
+/// (`generatePlan(countedMinutes:)`), ein intensiv gelaufener lockerer Lauf
+/// als harte Einheit der Woche (`generatePlan(intensiveRunDays:)`); bei „fix“
+/// tauscht die nächste harte Einheit den Tag (`applyRunSpacingSwap`).
+const int planMethodVersion = 7;
 
 /// Stand der Parameter (ADR-0010 Punkt 1: `parameter_version`). Steigt, wenn
 /// sich ein Wert in [PlanParameters] ändert.
-const int planParameterVersion = 2;
+const int planParameterVersion = 3;
 
 /// Alle Zahlen des Wochenzeit-Verlaufs, jede mit ihrer Regel. Nichts davon
 /// steht außerhalb dieser Klasse. Voreinstellung sind die Werte aus
@@ -76,6 +81,8 @@ class PlanParameters {
     this.minGapDays = 2,
     this.completedIntensiveMinRpe = 7,
     this.completedIntensiveMinHighHrMinutes = 10,
+    this.deviationTimeFactor = 2.0,
+    this.deviationRpeSteps = 3,
     this.continuousRunMinutes = 30,
     this.peakFallbackShort = 35,
     this.peakFallbackTen = 65,
@@ -203,6 +210,14 @@ class PlanParameters {
   /// mindestens so viele Minuten bei mindestens 80 % HFmax lag (Laufwert
   /// `high_hr_time`, Verfahren `high-hr-time`).
   final int completedIntensiveMinHighHrMinutes;
+
+  /// PAR-235: „Deutlich mehr“ ab dieser Bewegungszeit als Vielfaches der
+  /// geplanten Dauer der Einheit (2,0).
+  final double deviationTimeFactor;
+
+  /// PAR-235: „Deutlich mehr“ ab so vielen RPE-Stufen über der Obergrenze der
+  /// Vorgabe der Einheit (PAR-105), 3.
+  final int deviationRpeSteps;
 
   /// PAR-058 für einen absolvierten Lauf: intensiv bei mindestens
   /// [completedIntensiveMinHighHrMinutes] Minuten bei mindestens 80 % HFmax

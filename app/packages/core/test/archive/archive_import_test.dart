@@ -517,12 +517,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 18: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 19: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 19);
+        final lines = valid()..[0] = _manifest(schema: 20);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":19,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":20,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -1389,8 +1389,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 18 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 19, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 19 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 20, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -1947,6 +1947,84 @@ void main() {
         }
       },
     );
+
+    test('Schema 19: computed_values.preprocessing_version am Zeilenende und '
+        'unverändert übernommen; Schema 18 liest Laufwerte mit der Kette von '
+        'damals, Tageswerte mit null; falscher Typ: beschädigt', () async {
+      final spec = archiveSections.firstWhere(
+        (s) => s.name == 'computed_values',
+      );
+      expect(
+        archiveSectionsFor(19)
+            .firstWhere((s) => s.name == 'computed_values')
+            .columns
+            .last
+            .name,
+        'preprocessing_version',
+      );
+      expect([
+        for (final c in archiveSectionsFor(
+          18,
+        ).firstWhere((s) => s.name == 'computed_values').columns)
+          c.name,
+      ], isNot(contains('preprocessing_version')));
+      Map<String, Object?> value(int id, {required int schema, int? run}) =>
+          _row(spec, id, schema: schema)
+            ..['run_id'] = run
+            ..['day'] = run == null ? '2026-11-0$id' : null;
+      List<String> lines(int schema, List<Map<String, Object?>> values) => v2(
+        schema: schema,
+        trainings: [mt()..['hc_id'] = null],
+        extra: {'computed_values': values},
+      );
+      await c.run(
+        await file(
+          lines(19, [
+            value(1, schema: 19, run: 1)..['preprocessing_version'] = 'hr9.neu',
+            value(2, schema: 19)..['preprocessing_version'] = null,
+          ]),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(
+        [
+          for (final r in c.sink.rows['computed_values']!)
+            r['preprocessing_version'],
+        ],
+        ['hr9.neu', null],
+      );
+      // Schema 18 kennt die Spalte nicht: wie die Migration 18 -> 19.
+      c = _Case(dir);
+      await c.run(
+        await file(
+          lines(18, [
+            value(1, schema: 18, run: 1),
+            value(2, schema: 18),
+            value(3, schema: 18, run: 2),
+          ]),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(
+        [
+          for (final r in c.sink.rows['computed_values']!)
+            r['preprocessing_version'],
+        ],
+        [
+          legacyPreprocessingChainVersion,
+          null,
+          legacyPreprocessingChainVersion,
+        ],
+      );
+      for (final (schema, bad) in <(int, Map<String, Object?>)>[
+        (18, value(1, schema: 18, run: 1)..['preprocessing_version'] = 'x'),
+        (19, value(1, schema: 19, run: 1)..remove('preprocessing_version')),
+        (19, value(1, schema: 19, run: 1)..['preprocessing_version'] = 3),
+      ]) {
+        c = _Case(dir);
+        await rejectsV2(lines(schema, [bad]));
+      }
+    });
 
     test(
       'Schema 10: mode und treadmill_settings, Steigung unbekannt (null)',
@@ -2837,9 +2915,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 19: neueres Archiv', () async {
+    test('Schema 20: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":19,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":20,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

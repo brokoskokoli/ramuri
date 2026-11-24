@@ -18,7 +18,8 @@ const String minutesUnit = 'min';
 /// (Basis oder Daten) steht er ohne Zahl mit Grund, nie 0. [pre] ist `null`
 /// bei einem Lauf ohne Dauer; [basis] wird als Schnappschuss am Wert
 /// gespeichert. Reicht die Pulsabdeckung nicht für die volle Bewegungszeit,
-/// ist er vorläufig (eine Untergrenze).
+/// ist er vorläufig (eine Untergrenze). [preprocessingVersion] ist die
+/// Kettenversion der Vorverarbeitung am Wert (ADR-0004).
 ComputedValue buildHighHeartRateTimeValue({
   required StoredRun run,
   required RunPreprocessing? pre,
@@ -26,6 +27,7 @@ ComputedValue buildHighHeartRateTimeValue({
   required FitnessParameters fitness,
   required Set<String> sources,
   required DateTime computedAt,
+  required String preprocessingVersion,
   HighHeartRateTimeModel model = const HighHeartRateTime(),
 }) {
   final FitnessResult<HighHeartRateTimeResult> result = pre == null
@@ -53,6 +55,7 @@ ComputedValue buildHighHeartRateTimeValue({
     value: v?.minutes,
     unavailableReason: reason,
     heartRateBasis: snapshotOf(basis),
+    preprocessingVersion: preprocessingVersion,
     unit: minutesUnit,
     computedAt: computedAt,
     dataFrom: run.startedAt,
