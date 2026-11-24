@@ -569,5 +569,19 @@ void main() {
         expect(checkPpgRecording(fr, relockedAt: 50).goodStretchSeconds, 0.0);
       },
     );
+
+    test(
+      'gutes Stück vor der Neusperre (abzüglich Filterrand) zählt nicht',
+      () {
+        // 45 s gut, danach schlecht bis 70 s, Neusperre bei 50 s: gelesen wird
+        // erst ab 50,5 s, das gute Stück davor zählt nicht.
+        final fr = [
+          ...frames(good(), to: 45),
+          ...frames(bad(), from: 45, to: 70),
+        ];
+        expect(checkPpgRecording(fr).goodStretchSeconds, greaterThan(30));
+        expect(checkPpgRecording(fr, relockedAt: 50).goodStretchSeconds, 0.0);
+      },
+    );
   });
 }
