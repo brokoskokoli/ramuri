@@ -220,6 +220,22 @@ void main() {
       expect(await e.stage(), isNull);
     });
 
+    test('Lauf, der genau zum Zeitpunkt der letzten Stufe endete, zählt '
+        'nicht mehr (nur Läufe danach)', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      final ended = (await e.session.runs.finishedBetween(
+        DateTime.utc(2026, 1, 1),
+        DateTime.utc(2027, 1, 1),
+      )).single.endedAt!.toUtc();
+      final reader = PlanDataReader(session: e.session, clock: e.clock);
+      expect(await reader.underloadRuns(ended), isEmpty);
+      final before = await reader.underloadRuns(
+        ended.subtract(const Duration(microseconds: 1)),
+      );
+      expect(before.map((r) => r.endedAt), [ended]);
+    });
+
     test('Läufe ohne Puls oder ohne RPE zählen nicht mit', () async {
       final e = await _Env.open(PlanAdaptationMode.adaptive);
       await e.run(15);
