@@ -55,6 +55,8 @@ echo "$*" >> "$FAKE_ARGS"
 echo "E2E_WERT=geheim123"
 [ -z "${FAKE_E:-}" ] || echo "00:01 +0 -1: Archiv [E]"
 [ -z "${FAKE_SLEEP:-}" ] || sleep "$FAKE_LAUF_S"
+# Laenger laufen (Aufruf enthaelt $FAKE_LANG): zusaetzlich FAKE_LANG_S.
+case "${FAKE_LANG:+$*}" in *"${FAKE_LANG:-}"*) [ -z "${FAKE_LANG:-}" ] || sleep "$FAKE_LANG_S" ;; esac
 # SHOT-Marken wie shot() in e2e_support.dart: Zeile E2E_, danach steht der Test (hier FAKE_SHOT_S).
 [ -z "${FAKE_SHOT_LINES:-}" ] || for n in s1_hell 'Gross' '../boese' 'a b' s1-dunkel_2; do
   echo "E2E_12:00:00.000 SHOT $n"; sleep "$FAKE_SHOT_S"; done
@@ -71,13 +73,13 @@ X
 chmod +x "$tmp/bin/adb" "$tmp/bin/flutter"
 # Wartezeiten der Attrappen und Takt der Warteschleife in ci_e2e.sh (E2E_TAKT_S, sonst 2 s), auf einen Bruchteil
 # verkuerzt; die Zeitlimits unten sind darauf abgestimmt. FAKE_LAUF_S: Lauf mit FAKE_SLEEP; FAKE_SHOT_S: Pause nach
-# jeder SHOT-Zeile; FAKE_TW_S: Tageswechsel im Test; FAKE_KILL_S: Pause nach NEED_KILL (laenger als ein Takt, damit
+# jeder SHOT-Zeile; FAKE_LANG_S: Zusatz mit FAKE_LANG; FAKE_TW_S: Tageswechsel im Test; FAKE_KILL_S: Pause nach NEED_KILL (laenger als ein Takt, damit
 # der Host die Marke vor dem Prozessende sieht).
-export E2E_TAKT_S=0.1 FAKE_LAUF_S=1 FAKE_SHOT_S=0.3 FAKE_TW_S=3 FAKE_KILL_S=0.5
+export E2E_TAKT_S=0.1 FAKE_LAUF_S=1 FAKE_SHOT_S=0.3 FAKE_TW_S=3 FAKE_KILL_S=0.5 FAKE_LANG_S=6
 export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" FAKE_SHOTS="$tmp/shots" FAKE_ARGS="$tmp/args" FAKE_STOPS="$tmp/stops" \
   FAKE_PIDS="$tmp/pids" FAKE_UHR_DATEI="$tmp/uhr" ANDROID_SERIAL=emulator-5554
 unset E2E_SHARD E2E_STUFEN E2E_SHOTS E2E_STUFE_LIMIT_S E2E_ADB_LIMIT_S FAKE_ADB_HANG FAKE_ADB_HANG_EINMAL FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP FAKE_STEPS FAKE_SHOT_LINES \
-  FAKE_NOFOCUS FAKE_HANG FAKE_UHR FAKE_UHR_SCHRITT_S FAKE_TAGESWECHSEL E2E_UHR_VERSATZ_S FAKE_GEO_FAIL
+  FAKE_NOFOCUS FAKE_HANG FAKE_UHR FAKE_UHR_SCHRITT_S FAKE_TAGESWECHSEL E2E_UHR_VERSATZ_S FAKE_GEO_FAIL FAKE_LANG
 fails=0
 # run <Name> <rc> <Aufrufe-der-Testdateien (Anzahl)> [VAR=Wert ...]
 run() {
@@ -303,7 +305,7 @@ run "Waechter: m2-flow als Stufe statt Import" 0 1 E2E_STUFEN=sammlung
 : > app/integration_test/e2e_health_real_test.dart; : > app/integration_test/e2e_health_revoke_test.dart
 run "Waechter: lokale Health-Tests ausgenommen" 0 1 E2E_STUFEN=sammlung
 # GPS-Zufuehrer: je Stufe eine Zeile "geo fix fehlgeschlagen: <n> von <m>" nur mit Zaehlern (keine Koordinaten),
-# gezaehlt nur waehrend dieser Stufe. Der Zufuehrer ruft etwa einmal je Sekunde; die Stufen laufen je 3 s.
+# gezaehlt nur waehrend dieser Stufe. Der Zufuehrer ruft etwa einmal je Sekunde; die Stufen laufen mindestens 3 s.
 # geo_ok <fall> <stufe> <fehlgeschlagen:alle|keine>: Zeile der Stufe vorhanden, m >= 2, m <= Dauer der Stufe + 2.
 geo_ok() {
   z=$(grep "^geo fix fehlgeschlagen: " "$tmp/stdout" | sed -n "$2p")
@@ -319,7 +321,9 @@ run "geo fix: alle erfolgreich"                0 1 E2E_STUFEN=sammlung FAKE_SLEE
 geo_ok "geo fix erfolgreich" 1 keine
 run "geo fix: alle fehlgeschlagen"             0 1 E2E_STUFEN=sammlung FAKE_SLEEP=1 FAKE_LAUF_S=3 FAKE_GEO_FAIL=1
 geo_ok "geo fix fehlgeschlagen" 1 alle
-run "geo fix: je Stufe eigene Zeile"           0 2 "E2E_STUFEN=storage-b recover-b" FAKE_SLEEP=1 FAKE_LAUF_S=3 FAKE_GEO_FAIL=1
+# Die erste Stufe laeuft 6 s laenger: zaehlte die zweite ab Skriptbeginn statt ab ihrem Start, laege m weit ueber
+# ihrer Dauer.
+run "geo fix: je Stufe eigene Zeile"           0 2 "E2E_STUFEN=storage-b recover-b" FAKE_SLEEP=1 FAKE_LAUF_S=3 FAKE_GEO_FAIL=1 FAKE_LANG=PHASE=read
 [ "$(grep -c '^geo fix fehlgeschlagen: ' "$tmp/stdout")" -eq 2 ] || { echo "FAIL geo fix: nicht genau eine Zeile je Stufe"; fails=$((fails + 1)); }
 geo_ok "geo fix Stufe 1" 1 alle
 geo_ok "geo fix Stufe 2 (nur eigene Aufrufe)" 2 alle
