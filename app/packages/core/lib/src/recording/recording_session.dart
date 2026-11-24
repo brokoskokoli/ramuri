@@ -12,6 +12,7 @@ import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
 import 'belt_track.dart';
+import 'sport_moving_time.dart';
 import 'treadmill.dart';
 
 /// Zustand der Aufzeichnung (FR-0028, FR-0029).
@@ -106,6 +107,7 @@ class RecordingSnapshot {
     required this.laps,
     required this.gaps,
     this.mode = RunMode.gps,
+    this.sport,
     this.beltSpeedMetersPerSecond,
     this.inclinePercent,
   });
@@ -145,6 +147,11 @@ class RecordingSnapshot {
   /// Integral der eingestellten Bandgeschwindigkeit über die aktive Zeit und
   /// [movingTime] die aktive Zeit mit Geschwindigkeit über 0.
   final RunMode mode;
+
+  /// Sportart bei [RunMode.sport] (FR-0221), sonst `null`. Dort ist
+  /// [distanceMeters] immer `null` und [movingTime] die aktive Zeit ohne
+  /// manuelle Pausen und Unterbrechungen (PAR-232).
+  final OtherSport? sport;
 
   /// Aktuell eingestellte Bandgeschwindigkeit (m/s); nur im Laufbandmodus.
   /// `null` im Laufbandmodus: noch keine Einstellung gespeichert (Wiederanlauf).
@@ -210,17 +217,26 @@ class RecordingSession {
   // Zeit ab Laufbeginn. Eine Einstellung gilt ab ihrem Zeitpunkt bis zur
   // nächsten.
   RunMode _mode = RunMode.gps;
+  OtherSport? _sport;
   final List<BeltSetting> _belts = [];
 
   RunMode get mode => _mode;
+
+  /// Sportart einer Einheit mit [RunMode.sport] (FR-0221), sonst `null`.
+  OtherSport? get sport => _sport;
   bool get _treadmill => _mode == RunMode.treadmill;
+  bool get _sportMode => _mode == RunMode.sport;
+
+  /// Ohne Standort (Band, andere Sportart): keine Positionen, keine
+  /// GPS-Lücke, keine Autopause.
+  bool get _noPositions => _mode != RunMode.gps;
 
   /// Alle Einstellungen des Bands seit dem Start (auch die wiederhergestellten),
   /// in der Reihenfolge ihres Entstehens. Der Host speichert neue Einträge.
   List<BeltSetting> get beltSettings => List.unmodifiable(_belts);
 
   RecordingPhase get phase => _phase;
-  bool get autoPauseEnabled => _autoPause && !_treadmill;
+  bool get autoPauseEnabled => _autoPause && !_noPositions;
   List<RecordingEvent> get events => List.unmodifiable(_events);
   bool get _active =>
       _phase == RecordingPhase.running || _phase == RecordingPhase.autoPaused;
@@ -245,13 +261,18 @@ class RecordingSession {
 
   /// Startet die Aufzeichnung. Im Modus `treadmill` ist die Startgeschwindigkeit
   /// ([beltSpeedMetersPerSecond], m/s, Pflicht) die erste Einstellung ab dem
-  /// Start; ohne sie oder mit einem unzulässigen Wert wird abgelehnt.
+  /// Start; ohne sie oder mit einem unzulässigen Wert wird abgelehnt. Im
+  /// Modus `sport` (FR-0221) ist [sport] Pflicht, sonst verboten; es gibt
+  /// weder Band noch Standort, und die Bewegungszeit ist die aktive Zeit
+  /// (PAR-232).
   CommandResult start({
     RunMode mode = RunMode.gps,
+    OtherSport? sport,
     double? beltSpeedMetersPerSecond,
     double? inclinePercent,
   }) {
     if (_phase != RecordingPhase.idle) return CommandResult.rejected;
+    if (!runModeMatchesSport(mode, sport)) return CommandResult.rejected;
     final first = mode == RunMode.treadmill
         ? BeltSetting(
             offset: Duration.zero,
@@ -263,6 +284,7 @@ class RecordingSession {
       return CommandResult.rejected;
     }
     _mode = mode;
+    _sport = sport;
     if (first != null) _belts.add(first);
     final now = _clock.now();
     _anchor(now);
@@ -290,8 +312,10 @@ class RecordingSession {
   /// Im Modus `treadmill` ([mode]) kommen Geschwindigkeit und Steigung aus
   /// `raw.beltSettings`; die Strecke ergibt sich wie im Lauf (die Unterbrechung
   /// zählt nicht). Ohne gespeicherte Einstellung gilt Geschwindigkeit 0.
+  /// Im Modus `sport` ist [sport] Pflicht (wie bei [start]).
   CommandResult restore({
     RunMode mode = RunMode.gps,
+    OtherSport? sport,
     required DateTime startedAt,
     required StoredRawData raw,
     required List<StoredGap> gaps,
@@ -299,8 +323,10 @@ class RecordingSession {
     required DateTime resumeAt,
   }) {
     if (_phase != RecordingPhase.idle) return CommandResult.rejected;
+    if (!runModeMatchesSport(mode, sport)) return CommandResult.rejected;
     final pre = RunPreprocessor(start: startedAt, parameters: parameters);
     _mode = mode;
+    _sport = sport;
     if (_treadmill) {
       final sorted = [for (final b in raw.beltSettings) b]
         ..sort((a, b) {
@@ -460,7 +486,7 @@ class RecordingSession {
   Intake addPosition(LocationSample s) {
     // Das Laufband hat keine Positionen (FR-0196): nichts annehmen, nichts
     // speichern, keine Lücke, keine Autopause.
-    if (_treadmill) {
+    if (_noPositions) {
       return _phase == RecordingPhase.finished
           ? Intake.ignoredFinished
           : Intake.ignoredNotActive;
@@ -609,6 +635,7 @@ class RecordingSession {
     final belt = _treadmill ? _beltTotals(now) : null;
     final snapshot = RecordingSnapshot(
       mode: _mode,
+      sport: _sport,
       beltSpeedMetersPerSecond: _treadmill
           ? _belts.lastOrNull?.speedMetersPerSecond
           : null,
@@ -618,17 +645,21 @@ class RecordingSession {
       startedAt: _startedAt,
       endedAt: _endedAt,
       totalTime: r.movement.totalTime,
-      movingTime: belt?.moving ?? r.movement.movingTime,
-      distanceMeters: belt?.meters ?? r.position.distanceMeters,
+      movingTime: _sportMode
+          ? _activeTime(now)
+          : belt?.moving ?? r.movement.movingTime,
+      distanceMeters: _sportMode
+          ? null
+          : belt?.meters ?? r.position.distanceMeters,
       heartRateBpm: _phase == RecordingPhase.finished
           ? null
           : pre.heartRateAt(now).value?.bpm,
       positionLost: _lossOpen,
-      positionLossMovingTime: _treadmill
+      positionLossMovingTime: _noPositions
           ? Duration.zero
           : movingTimeInPositionGaps(r),
       standstillDetected:
-          !_treadmill &&
+          !_noPositions &&
           r.movement.autoPauseState == AutoPauseState.standstillPause,
       laps: List.unmodifiable(_laps),
       gaps: List.unmodifiable(_gaps),
@@ -708,9 +739,25 @@ class RecordingSession {
   }
 
   /// Bewegungszeit bis [at] für Runden: im Laufbandmodus die Bandzeit.
-  Duration _movingAt(RunPreprocessor pre, DateTime at) => _treadmill
+  Duration _movingAt(RunPreprocessor pre, DateTime at) => _sportMode
+      ? _activeTime(at)
+      : _treadmill
       ? _beltTotals(at).moving
       : pre.result(at: at).movement.movingTime;
+
+  /// Bewegungszeit einer anderen Sportart bis [to] (PAR-232): Zeit ab Start
+  /// ohne manuelle Pausen und ohne Unterbrechungen; keine Autopause, keine
+  /// Stillstandserkennung.
+  Duration _activeTime(DateTime to) => activeTimeWithoutPauses(
+    start: _startedAt!,
+    end: to,
+    pauses: [
+      for (final g in _gaps)
+        if (g.kind == RunGapKind.manualPause ||
+            g.kind == RunGapKind.interruption)
+          (g.start, g.end ?? to),
+    ],
+  );
 
   /// Strecke und Bewegungszeit des Bands bis [to] (FR-0196): Integral der
   /// eingestellten Geschwindigkeit über die aktive Zeit, also ohne manuelle
@@ -789,7 +836,7 @@ class RecordingSession {
   // PAR-004: Lücke ab "länger als" gapMaxDuration; löst nie eine Pause aus.
   void _checkLoss(DateTime now) {
     final ref = _gapRef;
-    if (_treadmill || _lossOpen || ref == null) return;
+    if (_noPositions || _lossOpen || ref == null) return;
     if (now.difference(ref) > parameters.gapMaxDuration) {
       _openLoss(ref);
     }
