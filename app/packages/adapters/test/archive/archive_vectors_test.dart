@@ -567,6 +567,47 @@ void main() {
     expect(lines.last['rows'], v['row_counts']);
   });
 
+  test('archive_v2_s18: Format 2, Schema 18, Sporteinheiten mit runs.sport (Abschnitt 1)', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s18');
+    final plain = await _collect(
+      createArchiveCipher().decrypt(
+        v['password'] as String,
+        Stream.value(_read(v['file'] as String)),
+      ),
+    );
+    expect(_read(v['file'] as String)[9], 2);
+    final text = utf8.decode(gzip.decode(plain));
+    expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+    final lines = [
+      for (final l in const LineSplitter().convert(text))
+        jsonDecode(l) as Map<String, dynamic>,
+    ];
+    expect(lines.first['format'], 2);
+    expect(lines.first['schema_version'], 18);
+    final start = lines.indexWhere(
+      (l) => l['type'] == 'section' && l['name'] == 'runs',
+    );
+    final runs = [
+      for (final l
+          in lines.skip(start + 1).takeWhile((l) => l['type'] == 'row'))
+        l['data'] as Map,
+    ];
+    // Die neue Spalte steht am Zeilenende.
+    expect(runs.first.keys.last, 'sport');
+    expect(
+      [for (final r in runs) '${r['id']}:${r['mode']}:${r['sport']}'],
+      [
+        '1:gps:null',
+        '7:treadmill:null',
+        '20:sport:rope',
+        '21:sport:cycling',
+        '22:sport:rowing',
+        '23:sport:other',
+      ],
+    );
+    expect(lines.last['rows'], v['row_counts']);
+  });
+
   test('archive_v2_s11: Format 2, Schema 11, active_warning mit einer Zeile (Abschnitt 21)', () async {
     final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s11');
     final plain = await _collect(

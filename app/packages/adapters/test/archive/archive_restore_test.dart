@@ -62,7 +62,7 @@ Future<void> _extra(AppDatabase db) async {
   // Zweiter Lauf: Original mit zwei Abschnitten, current mit einem.
   await sql(
     db,
-    "INSERT INTO runs VALUES (2, 'finished', 5000, 9000, NULL, 'gps')",
+    "INSERT INTO runs VALUES (2, 'finished', 5000, 9000, NULL, 'gps', NULL)",
   );
   const cv =
       'INSERT INTO computed_values (run_id, value_key, role, value_real, unit, computed_at_us, measurement_count, sources, method, method_version, parameter_version, quality) ';
@@ -287,7 +287,7 @@ void main() {
 
   Future<void> addOldData() async {
     await _dbOf(session).customStatement(
-      "INSERT INTO runs VALUES (77, 'finished', 1, 2, NULL, 'gps')",
+      "INSERT INTO runs VALUES (77, 'finished', 1, 2, NULL, 'gps', NULL)",
     );
     await _dbOf(session)
         .customStatement("INSERT INTO settings VALUES ('alt', 'bleibt', 1)");
@@ -413,7 +413,7 @@ void main() {
       expect(serialized, 1);
       // Neu geöffnete Datenbank ist benutzbar (Schema 4, Schreiben geht).
       await _dbOf(session).customStatement(
-        "INSERT INTO runs VALUES (99, 'active', 1, NULL, NULL, 'gps')",
+        "INSERT INTO runs VALUES (99, 'active', 1, NULL, NULL, 'gps', NULL)",
       );
     },
   );
@@ -478,7 +478,7 @@ void main() {
   group('nicht leere App', () {
     final cases = <String, Future<void> Function(StorageSession)>{
       'Lauf': (s) async => _dbOf(s).customStatement(
-        "INSERT INTO runs VALUES (77, 'finished', 1, 2, NULL, 'gps')",
+        "INSERT INTO runs VALUES (77, 'finished', 1, 2, NULL, 'gps', NULL)",
       ),
       'Morgenmessung': (s) async => (s as MorningStorage).morning.add(
         MorningMeasurement(
@@ -821,7 +821,7 @@ void main() {
     expect(easy.pinned, isTrue);
   });
 
-  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 14; 15 ist
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 17; 18 ist
   // das aktuelle). Format 1
   // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
   // kennt, sind danach leer.
@@ -839,6 +839,7 @@ void main() {
     ('archive_v2_s15', 15),
     ('archive_v2_s16', 16),
     ('archive_v2_s17', 17),
+    ('archive_v2_s18', 18),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -873,7 +874,8 @@ void main() {
       for (final e in expected.entries) {
         expect(got[e.key]!.length, e.value.length, reason: e.key);
       }
-      expect(got['runs'], hasLength(2));
+      // Schema 18: vier Sporteinheiten (Läufe 20 bis 23) dazu.
+      expect(got['runs'], hasLength(schema >= 18 ? 6 : 2));
       final goal = await (session as GoalStorage).goals.goal();
       if (schema >= 7) {
         expect(got['goals'], hasLength(1));
@@ -943,7 +945,31 @@ void main() {
       // gps; Schema 10 trägt mode (Lauf 7 treadmill) und Abschnitt 26.
       expect(
         {for (final r in got['runs']!) r['id']: r['mode']},
-        {1: 'gps', 7: schema >= 10 ? 'treadmill' : 'gps'},
+        {
+          1: 'gps',
+          7: schema >= 10 ? 'treadmill' : 'gps',
+          if (schema >= 18) ...{
+            20: 'sport',
+            21: 'sport',
+            22: 'sport',
+            23: 'sport',
+          },
+        },
+      );
+      // Sportart (Schema 18): genau bei mode 'sport' gesetzt; ältere Archive
+      // lesen null.
+      expect(
+        {for (final r in got['runs']!) r['id']: r['sport']},
+        {
+          1: null,
+          7: null,
+          if (schema >= 18) ...{
+            20: 'rope',
+            21: 'cycling',
+            22: 'rowing',
+            23: 'other',
+          },
+        },
       );
       final tm = got['treadmill_settings']!;
       if (schema >= 10) {

@@ -277,6 +277,8 @@ void main() {
       'ended_at_us': 2000000000,
       'ended_utc_offset_s': 3600,
       'mode': 'treadmill',
+      // Schema 18: Sportart nur bei mode 'sport'.
+      'sport': null,
     });
     // Laufbandeinstellungen (WP25, Abschnitt 26): Werte exakt, Steigung unbekannt
     // bleibt null, Stillstand 0.
@@ -740,7 +742,7 @@ class _LateInsertSource implements ArchiveSource {
     );
     await sql(
       _db,
-      "INSERT INTO runs VALUES (2, 'active', 5000, NULL, NULL, 'gps')",
+      "INSERT INTO runs VALUES (2, 'active', 5000, NULL, NULL, 'gps', NULL)",
     );
     return s;
   }
