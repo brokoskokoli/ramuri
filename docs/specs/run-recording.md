@@ -347,7 +347,18 @@ Gespeichert wird eine solche Einheit als Lauf mit der Art `sport` und der Sporta
 - [ ] Nach einem Prozessende setzt der Wiederanlauf die Einheit mit derselben Sportart fort (FR-0193).
 - [ ] RPE wird wie nach einem Lauf abgefragt.
 - [ ] Exportiert wird ohne Strecke als TCX und FIT; GPX ist nicht verfügbar.
-- [ ] Hinweise zur Sportart (ersetzt nicht das Laufen, Belastung von Wade und Achillessehne, Brustgurt empfohlen, Unterschätzung bei Rad und Rudern) zeigt die App; wo und wann, legt die Oberfläche der Sportart fest.
+- [ ] Hinweise zur Sportart (ersetzt nicht das Laufen, Belastung von Wade und Achillessehne, Brustgurt empfohlen, Unterschätzung bei Rad und Rudern) zeigt die App an den unten genannten Stellen; „ersetzt nicht das Laufen“ gehört zum Abhaken einer geplanten Einheit, nicht zur Aufzeichnung.
+
+**Oberfläche:**
+- [ ] Start: Neben „GPS“ und „Laufband“ steht als dritte Wahl „Andere Sportart“ mit den vier Sportarten; Vorgabe ist Seilspringen. Laufart und Sportart bleiben nach einem Neustart der App gewählt. Die Startseite fragt weder Standort noch Schrittzähler-Recht ab und bietet weder geführte Einheit, Ansagen noch Autopause an.
+- [ ] Ohne verbundenen Pulssensor ist „Start“ gesperrt; die Karte nennt den Grund und bietet „Training nachtragen“ an, der Nachtrag (FR-0199) öffnet mit der Art „Sonstiges“. Verbindet sich ein Sensor, fällt die Sperre ohne Neuladen. Der Wiederanlauf nach einem Prozessende (FR-0193) setzt auch ohne verbundenen Sensor fort.
+- [ ] Die Aufzeichnung läuft als Vordergrunddienst im Modus `sport` (Diensttyp `connectedDevice`, ADR-0005); ohne `BLUETOOTH_CONNECT` startet sie nicht.
+- [ ] Live-Ansicht: Sportart, Zeit, Bewegungszeit, Puls und Pulsbereich, Pause/Fortsetzen und Beenden; keine Pace, Strecke, Anstieg, Kadenz, Karte, GPS-Anzeige und Runde. Bricht der Puls ab, erscheint der Hinweis wie beim Lauf (FR-0036), die Aufzeichnung läuft weiter.
+- [ ] Zusammenfassung: Sportart mit Symbol und Namen, Dauer, Bewegungszeit, Durchschnitts- und Maximalpuls, Zonenzeit und TRIMP; keine Strecke, Pace, Höhe, Einordnung, VO₂max, Runden und Karte. Verlauf: Eintrag mit Symbol und Namen der Sportart statt Strecke und Pace, ohne Miniatur der Strecke. Detail: wie die Zusammenfassung, ohne Karte, Splits, Höhenprofil und Vergleich. Die Einheit für Meilen ändert an der Einheit nichts.
+- [ ] Hinweis Brustgurt („Brustgurt empfohlen – Werte vom Handgelenk sind bei dieser Sportart unsicher.“): an der Sportwahl beim Start.
+- [ ] Hinweis Seilspringen („Wade und Achillessehne werden stark belastet: mit kurzen Blöcken beginnen und langsam steigern.“): beim Start, solange weniger als drei Seilspring-Einheiten beendet sind, und in der Zusammenfassung der ersten bis dritten beendeten Seilspring-Einheit (nach Startzeit), bei der vierten nicht mehr; gezählt wird aus den gespeicherten Einheiten. Lässt sich der Bestand nicht lesen, erscheint der Hinweis.
+- [ ] Hinweis Unterschätzung („Die Belastung wird mit dem Pulsbereich vom Laufen gerechnet und eher unterschätzt.“): nur bei Radfahren und Rudern/Ergometer, in Zusammenfassung und Detail.
+- [ ] Alle Texte stehen in Deutsch und Englisch (Schlüssel mit Präfix `otherSport`).
 
 ## Offene Fragen
 <!-- BEGIN OQ -->

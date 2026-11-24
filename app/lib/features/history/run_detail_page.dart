@@ -84,6 +84,9 @@ class RunDetailPage extends StatelessWidget {
       onWarning: onWarning,
     );
     const gap = SizedBox(height: 16);
+    // Andere Sportart (FR-0221): keine Karte, Pace, Höhe, Splits, Einordnung,
+    // VO₂max und Runden.
+    final sport = base.isSport;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -102,22 +105,24 @@ class RunDetailPage extends StatelessWidget {
         _route(context, l10n, base),
         gap,
         _card(
-          SectionHeading(l10n.detailPaceHeart),
-          RunPaceHeartChart(data: detail, formatter: formatter),
+          SectionHeading(sport ? l10n.detHeartRateName : l10n.detailPaceHeart),
+          RunPaceHeartChart(
+            data: detail,
+            formatter: formatter,
+            showPace: !sport,
+          ),
         ),
         gap,
-        if (!summary.isTreadmill) ...[_altitude(context, l10n), gap],
-        _splits(l10n),
-        gap,
+        if (!summary.isTreadmill && !sport) ...[_altitude(context, l10n), gap],
+        if (!sport) ...[_splits(l10n), gap],
         RamuriTileGrid(children: base.tiles(l10n)),
         base.explain(context, 'sum_explain_trimp', trimpRunValueKey),
         gap,
         base.zones(context, l10n),
         gap,
-        base.compare(context, l10n),
-        gap,
+        if (!sport) ...[base.compare(context, l10n), gap],
         base.subjectiveSection(showSrpe: true),
-        base.laps(context, l10n),
+        if (!sport) base.laps(context, l10n),
         base.notes(context, l10n),
         base.explain(
           context,
@@ -164,7 +169,9 @@ class RunDetailPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (summary.isTreadmill)
+          if (base.isSport)
+            base.sportNote(context, l10n, ropeHint: false)
+          else if (summary.isTreadmill)
             base.treadmillNote(context, l10n)
           else
             RunRouteSection(
@@ -177,13 +184,14 @@ class RunDetailPage extends StatelessWidget {
             spacing: 24,
             runSpacing: 8,
             children: [
-              stat(
-                'run_distance',
-                l10n.runDistance,
-                f.distanceMeters == null
-                    ? l10n.runUnavailable
-                    : formatter.distance(f.distanceMeters),
-              ),
+              if (!base.isSport)
+                stat(
+                  'run_distance',
+                  l10n.runDistance,
+                  f.distanceMeters == null
+                      ? l10n.runUnavailable
+                      : formatter.distance(f.distanceMeters),
+                ),
               stat(
                 'run_moving_time',
                 l10n.runMovingTime,

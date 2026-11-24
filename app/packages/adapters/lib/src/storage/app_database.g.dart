@@ -7300,6 +7300,17 @@ class ComputedValues extends Table
     requiredDuringInsert: false,
     $customConstraints: 'CHECK (hr_max_is_estimated IN (0, 1))',
   );
+  static const VerificationMeta _preprocessingVersionMeta =
+      const VerificationMeta('preprocessingVersion');
+  late final GeneratedColumn<String> preprocessingVersion =
+      GeneratedColumn<String>(
+        'preprocessing_version',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        $customConstraints: '',
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -7322,6 +7333,7 @@ class ComputedValues extends Table
     hrMaxBpm,
     hrRestBpm,
     hrMaxIsEstimated,
+    preprocessingVersion,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -7493,6 +7505,15 @@ class ComputedValues extends Table
         ),
       );
     }
+    if (data.containsKey('preprocessing_version')) {
+      context.handle(
+        _preprocessingVersionMeta,
+        preprocessingVersion.isAcceptableOrUnknown(
+          data['preprocessing_version']!,
+          _preprocessingVersionMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -7582,6 +7603,10 @@ class ComputedValues extends Table
         DriftSqlType.bool,
         data['${effectivePrefix}hr_max_is_estimated'],
       ),
+      preprocessingVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}preprocessing_version'],
+      ),
     );
   }
 
@@ -7637,6 +7662,14 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
   final int? hrMaxBpm;
   final int? hrRestBpm;
   final bool? hrMaxIsEstimated;
+
+  /// Seit Version 19 (ADR-0004): Kettenversion der Vorverarbeitung, aus der
+  /// ein Laufwert entstand (preprocessingChainVersion im Core, etwa
+  /// 'hr1.pace1.mov2.pos2.alt1.set1.sq2.st1'). NULL an Tageswerten. Die
+  /// Migration 18 -> 19 setzt an allen Laufwerten die Kette von damals
+  /// (legacyPreprocessingChainVersion), damit nach dem Update kein falsches
+  /// Angebot zur Neuberechnung entsteht.
+  final String? preprocessingVersion;
   const ComputedValue({
     required this.id,
     this.runId,
@@ -7658,6 +7691,7 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     this.hrMaxBpm,
     this.hrRestBpm,
     this.hrMaxIsEstimated,
+    this.preprocessingVersion,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -7700,6 +7734,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     if (!nullToAbsent || hrMaxIsEstimated != null) {
       map['hr_max_is_estimated'] = Variable<bool>(hrMaxIsEstimated);
     }
+    if (!nullToAbsent || preprocessingVersion != null) {
+      map['preprocessing_version'] = Variable<String>(preprocessingVersion);
+    }
     return map;
   }
 
@@ -7741,6 +7778,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       hrMaxIsEstimated: hrMaxIsEstimated == null && nullToAbsent
           ? const Value.absent()
           : Value(hrMaxIsEstimated),
+      preprocessingVersion: preprocessingVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(preprocessingVersion),
     );
   }
 
@@ -7772,6 +7812,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       hrMaxBpm: serializer.fromJson<int?>(json['hr_max_bpm']),
       hrRestBpm: serializer.fromJson<int?>(json['hr_rest_bpm']),
       hrMaxIsEstimated: serializer.fromJson<bool?>(json['hr_max_is_estimated']),
+      preprocessingVersion: serializer.fromJson<String?>(
+        json['preprocessing_version'],
+      ),
     );
   }
   @override
@@ -7798,6 +7841,7 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       'hr_max_bpm': serializer.toJson<int?>(hrMaxBpm),
       'hr_rest_bpm': serializer.toJson<int?>(hrRestBpm),
       'hr_max_is_estimated': serializer.toJson<bool?>(hrMaxIsEstimated),
+      'preprocessing_version': serializer.toJson<String?>(preprocessingVersion),
     };
   }
 
@@ -7822,6 +7866,7 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     Value<int?> hrMaxBpm = const Value.absent(),
     Value<int?> hrRestBpm = const Value.absent(),
     Value<bool?> hrMaxIsEstimated = const Value.absent(),
+    Value<String?> preprocessingVersion = const Value.absent(),
   }) => ComputedValue(
     id: id ?? this.id,
     runId: runId.present ? runId.value : this.runId,
@@ -7847,6 +7892,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     hrMaxIsEstimated: hrMaxIsEstimated.present
         ? hrMaxIsEstimated.value
         : this.hrMaxIsEstimated,
+    preprocessingVersion: preprocessingVersion.present
+        ? preprocessingVersion.value
+        : this.preprocessingVersion,
   );
   ComputedValue copyWithCompanion(ComputedValuesCompanion data) {
     return ComputedValue(
@@ -7884,6 +7932,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       hrMaxIsEstimated: data.hrMaxIsEstimated.present
           ? data.hrMaxIsEstimated.value
           : this.hrMaxIsEstimated,
+      preprocessingVersion: data.preprocessingVersion.present
+          ? data.preprocessingVersion.value
+          : this.preprocessingVersion,
     );
   }
 
@@ -7909,13 +7960,14 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           ..write('unavailableReason: $unavailableReason, ')
           ..write('hrMaxBpm: $hrMaxBpm, ')
           ..write('hrRestBpm: $hrRestBpm, ')
-          ..write('hrMaxIsEstimated: $hrMaxIsEstimated')
+          ..write('hrMaxIsEstimated: $hrMaxIsEstimated, ')
+          ..write('preprocessingVersion: $preprocessingVersion')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     runId,
     day,
@@ -7936,7 +7988,8 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     hrMaxBpm,
     hrRestBpm,
     hrMaxIsEstimated,
-  );
+    preprocessingVersion,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -7960,7 +8013,8 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           other.unavailableReason == this.unavailableReason &&
           other.hrMaxBpm == this.hrMaxBpm &&
           other.hrRestBpm == this.hrRestBpm &&
-          other.hrMaxIsEstimated == this.hrMaxIsEstimated);
+          other.hrMaxIsEstimated == this.hrMaxIsEstimated &&
+          other.preprocessingVersion == this.preprocessingVersion);
 }
 
 class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
@@ -7984,6 +8038,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
   final Value<int?> hrMaxBpm;
   final Value<int?> hrRestBpm;
   final Value<bool?> hrMaxIsEstimated;
+  final Value<String?> preprocessingVersion;
   const ComputedValuesCompanion({
     this.id = const Value.absent(),
     this.runId = const Value.absent(),
@@ -8005,6 +8060,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     this.hrMaxBpm = const Value.absent(),
     this.hrRestBpm = const Value.absent(),
     this.hrMaxIsEstimated = const Value.absent(),
+    this.preprocessingVersion = const Value.absent(),
   });
   ComputedValuesCompanion.insert({
     this.id = const Value.absent(),
@@ -8027,6 +8083,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     this.hrMaxBpm = const Value.absent(),
     this.hrRestBpm = const Value.absent(),
     this.hrMaxIsEstimated = const Value.absent(),
+    this.preprocessingVersion = const Value.absent(),
   }) : valueKey = Value(valueKey),
        role = Value(role),
        unit = Value(unit),
@@ -8058,6 +8115,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     Expression<int>? hrMaxBpm,
     Expression<int>? hrRestBpm,
     Expression<bool>? hrMaxIsEstimated,
+    Expression<String>? preprocessingVersion,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -8080,6 +8138,8 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
       if (hrMaxBpm != null) 'hr_max_bpm': hrMaxBpm,
       if (hrRestBpm != null) 'hr_rest_bpm': hrRestBpm,
       if (hrMaxIsEstimated != null) 'hr_max_is_estimated': hrMaxIsEstimated,
+      if (preprocessingVersion != null)
+        'preprocessing_version': preprocessingVersion,
     });
   }
 
@@ -8104,6 +8164,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     Value<int?>? hrMaxBpm,
     Value<int?>? hrRestBpm,
     Value<bool?>? hrMaxIsEstimated,
+    Value<String?>? preprocessingVersion,
   }) {
     return ComputedValuesCompanion(
       id: id ?? this.id,
@@ -8126,6 +8187,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
       hrMaxBpm: hrMaxBpm ?? this.hrMaxBpm,
       hrRestBpm: hrRestBpm ?? this.hrRestBpm,
       hrMaxIsEstimated: hrMaxIsEstimated ?? this.hrMaxIsEstimated,
+      preprocessingVersion: preprocessingVersion ?? this.preprocessingVersion,
     );
   }
 
@@ -8192,6 +8254,11 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     if (hrMaxIsEstimated.present) {
       map['hr_max_is_estimated'] = Variable<bool>(hrMaxIsEstimated.value);
     }
+    if (preprocessingVersion.present) {
+      map['preprocessing_version'] = Variable<String>(
+        preprocessingVersion.value,
+      );
+    }
     return map;
   }
 
@@ -8217,7 +8284,8 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
           ..write('unavailableReason: $unavailableReason, ')
           ..write('hrMaxBpm: $hrMaxBpm, ')
           ..write('hrRestBpm: $hrRestBpm, ')
-          ..write('hrMaxIsEstimated: $hrMaxIsEstimated')
+          ..write('hrMaxIsEstimated: $hrMaxIsEstimated, ')
+          ..write('preprocessingVersion: $preprocessingVersion')
           ..write(')'))
         .toString();
   }
@@ -26503,6 +26571,7 @@ typedef $ComputedValuesCreateCompanionBuilder =
       Value<int?> hrMaxBpm,
       Value<int?> hrRestBpm,
       Value<bool?> hrMaxIsEstimated,
+      Value<String?> preprocessingVersion,
     });
 typedef $ComputedValuesUpdateCompanionBuilder =
     ComputedValuesCompanion Function({
@@ -26526,6 +26595,7 @@ typedef $ComputedValuesUpdateCompanionBuilder =
       Value<int?> hrMaxBpm,
       Value<int?> hrRestBpm,
       Value<bool?> hrMaxIsEstimated,
+      Value<String?> preprocessingVersion,
     });
 
 final class $ComputedValuesReferences
@@ -26669,6 +26739,11 @@ class $ComputedValuesFilterComposer
 
   ColumnFilters<bool> get hrMaxIsEstimated => $composableBuilder(
     column: $table.hrMaxIsEstimated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get preprocessingVersion => $composableBuilder(
+    column: $table.preprocessingVersion,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -26825,6 +26900,11 @@ class $ComputedValuesOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get preprocessingVersion => $composableBuilder(
+    column: $table.preprocessingVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $RunsOrderingComposer get runId {
     final $RunsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -26929,6 +27009,11 @@ class $ComputedValuesAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get preprocessingVersion => $composableBuilder(
+    column: $table.preprocessingVersion,
+    builder: (column) => column,
+  );
+
   $RunsAnnotationComposer get runId {
     final $RunsAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -27026,6 +27111,7 @@ class $ComputedValuesTableManager
                 Value<int?> hrMaxBpm = const Value.absent(),
                 Value<int?> hrRestBpm = const Value.absent(),
                 Value<bool?> hrMaxIsEstimated = const Value.absent(),
+                Value<String?> preprocessingVersion = const Value.absent(),
               }) => ComputedValuesCompanion(
                 id: id,
                 runId: runId,
@@ -27047,6 +27133,7 @@ class $ComputedValuesTableManager
                 hrMaxBpm: hrMaxBpm,
                 hrRestBpm: hrRestBpm,
                 hrMaxIsEstimated: hrMaxIsEstimated,
+                preprocessingVersion: preprocessingVersion,
               ),
           createCompanionCallback:
               ({
@@ -27070,6 +27157,7 @@ class $ComputedValuesTableManager
                 Value<int?> hrMaxBpm = const Value.absent(),
                 Value<int?> hrRestBpm = const Value.absent(),
                 Value<bool?> hrMaxIsEstimated = const Value.absent(),
+                Value<String?> preprocessingVersion = const Value.absent(),
               }) => ComputedValuesCompanion.insert(
                 id: id,
                 runId: runId,
@@ -27091,6 +27179,7 @@ class $ComputedValuesTableManager
                 hrMaxBpm: hrMaxBpm,
                 hrRestBpm: hrRestBpm,
                 hrMaxIsEstimated: hrMaxIsEstimated,
+                preprocessingVersion: preprocessingVersion,
               ),
           withReferenceMapper: (p0) => p0
               .map(

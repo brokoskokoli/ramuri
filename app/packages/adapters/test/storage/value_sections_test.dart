@@ -62,6 +62,7 @@ class _V1 extends AppDatabase {
         'hr_max_bpm',
         'hr_rest_bpm',
         'hr_max_is_estimated',
+        'preprocessing_version', // Schema 19
       ]) {
         await customStatement('ALTER TABLE computed_values DROP COLUMN $c');
       }
@@ -621,7 +622,7 @@ void main() {
   });
 
   for (final from in [1, 2]) {
-    group('Migration $from -> 18 auf befüllter v$from-Datenbank', () {
+    group('Migration $from -> 19 auf befüllter v$from-Datenbank', () {
       test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
         final v1 = await open((e) => _V1(e, from));
         Future<List<Object?>> master(String type) async => [
@@ -674,7 +675,14 @@ void main() {
               .single,
           from,
         );
-        final expected = cs.describeValue(cs.sampleValue('vo2max', 48.5));
+        // Laufwerte bekommen beim Schritt 18 -> 19 die Kette von damals.
+        final expected = cs.describeValue(
+          cs.sampleValue(
+            'vo2max',
+            48.5,
+            chain: legacyPreprocessingChainVersion,
+          ),
+        );
         await v1.close();
 
         final s = await open();
@@ -684,7 +692,7 @@ void main() {
               .data
               .values
               .single,
-          18,
+          19,
         );
         await s.database.validateDatabaseSchema();
         expect(await count(s, 'computed_values'), 6);

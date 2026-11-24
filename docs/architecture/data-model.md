@@ -9,7 +9,7 @@
 | Lauf | Art (GPS, Laufband, andere Sportart mit Sportart), Zeiten (Bewegung, gesamt), Strecke, Runden, Zusammenfassung, subjektive Angaben | FR-0037, FR-0038, FR-0052, FR-0196, FR-0221 |
 | Messreihe | Zeitstempel, Wert, Quellgerät, Zustand des Werts | FR-0020, FR-0046, FR-0057 |
 | Bewerteter Abschnitt | Teil eines Laufs mit Qualitätsbewertung | FR-0048, FR-0073 |
-| Fitnesswert | Wert plus Zeitpunkt, Datenzeitraum, Anzahl Messungen, Quellen, Methode, Version, Qualitätsstufe; ursprünglicher und neu berechneter Wert | FR-0053, FR-0058 |
+| Fitnesswert | Wert plus Zeitpunkt, Datenzeitraum, Anzahl Messungen, Quellen, Methode, Version, Qualitätsstufe; an Laufwerten die Kettenversion der Vorverarbeitung; ursprünglicher und neu berechneter Wert | FR-0053, FR-0058 |
 | Belastung | TRIMP und sRPE getrennt; Tageswerte; ATL, CTL, TSB | FR-0092, FR-0095, FR-0096, FR-0098 bis FR-0101 |
 | Gesundheitsdatensatz | Importierte Daten mit Quelle und Messmethode | FR-0023, FR-0115 |
 | Readiness-Bewertung | Stufe, Wert, Zustand, Ursachen | FR-0105, FR-0109, FR-0116, FR-0117 |
@@ -27,6 +27,15 @@ Seit Schema 18 (`schema.drift`, Archivabschnitt 1, [Archivvertrag](../contracts/
 - **`mode`:** `gps` (GPS-Lauf), `treadmill` (Laufband, FR-0196) oder `sport` (andere Sportart, FR-0221). Läufe aus älteren Schemata behalten ihren Wert.
 - **`sport`:** die Sportart bei `mode` = `sport`: `rope` (Seilspringen), `cycling` (Radfahren), `rowing` (Rudern/Ergometer) oder `other` (Sonstiges); bei `gps` und `treadmill` immer `null`. Ein CHECK über beide Spalten lehnt jede andere Kombination ab; die Migration auf Schema 18 ändert keine Daten (`sport` = `null`).
 - **Verwendung:** Eine Einheit mit `sport` hat keine Positionen, Schritte, Strecke und Laufwerte; ihr Puls, ihre Pausen und ihre Belastung stehen wie beim Lauf in den übrigen Tabellen (FR-0221, PAR-232).
+
+## Kettenversion der Vorverarbeitung (`computed_values.preprocessing_version`)
+
+Seit Schema 19 (`schema.drift`, Archivabschnitt 12, [Archivvertrag](../contracts/archive.md), [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md)):
+
+- **Inhalt:** Text aus den Versionen aller Stufen der Vorverarbeitung, aus denen ein Laufwert entstand, in fester Reihenfolge (Puls, Pace, Bewegungszeit, Position, Höhe, Einschwingen, Abschnittsqualität, Schritte), z. B. `hr1.pace1.mov2.pos2.alt1.set1.sq2.st1` (`preprocessingChainVersion` im Kern). Jede Stufe mit eigener Methodenversion gehört dazu.
+- **Wo:** an jedem Laufwert, an `original` und `current` je eigener Wert; das Original behält die Kette, mit der es entstand. Tageswerte tragen `null`.
+- **Migration auf Schema 19:** Alle bestehenden Laufwerte bekommen die Kette, mit der sie damals gerechnet wurden (`legacyPreprocessingChainVersion`, fest), Tageswerte bleiben `null`. Ein Archiv mit Schema 18 oder früher liest sich ebenso.
+- **Verwendung:** Die Prüfung auf neue Versionen (`RecalculationService.checkVersions`) vergleicht die Kette des aktuellen Laufwerts (VO2max, TRIMP, Zeit über der Intensitätsschwelle) mit der aktuellen Kette, gemeinsam mit Methoden- und Parameterversion. Weicht sie ab, bietet die App eine Neuberechnung an; dabei bleibt das Original unverändert, `current` bekommt die neue Kette.
 
 ## Schritte eines Laufs (`raw_steps`)
 

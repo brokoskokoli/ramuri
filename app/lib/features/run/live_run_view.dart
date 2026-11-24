@@ -97,7 +97,8 @@ class LiveRunView extends StatelessWidget {
     final c = RamuriColors.of(context);
     final finished = controller.phase == RecordingPhase.finished;
     final paused = controller.phase == RecordingPhase.paused;
-    final belt = controller.runMode == RunMode.treadmill;
+    // Band und andere Sportart: keine Karte (FR-0196, FR-0221).
+    final belt = controller.runMode != RunMode.gps;
     final guided = finished ? null : controller.guidedUnitSegments;
     return _BackAsk(
       controller: controller,
@@ -360,6 +361,17 @@ class LiveRunView extends StatelessWidget {
     final gapCount = s.gaps
         .where((g) => g.kind == RunGapKind.positionLoss)
         .length;
+    // Andere Sportart: nur Zeit und Bewegungszeit, keine Laufwerte (FR-0221).
+    if (controller.runMode == RunMode.sport) {
+      return [
+        _Metric('run_time', l10n.runTime, formatClock(s.totalTime), big: true),
+        _Metric(
+          'run_moving_time',
+          l10n.runMovingTime,
+          formatClock(s.movingTime),
+        ),
+      ];
+    }
 
     return [
       _Metric('run_time', l10n.runTime, formatClock(s.totalTime), big: true),
@@ -420,16 +432,20 @@ class LiveRunView extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            LiveRoundButton(
-              key: const Key('run_lap'),
-              semanticLabel: l10n.runLap,
-              size: 68,
-              background: c.surface,
-              foreground: c.text,
-              icon: Icons.flag_outlined,
-              iconSize: 26,
-              onPressed: controller.lap,
-            ),
+            // Andere Sportart: keine Runde (FR-0221).
+            if (controller.runMode == RunMode.sport)
+              const SizedBox(width: 68)
+            else
+              LiveRoundButton(
+                key: const Key('run_lap'),
+                semanticLabel: l10n.runLap,
+                size: 68,
+                background: c.surface,
+                foreground: c.text,
+                icon: Icons.flag_outlined,
+                iconSize: 26,
+                onPressed: controller.lap,
+              ),
             const SizedBox(width: 28),
             LiveRoundButton(
               key: const Key('run_pause'),

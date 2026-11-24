@@ -168,6 +168,7 @@ export 'src/preprocessing/movement_time_processor.dart';
 export 'src/preprocessing/pace.dart';
 export 'src/preprocessing/pace_processor.dart';
 export 'src/preprocessing/position_processor.dart';
+export 'src/preprocessing/preprocessing_chain.dart';
 export 'src/preprocessing/preprocessing_parameters.dart';
 export 'src/preprocessing/run_preprocessor.dart';
 export 'src/preprocessing/section_quality.dart';

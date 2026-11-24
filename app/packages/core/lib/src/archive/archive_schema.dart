@@ -3,6 +3,9 @@
 /// Adapter-Test mit der Datenbank.
 library;
 
+import '../preprocessing/preprocessing_chain.dart'
+    show legacyPreprocessingChainVersion;
+
 /// Typ einer Spalte: I = INTEGER, R = REAL, T = TEXT, B = BOOLEAN (0/1),
 /// X = BLOB (im Speicher `Uint8List`, in der Datei Hex-Text).
 enum ArchiveType { integer, real, text, boolean, blob }
@@ -24,9 +27,28 @@ class ArchiveColumn {
   /// Abschnitt dazukam (`plan_units.fixed` ab 8); sonst `null`.
   final int? sinceSchema;
 
-  /// Wert der Spalte für Zeilen aus einem Archiv vor [sinceSchema].
+  /// Wert der Spalte für Zeilen aus einem Archiv vor [sinceSchema]. Ist es
+  /// eine [ArchiveRowValue], hängt der Wert von der übrigen Zeile ab
+  /// (`computed_values.preprocessing_version`: nur an Laufwerten).
   final Object? olderValue;
+
+  /// Wert für eine Zeile aus einem Archiv vor [sinceSchema]; [row] trägt die
+  /// gelesenen Spalten dieser Zeile.
+  Object? olderValueFor(Map<String, Object?> row) {
+    final v = olderValue;
+    return v is ArchiveRowValue ? v(row) : v;
+  }
 }
+
+/// Wert einer später hinzugekommenen Spalte, abhängig von den übrigen
+/// Spalten der Zeile eines älteren Archivs.
+typedef ArchiveRowValue = Object? Function(Map<String, Object?> row);
+
+/// Kettenversion der Vorverarbeitung für Werte aus einem Archiv vor Schema
+/// 19: an Laufwerten die Kette von damals, an Tageswerten `null` (wie die
+/// Migration 18 -> 19).
+Object? _legacyChainOf(Map<String, Object?> row) =>
+    row['run_id'] == null ? null : legacyPreprocessingChainVersion;
 
 /// Ein Abschnitt des Archivs. [key] ist die Spalte der Reihenfolge und des
 /// seitenweisen Lesens (Primärschlüssel); [keyIsText] nur bei `settings`.
@@ -198,7 +220,10 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
         'computed_at_us I, data_from_us I?, data_to_us I?, measurement_count I, '
         'sources T, method T, method_version I, parameter_version I, quality T, '
         'unavailable_reason T?, hr_max_bpm I?, hr_rest_bpm I?, '
-        'hr_max_is_estimated B?',
+        'hr_max_is_estimated B?, preprocessing_version T?',
+    // Schema 19 (ADR-0004): Kettenversion der Vorverarbeitung; ältere
+    // Archive: an Laufwerten die Kette von damals, an Tageswerten null.
+    addedColumns: {'preprocessing_version': (19, _legacyChainOf)},
   ),
   ArchiveSectionSpec(
     'value_sections',
@@ -388,18 +413,18 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 18;
+const int archiveSchemaVersion = 19;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 18).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 19).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
 /// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7 und 8:
-/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`, ab 14: 34 mit `morning_raw_signals` (ab 15 mit der verwendeten Kamera, ab 16 mit `morning_measurements.chosen`, ab 17 mit ISP-Werten und Diagnose-Schaltern); ab 18 trägt `runs` die Spalte `sport`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
+/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`, ab 14: 34 mit `morning_raw_signals` (ab 15 mit der verwendeten Kamera, ab 16 mit `morning_measurements.chosen`, ab 17 mit ISP-Werten und Diagnose-Schaltern); ab 18 trägt `runs` die Spalte `sport`, ab 19 `computed_values` die Spalte `preprocessing_version`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
 /// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche
