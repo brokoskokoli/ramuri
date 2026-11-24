@@ -108,6 +108,18 @@ class CameraFinderController extends ChangeNotifier {
 
   bool get canApply => _phase == CameraFinderPhase.running && target != null;
 
+  /// Die Standardkamera unter den nutzbaren Kameras; `null`, wenn sie nicht nutzbar ist.
+  PpgCameraRef? get defaultCamera =>
+      _cameras.where((c) => c.isDefault).firstOrNull?.ref;
+
+  /// „Standardkamera verwenden“: ohne Empfehlung und ohne Tipp (auch nach einem Fehler der
+  /// Vorschau), wenn die Standardkamera nutzbar ist.
+  bool get canApplyDefault =>
+      (_phase == CameraFinderPhase.running ||
+          _phase == CameraFinderPhase.stopped) &&
+      target == null &&
+      defaultCamera != null;
+
   /// Liest die Kameras, fragt bei Bedarf das Kamera-Recht und startet die Vorschau.
   Future<void> load() async {
     List<PpgCameraInfo> all;
@@ -229,6 +241,16 @@ class CameraFinderController extends ChangeNotifier {
     } else {
       await choice.setAuto(ref);
     }
+    await _stop();
+    return ref;
+  }
+
+  /// Beendet die Vorschau und speichert die Standardkamera als Ergebnis der Kamerasuche
+  /// (`ppgCameraAuto`), nur wenn [canApplyDefault]. Fehler beim Speichern wie bei [apply].
+  Future<PpgCameraRef?> applyDefault() async {
+    final ref = defaultCamera;
+    if (!canApplyDefault || ref == null) return null;
+    await choice.setAuto(ref);
     await _stop();
     return ref;
   }

@@ -3237,5 +3237,10 @@
   "cameraFinderFailDisconnected": "Camera disconnected",
   "cameraFinderFailFrameRate": "Frame rate not possible",
   "cameraFinderFailOther": "No preview",
-  "cameraFinderNumbers": "R/G {ratio} · {exposure} ms · ISO {iso} · light {light}"
+  "cameraFinderNumbers": "R/G {ratio} · {exposure} ms · ISO {iso} · light {light}",
+  "cameraFinderIntro": "Your phone has several cameras. Place your finger over the flash and camera – the lit camera is marked.",
+  "cameraFinderContinue": "Continue",
+  "cameraFinderUseDefault": "Use default camera",
+  "settingsCameraTitle": "Camera measurement",
+  "settingsCameraDefault": "Default camera"
 }

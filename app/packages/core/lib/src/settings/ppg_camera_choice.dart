@@ -93,6 +93,44 @@ Future<PpgCameraRef?> choosePpgCamera({
   }
 }
 
+/// Ob vor einer Kamera-Messung (Ruhepuls FR-0214, Morgenmessung FR-0215) die Kamerasuche
+/// erscheint (FR-0220): nur bei mehr als einer nutzbaren Kamera in [cameras] und ohne
+/// gültiges Ergebnis der Suche ([auto] in [cameras] vorhanden und nutzbar). Im
+/// Entwicklermodus mit gültiger Wahl von Hand ([manual]) entfällt sie ebenfalls.
+bool ppgCameraFinderNeeded({
+  required List<PpgCameraInfo> cameras,
+  required bool developerMode,
+  required PpgCameraRef? manual,
+  required PpgCameraRef? auto,
+}) {
+  bool usable(PpgCameraRef? ref) =>
+      ref != null && cameras.any((c) => c.ref == ref && c.usable);
+  if (cameras.where((c) => c.usable).length < 2) return false;
+  if (developerMode && usable(manual)) return false;
+  return !usable(auto);
+}
+
+/// Liest Entwicklermodus, Kamerawahl und Kameras und wendet [ppgCameraFinderNeeded] an.
+/// Scheitert das Lesen, entfällt die Suche (`false`): die Messung läuft dann wie ohne
+/// Suchergebnis mit der Kamera nach [choosePpgCamera].
+Future<bool> needsPpgCameraFinder({
+  required PpgCamera camera,
+  required Future<bool> Function() developerMode,
+  required PpgCameraChoiceStore choice,
+}) async {
+  try {
+    final dev = await developerMode();
+    return ppgCameraFinderNeeded(
+      cameras: await camera.cameras(),
+      developerMode: dev,
+      manual: dev ? await choice.readManual() : null,
+      auto: await choice.readAuto(),
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Schlüssel des Diagnose-Schalters [d] in [SettingsStore] (FR-0217).
 String ppgDiagnosticSettingKey(PpgCameraDiagnostic d) => switch (d) {
   PpgCameraDiagnostic.noiseReductionOff => SettingKeys.ppgDiagNoiseReductionOff,

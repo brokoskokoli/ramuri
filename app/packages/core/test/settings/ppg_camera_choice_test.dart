@@ -280,4 +280,126 @@ void main() {
       );
     });
   });
+
+  group('ppgCameraFinderNeeded (FR-0220)', () {
+    const one = [
+      PpgCameraInfo(ref: _std, isDefault: true),
+      PpgCameraInfo(ref: _broken, unusable: PpgCameraUnusable.noFlash),
+    ];
+    const two = [
+      PpgCameraInfo(ref: _std, isDefault: true),
+      PpgCameraInfo(ref: _second),
+    ];
+    bool needed({
+      List<PpgCameraInfo> cameras = _cameras,
+      bool dev = false,
+      PpgCameraRef? manual,
+      PpgCameraRef? auto,
+    }) => ppgCameraFinderNeeded(
+      cameras: cameras,
+      developerMode: dev,
+      manual: manual,
+      auto: auto,
+    );
+
+    test('mehr als eine nutzbare Kamera, kein Ergebnis: Suche', () {
+      expect(needed(), isTrue);
+      expect(needed(cameras: two), isTrue);
+    });
+
+    test(
+      'nur eine nutzbare Kamera (eine weitere nicht nutzbar): keine Suche',
+      () {
+        expect(needed(cameras: one), isFalse);
+        expect(needed(cameras: const []), isFalse);
+      },
+    );
+
+    test(
+      'gültiges Ergebnis der Suche: keine Suche (auch die Standardkamera)',
+      () {
+        expect(needed(auto: _second), isFalse);
+        expect(needed(auto: _std), isFalse);
+      },
+    );
+
+    test('Ergebnis verschwunden oder nicht nutzbar: Suche', () {
+      expect(needed(auto: const PpgCameraRef('9')), isTrue);
+      expect(needed(auto: _broken), isTrue);
+    });
+
+    test('Entwicklermodus mit gültiger Wahl von Hand: keine Suche', () {
+      expect(needed(dev: true, manual: _second), isFalse);
+    });
+
+    test('Wahl von Hand ohne Entwicklermodus oder ungültig: Suche', () {
+      expect(needed(manual: _second), isTrue);
+      expect(needed(dev: true, manual: _broken), isTrue);
+      expect(needed(dev: true, manual: const PpgCameraRef('9')), isTrue);
+    });
+  });
+
+  group('needsPpgCameraFinder', () {
+    late SettingsPpgCameraChoiceStore store;
+    late FakePpgCamera camera;
+    setUp(() async {
+      final session = await FakeStorage().open(Uint8List(32));
+      store = SettingsPpgCameraChoiceStore(
+        session.settings,
+        FakeClock(DateTime.utc(2026, 11, 18, 7)),
+      );
+      camera = FakePpgCamera()..cameraList = _cameras;
+    });
+
+    test('liest Kameras und Wahl', () async {
+      expect(
+        await needsPpgCameraFinder(
+          camera: camera,
+          developerMode: () async => false,
+          choice: store,
+        ),
+        isTrue,
+      );
+      await store.setAuto(_second);
+      expect(
+        await needsPpgCameraFinder(
+          camera: camera,
+          developerMode: () async => false,
+          choice: store,
+        ),
+        isFalse,
+      );
+    });
+
+    test('Wahl von Hand zählt nur im Entwicklermodus', () async {
+      await store.setManual(_second);
+      expect(
+        await needsPpgCameraFinder(
+          camera: camera,
+          developerMode: () async => false,
+          choice: store,
+        ),
+        isTrue,
+      );
+      expect(
+        await needsPpgCameraFinder(
+          camera: camera,
+          developerMode: () async => true,
+          choice: store,
+        ),
+        isFalse,
+      );
+    });
+
+    test('Fehler beim Lesen: keine Suche', () async {
+      expect(
+        await needsPpgCameraFinder(
+          camera: camera,
+          developerMode: () async => throw StateError('x'),
+          choice: store,
+        ),
+        isFalse,
+      );
+    });
+  });
 }
