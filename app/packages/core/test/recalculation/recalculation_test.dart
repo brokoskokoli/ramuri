@@ -439,13 +439,13 @@ void main() {
       expect(await w.recalc().checkVersions(), isNull);
     });
 
-    test('Veralteter Tageswert an einem Tag ohne Lauf: kein Angebot, und '
-        'nach einer Bestätigung kommt keines wieder', () async {
+    test('Tageswert an einem Tag ohne Lauf: kein Angebot; eine Bestätigung '
+        'aus anderem Grund entfernt ihn, danach kommt keines wieder '
+        '(PAR-237)', () async {
       const emptyDay = '2030-02-10';
       final template = await dayPart(w, runDay, vo2maxLongTermValueKey);
-      final old = changed(template, methodVersion: 1);
       await w.session.values.createOriginals(const ValueOwner.day(emptyDay), [
-        old,
+        changed(template, methodVersion: 1),
       ]);
       expect(await w.recalc().checkVersions(), isNull);
 
@@ -457,11 +457,19 @@ void main() {
       });
       final offer = await w.recalc().checkVersions();
       expect(offer, isNotNull);
+      final before = await w.session.values.read(const ValueOwner.day(runDay));
       await w.recalc().confirm(offer!);
       expect(await w.recalc().checkVersions(), isNull);
-      // Den Tag ohne Lauf rechnet die Neuberechnung nicht; er bleibt.
-      final kept = await dayPart(w, emptyDay, vo2maxLongTermValueKey);
-      expect(kept.methodVersion, 1);
+      expect(
+        await w.session.values.read(const ValueOwner.day(emptyDay)),
+        isEmpty,
+      );
+      // Der Tag mit Lauf behält seine Werte (Original unverändert).
+      final after = await w.session.values.read(const ValueOwner.day(runDay));
+      expect(
+        [for (final p in after) p.original.key],
+        [for (final p in before) p.original.key],
+      );
     });
 
     test(

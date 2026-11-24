@@ -54,15 +54,7 @@ StoredRun _run(
 List<PlanRunCandidate> _candidates(
   List<StoredRun> runs, {
   Map<int, Duration> moving = const {},
-  Duration fallbackOffset = _cet,
-}) => [
-  for (final r in runs)
-    ?PlanRunCandidate.of(
-      r,
-      movingTime: moving[r.id],
-      fallbackOffset: fallbackOffset,
-    ),
-];
+}) => [for (final r in runs) ?PlanRunCandidate.of(r, movingTime: moving[r.id])];
 
 List<PlanRunAssignment> _assign(
   List<PlanUnit> units,
@@ -241,12 +233,7 @@ void main() {
       );
       final units = [_u(1, 0), _u(2, 1)];
       final runs = [
-        for (final r in [run])
-          ?PlanRunCandidate.of(
-            r,
-            movingTime: null,
-            fallbackOffset: const Duration(hours: -5),
-          ),
+        for (final r in [run]) ?PlanRunCandidate.of(r, movingTime: null),
       ];
       expect(
         planAutoAssignments(
@@ -260,16 +247,19 @@ void main() {
       expect(runs.single.day, _d(1));
     });
 
-    test('Lauf ohne gespeicherten Versatz: Ersatzversatz', () {
-      // Beginn Mo 23:30 UTC; in UTC+1 ist das Dienstag.
+    test('Lauf ohne gespeicherten Versatz: UTC-Tag wie dayOfRun '
+        '(PAR-237)', () {
+      // Beginn Mo 23:30 UTC; in UTC+1 wäre das Dienstag, ohne Versatz am
+      // Lauf zählt aber der UTC-Tag, nie der Versatz des Geräts.
       final run = StoredRun(
         id: 7,
         state: RunState.finished,
         startedAt: _d(0).add(const Duration(hours: 23, minutes: 30)),
         endedAt: _d(1).add(const Duration(minutes: 10)),
       );
-      expect(planRunStartDay(run, fallbackOffset: _cet), _d(1));
-      expect(planRunStartDay(run, fallbackOffset: Duration.zero), _d(0));
+      expect(planRunStartDay(run), _d(0));
+      expect(isoDay(planRunStartDay(run)), dayOfRun(run));
+      expect(PlanRunCandidate.of(run, movingTime: null)!.day, _d(0));
     });
 
     test('verschobene Einheit: Lauf am neuen Tag zählt, am alten nicht', () {

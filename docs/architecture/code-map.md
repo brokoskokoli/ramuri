@@ -79,6 +79,7 @@ Fachlogik ohne Flutter; Barrel `app/packages/core/lib/core.dart`.
 | `app/packages/core/lib/src/recalculation/` | Analyse eines Laufs und Neuberechnung abgeleiteter Werte. |
 | `app/packages/core/lib/src/recording/` | Aufzeichnung, Startprüfung, Wiederanlauf und Laufband. |
 | `app/packages/core/lib/src/reminders/` | Regeln der Erinnerungen. |
+| `app/packages/core/lib/src/run_day/` | Tag eines Laufs: Ortstag seines Starts (PAR-237), ohne Abhängigkeit zu anderen Modulen. |
 | `app/packages/core/lib/src/sensors/` | Auswertung der Pulsdaten und Wahl der Pulsquelle. |
 | `app/packages/core/lib/src/settings/` | Einstellungen als Werte. |
 | `app/packages/core/lib/src/statistics/` | Historie, Perioden, Bestzeiten und Kilometer-Splits. |

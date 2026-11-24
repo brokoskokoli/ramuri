@@ -287,7 +287,7 @@ class RunRecorder {
     if (r == CommandResult.rejected) return r;
     _processEvents();
     final endedAt = _session.snapshot().endedAt!;
-    // Lokaler Versatz am Laufende (für den lokalen Kalendertag der Tageswerte),
+    // Lokaler Versatz am Laufende (gilt auch für den Beginn, PAR-237),
     // über die Uhr, in ganzen Sekunden.
     final offset = Duration(seconds: _clock.utcOffsetAt(endedAt).inSeconds);
     await _write(() async {

@@ -318,6 +318,7 @@ class CountingValues implements ComputedValueStore {
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},
+    Set<String> removeDays = const {},
   }) {
     writeAlls++;
     if (failRun != null && create.containsKey(ValueOwner.run(failRun!))) {
@@ -327,7 +328,7 @@ class CountingValues implements ComputedValueStore {
       final day = o.day;
       if (day != null) dayWrites[day] = (dayWrites[day] ?? 0) + 1;
     }
-    return inner.writeAll(create: create, swap: swap);
+    return inner.writeAll(create: create, swap: swap, removeDays: removeDays);
   }
 
   @override

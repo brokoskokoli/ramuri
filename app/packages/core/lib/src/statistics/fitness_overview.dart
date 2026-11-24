@@ -26,7 +26,7 @@ class RunEstimate {
   /// bei einem Grund aus der Profilbasis den fehlenden Puls (FR-0057).
   final bool hasHeartRate;
 
-  /// Lokaler Kalendertag des Laufendes (K21).
+  /// Tag des Laufs: Ortstag seines Starts (PAR-237, `dayOfRun`).
   final String day;
   final ComputedValue value;
 }

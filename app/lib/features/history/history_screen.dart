@@ -513,8 +513,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 sealed class _Entry {
   String get day;
 
-  /// Ordnung innerhalb der Woche (neuester zuerst): Ortszeit des Laufendes,
-  /// bei Trainings der Beginn ihres Tages (unter den Läufen desselben Tages).
+  /// Ordnung innerhalb der Woche (neuester zuerst): Ortszeit des Laufbeginns
+  /// ([runStartLocal], PAR-237), bei Trainings der Beginn ihres Tages (unter
+  /// den Läufen desselben Tages).
   DateTime get sortKey;
 }
 
@@ -526,10 +527,7 @@ class _RunEntry extends _Entry {
   String get day => dayOfRun(overview.run);
 
   @override
-  DateTime get sortKey {
-    final run = overview.run;
-    return run.endedAt!.toUtc().add(run.endedUtcOffset ?? Duration.zero);
-  }
+  DateTime get sortKey => runStartLocal(overview.run);
 }
 
 class _TrainingEntry extends _Entry {

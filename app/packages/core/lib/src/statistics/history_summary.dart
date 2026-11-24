@@ -7,7 +7,7 @@ import 'statistics_parameters.dart';
 enum HistoryRange { week, month, year, all }
 
 /// Der Zeitraum der Statistik, den [range] am Tag [today] (`JJJJ-MM-TT`, lokal,
-/// K21) meint: die Kalenderwoche, der Monat, das Kalenderjahr von [today]; „Alle“
+/// PAR-237) meint: die Kalenderwoche, der Monat, das Kalenderjahr von [today]; „Alle“
 /// reicht vom ersten Lauftag in [runs] (sonst [today]) bis [today] bzw. zum
 /// letzten Lauftag, falls der später liegt. Woche und Monat sind die der
 /// Statistik (FR-0044), das Jahr und „Alle“ sind freie Zeiträume derselben.
