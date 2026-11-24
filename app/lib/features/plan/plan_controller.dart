@@ -1609,8 +1609,6 @@ class PlanController extends ChangeNotifier {
     final history = await _plans.history();
     if (history.isEmpty) return;
     final state = await _underloadState();
-    final blocked = await _underloadBlocked(history, await _warning?.read());
-    if (blocked) return;
     final changed = DateTime.tryParse(
       await session.settings.get(profileHrMaxChangedAtKey) ?? '',
     )?.toUtc();
@@ -1619,6 +1617,10 @@ class PlanController extends ChangeNotifier {
     );
     final pattern = planUnderloadPattern(runs, parameters: parameters);
     if (!pattern) return;
+    // Sperre erst nach dem Muster prüfen: ohne Muster liest das Öffnen keine
+    // Readiness (FR-0158, Wochenprüfung nur wenn fällig).
+    final blocked = await _underloadBlocked(history, await _warning?.read());
+    if (blocked) return;
     var canRaise = false;
     if (state.stage != PlanUnderloadStage.none) {
       final today = _today();
