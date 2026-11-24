@@ -1671,5 +1671,31 @@ void diagnosticsTests() {
       }
       expect(diag.raw.frames.length, plain.raw.frames.length);
     });
+
+    testWidgets('Entwicklermodus mit „Weißabgleich fest“: Rohsignal trägt den '
+        'Schalter und die gemeldete Variante', (tester) async {
+      for (final variant in PpgAwbVariant.values) {
+        final r = await _Rig.make(
+          developerMode: true,
+          diagnostics: {
+            PpgCameraDiagnostic.awbFixed,
+            PpgCameraDiagnostic.edgeOff,
+          },
+        );
+        // Kamera bietet nur den Weißabgleich an.
+        r.cam.offeredDiagnostics = {PpgCameraDiagnostic.awbFixed};
+        r.cam.awbVariant = variant;
+        await r.show(tester, dark: false);
+        await _startMeasurement(tester, r);
+        await r.feed(tester, 80);
+        final e = (await tester.runAsync(() => r.store.list()))!.single;
+        final raw = (await tester.runAsync(() => r.store.rawSignal(e.id)))!;
+        expect(raw.diagnostics, {
+          PpgCameraDiagnostic.awbFixed,
+        }, reason: variant.wire);
+        expect(raw.awbVariant, variant, reason: variant.wire);
+        expect(raw.withCameraDiagnostics, isTrue, reason: variant.wire);
+      }
+    });
   });
 }

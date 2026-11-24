@@ -11,8 +11,8 @@ import 'ppg_camera_section.dart';
 
 /// Seite „Entwicklereinstellungen“ (FR-0217): bündelt alles, was es nur im
 /// Entwicklermodus gibt – in dieser Reihenfolge Schalter „Entwicklermodus“,
-/// „Kamera für die Pulsmessung“ (FR-0220), „Kamera-Bildverarbeitung
-/// (Diagnose)“, „Messpaare“ und „Kamera gegen Gurt“. Erreichbar über die
+/// „Kamera für die Pulsmessung“ (FR-0220), „Messpaare“, „Kamera gegen Gurt“
+/// und zuletzt „Kamera-Bildverarbeitung (Diagnose)“. Erreichbar über die
 /// Übersicht (nur bei eingeschaltetem Modus) und den Verweis auf „Über“.
 ///
 /// Schaltet man den Modus hier aus, schließt sich die Seite; wer sie geöffnet
