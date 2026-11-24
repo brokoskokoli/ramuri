@@ -105,11 +105,14 @@ int _compare(_Candidate a, _Candidate b) {
 /// ganze Aufnahme); das gewählte Fenster wird danach mit `evaluatePpg` einzeln ausgewertet.
 /// [live]: laufende Aufnahme: Der Filterrand nach dem Fenster muss schon aufgenommen sein, und auch
 /// ohne Kandidatenfenster wird für die Anzeige des guten Stücks analysiert.
-_Scan _scan(List<PpgFrame> frames, {required bool live}) {
+/// [relockedAt]: Sensorzeit der letzten Neusperre der Belichtung (PAR-237); dann zählen nur Bilder ab
+/// Fensterbeginn minus Filtervorlauf nach [ppgSearchStartMin], also ab der Neusperre.
+_Scan _scan(List<PpgFrame> frames, {required bool live, double? relockedAt}) {
   if (!frames.every(ppgFrameIsValid)) {
     return _Scan.failed(PpgQualityReason.invalidInput);
   }
-  final first = ppgStandardWindow.filterStart;
+  final startMin = ppgSearchStartMin(relockedAt: relockedAt);
+  final first = startMin - ppgSearchFilterLeadSeconds;
   final fs = <PpgFrame>[];
   for (final f in frames) {
     if (f.t < first || f.t > ppgSearchMaxRecordSeconds) continue;
@@ -120,7 +123,6 @@ _Scan _scan(List<PpgFrame> frames, {required bool live}) {
     return _Scan.failed(PpgQualityReason.insufficientData);
   }
   final lastT = fs.last.t;
-  final startMin = ppgStandardWindow.start;
   final margin = live ? ppgSearchFilterTailSeconds : 0.0;
   final starts = <double>[];
   for (var k = 0; ; k++) {
@@ -158,7 +160,10 @@ _Scan _scan(List<PpgFrame> frames, {required bool live}) {
   final candidates = [
     for (final s in starts) _Candidate(s, _rateWindow(fs, set, startMin, s)),
   ]..sort(_compare);
-  return _Scan(candidates, _displayStretch(_progress(fs, _goodStretch(set))));
+  return _Scan(
+    candidates,
+    _displayStretch(_progress(fs, _goodStretch(set), first)),
+  );
 }
 
 PpgAnalysisSet _analyze(List<PpgFrame> fs, PpgWindow w) => PpgAnalyzer.analyze(
@@ -184,13 +189,13 @@ double _displayStretch(double s) =>
 /// 40 s gutes Signal: 4,7 statt rund 40 s). Darum zählt zusätzlich das gute Stück je einer
 /// Analyse der jüngsten 60 und 30 s (nur wenn die Aufnahme dafür deutlich länger ist und die
 /// Gesamtanalyse noch kein volles Fenster zeigt); der größte Wert gilt.
-double _progress(List<PpgFrame> fs, double overall) {
+double _progress(List<PpgFrame> fs, double overall, double first) {
   var best = overall;
   final lastT = fs.last.t;
   if (overall >= 0.9 * ppgSearchWindowSeconds) return best;
   for (final len in ppgGoodStretchRecentSeconds) {
     final from = lastT - len;
-    if (from < ppgStandardWindow.filterStart + 5.0) continue;
+    if (from < first + 5.0) continue;
     final recent = [
       for (final f in fs)
         if (f.t >= from) f,
@@ -438,15 +443,18 @@ typedef PpgWindowEvaluator = PpgMeasurement Function(
 }
 
 /// Beste Auswertung einer Aufnahme von bis zu [ppgSearchMaxRecordSeconds]: das Fenster von
-/// [ppgSearchWindowSeconds] (Beginn ab `ppgStandardWindow.start`, Schritt [ppgSearchStepSeconds])
+/// [ppgSearchWindowSeconds] (Beginn ab [ppgSearchStartMin], nach einer Neusperre der Belichtung bei
+/// [relockedAt] also frühestens 2,5 s danach, Schritt [ppgSearchStepSeconds])
 /// mit der höchsten Stufe, dann dem höchsten Anteil gültiger Intervalle, dann dem frühesten
 /// Beginn. Das Zeitrauschen ist kein Kriterium (R010 offen). Bewertet wird das Fenster nach
-/// `ratePpg`; die Aufnahme muss mindestens bis zum Fensterende reichen, sonst „unzureichende Daten“.
+/// `ratePpg`; die Aufnahme muss mindestens bis zum Fensterende reichen, sonst „unzureichende Daten“
+/// (auch, wenn nach der letzten Neusperre bis zur Höchstdauer kein Fenster mehr Platz hat).
 PpgWindowedMeasurement evaluatePpgBestWindow(
   List<PpgFrame> frames, {
   PpgWindowEvaluator evaluate = evaluatePpg,
+  double? relockedAt,
 }) {
-  final scan = _scan(frames, live: false);
+  final scan = _scan(frames, live: false, relockedAt: relockedAt);
   if (scan.failure != null) {
     return PpgWindowedMeasurement(measurement: _unusable(scan.failure!));
   }
@@ -467,11 +475,13 @@ PpgWindowedMeasurement evaluatePpgBestWindow(
 /// Prüfung einer laufenden Aufnahme: Ist ein Fenster der Stufe „gut“ erreicht (dann darf sie
 /// enden, frühestens bei Fensterende plus Filterrand, also 66,5 s) und wie lang ist das längste
 /// gute Stück? Rechnet die ganze bisherige Aufnahme neu; nicht öfter als nötig aufrufen.
+/// [relockedAt] wie bei [evaluatePpgBestWindow].
 PpgRecordingCheck checkPpgRecording(
   List<PpgFrame> frames, {
   PpgWindowEvaluator evaluate = evaluatePpg,
+  double? relockedAt,
 }) {
-  final scan = _scan(frames, live: true);
+  final scan = _scan(frames, live: true, relockedAt: relockedAt);
   if (scan.failure != null) {
     return const PpgRecordingCheck(
       goodWindowReached: false,
