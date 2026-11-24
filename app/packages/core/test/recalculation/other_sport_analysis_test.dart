@@ -21,6 +21,7 @@ Future<void> _finish(
   List<(int, int)> pauses, {
   List<BeltSetting> belts = const [],
   List<int> laps = const [],
+  List<(int, int)> interruptions = const [],
 }) async {
   await w.session.rawData.append(
     id,
@@ -42,6 +43,14 @@ Future<void> _finish(
     final g = await w.session.markers.openGap(
       id,
       RunGapKind.manualPause,
+      start.add(Duration(seconds: a)),
+    );
+    await w.session.markers.closeGap(g, start.add(Duration(seconds: b)));
+  }
+  for (final (a, b) in interruptions) {
+    final g = await w.session.markers.openGap(
+      id,
+      RunGapKind.interruption,
       start.add(Duration(seconds: a)),
     );
     await w.session.markers.closeGap(g, start.add(Duration(seconds: b)));
@@ -70,13 +79,23 @@ Future<int> seedSport(
   String source = 'strap',
   List<(int, int)> pauses = const [],
   List<int> laps = const [],
+  List<(int, int)> interruptions = const [],
 }) async {
   final run = await w.session.runs.create(
     startedAt: start,
     mode: RunMode.sport,
     sport: sport,
   );
-  await _finish(w, run.id, start, hr, source, pauses, laps: laps);
+  await _finish(
+    w,
+    run.id,
+    start,
+    hr,
+    source,
+    pauses,
+    laps: laps,
+    interruptions: interruptions,
+  );
   return run.id;
 }
 
@@ -147,6 +166,43 @@ void main() {
         final o = await overview(w, id);
         expect(o.movingTime, const Duration(minutes: 30));
         expect(o.load.trimpStored, isTrue);
+      },
+    );
+
+    test(
+      'Ausfall nach Prozessende (FR-0193) fehlt wie die Pause-Taste',
+      () async {
+        final w = await RecalcWorld.create();
+        // 30 min: Pause-Taste 10.–15. min (Puls läuft weiter), Unterbrechung
+        // nach einem Prozessende 20.–25. min (keine Daten).
+        final id = await seedSport(
+          w,
+          _t0,
+          _series([(1200, 150), (300, null), (300, 150)]),
+          pauses: [(600, 900)],
+          interruptions: [(1200, 1500)],
+        );
+        await w.calc().calculateAfterRun(id);
+        final o = await overview(w, id);
+        expect(o.movingTime, const Duration(minutes: 20));
+        expect(o.totalTime, const Duration(minutes: 30));
+        final t = (await values(w, id))[trimpRunValueKey]!;
+        // 150 bpm = 79 % von 190: Gewicht 3, 20 min; volle Pulsabdeckung.
+        expect(t.value, closeTo(60, 0.1));
+        expect(t.quality, isNot(ValueQuality.provisional));
+        // Neuberechnung aus den Rohdaten liefert dieselbe Zeit.
+        final fresh = await RecalcWorld.create();
+        final id2 = await seedSport(
+          fresh,
+          _t0,
+          _series([(1200, 150), (300, null), (300, 150)]),
+          pauses: [(600, 900)],
+          interruptions: [(1200, 1500)],
+        );
+        expect(
+          (await overview(fresh, id2)).movingTime,
+          const Duration(minutes: 20),
+        );
       },
     );
 
