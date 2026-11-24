@@ -133,9 +133,11 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
   ArchiveSectionSpec(
     'runs',
     'id I, state T, started_at_us I, ended_at_us I?, ended_utc_offset_s I?, '
-        'mode T',
+        'mode T, sport T?',
     // WP25, Schema 10: Laufart; Archive bis Schema 9 lesen sich mit 'gps'.
-    addedColumns: {'mode': (10, 'gps')},
+    // Schema 18: Sportart einer anderen Sportart (FR-0221), nur bei
+    // mode = 'sport'; ältere Archive: null.
+    addedColumns: {'mode': (10, 'gps'), 'sport': (18, null)},
   ),
   ArchiveSectionSpec(
     'laps',
@@ -386,18 +388,18 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 17;
+const int archiveSchemaVersion = 18;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 17).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 18).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
 /// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7 und 8:
-/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`, ab 14: 34 mit `morning_raw_signals` (ab 15 mit der verwendeten Kamera, ab 16 mit `morning_measurements.chosen`, ab 17 mit ISP-Werten und Diagnose-Schaltern); ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
+/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`, ab 14: 34 mit `morning_raw_signals` (ab 15 mit der verwendeten Kamera, ab 16 mit `morning_measurements.chosen`, ab 17 mit ISP-Werten und Diagnose-Schaltern); ab 18 trägt `runs` die Spalte `sport`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
 /// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche

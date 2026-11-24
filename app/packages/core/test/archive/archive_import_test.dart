@@ -383,7 +383,8 @@ void main() {
           if (e.value.isNotEmpty)
             e.key: e.key == 'runs'
                 ? [
-                    for (final r in e.value) {...r, 'mode': 'gps'},
+                    for (final r in e.value)
+                      {...r, 'mode': 'gps', 'sport': null},
                   ]
                 : e.value,
       });
@@ -516,12 +517,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 17: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 18: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 18);
+        final lines = valid()..[0] = _manifest(schema: 19);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":18,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":19,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -703,7 +704,7 @@ void main() {
         });
         await c.run(await _archive(l));
         expect(c.sink.rows['runs'], [
-          {...run(), 'mode': 'gps'},
+          {...run(), 'mode': 'gps', 'sport': null},
         ]);
       },
     );
@@ -1388,8 +1389,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 17 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 18, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 18 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 19, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -2758,9 +2759,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 18: neueres Archiv', () async {
+    test('Schema 19: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":18,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":19,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });
