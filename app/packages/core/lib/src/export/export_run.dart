@@ -4,6 +4,7 @@ import '../../ports/storage_runs.dart';
 import '../preprocessing/geo.dart';
 import '../recording/belt_track.dart';
 import '../recording/cadence_estimator.dart';
+import '../recording/treadmill.dart';
 import '../preprocessing/measurement.dart';
 import '../../ports/file_handoff.dart';
 
@@ -108,7 +109,17 @@ class ExportRun {
     required this.segments,
     required this.laps,
     this.isTreadmill = false,
+    this.sport,
   });
+
+  /// Andere Sportart (FR-0221), sonst `null`: keine Positionen, Höhe,
+  /// Strecke und Schrittfrequenz, nur Puls und Zeit; GPX gibt es dafür nicht.
+  /// Die Sportart steht in TCX `Activity/@Sport` und FIT `sport`.
+  final OtherSport? sport;
+
+  /// Ob GPX möglich ist: nur mit Positionen, also nicht für Bandläufe und
+  /// Sporteinheiten.
+  bool get hasRoute => !isTreadmill && sport == null;
 
   /// Bandlauf (FR-0196): keine Positionen, Strecke und Geschwindigkeit je
   /// Punkt aus den Bandeinstellungen; GPX gibt es dafür nicht.
@@ -218,6 +229,10 @@ ExportRun buildExportRun({
   if (run.state != RunState.finished || endedAt == null) {
     throw ArgumentError('Nur beendete Läufe sind exportierbar');
   }
+  // Andere Sportart (FR-0221): nur Puls und Zeit.
+  final sport = run.mode == RunMode.sport
+      ? (run.sport ?? OtherSport.other)
+      : null;
   final res = resolution.inMicroseconds;
   if (res <= 0) throw ArgumentError.value(resolution, 'resolution');
   int floor(int us) => us - us % res;
@@ -286,7 +301,7 @@ ExportRun buildExportRun({
   }
 
   put<RawPosition>(
-    raw.positions,
+    sport != null ? const [] : raw.positions,
     (p) =>
         p.latitude.isFinite &&
         p.longitude.isFinite &&
@@ -298,7 +313,7 @@ ExportRun buildExportRun({
     (b, p) => b.position = ExportPosition(p.latitude, p.longitude),
   );
   put<RawAltitude>(
-    raw.altitudes,
+    sport != null ? const [] : raw.altitudes,
     (a) => a.meters.isFinite,
     (b) => b.altitude != null,
     (b, a) => b.altitude = a.meters,
@@ -313,7 +328,7 @@ ExportRun buildExportRun({
   // Schrittfrequenz aus dem Zähler (FR-0183, FR-0202): je Abschnitt in
   // Zeitfolge, gerechnet vor dem Abrunden der Zeit.
   final stepRows = <List<RawSteps>>[for (final _ in bounds) []];
-  for (final row in raw.steps) {
+  for (final row in sport != null ? const <StoredRaw<RawSteps>>[] : raw.steps) {
     final v = row.value;
     if (v.state != MeasurementState.present) continue;
     final seg = segmentOf(v.time.microsecondsSinceEpoch);
@@ -394,6 +409,7 @@ ExportRun buildExportRun({
     segments: segments,
     laps: exportLaps,
     isTreadmill: belt != null,
+    sport: sport,
   );
 }
 

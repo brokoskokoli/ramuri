@@ -14,11 +14,13 @@ const Duration gpxAttachWindow = Duration(seconds: 1);
 /// Abschnitts innerhalb von [gpxAttachWindow], sonst fehlen sie. Jeder Abschnitt
 /// mit Positionen wird ein `trkseg`.
 ///
-/// Ein Bandlauf hat keine Positionen und wird nicht als GPX ausgegeben
-/// (FR-0196, K57): [ArgumentError].
+/// Ein Bandlauf (FR-0196, K57) und eine andere Sportart (FR-0221) haben
+/// keine Positionen und werden nicht als GPX ausgegeben: [ArgumentError].
 String encodeGpx(ExportRun run) {
-  if (run.isTreadmill) {
-    throw ArgumentError('Ein Laufbandlauf lässt sich nicht als GPX ausgeben');
+  if (!run.hasRoute) {
+    throw ArgumentError(
+      'Ein Lauf ohne Strecke lässt sich nicht als GPX ausgeben',
+    );
   }
   final name = xmlText(run.name);
   final b = StringBuffer()

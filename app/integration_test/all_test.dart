@@ -9,6 +9,7 @@ import 'package:integration_test/integration_test.dart';
 
 import 'e2e_archive_test.dart' as archive;
 import 'e2e_morning_test.dart' as morning;
+import 'e2e_other_sport_test.dart' as other_sport;
 import 'e2e_health_test.dart' as health;
 import 'e2e_locale_test.dart' as locale;
 import 'e2e_plan_test.dart' as plan;
@@ -29,6 +30,9 @@ void main() {
   // durch den Stand, den er vorher exportiert hat (also unveraendert).
   group('Archiv', archive.main);
   group('Laufband', treadmill.main);
+  // Andere Sportart nach dem Laufband: trennt und verbindet den Test-Gurt
+  // selbst; die gemerkte Laufart stellt startRun wieder auf GPS.
+  group('Andere Sportart', other_sport.main);
   group('Ruhepuls Kamera', resting.main);
   // Morgenmessung zuletzt: sie schaltet den Entwicklermodus ein und wieder aus
   // und setzt voraus, dass noch keine Morgenmessung gespeichert ist.

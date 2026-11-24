@@ -12,9 +12,11 @@ import '../recalculation/recalculation_controller.dart';
 import '../sensors/sensor_manager.dart';
 import '../sensors/sensors_screen.dart';
 import '../settings/app_settings.dart';
+import '../history/manual_training_screen.dart';
 import '../settings/unit_format.dart';
 import 'guided_segments.dart';
 import 'live_run_view.dart';
+import 'other_sport.dart';
 import 'run_controller.dart';
 import 'run_ports.dart';
 import 'treadmill_units.dart';
@@ -118,9 +120,32 @@ class _RunFlowScreenState extends State<RunFlowScreen>
 
   bool get _treadmill => _mode == RunMode.treadmill;
 
+  /// Andere Sportart (FR-0221): kein Standort, keine Kadenz, keine Führung;
+  /// ein neuer Start braucht einen verbundenen Pulssensor.
+  bool get _sportMode => _mode == RunMode.sport;
+
+  /// Band und andere Sportart brauchen keinen Standort.
+  bool get _noLocation => _mode != RunMode.gps;
+
+  /// Gewählte Sportart (gemerkt, [otherSportSettingKey]); beim Fortsetzen die
+  /// des gespeicherten Laufs.
+  OtherSport _sport = defaultOtherSport;
+  bool _sportTouched = false;
+
+  /// Hinweis Wade/Achillessehne beim Start (1. bis 3. Seilspring-Einheit).
+  bool _ropeHint = false;
+
+  bool get _sensorConnected => widget.sensors?.connectedIds.isNotEmpty ?? false;
+
+  /// Ein neuer Start einer anderen Sportart ohne Pulssensor ist gesperrt.
+  bool get _sportLocked => _preparing && _sportMode && !_sensorConnected;
+
   /// „Geplante Einheit“ gewählt (nur mit [RunFlowScreen.plannedUnit]).
   bool _warningActive = false;
   late bool _planned = widget.startPlanned && widget.plannedUnit != null;
+
+  /// Geführt nur bei einem Lauf; eine andere Sportart läuft immer frei.
+  bool get _guided => _planned && !_sportMode;
 
   /// Hauptschalter „Ansagen“ (gemerkt, Vorgabe an) und das Schreiben davon.
   bool _voiceOn = true;
@@ -262,18 +287,56 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     try {
       final resume = widget.resumeRunId;
       if (resume != null) {
-        value = (await widget.session.runs.get(resume))?.mode ?? RunMode.gps;
+        final run = await widget.session.runs.get(resume);
+        value = run?.mode ?? RunMode.gps;
+        if (run?.sport != null) _sport = run!.sport!;
       } else {
         final saved = await widget.session.settings.get(SettingKeys.runMode);
-        value = saved == RunMode.treadmill.wire
-            ? RunMode.treadmill
-            : RunMode.gps;
+        value = RunMode.fromWire(saved) ?? RunMode.gps;
+        final sport = await loadOtherSport(widget.session.settings);
+        if (!_sportTouched) _sport = sport;
+        _ropeHint = await ropeHintBeforeStart(widget.session.runs);
       }
     } on Object {
       value = RunMode.gps;
     }
     if (!mounted || _modeTouched) return;
     _mode = value;
+  }
+
+  /// Merkt die Sportart dauerhaft; ein Speicherfehler ändert die Wahl nicht.
+  Future<void> _setSport(OtherSport sport) async {
+    if (sport == _sport) return;
+    setState(() {
+      _sport = sport;
+      _sportTouched = true;
+    });
+    try {
+      await widget.session.settings.set(
+        otherSportSettingKey,
+        sport.wire,
+        at: widget.clock.now(),
+      );
+    } on Object {
+      // Nur das Merken scheitert.
+    }
+  }
+
+  Future<void> _openManualEntry() async {
+    final now = widget.clock.now().toUtc();
+    final today = isoDay(now.add(widget.clock.utcOffsetAt(now)));
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ManualTrainingScreen(
+          service: SubjectiveService(
+            session: widget.session,
+            clock: widget.clock,
+          ),
+          today: today,
+          initialKind: ManualTrainingKind.other,
+        ),
+      ),
+    );
   }
 
   /// Merkt die Wahl dauerhaft (wie die Autopause); ein Speicherfehler ändert
@@ -428,9 +491,10 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     setState(() => _checking = true);
     await _modeLoaded;
     if (!mounted || gen != _generation) return;
-    // Laufband: kein Standort, weder Recht noch GPS-Schalter (FR-0196). Das
-    // Recht für die Aktivität prüft der Start (`startDenied`).
-    final result = _treadmill
+    // Laufband und andere Sportart: kein Standort, weder Recht noch
+    // GPS-Schalter (FR-0196, FR-0221). Das Recht für die Aktivität prüft der
+    // Start (`startDenied`).
+    final result = _noLocation
         ? const StartReadiness(null)
         : await RecordingStartGate(widget.ports.access).check(askUser: askUser);
     if (!mounted || gen != _generation) return;
@@ -449,11 +513,16 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         _ready = true;
         _checking = false;
       });
-      if (_treadmill) {
+      if (_noLocation) {
         _stopGps();
       } else {
         _startGps();
       }
+      return;
+    }
+    // Andere Sportart neu: Ohne Pulssensor startet nichts (FR-0221).
+    if (_sportLocked) {
+      setState(() => _checking = false);
       return;
     }
     // Laufband neu: Ohne gültige Startgeschwindigkeit startet nichts.
@@ -492,9 +561,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     final callback = widget.onGuidanceChosen;
     if (!_preparing || callback == null) return;
     final initial = widget.startPlanned && unit != null;
-    if (_planned == initial) return;
+    if (_guided == initial) return;
     try {
-      await callback(_planned ? unit : null);
+      await callback(_guided ? unit : null);
     } on Object {
       // Ohne Merker ordnet nur der normale Weg zu.
     }
@@ -504,6 +573,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   List<PlanSegment>? get _segmentsForRun {
     if (!_preparing) return widget.guidedSegments;
     final unit = widget.plannedUnit;
+    if (_sportMode) return null;
     if (_planned && unit != null) return guidedSegmentsOf(unit);
     return widget.guidedSegments;
   }
@@ -517,8 +587,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       service: widget.ports.recordingService,
       cadence: widget.ports.cadence,
       resumeRunId: widget.resumeRunId,
-      initialAutoPause: _preparing && !_treadmill ? _autoPause : null,
+      initialAutoPause: _preparing && !_noLocation ? _autoPause : null,
       mode: _mode,
+      sport: _sportMode ? _sport : null,
       startBeltSpeedMetersPerSecond: _preparing && _treadmill
           ? _beltSpeed
           : null,
@@ -528,7 +599,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       voice: widget.ports.voice,
       voiceTexts: VoiceTexts(AppLocalizations.of(context)),
       guidedSegments: _segmentsForRun,
-      guidedKind: _planned && _preparing ? widget.plannedUnit?.kind : null,
+      guidedKind: _guided && _preparing ? widget.plannedUnit?.kind : null,
     );
     final onFinished = widget.onFinished;
     if (onFinished != null) {
@@ -558,6 +629,8 @@ class _RunFlowScreenState extends State<RunFlowScreen>
 
   /// FR-0202: fragen, aber nie blockieren; ohne Recht fehlt nur die Schrittfrequenz.
   Future<void> _askActivityRecognition() async {
+    // Andere Sportart: keine Schrittfrequenz, kein Recht nötig (FR-0221).
+    if (_sportMode) return;
     try {
       await widget.ports.requestActivityRecognition?.call(_treadmill);
     } catch (_) {
@@ -635,7 +708,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
           clock: widget.clock,
           recalculation: widget.recalculation,
           pendingPlanUnit: widget.resumeRunId == null
-              ? (_planned ? widget.plannedUnit : null)
+              ? (_guided ? widget.plannedUnit : null)
               : _resumedUnit,
         );
       },
@@ -748,9 +821,78 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                 key: const Key('treadmill_mode_belt'),
               ),
             ),
+            ButtonSegment(
+              value: RunMode.sport,
+              label: Text(
+                l10n.otherSportMode,
+                key: const Key('treadmill_mode_sport'),
+              ),
+            ),
           ],
           selected: {_mode},
           onSelectionChanged: (v) => _setMode(v.first),
+        ),
+      ],
+    ),
+  );
+
+  /// Wahl der Sportart (FR-0221) mit dem Hinweis zum Brustgurt und, in den
+  /// ersten Seilspring-Einheiten, zu Wade und Achillessehne.
+  Widget _sportCard(AppLocalizations l10n, TextTheme text) => RamuriCard(
+    key: const Key('other_sport_card'),
+    padding: const EdgeInsets.all(18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.otherSportChoiceTitle, style: text.titleMedium),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final s in OtherSport.values)
+              ChoiceChip(
+                key: Key('other_sport_${s.wire}'),
+                avatar: Icon(otherSportIcon(s), size: 18),
+                label: Text(otherSportName(l10n, s)),
+                selected: _sport == s,
+                onSelected: (_) => _setSport(s),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          l10n.otherSportChestStrapHint,
+          key: const Key('other_sport_chest_hint'),
+          style: text.bodySmall,
+        ),
+        if (_sport == OtherSport.rope && _ropeHint) ...[
+          const SizedBox(height: 6),
+          Text(
+            l10n.otherSportRopeHint,
+            key: const Key('other_sport_rope_hint'),
+            style: text.bodySmall,
+          ),
+        ],
+      ],
+    ),
+  );
+
+  /// Ohne Pulssensor: Grund der Sperre und der Weg zum Nachtrag (FR-0199).
+  Widget _sportLockCard(AppLocalizations l10n, TextTheme text) => RamuriCard(
+    padding: const EdgeInsets.all(18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.otherSportNeedsSensor,
+          key: const Key('other_sport_needs_sensor'),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          key: const Key('other_sport_manual_entry'),
+          onPressed: _openManualEntry,
+          child: Text(l10n.otherSportManualEntry),
         ),
       ],
     ),
@@ -815,7 +957,11 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         Text(l10n.startFreeTitle, style: text.titleMedium),
         const SizedBox(height: 6),
         Text(
-          _treadmill ? l10n.treadmillBody : l10n.startFreeBody,
+          _sportMode
+              ? l10n.otherSportBody
+              : _treadmill
+              ? l10n.treadmillBody
+              : l10n.startFreeBody,
           style: text.bodySmall!.copyWith(height: 1.45),
         ),
       ],
@@ -1052,9 +1198,23 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                 _beltCard(l10n, text),
                 const SizedBox(height: 18),
               ],
-              _guidedToggle(l10n),
-              const SizedBox(height: 18),
-              _planned ? _plannedCard(l10n, text) : _freeCard(l10n, text),
+              if (_sportMode) ...[
+                _sportCard(l10n, text),
+                const SizedBox(height: 18),
+                ListenableBuilder(
+                  listenable: widget.sensors ?? _noChange,
+                  builder: (context, _) => _sportLocked
+                      ? Padding(
+                          padding: const EdgeInsets.only(bottom: 18),
+                          child: _sportLockCard(l10n, text),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ] else ...[
+                _guidedToggle(l10n),
+                const SizedBox(height: 18),
+              ],
+              _guided ? _plannedCard(l10n, text) : _freeCard(l10n, text),
               const SizedBox(height: 18),
               Semantics(
                 container: true,
@@ -1066,7 +1226,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                   ),
                   child: Column(
                     children: [
-                      if (!_treadmill)
+                      if (!_noLocation)
                         RamuriReadinessRow(
                           icon: Icons.place_outlined,
                           title: l10n.startGps,
@@ -1075,13 +1235,15 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                       ListenableBuilder(
                         listenable: widget.sensors ?? _noChange,
                         builder: (context, _) {
-                          final connected =
-                              widget.sensors?.connectedIds.isNotEmpty ?? false;
+                          final connected = _sensorConnected;
                           return RamuriReadinessRow(
                             icon: Icons.favorite_border,
                             title: l10n.startSensor,
+                            divider: !_sportMode,
                             subtitle: connected
                                 ? l10n.startSensorConnected
+                                : _sportMode
+                                ? l10n.otherSportSensorRequired
                                 : l10n.startSensorOptional,
                             muted: !connected,
                             trailing: widget.sensors == null
@@ -1094,37 +1256,39 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                           );
                         },
                       ),
-                      RamuriReadinessRow(
-                        icon: Icons.directions_walk,
-                        title: l10n.startCadence,
-                        divider: false,
-                        muted: cadence == CadenceAvailability.noSensor,
-                        trailing: cadence == null
-                            ? null
-                            : Text(
-                                key: const Key('start_cadence_source'),
-                                switch (cadence) {
-                                  CadenceAvailability.available =>
-                                    l10n.startCadencePhone,
-                                  CadenceAvailability.permissionDenied =>
-                                    l10n.startCadenceAsk,
-                                  CadenceAvailability.noSensor =>
-                                    l10n.startCadenceNone,
-                                },
-                                style: text.labelMedium!.copyWith(
-                                  color: cadence == CadenceAvailability.noSensor
-                                      ? c.textMuted
-                                      : c.accent,
+                      if (!_sportMode)
+                        RamuriReadinessRow(
+                          icon: Icons.directions_walk,
+                          title: l10n.startCadence,
+                          divider: false,
+                          muted: cadence == CadenceAvailability.noSensor,
+                          trailing: cadence == null
+                              ? null
+                              : Text(
+                                  key: const Key('start_cadence_source'),
+                                  switch (cadence) {
+                                    CadenceAvailability.available =>
+                                      l10n.startCadencePhone,
+                                    CadenceAvailability.permissionDenied =>
+                                      l10n.startCadenceAsk,
+                                    CadenceAvailability.noSensor =>
+                                      l10n.startCadenceNone,
+                                  },
+                                  style: text.labelMedium!.copyWith(
+                                    color:
+                                        cadence == CadenceAvailability.noSensor
+                                        ? c.textMuted
+                                        : c.accent,
+                                  ),
+                                  textAlign: TextAlign.end,
                                 ),
-                                textAlign: TextAlign.end,
-                              ),
-                      ),
+                        ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 18),
-              if (!_treadmill)
+              if (!_noLocation)
                 RamuriCard(
                   radius: 18,
                   padding: EdgeInsets.zero,
@@ -1136,18 +1300,20 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                     onChanged: _setAutoPause,
                   ),
                 ),
-              const SizedBox(height: 12),
-              RamuriCard(
-                radius: 18,
-                padding: EdgeInsets.zero,
-                child: SwitchListTile(
-                  key: const Key('guided_voice'),
-                  title: Text(l10n.guidedVoiceTitle, style: text.labelMedium),
-                  subtitle: Text(l10n.guidedVoiceHint),
-                  value: _voiceOn,
-                  onChanged: _setVoice,
+              if (!_sportMode) ...[
+                const SizedBox(height: 12),
+                RamuriCard(
+                  radius: 18,
+                  padding: EdgeInsets.zero,
+                  child: SwitchListTile(
+                    key: const Key('guided_voice'),
+                    title: Text(l10n.guidedVoiceTitle, style: text.labelMedium),
+                    subtitle: Text(l10n.guidedVoiceHint),
+                    value: _voiceOn,
+                    onChanged: _setVoice,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -1155,13 +1321,19 @@ class _RunFlowScreenState extends State<RunFlowScreen>
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           child: Column(
             children: [
-              RamuriStartButton(
-                key: const Key('run_start_ready'),
-                label: l10n.startGo,
-                semanticLabel: l10n.startGoSemantics,
-                onPressed: _ready && (!_treadmill || _beltInputValid)
-                    ? () => _check(askUser: false, autoStart: true)
-                    : null,
+              ListenableBuilder(
+                listenable: widget.sensors ?? _noChange,
+                builder: (context, _) => RamuriStartButton(
+                  key: const Key('run_start_ready'),
+                  label: l10n.startGo,
+                  semanticLabel: l10n.startGoSemantics,
+                  onPressed:
+                      _ready &&
+                          (!_treadmill || _beltInputValid) &&
+                          !_sportLocked
+                      ? () => _check(askUser: false, autoStart: true)
+                      : null,
+                ),
               ),
               const SizedBox(height: 6),
               Text(

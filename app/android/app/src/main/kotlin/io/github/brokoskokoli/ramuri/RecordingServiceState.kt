@@ -70,6 +70,8 @@ object RecordingServiceState {
                             mode,
                             context.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) ==
                                 PackageManager.PERMISSION_GRANTED,
+                            context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+                                PackageManager.PERMISSION_GRANTED,
                         )
                     }
                 }

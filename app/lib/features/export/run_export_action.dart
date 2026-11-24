@@ -43,14 +43,15 @@ class _RunExportActionState extends State<RunExportAction> {
   /// Nur beendete Läufe sind exportierbar; Lesefehler blenden die Aktion aus.
   late final Future<bool> _exportable = _isFinished();
 
-  /// Bandlauf (FR-0196): GPX ist im Exportfenster gesperrt.
-  bool _treadmill = false;
+  /// Art des Laufs: GPX gibt es nur für GPS-Läufe (Bandlauf FR-0196,
+  /// andere Sportart FR-0221).
+  RunMode _mode = RunMode.gps;
   late final ValueNotifier<bool> _busy = widget.busy ?? ValueNotifier(false);
 
   Future<bool> _isFinished() async {
     try {
       final run = await widget.session.runs.get(widget.runId);
-      _treadmill = run?.mode == RunMode.treadmill;
+      _mode = run?.mode ?? RunMode.gps;
       return run != null &&
           run.state == RunState.finished &&
           run.endedAt != null;
@@ -72,7 +73,7 @@ class _RunExportActionState extends State<RunExportAction> {
     final offload = OffloadScope.of(context);
     final choice = await showDialog<(ExportFormat, ExportTarget)>(
       context: context,
-      builder: (_) => ExportDialog(treadmill: _treadmill),
+      builder: (_) => ExportDialog(mode: _mode),
     );
     if (choice == null || !mounted || _busy.value) return;
     final (format, target) = choice;
@@ -184,19 +185,22 @@ class _RunExportActionState extends State<RunExportAction> {
 /// Formatwahl (GPX, TCX, FIT) und Ziel. Liefert die Wahl oder `null` bei
 /// Abbruch; nur „Teilen“ und „Speichern“ lösen etwas aus.
 class ExportDialog extends StatefulWidget {
-  const ExportDialog({super.key, this.treadmill = false});
+  const ExportDialog({super.key, this.mode = RunMode.gps});
 
-  /// Bandlauf: GPX ist ausgegraut, der Grund steht darunter (FR-0196, K57).
-  final bool treadmill;
+  /// Art des Laufs. Bandlauf: GPX ist ausgegraut, der Grund steht darunter
+  /// (FR-0196, K57). Andere Sportart: nur TCX und FIT (FR-0221).
+  final RunMode mode;
+
+  bool get treadmill => mode == RunMode.treadmill;
 
   @override
   State<ExportDialog> createState() => _ExportDialogState();
 }
 
 class _ExportDialogState extends State<ExportDialog> {
-  late ExportFormat _format = widget.treadmill
-      ? ExportFormat.tcx
-      : ExportFormat.gpx;
+  late ExportFormat _format = ExportFormat.gpx.availableFor(widget.mode)
+      ? ExportFormat.gpx
+      : ExportFormat.tcx;
 
   @override
   Widget build(BuildContext context) {
@@ -213,15 +217,16 @@ class _ExportDialogState extends State<ExportDialog> {
             key: const Key('export_format'),
             segments: [
               for (final f in ExportFormat.values)
-                ButtonSegment(
-                  value: f,
-                  enabled: f.availableFor(treadmill: widget.treadmill),
-                  // Formatnamen sind Eigennamen, in jeder Sprache gleich.
-                  label: Text(
-                    f.extension.toUpperCase(),
-                    key: Key('export_format_${f.name}'),
+                if (widget.mode != RunMode.sport || f.availableFor(widget.mode))
+                  ButtonSegment(
+                    value: f,
+                    enabled: f.availableFor(widget.mode),
+                    // Formatnamen sind Eigennamen, in jeder Sprache gleich.
+                    label: Text(
+                      f.extension.toUpperCase(),
+                      key: Key('export_format_${f.name}'),
+                    ),
                   ),
-                ),
             ],
             selected: {_format},
             onSelectionChanged: (s) => setState(() => _format = s.single),

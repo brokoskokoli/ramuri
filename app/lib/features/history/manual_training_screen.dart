@@ -33,6 +33,7 @@ class ManualTrainingScreen extends StatefulWidget {
     required this.today,
     this.existing,
     this.prefill,
+    this.initialKind,
   });
 
   final SubjectiveService service;
@@ -43,6 +44,10 @@ class ManualTrainingScreen extends StatefulWidget {
 
   /// Übernahme einer importierten Einheit; ohne [existing].
   final ManualTrainingPrefill? prefill;
+
+  /// Vorgewählte Art eines neuen Eintrags (ohne [existing] und [prefill]),
+  /// z. B. „Sonstiges“ aus dem Start einer anderen Sportart (FR-0221).
+  final ManualTrainingKind? initialKind;
 
   @override
   State<ManualTrainingScreen> createState() => _ManualTrainingScreenState();
@@ -65,7 +70,7 @@ class _ManualTrainingScreenState extends State<ManualTrainingScreen> {
     final t = widget.existing?.training;
     final p = t == null ? widget.prefill : null;
     _day = t?.day ?? p?.day ?? _todayDate;
-    _kind = t?.kind ?? p?.kind ?? ManualTrainingKind.run;
+    _kind = t?.kind ?? p?.kind ?? widget.initialKind ?? ManualTrainingKind.run;
     _rpe = t?.rpe;
     if (t != null) _minutes.text = '${t.duration.inMinutes}';
     if (p != null) _minutes.text = '${p.minutes}';

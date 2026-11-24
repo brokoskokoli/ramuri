@@ -53,6 +53,21 @@ class RecordingServiceControllerTest {
         assertEquals(RecordingMode.TREADMILL, fx.lastMode)
     }
 
+    @Test fun sportWithBluetoothConnectStartsWithoutLocationOrActivityRecognition() {
+        val (fx, c) = make()
+        c.start("a", false, RecordingMode.SPORT, false, true)
+        assertEquals(listOf("startService", "schedule"), fx.log)
+        assertEquals(RecordingMode.SPORT, fx.lastMode)
+    }
+
+    @Test fun sportWithoutBluetoothConnectStartsNothing() {
+        val (fx, c) = make()
+        c.start("a", true, RecordingMode.SPORT, true, false)
+        assertEquals(listOf("err:a:start_failed:SecurityException"), fx.log)
+        assertFalse(c.hasPending)
+        assertEquals(null, fx.lastMode)
+    }
+
     @Test fun gpsStartPassesGpsMode() {
         val (fx, c) = make()
         c.start("a", true)

@@ -5,6 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../run/live_run_values.dart' show LiveValueText, splitUnit;
 import '../run/live_run_view.dart' show formatClock;
+import '../run/other_sport.dart';
 import '../settings/unit_format.dart';
 import '../transparency/value_explanation_screen.dart';
 import 'plan_origin_note.dart';
@@ -45,6 +46,67 @@ class RunSummaryPage extends StatelessWidget {
   /// Gewählte Einheit, deren Zuordnung nach dem Lauf noch aussteht.
   final PlanUnit? pendingPlanUnit;
 
+  /// Andere Sportart (FR-0221): keine Laufwerte (Strecke, Pace, Höhe,
+  /// Einordnung, VO₂max, Runden).
+  bool get isSport => summary.run.mode == RunMode.sport;
+
+  /// Sportart mit Symbol statt Strecke; darunter die Hinweise der Sportart:
+  /// Unterschätzung bei Rad und Rudern, mit [ropeHint] in den ersten drei
+  /// Seilspring-Einheiten Wade/Achillessehne.
+  Widget sportNote(
+    BuildContext context,
+    AppLocalizations l10n, {
+    required bool ropeHint,
+  }) {
+    final text = Theme.of(context).textTheme;
+    final sport = summary.run.sport;
+    return Column(
+      key: const Key('sum_other_sport'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            if (sport != null) ...[
+              Icon(otherSportIcon(sport)),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Text(
+                sport == null
+                    ? l10n.otherSportMode
+                    : otherSportName(l10n, sport),
+                key: const Key('sum_other_sport_name'),
+                style: text.titleLarge,
+              ),
+            ),
+          ],
+        ),
+        if (otherSportUnderestimated(sport)) ...[
+          const SizedBox(height: 8),
+          Text(
+            l10n.otherSportUnderestimatedHint,
+            key: const Key('sum_other_sport_underestimated'),
+            style: text.bodySmall,
+          ),
+        ],
+        if (ropeHint && sport == OtherSport.rope)
+          FutureBuilder<bool>(
+            future: ropeHintForRun(session.runs, runId),
+            builder: (context, snap) => snap.data == true
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      l10n.otherSportRopeHint,
+                      key: const Key('sum_other_sport_rope_hint'),
+                      style: text.bodySmall,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+      ],
+    );
+  }
+
   /// Abschnitt „Angaben zum Lauf“, falls ein Dienst da ist.
   Widget subjectiveSection({bool showSrpe = false}) {
     final service = subjective;
@@ -79,11 +141,13 @@ class RunSummaryPage extends StatelessWidget {
         gap,
         zones(context, l10n),
         gap,
-        compare(context, l10n),
-        gap,
+        if (!isSport) ...[compare(context, l10n), gap],
         subjectiveSection(),
-        if (!summary.isTreadmill) ...[_altitude(context, l10n), gap],
-        laps(context, l10n),
+        if (!summary.isTreadmill && !isSport) ...[
+          _altitude(context, l10n),
+          gap,
+        ],
+        if (!isSport) laps(context, l10n),
         notes(context, l10n),
         explain(
           context,
@@ -142,17 +206,23 @@ class RunSummaryPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          LiveValueText(
-            id: 'run_distance',
-            value: distance,
-            unit: distanceUnit,
-            valueStyle: distanceUnit == null
-                ? Theme.of(context).textTheme.titleLarge!
-                : type.distance,
-            unitStyle: type.unitLarge,
-          ),
-          const SizedBox(height: 14),
-          if (summary.isTreadmill)
+          if (isSport)
+            sportNote(context, l10n, ropeHint: true)
+          else ...[
+            LiveValueText(
+              id: 'run_distance',
+              value: distance,
+              unit: distanceUnit,
+              valueStyle: distanceUnit == null
+                  ? Theme.of(context).textTheme.titleLarge!
+                  : type.distance,
+              unitStyle: type.unitLarge,
+            ),
+            const SizedBox(height: 14),
+          ],
+          if (isSport)
+            const SizedBox.shrink()
+          else if (summary.isTreadmill)
             treadmillNote(context, l10n)
           else
             RunRouteSection(route: detail.route, height: routeSummaryHeight),
@@ -233,7 +303,8 @@ class RunSummaryPage extends StatelessWidget {
     final ascent = summary.ascentMeters;
     final descent = summary.descentMeters;
     final pace = f.averagePaceSecondsPerKm;
-    final treadmill = summary.isTreadmill;
+    // Andere Sportart: keine Pace und keine Höhe (FR-0221).
+    final noElevation = summary.isTreadmill || isSport;
     final best = summary.bestPace.secondsPerKm;
     final trimp = f.trimpPoints;
     final na = l10n.runUnavailable;
@@ -245,15 +316,16 @@ class RunSummaryPage extends StatelessWidget {
           )
         : (load.trimpStored ? na : l10n.sumLoadNotStored);
     return [
-      _tile(
-        'run_avg_pace',
-        l10n.summaryAvgPace,
-        pace == null ? null : formatter.pace(pace),
-        formatter.paceLabel,
-        na,
-        unitInLabel: true,
-      ),
-      if (!treadmill)
+      if (!isSport)
+        _tile(
+          'run_avg_pace',
+          l10n.summaryAvgPace,
+          pace == null ? null : formatter.pace(pace),
+          formatter.paceLabel,
+          na,
+          unitInLabel: true,
+        ),
+      if (!noElevation)
         _tile(
           'sum_best_pace',
           l10n.summaryBestPace,
@@ -262,7 +334,7 @@ class RunSummaryPage extends StatelessWidget {
           l10n.sumBestPaceNone,
           unitInLabel: true,
         ),
-      if (!treadmill)
+      if (!noElevation)
         _tile(
           'run_ascent',
           l10n.summaryAscent,
@@ -271,7 +343,7 @@ class RunSummaryPage extends StatelessWidget {
           na,
           prefix: '+',
         ),
-      if (!treadmill)
+      if (!noElevation)
         _tile(
           'run_descent',
           l10n.summaryDescent,

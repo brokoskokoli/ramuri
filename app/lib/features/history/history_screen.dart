@@ -12,6 +12,7 @@ import '../map/map_consent_scope.dart';
 import '../map/miniature_service.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/live_run_view.dart' show formatClock;
+import '../run/other_sport.dart';
 import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
 import '../storage/deletion.dart';
@@ -701,8 +702,14 @@ class _RunTile extends StatelessWidget {
     final bpm = overview.averageHeartRateBpm;
     final time = overview.totalTime;
     final belt = overview.run.mode == RunMode.treadmill;
-    // Bandlauf: keine Karte, keine Miniatur, kein leerer Platz (FR-0196).
-    final miniature = belt
+    // Andere Sportart (FR-0221): Symbol und Name statt Strecke und Pace.
+    final sport = overview.run.mode == RunMode.sport
+        ? overview.run.sport
+        : null;
+    final isSport = overview.run.mode == RunMode.sport;
+    // Bandlauf und andere Sportart: keine Karte, keine Miniatur, kein leerer
+    // Platz (FR-0196, FR-0221).
+    final miniature = belt || isSport
         ? const SizedBox.shrink()
         : RunMiniature(
             key: Key('history_miniature_$id'),
@@ -731,30 +738,52 @@ class _RunTile extends StatelessWidget {
             key: Key('history_treadmill_$id'),
             style: text.labelMedium,
           ),
+        if (isSport)
+          Row(
+            key: Key('history_sport_$id'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                sport == null ? Icons.sports : otherSportIcon(sport),
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  sport == null
+                      ? l10n.otherSportMode
+                      : otherSportName(l10n, sport),
+                  style: text.labelMedium,
+                ),
+              ),
+            ],
+          ),
         const SizedBox(height: 3),
         Wrap(
           spacing: 10,
           children: [
-            Text(
-              overview.distanceMeters == null
-                  ? l10n.runUnavailable
-                  : formatter.distance(overview.distanceMeters),
-              key: Key('history_distance_$id'),
-              style: text.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
+            if (!isSport)
+              Text(
+                overview.distanceMeters == null
+                    ? l10n.runUnavailable
+                    : formatter.distance(overview.distanceMeters),
+                key: Key('history_distance_$id'),
+                style: text.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
             Text(
               time == null ? l10n.runUnavailable : formatClock(time),
               key: Key('history_time_$id'),
               style: text.bodyMedium,
             ),
-            Text(
-              pace == null
-                  ? l10n.runUnavailable
-                  : unbreakableUnit(formatter.pace(pace)),
-              semanticsLabel: pace == null ? null : formatter.pace(pace),
-              key: Key('history_pace_$id'),
-              style: text.bodyMedium,
-            ),
+            if (!isSport)
+              Text(
+                pace == null
+                    ? l10n.runUnavailable
+                    : unbreakableUnit(formatter.pace(pace)),
+                semanticsLabel: pace == null ? null : formatter.pace(pace),
+                key: Key('history_pace_$id'),
+                style: text.bodyMedium,
+              ),
           ],
         ),
         if (overview.readFailed)
