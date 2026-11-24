@@ -57,6 +57,29 @@ RrPacket _p(int seconds, List<int> rr) => RrPacket(
   intervals: rr,
 );
 
+/// 19 synthetische ISP-Werte eines Bildes; [missing] = nicht gemeldet (NaN).
+List<double> _isp(int i, {Set<int> missing = const {}}) {
+  final v = <double>[
+    1.875 + i / 1024, 1.0, 1.0, 2.1 + i / 10, // Farbverstärkungen R, Gg, Go, B
+    2,
+    1,
+    0,
+    0,
+    1,
+    1,
+    1, // AWB-Zustand/-Modus, Farbkorrektur, NR, Kanten, Tonwert, Shading
+    33333333.0 - i,
+    400,
+    2,
+    33366666, // Belichtung ns, ISO, AE-Zustand, Bilddauer ns
+    0, 10.0 / 3, 0, 0, // AF-Modus, Fokusdistanz dpt, OIS, Linsenzustand
+  ];
+  for (final k in missing) {
+    v[k] = double.nan;
+  }
+  return v;
+}
+
 void main() {
   test('Kopfzeile ohne Morgen, CRLF, kein BOM', () {
     final csv = encodeMorningPairsCsv(const []);
@@ -90,6 +113,17 @@ void main() {
           cameraId: '0',
           physicalCameraId: '2',
           focalLengthMm: 2.2,
+          // Formatversion 5: ISP-Werte je Bild (Bild 2 ohne Farbverstärkungen
+          // und Fokusdistanz) und gesetzte Schalter (synthetisch).
+          ispFrames: [
+            _isp(0),
+            _isp(1, missing: {0, 1, 2, 3, 16}),
+          ],
+          diagnostics: const {
+            PpgCameraDiagnostic.noiseReductionOff,
+            PpgCameraDiagnostic.awbFixed,
+          },
+          awbVariant: PpgAwbVariant.matrix,
         ),
         beltPackets: [
           _p(5, [900, 910]),
@@ -99,6 +133,125 @@ void main() {
       ),
     ]);
     expectGolden(csv, 'morning_pairs.csv');
+  });
+
+  test('Formatversion 5: Schalter-meta nach focal_length, raw_isp je Bild '
+      'nach den raw_frame-Zeilen, 19 Felder, leer = nicht gemeldet', () {
+    final csv = encodeMorningPairsCsv([
+      MorningPair(
+        id: 1,
+        measurement: _m(),
+        rawSignal: MorningRawSignal(
+          frames: [
+            for (var i = 0; i < 3; i++)
+              PpgFrame(
+                t: 0.0333 * i,
+                r: 200,
+                g: 100,
+                r16: List.filled(16, 200),
+                g16: List.filled(16, 100),
+              ),
+          ],
+          frameGapCount: 0,
+          frameGapTotalS: 0,
+          ispFrames: [
+            _isp(0),
+            _isp(1, missing: {4}),
+            List.filled(ppgIspValueCount, double.nan),
+          ],
+          diagnostics: const {
+            PpgCameraDiagnostic.edgeOff,
+            PpgCameraDiagnostic.awbFixed,
+            PpgCameraDiagnostic.tonemapLinear,
+            PpgCameraDiagnostic.shadingOff,
+          },
+          awbVariant: PpgAwbVariant.lock,
+        ),
+      ),
+    ]);
+    final lines = csv.split('\r\n');
+    final focal = lines.indexWhere((l) => l.contains(',meta,focal_length,'));
+    expect(lines.sublist(focal + 1, focal + 8), [
+      '5,1,meta,diag_noise_reduction_off,,,,0,',
+      '5,1,meta,diag_edge_off,,,,1,',
+      '5,1,meta,diag_awb_fixed,,,,1,',
+      '5,1,meta,diag_awb_variant,,,,lock,',
+      '5,1,meta,diag_tonemap_linear,,,,1,',
+      '5,1,meta,diag_shading_off,,,,1,',
+      '5,1,meta,raw_isp_frames,,,,3,',
+    ]);
+    final types = [
+      for (final l in lines.skip(1))
+        if (l.isNotEmpty) l.split(',')[2],
+    ];
+    final firstIsp = types.indexOf('raw_isp');
+    expect(types.lastIndexOf('raw_frame'), firstIsp - 1);
+    expect(types.sublist(firstIsp), ['raw_isp', 'raw_isp', 'raw_isp']);
+    final isp = [
+      for (final l in lines)
+        if (l.contains(',raw_isp,')) l,
+    ];
+    expect(isp.map((l) => l.split(',')[4]), ['1', '2', '3']);
+    final f0 = isp[0].split(',')[7].split(';');
+    expect(f0, hasLength(19));
+    expect(f0, [
+      '1.875',
+      '1.0',
+      '1.0',
+      '2.1',
+      '2',
+      '1',
+      '0',
+      '0',
+      '1',
+      '1',
+      '1',
+      '33333333',
+      '400',
+      '2',
+      '33366666',
+      '0',
+      '3.3333333333333335',
+      '0',
+      '0',
+    ]);
+    // Verlustfrei zurückgelesen; ein nicht gemeldeter Wert ist ein leeres Feld.
+    expect(double.parse(f0[16]), 10.0 / 3);
+    final f1 = isp[1].split(',')[7].split(';');
+    expect(f1[4], '');
+    expect(f1[11], '33333332');
+    expect(isp[2].split(',')[7], List.filled(19, '').join(';'));
+    // raw_frame bleibt bei genau 35 Zahlen.
+    for (final l in lines.where((l) => l.contains(',raw_frame,'))) {
+      expect(l.split(',')[7].split(';'), hasLength(35));
+    }
+  });
+
+  test('Formatversion 5: Rohsignal ohne ISP-Werte und Schalter: 0, leer, '
+      'keine raw_isp-Zeilen', () {
+    final csv = encodeMorningPairsCsv([
+      MorningPair(
+        id: 1,
+        measurement: _m(),
+        rawSignal: const MorningRawSignal(
+          frames: [],
+          frameGapCount: 0,
+          frameGapTotalS: 0,
+        ),
+      ),
+    ]);
+    for (final k in [
+      'diag_noise_reduction_off',
+      'diag_edge_off',
+      'diag_awb_fixed',
+      'diag_tonemap_linear',
+      'diag_shading_off',
+      'raw_isp_frames',
+    ]) {
+      expect(csv, contains('5,1,meta,$k,,,,0,\r\n'), reason: k);
+    }
+    expect(csv, contains('5,1,meta,diag_awb_variant,,,,,\r\n'));
+    expect(csv, isNot(contains(',raw_isp,')));
   });
 
   test('Formatversion 4: counts und chosen je Morgen nach outside_window '
@@ -123,10 +276,10 @@ void main() {
       MorningPair(id: 4, measurement: _m(at: next)),
     ]);
     String block(int id, String outside, String counts, String chosen) =>
-        '4,$id,meta,outside_window,,,,$outside,\r\n'
-        '4,$id,meta,counts,,,,$counts,\r\n'
-        '4,$id,meta,chosen,,,,$chosen,\r\n'
-        '4,$id,meta,sleep_band,';
+        '5,$id,meta,outside_window,,,,$outside,\r\n'
+        '5,$id,meta,counts,,,,$counts,\r\n'
+        '5,$id,meta,chosen,,,,$chosen,\r\n'
+        '5,$id,meta,sleep_band,';
     expect(csv, contains(block(1, '0', '0', '0')));
     expect(csv, contains(block(2, '0', '1', '1')));
     expect(csv, contains(block(3, '1', '0', '1')));
@@ -149,15 +302,15 @@ void main() {
     ]);
     for (var i = 0; i < versions.length; i++) {
       final id = i + 1;
-      expect(csv, contains('4,$id,meta,method_version,,,,${versions[i]},\r\n'));
+      expect(csv, contains('5,$id,meta,method_version,,,,${versions[i]},\r\n'));
       // Jede ist die erste ihres Tages und zählt, gleich welche Version.
-      expect(csv, contains('4,$id,meta,counts,,,,1,\r\n'));
+      expect(csv, contains('5,$id,meta,counts,,,,1,\r\n'));
     }
   });
 
   test('ungültiges Kamera-Intervall ist ein leeres Feld, nie NaN', () {
     final csv = encodeMorningPairsCsv([MorningPair(id: 1, measurement: _m())]);
-    expect(csv, contains('4,1,camera_ibi,ibi,2,,,,ms\r\n'));
+    expect(csv, contains('5,1,camera_ibi,ibi,2,,,,ms\r\n'));
     expect(csv.toLowerCase(), isNot(contains('nan')));
   });
 
@@ -165,16 +318,16 @@ void main() {
     final csv = encodeMorningPairsCsv([
       MorningPair(id: 1, measurement: _m(rmssd: null)),
     ]);
-    expect(csv, contains('4,1,camera,rmssd,,,,,ms\r\n'));
-    expect(csv, contains('4,1,camera,timing_noise,,,,,ms\r\n'));
+    expect(csv, contains('5,1,camera,rmssd,,,,,ms\r\n'));
+    expect(csv, contains('5,1,camera,timing_noise,,,,,ms\r\n'));
   });
 
   test('sehr kleine Werte ohne Exponentschreibweise', () {
     final csv = encodeMorningPairsCsv([
       MorningPair(id: 1, measurement: _m(rmssd: 1e-7, noise: 2e-8)),
     ]);
-    expect(csv, contains('4,1,camera,rmssd,,,,0.0000001,ms\r\n'));
-    expect(csv, contains('4,1,camera,timing_noise,,,,0.00000002,ms\r\n'));
+    expect(csv, contains('5,1,camera,rmssd,,,,0.0000001,ms\r\n'));
+    expect(csv, contains('5,1,camera,timing_noise,,,,0.00000002,ms\r\n'));
     expect(csv.toLowerCase(), isNot(contains('e-')));
   });
 
@@ -224,12 +377,12 @@ void main() {
       ),
       MorningPair(id: 2, measurement: _m(at: _t0.add(const Duration(days: 1)))),
     ]);
-    expect(csv, contains('4,1,meta,window_start,,,,31.5,s\r\n'));
-    expect(csv, contains('4,1,meta,window_end,,,,91.5,s\r\n'));
-    expect(csv, contains('4,1,meta,rest_skipped_after,,,,12.0,s\r\n'));
+    expect(csv, contains('5,1,meta,window_start,,,,31.5,s\r\n'));
+    expect(csv, contains('5,1,meta,window_end,,,,91.5,s\r\n'));
+    expect(csv, contains('5,1,meta,rest_skipped_after,,,,12.0,s\r\n'));
     // Ohne Fenster und ohne Überspringen: leer, nie 0.
-    expect(csv, contains('4,2,meta,window_start,,,,,s\r\n'));
-    expect(csv, contains('4,2,meta,rest_skipped_after,,,,,s\r\n'));
+    expect(csv, contains('5,2,meta,window_start,,,,,s\r\n'));
+    expect(csv, contains('5,2,meta,rest_skipped_after,,,,,s\r\n'));
   });
 
   test('unbrauchbare Messung ist enthalten und markiert', () {
@@ -245,12 +398,12 @@ void main() {
       ),
       MorningPair(id: 4, measurement: _m()),
     ]);
-    expect(csv, contains('4,3,meta,quality,,,,unusable,\r\n'));
-    expect(csv, contains('4,3,meta,usable,,,,0,\r\n'));
-    expect(csv, contains('4,3,meta,quality_reason,,,,weakSignal,\r\n'));
-    expect(csv, contains('4,3,camera,resting_hr,,,,,bpm\r\n'));
-    expect(csv, contains('4,4,meta,usable,,,,1,\r\n'));
-    expect(csv, contains('4,4,meta,quality_reason,,,,,\r\n'));
+    expect(csv, contains('5,3,meta,quality,,,,unusable,\r\n'));
+    expect(csv, contains('5,3,meta,usable,,,,0,\r\n'));
+    expect(csv, contains('5,3,meta,quality_reason,,,,weakSignal,\r\n'));
+    expect(csv, contains('5,3,camera,resting_hr,,,,,bpm\r\n'));
+    expect(csv, contains('5,4,meta,usable,,,,1,\r\n'));
+    expect(csv, contains('5,4,meta,quality_reason,,,,,\r\n'));
   });
 
   test('Puls außerhalb PAR-017: Zeile unbrauchbar mit Grund, ohne Puls', () {
@@ -272,25 +425,28 @@ void main() {
     )!;
     final csv = encodeMorningPairsCsv([MorningPair(id: 5, measurement: m)]);
     expect(csv, startsWith(_header));
-    expect(csv, contains('4,5,meta,quality,,,,unusable,\r\n'));
-    expect(csv, contains('4,5,meta,usable,,,,0,\r\n'));
+    expect(csv, contains('5,5,meta,quality,,,,unusable,\r\n'));
+    expect(csv, contains('5,5,meta,usable,,,,0,\r\n'));
     expect(
       csv,
-      contains('4,5,meta,quality_reason,,,,restingHrOutOfRange,\r\n'),
+      contains('5,5,meta,quality_reason,,,,restingHrOutOfRange,\r\n'),
     );
-    expect(csv, contains('4,5,camera,resting_hr,,,,,bpm\r\n'));
-    expect(csv, contains('4,5,camera,rmssd,,,,,ms\r\n'));
+    expect(csv, contains('5,5,camera,resting_hr,,,,,bpm\r\n'));
+    expect(csv, contains('5,5,camera,rmssd,,,,,ms\r\n'));
     expect(csv, isNot(contains('121')));
   });
 
   test('ohne Rohsignal keine Rohzeilen, raw_frames ist 0', () {
     final csv = encodeMorningPairsCsv([MorningPair(id: 1, measurement: _m())]);
     expect(csv, isNot(contains(',raw_frame,')));
-    expect(csv, contains('4,1,meta,raw_frames,,,,0,\r\n'));
+    expect(csv, contains('5,1,meta,raw_frames,,,,0,\r\n'));
     expect(csv, isNot(contains('exposure_time')));
     // Kamera-Angaben (Formatversion 3) fehlen wie die übrigen.
     expect(csv, isNot(contains('camera_id')));
     expect(csv, isNot(contains('focal_length')));
+    // Diagnose-Angaben (Formatversion 5) nur mit gespeichertem Rohsignal.
+    expect(csv, isNot(contains('diag_')));
+    expect(csv, isNot(contains('raw_isp')));
   });
 
   test('Formatversion 3: verwendete Kamera nach saturated_fraction', () {
@@ -312,15 +468,16 @@ void main() {
     expect(
       csv,
       contains(
-        '4,1,meta,saturated_fraction,,,,0.5,\r\n'
-        '4,1,meta,camera_id,,,,0,\r\n'
-        '4,1,meta,physical_camera_id,,,,3,\r\n'
-        '4,1,meta,focal_length,,,,4.25,mm\r\n'
-        '4,1,camera,resting_hr,',
+        '5,1,meta,saturated_fraction,,,,0.5,\r\n'
+        '5,1,meta,camera_id,,,,0,\r\n'
+        '5,1,meta,physical_camera_id,,,,3,\r\n'
+        '5,1,meta,focal_length,,,,4.25,mm\r\n'
+        // Ab Formatversion 5 folgen die Diagnose-Angaben.
+        '5,1,meta,diag_noise_reduction_off,',
       ),
     );
     for (final l in csv.split('\r\n').skip(1).where((l) => l.isNotEmpty)) {
-      expect(l, startsWith('4,'));
+      expect(l, startsWith('5,'));
     }
   });
 
@@ -339,9 +496,9 @@ void main() {
     expect(
       csv,
       contains(
-        '4,1,meta,camera_id,,,,,\r\n'
-        '4,1,meta,physical_camera_id,,,,,\r\n'
-        '4,1,meta,focal_length,,,,,mm\r\n',
+        '5,1,meta,camera_id,,,,,\r\n'
+        '5,1,meta,physical_camera_id,,,,,\r\n'
+        '5,1,meta,focal_length,,,,,mm\r\n',
       ),
     );
   });

@@ -2,18 +2,19 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../../ports/file_handoff.dart';
+import '../../ports/ppg_camera.dart' show PpgCameraDiagnostic;
 import '../../ports/storage_morning.dart';
 import '../morning/morning_logic.dart' show countingMorningMeasurements;
 import '../ppg/ppg_evaluator.dart' show PpgFrame;
 import '../preprocessing/measurement.dart' show RrPacket;
 
 /// Formatversion der Messpaare-CSV (`docs/contracts/morning-pairs-csv.md`).
-const int morningPairsCsvFormatVersion = 4;
+const int morningPairsCsvFormatVersion = 5;
 
 /// MIME-Typ der Datei.
 const String morningPairsCsvMimeType = 'text/csv';
 
-/// Kopfzeile der Formatversion 4 (Vertrag Abschnitt 3, gleich seit Version 1).
+/// Kopfzeile der Formatversion 5 (Vertrag Abschnitt 3, gleich seit Version 1).
 const List<String> morningPairsCsvColumns = [
   'format_version',
   'morning_id',
@@ -48,7 +49,8 @@ class MorningPair {
 
 /// Kodiert die Morgen als CSV nach `docs/contracts/morning-pairs-csv.md`:
 /// RFC 4180, UTF-8 (Bytes macht der Aufrufer), CRLF, Dezimalpunkt, je Morgen
-/// Zeilen der Arten `meta`, `camera`, `camera_ibi`, `belt_rr`; Morgen nach
+/// Zeilen der Arten `meta`, `camera`, `camera_ibi`, `belt_rr`, `raw_frame`,
+/// `raw_isp`; Morgen nach
 /// Zeitpunkt, dann Id. Ein ungültiges Kamera-Intervall (NaN) ist ein leeres
 /// Wertfeld. `counts` gilt über alle übergebenen Morgen
 /// ([countingMorningMeasurements]). Rein; ohne Morgen bleibt nur die Kopfzeile.
@@ -142,6 +144,29 @@ String encodeMorningPairsCsv(Iterable<MorningPair> pairs) {
       row('meta', 'camera_id', value: raw.cameraId ?? '');
       row('meta', 'physical_camera_id', value: raw.physicalCameraId ?? '');
       row('meta', 'focal_length', value: num(raw.focalLengthMm), unit: 'mm');
+      // Ab Formatversion 5: gesetzte Diagnose-Schalter (FR-0217) und Zahl der
+      // `raw_isp`-Zeilen.
+      String on(PpgCameraDiagnostic d) =>
+          raw.diagnostics.contains(d) ? '1' : '0';
+      row(
+        'meta',
+        'diag_noise_reduction_off',
+        value: on(PpgCameraDiagnostic.noiseReductionOff),
+      );
+      row('meta', 'diag_edge_off', value: on(PpgCameraDiagnostic.edgeOff));
+      row('meta', 'diag_awb_fixed', value: on(PpgCameraDiagnostic.awbFixed));
+      row('meta', 'diag_awb_variant', value: raw.awbVariant?.wire ?? '');
+      row(
+        'meta',
+        'diag_tonemap_linear',
+        value: on(PpgCameraDiagnostic.tonemapLinear),
+      );
+      row(
+        'meta',
+        'diag_shading_off',
+        value: on(PpgCameraDiagnostic.shadingOff),
+      );
+      row('meta', 'raw_isp_frames', value: '${raw.ispFrames?.length ?? 0}');
     }
     row('camera', 'resting_hr', value: num(m.roundedRestingHr), unit: 'bpm');
     row('camera', 'rmssd', value: num(m.rmssdMs), unit: 'ms');
@@ -171,6 +196,9 @@ String encodeMorningPairsCsv(Iterable<MorningPair> pairs) {
     if (raw != null) {
       for (final (i, f) in raw.frames.indexed) {
         row('raw_frame', 'frame', seq: '${i + 1}', value: _frameValue(f));
+      }
+      for (final (i, v) in (raw.ispFrames ?? const <List<double>>[]).indexed) {
+        row('raw_isp', 'isp', seq: '${i + 1}', value: _ispValue(v));
       }
     }
   }
@@ -224,6 +252,20 @@ Future<ExportFile> buildMorningPairsCsvFile(
 /// wieder genau dieselbe Zahl (float64) ergibt.
 String _frameValue(PpgFrame f) =>
     [f.t, f.r, f.g, ...f.r16, ...f.g16].map(_exact).join(';');
+
+/// Die 19 Werte der Bildverarbeitung eines Bildes mit `;` getrennt (Vertrag
+/// Abschnitt 4): NaN (nicht gemeldet) = leeres Feld; Farbverstärkungen
+/// (1 bis 4) und Fokusdistanz (17) verlustfrei wie [_frameValue], die übrigen
+/// sind Ganzzahlen der Kamera-API und stehen ohne Nachkommastellen.
+String _ispValue(List<double> v) => [
+  for (final (k, x) in v.indexed)
+    if (x.isNaN)
+      ''
+    else if (k < 4 || k == 16 || x != x.truncateToDouble() || x.isInfinite)
+      _exact(x)
+    else
+      '${BigInt.from(x)}',
+].join(';');
 
 /// Kürzeste Dezimalform, die zurückgelesen genau [v] ergibt, nie mit Exponent.
 String _exact(double v) {
