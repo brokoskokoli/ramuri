@@ -20,11 +20,14 @@
 // 7 Ruhephase ueberspringen (Fortschritt, vermerkt), 8 Entwicklermodus aus ->
 // 7b Uhrzeit der Morgen-Erinnerung ueber den Zeitwaehler (geplanter Zeitpunkt
 // am Plattformkanal und im Speicher), 7c feste Uhr: Messung um 23:58 und um
-// 00:02 -> zwei Ortstage, je eine zaehlende Messung (FR-0215, K67), 8
+// 00:02 -> zwei Ortstage, je eine zaehlende Messung (FR-0215, K67), 7d
+// Diagnose-Schalter Rauschunterdrueckung aus -> Morgenmessung -> Messpaare-CSV
+// mit Schalter und raw_isp je Bild -> Schalter aus (FR-0217), 8
 // Entwicklermodus aus -> Einstieg weg (mit S1 die Pruefung K62 F1). Nur Zaehler
 // und Marken in der Ausgabe.
 // Mit E2E_SHOTS=1 sh tool/ci_e2e.sh macht der Host bei "E2E_.. SHOT <name>" ein Bildschirmfoto (shot in support/e2e_support.dart).
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:adapters/adapters.dart' show reminderChannelName;
@@ -480,6 +483,115 @@ Future<void> closeResultToOverview(WidgetTester t, String what) async {
   await tapKey(t, 'morning_done');
   await waitFor(t, () => has('overview_about'), '$what Uebersicht');
   log('$what zurueck');
+}
+
+/// 7d) Diagnose der Kamera-Bildverarbeitung (FR-0217): In den
+/// Entwicklereinstellungen „Rauschunterdrueckung aus“ an, eine Morgenmessung,
+/// dann die Messpaare-CSV (derselbe Aufbau wie beim Teilen): die neue Messung
+/// traegt `diag_noise_reduction_off` = 1, `raw_isp_frames` > 0 und je Bild eine
+/// `raw_isp`-Zeile. Danach den Schalter wieder aus. Startet und endet in den
+/// Entwicklereinstellungen. Nur Zaehler und Marken ins Log.
+Future<void> cameraDiagnostics(
+  WidgetTester t,
+  StorageSession s,
+  World w,
+) async {
+  const key = 'dev_ppg_diag_noise_reduction_off';
+  // Die Entwicklereinstellungen sind eine lazy Liste: erst hinscrollen.
+  Future<void> reveal() => t.scrollUntilVisible(
+    find.byKey(const Key(key)),
+    300,
+    scrollable: find.byType(Scrollable).first,
+  );
+  final store = SettingsPpgCameraDiagnosticsStore(s.settings, w.deps.clock);
+  Future<Set<PpgCameraDiagnostic>> read() async =>
+      (await t.runAsync(store.read))!;
+  expect(await read(), isEmpty, reason: 'S7d Vorgabe: alle Schalter aus');
+  await reveal();
+  await tapKey(t, key);
+  await waitFor(
+    t,
+    () => t.widget<SwitchListTile>(find.byKey(const Key(key))).value,
+    'S7d Schalter an',
+  );
+  expect(await read(), {
+    PpgCameraDiagnostic.noiseReductionOff,
+  }, reason: 'S7d Schalter gespeichert');
+  await back(t); // Entwicklereinstellungen -> Uebersicht
+  final before = (await stored(t, s)).length;
+  await measureFromOverview(t, 'S7d');
+  final l = await storedCount(t, s, before + 1);
+  expect(l.length, before + 1, reason: 'S7d gespeichert');
+  await closeResultToOverview(t, 'S7d');
+
+  final morning = (s as MorningStorage).morning;
+  final csv = await t.runAsync(() async {
+    final entries = await morning.list();
+    entries.sort((a, b) => a.value.measuredAt.compareTo(b.value.measuredAt));
+    final id = '${entries.last.id}';
+    final file = await buildMorningPairsCsvFile(
+      morning,
+      now: w.deps.clock.now(),
+    );
+    return (id: id, text: utf8.decode(file.bytes!));
+  });
+  // Spalten: format_version, morning_id, row_type, key, seq, sub, time, value.
+  // Die Werte enthalten kein Komma (Felder in `value` mit Semikolon getrennt).
+  final rows = [
+    for (final line in const LineSplitter().convert(csv!.text).skip(1))
+      line.split(','),
+  ].where((c) => c.length > 7 && c[1] == csv.id).toList();
+  String? meta(String k) {
+    for (final c in rows) {
+      if (c[2] == 'meta' && c[3] == k) return c[7];
+    }
+    return null;
+  }
+
+  final nFrames = rows.where((c) => c[2] == 'raw_frame').length;
+  final nIsp = rows.where((c) => c[2] == 'raw_isp').length;
+  final ispFrames = int.tryParse(meta('raw_isp_frames') ?? '') ?? -1;
+  log(
+    'S7d csv version=${rows.isEmpty ? '-' : rows.first[0]} '
+    'diag_nr=${meta('diag_noise_reduction_off')} '
+    'raw_frame=$nFrames raw_isp=$nIsp raw_isp_frames=$ispFrames',
+  );
+  expect(rows.first[0], '$morningPairsCsvFormatVersion');
+  expect(
+    meta('diag_noise_reduction_off'),
+    '1',
+    reason: 'S7d Schalter mit der Messung gespeichert',
+  );
+  expect(
+    meta('diag_edge_off'),
+    '0',
+    reason: 'S7d nicht angeforderter Schalter',
+  );
+  expect(ispFrames, greaterThan(0), reason: 'S7d raw_isp_frames > 0');
+  expect(nIsp, ispFrames, reason: 'S7d raw_isp_frames = raw_isp-Zeilen');
+  expect(nIsp, nFrames, reason: 'S7d je Bild eine raw_isp-Zeile');
+
+  await tapKey(t, 'overview_developer');
+  await waitFor(
+    t,
+    () => has('about_dev_switch'),
+    'S7d Entwicklereinstellungen',
+  );
+  await reveal();
+  await tapKey(t, key);
+  await waitFor(
+    t,
+    () => !t.widget<SwitchListTile>(find.byKey(const Key(key))).value,
+    'S7d Schalter aus',
+  );
+  expect(await read(), isEmpty, reason: 'S7d Schalter wieder aus');
+  // Fuer S8 wieder nach oben zum Schalter Entwicklermodus.
+  await t.scrollUntilVisible(
+    find.byKey(const Key('about_dev_switch')),
+    -300,
+    scrollable: find.byType(Scrollable).first,
+  );
+  log('S7d ok');
 }
 
 /// Ms-Schluessel einer Zeile der Morgenwerte.
@@ -1279,6 +1391,9 @@ void main() {
       () => has('about_dev_switch'),
       'S7 Entwicklereinstellungen',
     );
+
+    step('MORNING S7d kamera_diagnose');
+    await cameraDiagnostics(t, s, w);
 
     step('MORNING S8 entwicklermodus_aus');
     // 8) Entwicklermodus aus: Seite zu, Eintraege weg.
