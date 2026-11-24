@@ -14,6 +14,9 @@ StoredRun _run(d.Run r) => StoredRun(
       ? null
       : Duration(seconds: r.endedUtcOffsetS!),
   mode: enumOf(RunMode.values, r.mode, (v) => v.wire),
+  sport: r.sport == null
+      ? null
+      : enumOf(OtherSport.values, r.sport!, (v) => v.wire),
 );
 
 class DriftRunStore implements RunStore {
@@ -24,7 +27,9 @@ class DriftRunStore implements RunStore {
   Future<StoredRun> create({
     required DateTime startedAt,
     RunMode mode = RunMode.gps,
+    OtherSport? sport,
   }) => guarded(() async {
+    requireRunSport(mode, sport);
     final id = await _db
         .into(_db.runs)
         .insert(
@@ -32,6 +37,7 @@ class DriftRunStore implements RunStore {
             state: RunState.active.name,
             startedAtUs: usOf(startedAt),
             mode: Value(mode.wire),
+            sport: Value(sport?.wire),
           ),
         );
     return StoredRun(
@@ -39,6 +45,7 @@ class DriftRunStore implements RunStore {
       state: RunState.active,
       startedAt: timeOf(usOf(startedAt)),
       mode: mode,
+      sport: sport,
     );
   });
 

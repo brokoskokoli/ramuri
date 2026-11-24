@@ -586,7 +586,8 @@ class _Runs implements RunStore {
   Future<StoredRun> create({
     required DateTime startedAt,
     RunMode mode = RunMode.gps,
-  }) => inner.create(startedAt: startedAt, mode: mode);
+    OtherSport? sport,
+  }) => inner.create(startedAt: startedAt, mode: mode, sport: sport);
   @override
   Future<void> setState(
     int runId,
