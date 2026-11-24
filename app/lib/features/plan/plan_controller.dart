@@ -1620,7 +1620,6 @@ class PlanController extends ChangeNotifier {
     // Sperre erst nach dem Muster prüfen: ohne Muster liest das Öffnen keine
     // Readiness (FR-0158, Wochenprüfung nur wenn fällig).
     final blocked = await _underloadBlocked(history, await _warning?.read());
-    if (blocked) return;
     var canRaise = false;
     if (state.stage != PlanUnderloadStage.none) {
       final today = _today();
