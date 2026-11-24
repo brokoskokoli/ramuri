@@ -439,13 +439,22 @@ void main() {
       expect(await w.recalc().checkVersions(), isNull);
     });
 
-    test('Tageswert an einem Tag ohne Lauf: Angebot; die Bestätigung '
-        'entfernt ihn, danach kommt keines wieder (PAR-237)', () async {
+    test('Tageswert an einem Tag ohne Lauf: kein Angebot; eine Bestätigung '
+        'aus anderem Grund entfernt ihn, danach kommt keines wieder '
+        '(PAR-237)', () async {
       const emptyDay = '2030-02-10';
       final template = await dayPart(w, runDay, vo2maxLongTermValueKey);
       await w.session.values.createOriginals(const ValueOwner.day(emptyDay), [
-        template,
+        changed(template, methodVersion: 1),
       ]);
+      expect(await w.recalc().checkVersions(), isNull);
+
+      // Ein anderer veralteter Tageswert löst das Angebot aus.
+      final pair = (await w.session.values.read(const ValueOwner.day(runDay)))
+          .firstWhere((p) => p.original.key == vo2maxLongTermValueKey);
+      await w.session.values.swapCurrentAll({
+        const ValueOwner.day(runDay): [changed(pair.current, methodVersion: 1)],
+      });
       final offer = await w.recalc().checkVersions();
       expect(offer, isNotNull);
       final before = await w.session.values.read(const ValueOwner.day(runDay));
