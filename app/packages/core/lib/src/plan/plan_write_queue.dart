@@ -5,9 +5,9 @@ import '../../ports/storage.dart';
 
 /// Die eine Schreibreihe des Plans je Sitzung (ADR-0010: eine Fassung rechnet
 /// auf dem Stand, den die vorige hinterlassen hat). Jede Planänderung – aus
-/// jeder Instanz des Plan-Controllers, dem Erholungs-Auslöser und der
-/// automatischen Zuordnung – läuft über [run]; so überholen sich Fassungen
-/// und Zuordnungen nicht.
+/// jeder Instanz des Plan-Controllers, dem Erholungs-Auslöser, der
+/// automatischen Zuordnung und dem Warnsignal aus der Zusammenfassung – läuft
+/// über [run]; so überholen sich Fassungen und Zuordnungen nicht.
 ///
 /// Reihenfolge der Sperren: Wer zusätzlich die Neuberechnung der Werte
 /// sperrt (`exclusive`), nimmt diese zuerst und reiht sich darin hier ein,
