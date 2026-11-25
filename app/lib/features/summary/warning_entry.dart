@@ -9,8 +9,11 @@ import '../plan/plan_data_reader.dart';
 /// aus genau diesem Lauf gesetztes Warnsignal wieder auf; ein anderes bleibt.
 /// Scheitert die Neuberechnung nach dem Melden, bleibt das Signal gespeichert
 /// und der Fehler geht an den Aufrufer (wie `PlanController.reportWarning`).
-/// Der Plan wird mit den heute gemessenen Eingaben gerechnet. Ohne Plan-Speicher
-/// (z. B. in Tests) gibt es keinen Einstieg (`null`).
+/// Der Plan wird mit den heute gemessenen Eingaben gerechnet. Melden, Fassung
+/// und Aufheben laufen über die Schreibreihe der Sitzung ([PlanWriteQueue.of]),
+/// gemeinsam mit den Plan-Controllern und dem Erholungs-Auslöser; so rechnet
+/// die Fassung auf dem Stand, den die vorige hinterlassen hat (ADR-0010).
+/// Ohne Plan-Speicher (z. B. in Tests) gibt es keinen Einstieg (`null`).
 Future<void> Function(bool yes)? warningEntry({
   required StorageSession session,
   required Clock clock,
@@ -31,7 +34,8 @@ Future<void> Function(bool yes)? warningEntry({
         (await reader.read(goal: goal, today: today)).inputs,
     runFacts: reader.runFacts,
   );
-  return (yes) async {
+  final writes = PlanWriteQueue.of(session);
+  return (yes) => writes.run(() async {
     final now = clock.now();
     final today = calendarDay(now);
     if (yes) {
@@ -53,5 +57,5 @@ Future<void> Function(bool yes)? warningEntry({
         w.runId == runId) {
       await service.lift(today: today, now: now);
     }
-  };
+  });
 }

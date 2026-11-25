@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_recovery_trigger.dart';
+import 'package:running_app/features/summary/warning_entry.dart';
 
 import 'helpers/local_clock.dart';
 
@@ -236,6 +237,53 @@ void main() {
     );
     c1.dispose();
     c2.dispose();
+  });
+
+  test('Warnsignal aus der Zusammenfassung und ein Plan-Controller ändern '
+      'gleichzeitig: beide Fassungen in Aufrufreihenfolge gespeichert, keine '
+      'abgelehnt (ADR-0010)', () async {
+    final e = await _Env.open();
+    final run = await e.runToday(8);
+    final before = await e.triggers();
+    e.storage.data.beforePlanWrite = () async {
+      await pumpEventQueue(times: 20);
+    };
+    final entry = warningEntry(session: e.session, clock: e.clock, runId: run)!;
+    final c = e.controller();
+    final results = await Future.wait<Object?>([
+      entry(true),
+      c.saveGoal(_goal(maxSessionSeconds: 6600)),
+    ]);
+    expect(results.last, PlanActionResult.done);
+    expect(await e.triggers(), [
+      ...before,
+      PlanTrigger.feedback,
+      PlanTrigger.goalChange,
+    ]);
+    expect(e.storage.data.rejectedPlanWrites, 0);
+    final w = await (e.session as WarningStorage).warning.read();
+    expect(w?.source, WarningSource.runFeedback);
+    expect(w?.runId, run);
+    c.dispose();
+  });
+
+  test('Warnsignal aus der Zusammenfassung wartet auf die Schreibreihe der '
+      'Sitzung', () async {
+    final e = await _Env.open();
+    final run = await e.runToday(8);
+    final before = await e.triggers();
+    final release = Completer<void>();
+    final busy = PlanWriteQueue.of(e.session).run(() => release.future);
+    final done = warningEntry(session: e.session, clock: e.clock, runId: run)!(
+      true,
+    );
+    await pumpEventQueue();
+    expect(await (e.session as WarningStorage).warning.read(), isNull);
+    expect(await e.triggers(), before);
+    release.complete();
+    await busy;
+    await done;
+    expect(await e.triggers(), [...before, PlanTrigger.feedback]);
   });
 
   group('PAR-231: Zuordnung beim Öffnen hinter der Sperre der '
