@@ -296,7 +296,9 @@ class PlanController extends ChangeNotifier {
   ///
   /// Danach ordnet das Öffnen Läufe der Woche bis heute ihren offenen
   /// Einheiten zu (PAR-231); mit [exclusive] hinter der Wertberechnung, dann
-  /// erst nach dem ersten Laden der Seite.
+  /// erst nach dem ersten Laden der Seite. Erst nach der Zuordnung prüft es
+  /// das Muster der Unterforderung (PAR-236), auch wenn die Zuordnung
+  /// scheitert; dann zählen die schon zugeordneten Läufe.
   Future<void> open() async {
     final lock = exclusive;
     await _serial(() async {
@@ -310,25 +312,37 @@ class PlanController extends ChangeNotifier {
         // Die Prüfung holt der nächste Start nach; die Seite zeigt den
         // gespeicherten Plan.
       }
-      try {
-        await _advanceUnderload();
-      } on Object {
-        // Ohne lesbaren Stand bleibt die Stufe; das nächste Öffnen prüft neu.
+      // Erst zuordnen, dann das Muster prüfen (PAR-236): Ein Lauf, dessen
+      // Zuordnung erst dieses Öffnen nachholt, zählt schon jetzt.
+      if (lock == null) {
+        await _autoAssignQuietly();
+        await _advanceUnderloadQuietly();
       }
-      if (lock == null) await _autoAssignQuietly();
       await _load();
     });
     if (lock == null) return;
     // Sperre zuerst, dann die Schreibreihe (wie nach dem Lauf-Ende), nie
     // umgekehrt: sonst warteten beide aufeinander.
+    var advanced = false;
     try {
-      await lock(() => _serial(_autoAssignQuietly));
+      await lock(
+        () => _serial(() async {
+          await _autoAssignQuietly();
+          await _advanceUnderloadQuietly();
+          advanced = true;
+        }),
+      );
     } on Object {
       // Das nächste Öffnen holt die Zuordnung nach.
     }
     // Neu laden, auch ohne eigene Zuordnung: Während des Wartens auf die
-    // Sperre kann eine andere Stelle (Lauf-Ende) zugeordnet haben.
-    await _serial(_load);
+    // Sperre kann eine andere Stelle (Lauf-Ende) zugeordnet haben. Ohne
+    // Sperre prüft das Öffnen das Muster trotzdem mit den schon zugeordneten
+    // Läufen.
+    await _serial(() async {
+      if (!advanced) await _advanceUnderloadQuietly();
+      await _load();
+    });
   }
 
   /// Lädt den Stand neu (ohne Prüfung).
@@ -1756,6 +1770,16 @@ class PlanController extends ChangeNotifier {
       return r != null && planDay(r.day) == today && r.eases;
     } on Object {
       return true;
+    }
+  }
+
+  /// Wie [_advanceUnderload]; ein Fehler bleibt still: Ohne lesbaren Stand
+  /// bleibt die Stufe, das nächste Öffnen prüft neu.
+  Future<void> _advanceUnderloadQuietly() async {
+    try {
+      await _advanceUnderload();
+    } on Object {
+      // Siehe oben.
     }
   }
 
