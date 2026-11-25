@@ -351,7 +351,7 @@ Future<void> _populate(StorageSession s) async {
         RunState.finished,
         endedAt: today.add(Duration(hours: 7, minutes: unit.minutes)),
       );
-      await plans.assignRun(unit.id!, run.id);
+      await plans.assignRun(unit.id!, run.id, expectedRunId: null);
       if (firstRun) {
         firstRun = false;
         await sql(

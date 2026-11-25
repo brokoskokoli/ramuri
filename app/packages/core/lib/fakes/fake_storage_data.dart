@@ -84,6 +84,30 @@ class FakeStorageData {
   /// und schreibt nichts. Standard: aus.
   bool failAssignRun = false;
 
+  /// Fehlereinspeisung für Tests: Die nächsten so vielen Aufrufe von
+  /// `PlanRepository.writeVersion` lehnen ab ([StorageFailure.rejected]), als
+  /// hätte sich der Plan seit dem Lesen geändert, und schreiben nichts.
+  int rejectPlanWrites = 0;
+
+  /// Zählt jede abgelehnte Planfassung (eingespeist oder wegen geändertem
+  /// Lesestand) – eine still verworfene Fassung wird so sichtbar.
+  int rejectedPlanWrites = 0;
+
+  /// Verzögerung für Tests: Ist sie gesetzt, wartet
+  /// `PlanRepository.writeVersion` vor seiner Prüfung darauf – so liegt
+  /// zwischen dem Lesen eines Aufrufers und seinem Schreiben Zeit, in der ein
+  /// anderer Aufrufer ohne gemeinsame Reihe den alten Stand lesen könnte.
+  Future<void> Function()? beforePlanWrite;
+
+  /// Wie [beforePlanWrite] für `PlanRepository.assignRun`: wartet vor der
+  /// Prüfung des erwarteten Laufs darauf (etwa auf eine Zuordnung eines
+  /// anderen Schreibers außerhalb der Reihe).
+  Future<void> Function()? beforeAssignRun;
+
+  /// Zählt jede geschriebene Zuordnung (`assignRun` mit Ergebnis
+  /// [PlanAssignResult.assigned]).
+  int planAssignWrites = 0;
+
   /// `ON DELETE CASCADE` vom Ziel: Fassungen und Einheiten.
   void deleteGoal() {
     goal = null;

@@ -711,7 +711,11 @@ void main() {
       await d.start(tester, const Locale('de'));
       final id = await seedDetailRun(d.session, _now);
       final unit = (await (d.session as PlanStorage).plans.unitOn(_today))!;
-      await (d.session as PlanStorage).plans.assignRun(unit.id!, id);
+      await (d.session as PlanStorage).plans.assignRun(
+        unit.id!,
+        id,
+        expectedRunId: null,
+      );
       await pumpDetail(tester, d, id);
       expect(key('sum_from_plan'), findsOneWidget);
       expect(_text('sum_from_plan_unit'), isNotEmpty);
@@ -725,7 +729,11 @@ void main() {
           final s = await _open(d);
           final unit = (await (s as PlanStorage).plans.unitOn(_today))!;
           final run = await s.runs.create(startedAt: _now);
-          await (s as PlanStorage).plans.assignRun(unit.id!, run.id);
+          await (s as PlanStorage).plans.assignRun(
+            unit.id!,
+            run.id,
+            expectedRunId: null,
+          );
           await tester.pumpWidget(
             localizedApp(
               locale: locale,

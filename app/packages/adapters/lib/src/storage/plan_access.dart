@@ -73,14 +73,22 @@ class DriftPlanRepository implements PlanRepository {
   });
 
   @override
-  Future<void> assignRun(int unitId, int? runId) => guarded(() async {
-    await _db.transaction(() async {
-      await _requireUnit(unitId);
+  Future<PlanAssignResult> assignRun(
+    int unitId,
+    int? runId, {
+    required int? expectedRunId,
+  }) => guarded(
+    () => _db.transaction(() async {
+      final row = await _requireUnit(unitId);
       if (runId != null) await requireRun(_db, runId);
+      // Erwarteter Stand: Hat inzwischen ein anderer Schreiber zugeordnet,
+      // bleibt die Einheit, wie sie ist.
+      if (row.runId != expectedRunId) return PlanAssignResult.stale;
       await (_db.update(_db.planUnits)..where((t) => t.id.equals(unitId)))
           .write(d.PlanUnitsCompanion(runId: Value(runId)));
-    });
-  });
+      return PlanAssignResult.assigned;
+    }),
+  );
 
   @override
   Future<void> confirmMove(

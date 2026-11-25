@@ -89,6 +89,8 @@ class _PlanScreenState extends State<PlanScreen> {
         // FR-0174: Termine, Arten und Ziel ändern die Erinnerungen.
         onChanged: () => ReminderScope.read(context)?.sync(),
         readinessToday: widget.readinessToday,
+        // Zuordnung beim Öffnen hinter der Wertberechnung (PAR-231).
+        exclusive: widget.recalculation?.serialized,
         reader: PlanDataReader(
           session: widget.session,
           clock: widget.clock,

@@ -144,7 +144,7 @@ class _Env {
         ),
       ]);
     }
-    await plans.assignRun(unit.id!, r.id);
+    await plans.assignRun(unit.id!, r.id, expectedRunId: null);
     clock.advance(
       DateTime(start.year, start.month, start.day, 8).difference(clock.now()),
     );

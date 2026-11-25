@@ -218,7 +218,11 @@ Future<(StorageSession, FakeClock)> _seed({
     endedAt: _d(0).add(const Duration(hours: 9)),
     endedUtcOffset: Duration.zero,
   );
-  await plans.assignRun((await plans.unitOn(_d(0)))!.id!, run.id);
+  await plans.assignRun(
+    (await plans.unitOn(_d(0)))!.id!,
+    run.id,
+    expectedRunId: null,
+  );
   for (final MapEntry(key: day, value: rpe) in freeRuns.entries) {
     final free = await session.runs.create(
       startedAt: _d(day).add(const Duration(hours: 7)),
@@ -289,7 +293,11 @@ Future<void> _doneOn(StorageSession session, DateTime day) async {
     endedUtcOffset: Duration.zero,
   );
   final plans = (session as PlanStorage).plans;
-  await plans.assignRun((await plans.unitOn(day))!.id!, run.id);
+  await plans.assignRun(
+    (await plans.unitOn(day))!.id!,
+    run.id,
+    expectedRunId: null,
+  );
 }
 
 /// Ziel und erste Fassung ab [anchor] mit Einheiten an [days]; [done]
@@ -1638,7 +1646,11 @@ void main() {
         endedAt: _d(2).add(const Duration(hours: 8)),
         endedUtcOffset: Duration.zero,
       );
-      await plans.assignRun((await plans.unitOn(_d(2)))!.id!, run.id);
+      await plans.assignRun(
+        (await plans.unitOn(_d(2)))!.id!,
+        run.id,
+        expectedRunId: null,
+      );
       final spy = _Spy(session, clock);
       await _pump(tester, session, clock, controller: spy);
       await tester.tap(key('calendar_day_${_k(2)}'));

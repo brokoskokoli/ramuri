@@ -150,6 +150,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         recalculation: widget.recalculation.service,
       ),
     ),
+    // Zuordnung beim Öffnen hinter der Wertberechnung (PAR-231); ohne
+    // Datenmeldung danach, sonst lüde die Seite neu und öffnete erneut.
+    exclusive: widget.recalculation.serialized,
   );
 
   /// Der Ortstag, für den die Seite zuletzt geladen und gebaut wurde.

@@ -9,8 +9,8 @@ import 'plan_controller.dart';
 /// ([PlanController.recheckRecovery]). Nur bei „adaptiv“ ändert sich etwas
 /// (FR-0216); bei „fix“ bleibt der Plan, wie er ist.
 ///
-/// Prüfungen laufen nacheinander; eine schreibende Fassung meldet
-/// [onChanged] (Neuladen der Seiten). Fehler bleiben still (keine Lockerung,
+/// Prüfungen laufen nacheinander in der Schreibreihe des Plans; eine
+/// schreibende Fassung meldet [onChanged] (Neuladen der Seiten). Fehler bleiben still (keine Lockerung,
 /// fail-closed); Werte erscheinen nie in Fehlern oder Logs.
 class PlanRecoveryTrigger {
   PlanRecoveryTrigger({
@@ -29,30 +29,27 @@ class PlanRecoveryTrigger {
   /// Nach einer geschriebenen Fassung.
   final VoidCallback? onChanged;
 
-  Future<void> _tail = Future.value();
-
-  /// Prüft den Plan von heute; `true`, wenn eine Fassung entstand.
-  Future<bool> recheck() {
-    final run = _tail.then((_) async {
-      if (session is! GoalStorage || session is! PlanStorage) return false;
-      final plan = PlanController(
-        session: session,
-        clock: clock,
-        readinessToday: readinessToday,
-      );
-      try {
-        return await plan.recheckRecovery();
-      } on Object {
-        return false;
-      } finally {
-        plan.dispose();
-      }
-    });
-    _tail = run.then<void>((_) {}, onError: (Object _) {});
-    return run.then((written) {
-      if (written) onChanged?.call();
-      return written;
-    });
+  /// Prüft den Plan von heute; `true`, wenn eine Fassung entstand. Die
+  /// Prüfung reiht sich in die Schreibreihe der Sitzung ein
+  /// ([PlanWriteQueue.of]), gemeinsam mit jedem Plan-Controller: Prüfungen
+  /// laufen nacheinander und nie parallel zu einer anderen Planänderung.
+  Future<bool> recheck() async {
+    if (session is! GoalStorage || session is! PlanStorage) return false;
+    final plan = PlanController(
+      session: session,
+      clock: clock,
+      readinessToday: readinessToday,
+    );
+    bool written;
+    try {
+      written = await plan.recheckRecovery();
+    } on Object {
+      written = false;
+    } finally {
+      plan.dispose();
+    }
+    if (written) onChanged?.call();
+    return written;
   }
 }
 

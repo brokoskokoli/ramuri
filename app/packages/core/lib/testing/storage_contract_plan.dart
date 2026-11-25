@@ -24,6 +24,11 @@ final List<StorageContractCase> planContractCases = [
   const StorageContractCase('Plan: ohne Ziel meldet notFound', _noGoal),
   const StorageContractCase('Plan: Lauf zuordnen und Termin bestätigen', _edit),
   const StorageContractCase(
+    'Plan: Zuordnung mit falschem erwarteten Lauf schreibt nicht und meldet '
+    'veraltet',
+    _assignStale,
+  ),
+  const StorageContractCase(
     'Plan: Ziel löschen kaskadiert, Ziel ersetzen nicht',
     _goalCascade,
   ),
@@ -231,7 +236,7 @@ Future<void> _replaceAndRestDay(StorageContractHarness h) async {
       _unit(9, week: 1, kind: PlanUnitKind.rest, minutes: 0),
     ]),
   );
-  await p.assignRun((await p.unitOn(_day(0)))!.id!, run);
+  await p.assignRun((await p.unitOn(_day(0)))!.id!, run, expectedRunId: null);
   Future<int?> idOn(int day) async => (await p.unitOn(_day(day)))?.id;
   final u1 = (await p.unitOn(_day(1)))!;
   final u3 = (await p.unitOn(_day(3)))!;
@@ -719,7 +724,7 @@ Future<void> _replaceOpenFuture(StorageContractHarness h) async {
   // Tag 1: Vergangenheit (heute = 3); Tag 5: künftig, aber mit Lauf.
   final past = (await p.unitOn(_day(1)))!;
   final withRun = (await p.unitOn(_day(5)))!;
-  await p.assignRun(withRun.id!, run);
+  await p.assignRun(withRun.id!, run, expectedRunId: null);
   final before = {for (final u in await _all(s)) u.day.day: _u(u)};
 
   await p.writeVersion(
@@ -800,7 +805,7 @@ Future<void> _invalid(StorageContractHarness h) async {
   await p.writeVersion(await _draft(p, 0, [_unit(0), _unit(2), _unit(4)]));
   // Ein Lauf kam nach dem Lesen des Dienstes dazu: Tag 4 trägt jetzt einen
   // Lauf; ein Entwurf mit einer neuen Einheit auf Tag 4 wäre ein Doppel.
-  await p.assignRun((await p.unitOn(_day(4)))!.id!, run);
+  await p.assignRun((await p.unitOn(_day(4)))!.id!, run, expectedRunId: null);
   final good = await _state(s);
 
   final bad = <String, PlanVersionDraft>{
@@ -876,7 +881,7 @@ Future<void> _staleRead(StorageContractHarness h) async {
     await _draft(p, 0, [_unit(0), _unit(2), _unit(4), _unit(6)]),
   );
   final withRun = (await p.unitOn(_day(0)))!;
-  await p.assignRun(withRun.id!, run);
+  await p.assignRun(withRun.id!, run, expectedRunId: null);
 
   // Jede Änderung nach dem Lesen macht den Entwurf ungültig.
   final changes = <String, Future<void> Function()>{
@@ -886,8 +891,8 @@ Future<void> _staleRead(StorageContractHarness h) async {
     'am selben Tag bestätigt': () async =>
         p.confirmMove((await p.unitOn(_day(5)))!.id!, _day(5), today: _day(3)),
     'Lauf zugeordnet': () async =>
-        p.assignRun((await p.unitOn(_day(2)))!.id!, run),
-    'Lauf entfernt': () => p.assignRun(withRun.id!, null),
+        p.assignRun((await p.unitOn(_day(2)))!.id!, run, expectedRunId: null),
+    'Lauf entfernt': () => p.assignRun(withRun.id!, null, expectedRunId: run),
     'andere Fassung': () async {
       await p.writeVersion(
         await _draft(p, 3, [_unit(3)], trigger: PlanTrigger.weekly),
@@ -953,21 +958,21 @@ Future<void> _edit(StorageContractHarness h) async {
   final u2 = (await p.unitOn(_day(2)))!;
   final u8 = (await p.unitOn(_day(8)))!;
 
-  await p.assignRun(u0.id!, run);
+  await p.assignRun(u0.id!, run, expectedRunId: null);
   expectEq((await p.unitOn(_day(0)))!.runId, run, 'zugeordnet');
   await expectFails(
-    () => p.assignRun(u0.id!, run + 99),
+    () => p.assignRun(u0.id!, run + 99, expectedRunId: null),
     StorageFailure.notFound,
     'Lauf fehlt',
   );
   await expectFails(
-    () => p.assignRun(9999, run),
+    () => p.assignRun(9999, run, expectedRunId: null),
     StorageFailure.notFound,
     'Einheit fehlt',
   );
-  await p.assignRun(u0.id!, null);
+  await p.assignRun(u0.id!, null, expectedRunId: run);
   expectTrue((await p.unitOn(_day(0)))!.runId == null, 'Zuordnung aufgehoben');
-  await p.assignRun(u0.id!, run);
+  await p.assignRun(u0.id!, run, expectedRunId: null);
 
   await p.confirmMove(u2.id!, _day(3), today: _day(2));
   final moved = (await p.unitOn(_day(3)))!;
@@ -1011,12 +1016,62 @@ Future<void> _edit(StorageContractHarness h) async {
   await s.close();
 }
 
+Future<void> _assignStale(StorageContractHarness h) async {
+  final s = await h.open();
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  final p = _p(s);
+  final run = (await s.runs.create(startedAt: at(0))).id;
+  final other = (await s.runs.create(startedAt: at(1))).id;
+  await p.writeVersion(await _draft(p, 0, [_unit(0), _unit(2)]));
+  final u0 = (await p.unitOn(_day(0)))!;
+  final u2 = (await p.unitOn(_day(2)))!;
+
+  // Offen erwartet, offen gefunden: geschrieben.
+  expectEq(
+    await p.assignRun(u0.id!, run, expectedRunId: null),
+    PlanAssignResult.assigned,
+    'offen erwartet: zugeordnet',
+  );
+  final state = await _state(s);
+  // Zweiter Schreiber erwartet die Einheit noch offen: veraltet, nichts
+  // geschrieben (keine doppelte Zuordnung, kein Überschreiben).
+  expectEq(
+    await p.assignRun(u0.id!, other, expectedRunId: null),
+    PlanAssignResult.stale,
+    'offen erwartet, belegt: veraltet',
+  );
+  // Aufheben mit falschem erwarteten Lauf: ebenso.
+  expectEq(
+    await p.assignRun(u0.id!, null, expectedRunId: other),
+    PlanAssignResult.stale,
+    'falscher Lauf erwartet: veraltet',
+  );
+  // Offene Einheit, aber ein Lauf erwartet: veraltet.
+  expectEq(
+    await p.assignRun(u2.id!, other, expectedRunId: run),
+    PlanAssignResult.stale,
+    'Lauf erwartet, offen: veraltet',
+  );
+  expectEq(await _state(s), state, 'nichts geschrieben');
+  expectEq((await p.unitOn(_day(0)))!.runId, run, 'Zuordnung bleibt');
+  expectTrue((await p.unitOn(_day(2)))!.runId == null, 'Einheit bleibt offen');
+  // Richtiger erwarteter Lauf: geschrieben.
+  expectEq(
+    await p.assignRun(u0.id!, other, expectedRunId: run),
+    PlanAssignResult.assigned,
+    'richtiger Lauf erwartet: umgehängt',
+  );
+  expectEq((await p.unitOn(_day(0)))!.runId, other, 'umgehängt');
+  await s.close();
+}
+
 Future<void> _goalCascade(StorageContractHarness h) async {
   var s = await h.open();
   await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
   final run = (await s.runs.create(startedAt: at(0))).id;
   await _p(s).writeVersion(await _draft(_p(s), 0, [_unit(0), _unit(2)]));
-  await _p(s).assignRun((await _p(s).unitOn(_day(0)))!.id!, run);
+  await _p(s)
+      .assignRun((await _p(s).unitOn(_day(0)))!.id!, run, expectedRunId: null);
 
   // Ziel ändern (ersetzen) lässt den Plan stehen.
   await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
@@ -1040,8 +1095,11 @@ Future<void> _runDeleted(StorageContractHarness h) async {
   final other = (await s.runs.create(startedAt: at(1))).id;
   await _p(s)
       .writeVersion(await _draft(_p(s), 0, [_unit(0), _unit(2), _unit(4)]));
-  await _p(s).assignRun((await _p(s).unitOn(_day(0)))!.id!, run);
-  await _p(s).assignRun((await _p(s).unitOn(_day(2)))!.id!, other);
+  await _p(s)
+      .assignRun((await _p(s).unitOn(_day(0)))!.id!, run, expectedRunId: null);
+  await _p(
+    s,
+  ).assignRun((await _p(s).unitOn(_day(2)))!.id!, other, expectedRunId: null);
   await s.deleteRun(run);
   final units = await _all(s);
   expectEq(units.length, 3, 'alle Einheiten bleiben');

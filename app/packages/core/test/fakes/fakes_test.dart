@@ -252,7 +252,7 @@ void main() {
       expect(s.data.failAssignRun, isFalse);
       s.data.failAssignRun = true;
       await expectLater(
-        plans.assignRun(1, null),
+        plans.assignRun(1, null, expectedRunId: 5),
         throwsA(
           isA<StorageException>().having(
             (e) => e.failure,
@@ -263,9 +263,107 @@ void main() {
       );
       expect(s.data.planUnits[1]!.runId, 5);
       s.data.failAssignRun = false;
-      await plans.assignRun(1, null);
+      await plans.assignRun(1, null, expectedRunId: 5);
       expect(s.data.planUnits[1]!.runId, isNull);
     });
+
+    test('planAssignWrites zählt nur geschriebene Zuordnungen', () async {
+      final s = FakeStorage();
+      final plans = ((await s.open(k1)) as PlanStorage).plans;
+      s.data.runs[5] = StoredRun(
+        id: 5,
+        state: RunState.finished,
+        startedAt: t0,
+        endedAt: t0.add(const Duration(minutes: 30)),
+      );
+      s.data.planUnits[1] = PlanUnit(
+        id: 1,
+        day: DateTime.utc(2026, 11, 11),
+        kind: PlanUnitKind.easy,
+        phase: PlanPhase.entry,
+        weekIndex: 0,
+        minutes: 30,
+        segments: const [],
+      );
+      expect(
+        await plans.assignRun(1, 5, expectedRunId: 7),
+        PlanAssignResult.stale,
+      );
+      expect(s.data.planAssignWrites, 0);
+      expect(
+        await plans.assignRun(1, 5, expectedRunId: null),
+        PlanAssignResult.assigned,
+      );
+      expect(s.data.planAssignWrites, 1);
+    });
+
+    test(
+      'rejectPlanWrites lehnt die nächsten Fassungen ab und zählt',
+      () async {
+        final s = FakeStorage();
+        final plans = ((await s.open(k1)) as PlanStorage).plans;
+        s.data.goal = TrainingGoal(
+          hardSessionEnabled: true,
+          canRun30: ContinuousRun30.yes,
+          type: GoalType.distance,
+          distance: GoalDistance.tenKilometers,
+          targetDate: DateTime(2031, 6, 1),
+          runDays: const {1, 3, 6},
+          maxSessionSeconds: 5400,
+          weeklyCapSeconds: 18000,
+          createdAt: t0,
+        );
+        final anchor = DateTime.utc(2030, 3, 4);
+        Future<PlanVersionDraft> draft() async => PlanVersionDraft(
+          createdAt: t0,
+          validFrom: anchor,
+          trigger: PlanTrigger.create,
+          reason: 'start',
+          version: const PlanVersion(),
+          inputs: PlanInputs(
+            anchor: anchor,
+            startWeeklyMinutes: 90,
+            today: anchor,
+            easyPaceSecondsPerKm: 345.5,
+            easyRunCount: 4,
+          ),
+          summary: const {'larger': false, 'changedUnitCount': 0},
+          units: const [],
+          readState: planUnitsFingerprint(
+            await plans.unitsBetween(anchor, planFarFuture),
+          ),
+        );
+        Matcher rejected() => throwsA(
+          isA<StorageException>().having(
+            (e) => e.failure,
+            'failure',
+            StorageFailure.rejected,
+          ),
+        );
+        s.data.rejectPlanWrites = 2;
+        await expectLater(plans.writeVersion(await draft()), rejected());
+        await expectLater(plans.writeVersion(await draft()), rejected());
+        expect(await plans.history(), isEmpty);
+        expect(s.data.rejectPlanWrites, 0);
+        expect(s.data.rejectedPlanWrites, 2);
+        final stale = await draft();
+        final first = await plans.writeVersion(await draft());
+        expect(await plans.history(), hasLength(1));
+        // Abgelehnt wegen geändertem Lesestand zählt ebenso.
+        s.data.planUnits[9] = PlanUnit(
+          id: 9,
+          day: anchor.add(const Duration(days: 2)),
+          kind: PlanUnitKind.easy,
+          phase: PlanPhase.entry,
+          weekIndex: 0,
+          minutes: 30,
+          segments: const [],
+        );
+        s.data.planUnitPlan[9] = first.id;
+        await expectLater(plans.writeVersion(stale), rejected());
+        expect(s.data.rejectedPlanWrites, 3);
+      },
+    );
   });
 
   group('FakeKeyStore', () {
