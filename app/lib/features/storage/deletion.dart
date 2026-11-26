@@ -154,16 +154,19 @@ Future<void> _deleteRunAndRefresh(
 /// (beim App-Start, vor einer Neuberechnung; nicht parallel zu ihr), ebenso eine
 /// unterbrochene Berechnung nach einem Lauf; Letzteres auch ohne Merker für jeden
 /// beendeten Lauf ohne Laufwert ([ValueCalculationService.completePendingCalculations]).
-/// Fehler werden weitergegeben; der Merker bleibt.
+/// Fehler werden weitergegeben; der Merker bleibt. [offload]: wo die
+/// Vorverarbeitung der Läufe rechnet ([RunAnalyzer.offload]).
 Future<void> completePendingValueRefresh(
   StorageSession session,
   Clock clock, {
   required AlgorithmLookup algorithms,
+  Offload offload = inlineOffload,
 }) async {
   final calc = ValueCalculationService(
     session: session,
     clock: clock,
     algorithms: algorithms,
+    offload: offload,
   );
   // Beide Nachholer laufen, auch wenn der erste scheitert; der erste Fehler
   // wird weitergegeben.
