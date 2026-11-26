@@ -190,6 +190,7 @@ void main() {
       // am Tag des Laufendes.
       await ValueCalculationService(
         session: w.session,
+        algorithms: AlgorithmRegistry.standard(),
         clock: w.clock,
         preprocessingVersion: preprocessingChainVersion(runDay: 1),
       ).calculateAfterRun(id);

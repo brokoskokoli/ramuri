@@ -5,11 +5,10 @@ import '../../ports/storage.dart';
 import '../../ports/storage_profile.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
+import '../fitness/algorithm_lookup.dart';
 import '../fitness/banister_trimp.dart';
 import '../fitness/edwards_trimp.dart';
-import '../fitness/high_heart_rate_time.dart';
 import '../fitness/load_profile.dart';
-import '../fitness/vo2max_estimator.dart';
 import '../profile/heart_rate_resolution.dart';
 import '../settings/load_settings.dart';
 import 'high_heart_rate_value.dart';
@@ -142,6 +141,15 @@ class RecalculationService {
   final StorageSession session;
   final Clock clock;
   final ValueCalculationService _calc;
+
+  /// Die Wertberechnung dieses Dienstes; ihre Verfahren prüft
+  /// [checkVersions].
+  ValueCalculationService get calculation => _calc;
+
+  /// Die Registry der Wertberechnung ([ValueCalculationService.algorithms]).
+  /// Wer neben der Neuberechnung Werte rechnet, nimmt diese, damit beide
+  /// dieselben Verfahren nutzen.
+  AlgorithmLookup get algorithms => _calc.algorithms;
   final _controller = StreamController<RecalculationOffer>.broadcast();
 
   /// Wie oft eine Ursache angeboten wurde; zeigt, ob während einer laufenden
@@ -460,7 +468,9 @@ class RecalculationService {
   /// verwendet: VO2max, TRIMP und die Zeit bei mindestens 80 % HFmax (die
   /// Basis ändert sich mit dem Profil, das Ergebnis mit der Methode) sowie
   /// alle Tageswerte aus [dayValueKeys]
-  /// ([dayValueMethods]). Bei denselben Laufwerten zählt auch die
+  /// ([ValueCalculationService.dayValueMethods]). Die Verfahren kommen aus
+  /// der Registry der Wertberechnung, mit der auch die Analyse rechnet
+  /// ([ValueCalculationService.algorithms]). Bei denselben Laufwerten zählt auch die
   /// Kettenversion der Vorverarbeitung ([ComputedValue.preprocessingVersion],
   /// ADR-0004): weicht sie von [ValueCalculationService.preprocessingVersion]
   /// ab, ist das eine neue Methodenversion, und [confirm] schreibt die neue
@@ -475,8 +485,10 @@ class RecalculationService {
   /// eine neue Methodenversion: [confirm] legt sie an (ADR-0004). Die
   /// Laufwerte aller Läufe kommen aus einer Abfrage (`readRunValues`).
   Future<RecalculationOffer?> checkVersions() async {
-    const estimator = AcsmReserveVo2maxEstimator();
-    const high = HighHeartRateTime();
+    // Dieselben Verfahren wie die Laufanalyse: aus der Registry der
+    // Wertberechnung (ADR-0004, NFR-0005).
+    final estimator = _calc.vo2maxEstimator;
+    final high = _calc.highHeartRateTime;
     // TRIMP-Modell des aktiven Belastungsprofils; nicht anwendbar: nicht
     // vergleichen (die Rückweg-Ursache deckt das ab, [loadBasisChanged]).
     final resolution = await _calc.loadResolution(await _calc.profileBasis());
@@ -519,12 +531,14 @@ class RecalculationService {
   }
 
   /// Trägt ein gespeicherter Tageswert (`current`) an einem Tag, den [confirm]
-  /// neu rechnet, eine andere Methode oder Version als [dayValueMethods]?
+  /// neu rechnet, eine andere Methode oder Version als
+  /// [ValueCalculationService.dayValueMethods]?
   /// Alle Tage in einer Abfrage.
   Future<bool> _dayValuesOutdated() async {
     final stored = await session.values.readDayValues(dayValueKeys);
     if (stored.isEmpty) return false;
     final days = await _calc.recalculableDays();
+    final methods = _calc.dayValueMethods;
     for (final MapEntry(key: day, value: values) in stored.entries) {
       // Ein Tageswert an einem Tag ohne Lauf (Lauf gelöscht) löst kein
       // Angebot aus. Den Endtag eines Laufs über Mitternacht nach der alten
@@ -534,7 +548,7 @@ class RecalculationService {
       for (final v in values.values) {
         // Ohne Zuordnung nicht vergleichen; ein Test verlangt sie für jeden
         // Schlüssel aus [dayValueKeys].
-        final known = dayValueMethods[v.key];
+        final known = methods[v.key];
         if (known == null) continue;
         final (method, version) = known;
         if (v.parameterVersion != _calc.fitness.parameterVersion ||

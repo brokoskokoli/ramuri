@@ -37,17 +37,22 @@ class RecalcWorld {
     StorageSession? over,
     FitnessParameters fitness = const FitnessParameters.v4(),
     PreprocessingParameters pre = const PreprocessingParameters.v4(),
+    AlgorithmLookup? algorithms,
   }) => ValueCalculationService(
     session: over ?? session,
     clock: clock,
+    algorithms: algorithms ?? AlgorithmRegistry.standard(),
     fitness: fitness,
     preprocessing: pre,
   );
 
-  RecalculationService recalc({StorageSession? over}) => RecalculationService(
+  RecalculationService recalc({
+    StorageSession? over,
+    AlgorithmLookup? algorithms,
+  }) => RecalculationService(
     session: over ?? session,
     clock: clock,
-    calculation: calc(over: over),
+    calculation: calc(over: over, algorithms: algorithms),
   );
 
   /// Legt einen beendeten Lauf an: [minutes] gleichmäßig mit [speed] m/s,

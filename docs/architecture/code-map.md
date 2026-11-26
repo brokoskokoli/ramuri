@@ -60,11 +60,12 @@ Fachlogik ohne Flutter; Barrel `app/packages/core/lib/core.dart`.
 | `app/packages/core/lib/ports/` | Schnittstellen zu Uhr, Geräten, Plattform und Speicher (z. B. `app/packages/core/lib/ports/clock.dart`, `app/packages/core/lib/ports/storage.dart`). |
 | `app/packages/core/lib/fakes/` | Fakes zu den Ports für Tests und Debug-Build. |
 | `app/packages/core/lib/testing/` | Speicher-Vertrag (`app/packages/core/lib/testing/storage_contract.dart`): dieselben Tests laufen gegen den Fake und gegen die drift-Umsetzung. |
+| `app/packages/core/lib/src/algorithms/` | Algorithmen-Registry (`app/packages/core/lib/src/algorithms/algorithm_registry.dart`, ADR-0004, NFR-0005): Familien, Varianten und Standardbestückung `AlgorithmRegistry.standard()`. Oberes Modul: darf `fitness`, `plan` und `prediction` importieren, kein anderes Modul unter `src/` importiert es (`CORE_TOP_MODULES` in `tool/check_architecture.py`). Die App baut die Registry einmal (`AppDependencies.algorithms`); die Wertberechnung bekommt sie als `AlgorithmLookup` (`app/packages/core/lib/src/fitness/algorithm_lookup.dart`), Laufanalyse und Versionsprüfung nehmen ihre Verfahren daraus. |
 | `app/packages/core/lib/src/archive/` | Format, Export und Import des Gesamtarchivs. |
 | `app/packages/core/lib/src/calendar/` | Tageszuordnung (Blattmodul, importiert kein anderes Modul unter `src/`): ISO-Tag `isoDay` und Tag eines Laufs `dayOfRun` (Ortstag seines Starts, PAR-237) mit den zugehörigen Tagesfunktionen in `app/packages/core/lib/src/calendar/run_day.dart`. |
 | `app/packages/core/lib/src/consent/` | Einwilligungen, Widerruf und eingewilligte Quellen. |
 | `app/packages/core/lib/src/export/` | Dateiexporte GPX, TCX, FIT und CSV. |
-| `app/packages/core/lib/src/fitness/` | Zonen, VO₂max, aerobe Effizienz, TRIMP und Algorithmen-Register (`app/packages/core/lib/src/fitness/algorithm_registry.dart`). |
+| `app/packages/core/lib/src/fitness/` | Zonen, VO₂max, aerobe Effizienz, TRIMP und die Lesesicht `AlgorithmLookup` auf die Registry (die Registry selbst liegt in `algorithms/`). |
 | `app/packages/core/lib/src/goals/` | Trainingsziele. |
 | `app/packages/core/lib/src/guidance/` | Geführte Einheit: Position im Ablauf, Ansagen, Gehpausen. |
 | `app/packages/core/lib/src/health/` | Verarbeitung importierter Gesundheitsdaten (Tageswerte, Schlaf). |

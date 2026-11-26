@@ -120,7 +120,11 @@ bool _snack(String text) => find
 Future<int> _loadUnits(WidgetTester t, AppDependencies d) async {
   final session = await _session(t, d);
   const clock = SystemClock();
-  final calc = ValueCalculationService(session: session, clock: clock);
+  final calc = ValueCalculationService(
+    algorithms: AlgorithmRegistry.standard(),
+    session: session,
+    clock: clock,
+  );
   final service = TrainingLoadService(
     session: session,
     clock: clock,

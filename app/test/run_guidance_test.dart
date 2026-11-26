@@ -84,6 +84,7 @@ class _World {
     easyFn,
   }) => _own(
     RunController(
+      algorithms: AlgorithmRegistry.standard(),
       clock: clock,
       storage: session,
       location: location,
@@ -513,6 +514,7 @@ void main() {
   ) async {
     final w = await _World.create();
     final c = RunController(
+      algorithms: AlgorithmRegistry.standard(),
       clock: w.clock,
       storage: w.session,
       location: w.location,

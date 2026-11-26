@@ -109,7 +109,11 @@ void main() {
   });
 
   test('Kennzahlen-CSV: beide Läufe, je Lauf Zeitpunkte aus ihm', () async {
-    final calc = ValueCalculationService(session: o.session, clock: o.clock);
+    final calc = ValueCalculationService(
+      session: o.session,
+      clock: o.clock,
+      algorithms: AlgorithmRegistry.standard(),
+    );
     await o.session.profile.save(
       const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
     );

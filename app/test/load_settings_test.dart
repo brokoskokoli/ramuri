@@ -46,7 +46,11 @@ Future<void> _seed(
       at: d.clock.now(),
     );
   }
-  final calc = ValueCalculationService(session: s, clock: d.clock);
+  final calc = ValueCalculationService(
+    algorithms: AlgorithmRegistry.standard(),
+    session: s,
+    clock: d.clock,
+  );
   for (final start in [
     if (runs) ...[DateTime.utc(2026, 5, 10, 8), DateTime.utc(2026, 5, 17, 8)],
   ]) {
@@ -536,6 +540,7 @@ void main() {
           session: d.session,
           clock: d.clock,
           calculation: ValueCalculationService(
+            algorithms: AlgorithmRegistry.standard(),
             session: d.session,
             clock: d.clock,
           ),
@@ -849,7 +854,11 @@ class _SpyService extends RecalculationService {
     : super(
         session: session,
         clock: clock,
-        calculation: ValueCalculationService(session: session, clock: clock),
+        calculation: ValueCalculationService(
+          algorithms: AlgorithmRegistry.standard(),
+          session: session,
+          clock: clock,
+        ),
       );
 
   int basisChanged = 0;

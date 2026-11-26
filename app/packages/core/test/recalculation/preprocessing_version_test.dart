@@ -25,6 +25,7 @@ RecalculationService _service(
     clock: w.clock,
     calculation: ValueCalculationService(
       session: session,
+      algorithms: AlgorithmRegistry.standard(),
       clock: w.clock,
       preprocessingVersion: chain,
     ),
@@ -137,6 +138,7 @@ void main() {
     final id = await w.seedRun(DateTime.utc(2030, 2, 1, 8));
     await ValueCalculationService(
       session: w.session,
+      algorithms: AlgorithmRegistry.standard(),
       clock: w.clock,
       preprocessingVersion: _raised,
     ).calculateAfterRun(id);

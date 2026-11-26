@@ -43,7 +43,11 @@ void main() {
     service = _CountingService(
       session: session,
       clock: clock,
-      calculation: ValueCalculationService(session: session, clock: clock),
+      calculation: ValueCalculationService(
+        algorithms: AlgorithmRegistry.standard(),
+        session: session,
+        clock: clock,
+      ),
     );
     dataChanged = 0;
     controller = RecalculationController(

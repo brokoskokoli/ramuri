@@ -104,6 +104,7 @@ class _World {
       markers: session.markers,
     );
     run = RunController(
+      algorithms: AlgorithmRegistry.standard(),
       clock: clock,
       storage: session,
       location: location,

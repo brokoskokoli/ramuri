@@ -33,6 +33,7 @@ class RunFlowScreen extends StatefulWidget {
     required this.clock,
     required this.ports,
     required this.permissions,
+    required this.algorithms,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
     this.resumeRunId,
@@ -50,6 +51,10 @@ class RunFlowScreen extends StatefulWidget {
   final RunPorts ports;
   final PermissionStatusPort permissions;
   final Duration tickEvery;
+
+  /// Algorithmen-Registry der App (`AppDependencies.algorithms`) für die
+  /// Werte nach dem Lauf.
+  final AlgorithmLookup algorithms;
 
   /// Sensorverwaltung für „Koppeln“ (FR-0011). Ohne sie fehlt der Knopf.
   final SensorManager? sensors;
@@ -586,6 +591,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       clock: widget.clock,
       storage: widget.session,
       location: widget.ports.location,
+      algorithms: widget.algorithms,
       sensors: widget.ports.heartRateRun?.call(),
       service: widget.ports.recordingService,
       cadence: widget.ports.cadence,

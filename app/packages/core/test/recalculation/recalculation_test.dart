@@ -475,15 +475,12 @@ void main() {
     test(
       'Jeder Tagesschlüssel hat Methode und Version, wie gerechnet',
       () async {
-        expect(dayValueMethods.keys.toSet(), dayValueKeys);
+        final methods = w.calc().dayValueMethods;
+        expect(methods.keys.toSet(), dayValueKeys);
         final days = await w.session.values.readDayValues(dayValueKeys);
         for (final d in days.values) {
           for (final v in d.values) {
-            expect(
-              (v.method, v.methodVersion),
-              dayValueMethods[v.key],
-              reason: v.key,
-            );
+            expect((v.method, v.methodVersion), methods[v.key], reason: v.key);
           }
         }
       },

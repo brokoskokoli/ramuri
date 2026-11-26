@@ -59,6 +59,7 @@ class _RunDetailScreenState extends State<RunDetailScreen> {
       clock,
       runId,
       serialize: recalculation.exclusive,
+      algorithms: recalculation.service.algorithms,
       onDeleted: MapConsentScope.of(context)?.deleteRunThumbnails,
       exports: FileHandoffScope.of(context),
     );

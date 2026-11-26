@@ -184,6 +184,7 @@ void main() {
         final id = (await s.runs.create(startedAt: DateTime.utc(2030))).id;
         final handoff = _ObservingHandoff(s, id);
         await deleteRunAndRefresh(
+          algorithms: AlgorithmRegistry.standard(),
           s,
           clock,
           id,
@@ -200,6 +201,7 @@ void main() {
       final handoff = FakeFileHandoff();
       await expectLater(
         deleteRunAndRefresh(
+          algorithms: AlgorithmRegistry.standard(),
           _FailingDeleteSession(s),
           clock,
           id,
@@ -217,7 +219,14 @@ void main() {
       final handoff = FakeFileHandoff();
       storage.checkpointIncomplete = true;
       await expectLater(
-        deleteRunAndRefresh(s, clock, id, serialize: _direct, exports: handoff),
+        deleteRunAndRefresh(
+          algorithms: AlgorithmRegistry.standard(),
+          s,
+          clock,
+          id,
+          serialize: _direct,
+          exports: handoff,
+        ),
         _deletedNotErased,
       );
       expect(handoff.clearCalls, [true]);
@@ -227,7 +236,14 @@ void main() {
       final id = (await s.runs.create(startedAt: DateTime.utc(2030))).id;
       final handoff = FakeFileHandoff()..nextClear = ExportClearResult.failed;
       await expectLater(
-        deleteRunAndRefresh(s, clock, id, serialize: _direct, exports: handoff),
+        deleteRunAndRefresh(
+          algorithms: AlgorithmRegistry.standard(),
+          s,
+          clock,
+          id,
+          serialize: _direct,
+          exports: handoff,
+        ),
         _deletedNotErased,
       );
       expect(await s.runs.get(id), isNull);
@@ -235,6 +251,7 @@ void main() {
         await runDeletion(() async {
           final other = (await s.runs.create(startedAt: DateTime.utc(2031))).id;
           await deleteRunAndRefresh(
+            algorithms: AlgorithmRegistry.standard(),
             s,
             clock,
             other,
@@ -255,6 +272,7 @@ void main() {
         expect(
           await runDeletion(
             () => deleteRunAndRefresh(
+              algorithms: AlgorithmRegistry.standard(),
               s,
               clock,
               id,
