@@ -335,9 +335,15 @@ void main() {
 
     /// Profil nur mit [birthYear], Stufe `hintDone` seit November, zwei
     /// passende Läufe im Dezember; Öffnen am 2. Januar 2027.
-    Future<(_Env, PlanController)> yearChange(int birthYear) async {
+    /// Mit [maxBpm] ist die HFmax eingetragen.
+    Future<(_Env, PlanController)> yearChange(
+      int birthYear, {
+      int? maxBpm,
+    }) async {
       final e = await _Env.open(PlanAdaptationMode.adaptive);
-      await e.session.profile.save(ProfileRecord(birthYear: birthYear));
+      await e.session.profile.save(
+        ProfileRecord(birthYear: birthYear, maxHeartRateBpm: maxBpm),
+      );
       await e.session.settings.set(
         planUnderloadStageKey,
         PlanUnderloadStage.hintDone.name,
@@ -376,6 +382,13 @@ void main() {
         'zählen weiter', () async {
       // 1992: Näherung 2026 und 2027 jeweils 184.
       final (e, c) = await yearChange(1992);
+      expect(c.state.underloadPrompt, PlanUnderloadPrompt.question);
+      expect(await e.stage(), 'question');
+    });
+
+    test('eingetragene HFmax: Jahreswechsel ohne Wirkung, auch wenn die '
+        'Näherung sich ändern würde', () async {
+      final (e, c) = await yearChange(1987, maxBpm: 186);
       expect(c.state.underloadPrompt, PlanUnderloadPrompt.question);
       expect(await e.stage(), 'question');
     });
