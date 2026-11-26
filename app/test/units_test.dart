@@ -3,7 +3,7 @@ import 'package:core/testing/contract_samples.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/settings/app_settings.dart';
-import 'package:running_app/features/settings/unit_format.dart';
+import 'package:running_app/ui/format/unit_format.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 
 import 'app_harness.dart';

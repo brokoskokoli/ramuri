@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_card.dart';
-import 'fitness_section.dart' show fitnessNumber, reasonText;
+import '../../ui/format/fitness_number.dart';
+import '../../ui/format/reason_text.dart';
 import 'period_date.dart';
 import 'statistics_view.dart' show StatHeading;
 

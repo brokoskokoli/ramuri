@@ -15,6 +15,7 @@ import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/map/route_map_section.dart';
 import 'package:running_app/features/summary/run_charts.dart';
 import 'package:running_app/l10n/app_localizations.dart';
+import 'package:running_app/ui/charts/route_painter.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';

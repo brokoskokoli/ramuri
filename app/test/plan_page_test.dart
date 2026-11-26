@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_screen.dart';
-import 'package:running_app/features/plan/plan_texts.dart';
+import 'package:running_app/ui/format/plan_texts.dart';
 import 'package:running_app/features/settings/app_settings.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';

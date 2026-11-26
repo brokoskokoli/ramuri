@@ -2,7 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
-import 'unit_format.dart';
+import '../../ui/format/unit_format.dart';
 
 /// Einstellungen, die die ganze App betreffen: Anzeigeeinheit und Stand der
 /// Ersteinrichtung. Gespeichert wird über [SettingsStore] (storage_settings).

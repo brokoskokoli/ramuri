@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../statistics/fitness_section.dart' show fitnessNumber;
+import '../../ui/format/fitness_number.dart';
 
 /// Vergleichskarte „Zum Vergleich: andere Apps“ auf „Fortschritt“ (WP32 Teil E,
 /// FR-0024, SEC-0005): die aus Health Connect gelesenen VO₂max-Schätzwerte, je

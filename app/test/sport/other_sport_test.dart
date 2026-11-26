@@ -12,7 +12,7 @@ import 'package:running_app/features/run/live_run_view.dart';
 import 'package:running_app/features/run/other_sport.dart';
 import 'package:running_app/features/run/run_controller.dart';
 import 'package:running_app/features/run/run_ports.dart';
-import 'package:running_app/features/settings/unit_format.dart';
+import 'package:running_app/ui/format/unit_format.dart';
 import 'package:running_app/features/summary/run_charts.dart';
 import 'package:running_app/features/summary/subjective_section.dart';
 import 'package:running_app/ui/ui.dart';

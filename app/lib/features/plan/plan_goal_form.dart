@@ -15,7 +15,7 @@ import '../statistics/reference_form.dart';
 import '../statistics/reference_run_picker.dart';
 import '../statistics/reference_suggestion_box.dart';
 import 'plan_controller.dart';
-import 'plan_texts.dart';
+import '../../ui/format/plan_texts.dart';
 
 /// Werte des Reglers im Formular. Keine PAR setzt Grenzen oder einen
 /// Startwert für den Regler (PAR-196 nennt nur „entspannt bis anspruchsvoll,

@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_card.dart';
 import '../../ui/section_heading.dart';
-import '../run/live_run_view.dart' show formatClock;
-import '../settings/unit_format.dart';
-import 'fitness_section.dart' show reasonText;
+import '../../ui/format/clock_format.dart' show formatClock;
+import '../../ui/format/unit_format.dart';
+import '../../ui/format/reason_text.dart';
 
 /// Eine Zeile „Name – Wert“; Beschriftung und Wert werden zusammen vorgelesen.
 class StatRow extends StatelessWidget {

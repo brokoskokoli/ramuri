@@ -4,7 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../plan/plan_texts.dart' show planKindName;
+import '../../ui/format/plan_texts.dart' show planKindName;
 
 /// Nur Debug-Einstieg (`main_debug.dart`): plant eine Erinnerung zusätzlich
 /// über denselben Weg wie die echten (E2E-Test der Benachrichtigung).
