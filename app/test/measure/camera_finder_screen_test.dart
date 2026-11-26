@@ -87,6 +87,18 @@ Future<void> _close(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 200));
 }
 
+/// Fake-Kamera, deren Kameraliste auf Wunsch nicht lesbar ist.
+class _ListCamera extends FakePpgCamera {
+  _ListCamera({required this.fail});
+  final bool fail;
+
+  @override
+  Future<List<PpgCameraInfo>> cameras() async {
+    if (fail) throw StateError('synthetischer Fehler');
+    return super.cameras();
+  }
+}
+
 Finder _tile(PpgCameraRef ref) => find.byKey(CameraFinderScreen.tileKey(ref));
 
 /// Bild einer Kachel (oben in der Kachel, nie unter den Knöpfen).
@@ -462,29 +474,105 @@ void main() {
     },
   );
 
-  testWidgets('nur eine nutzbare Kamera: Hinweis, keine Vorschau', (
-    tester,
-  ) async {
-    final session = await FakeStorage().open(Uint8List(32));
-    final clock = FakeClock(DateTime.utc(2026, 11, 24));
-    final cam = FakePpgCamera()
-      ..cameraList = const [
-        PpgCameraInfo(ref: _std, isDefault: true, frameRate: 60),
-        PpgCameraInfo(ref: _noFlash, unusable: PpgCameraUnusable.noFlash),
-      ];
-    await tester.pumpWidget(
-      localizedApp(
-        home: CameraFinderScreen(
-          camera: cam,
-          choice: SettingsPpgCameraChoiceStore(session.settings, clock),
+  // Je Phase ohne Auswahl der eigene Hinweis (de und en), keine Vorschau, kein Übernehmen.
+  final cases =
+      <
+        ({
+          String name,
+          List<PpgCameraInfo> cameras,
+          bool fail,
+          String key,
+          String de,
+          String en,
+        })
+      >[
+        (
+          name: 'nur eine nutzbare Kamera',
+          cameras: const [
+            PpgCameraInfo(ref: _std, isDefault: true, frameRate: 60),
+            PpgCameraInfo(ref: _noFlash, unusable: PpgCameraUnusable.noFlash),
+          ],
+          fail: false,
+          key: 'camera_finder_only_one',
+          de: 'Nur eine Kamera, keine Auswahl nötig',
+          en: 'Only one camera, no choice needed',
         ),
-      ),
-    );
-    await tester.pump();
-    expect(find.text('Nur eine Kamera, keine Auswahl nötig'), findsOneWidget);
-    expect(cam.previewWith, isEmpty);
-    expect(find.byKey(const Key('camera_finder_apply')), findsNothing);
-  });
+        (
+          name: 'keine nutzbare Kamera',
+          cameras: const [
+            PpgCameraInfo(ref: _noFlash, unusable: PpgCameraUnusable.noFlash),
+          ],
+          fail: false,
+          key: 'camera_finder_no_camera',
+          de: 'Keine nutzbare Rückkamera mit Blitz gefunden.',
+          en: 'No usable rear camera with flash found.',
+        ),
+        (
+          name: 'leere Kameraliste',
+          cameras: const [],
+          fail: false,
+          key: 'camera_finder_no_camera',
+          de: 'Keine nutzbare Rückkamera mit Blitz gefunden.',
+          en: 'No usable rear camera with flash found.',
+        ),
+        (
+          name: 'Kameraliste nicht lesbar',
+          cameras: const [],
+          fail: true,
+          key: 'camera_finder_list_failed',
+          de: 'Die Kameras ließen sich nicht abfragen. Versuche es später erneut.',
+          en: 'Could not read the cameras. Try again later.',
+        ),
+      ];
+  const keys = [
+    'camera_finder_only_one',
+    'camera_finder_no_camera',
+    'camera_finder_list_failed',
+  ];
+  for (final k in cases) {
+    for (final locale in ['de', 'en']) {
+      for (final purpose in CameraFinderPurpose.values) {
+        testWidgets('${k.name} ($locale, ${purpose.name}): eigener Hinweis, '
+            'keine Vorschau, Übernehmen nicht wählbar', (tester) async {
+          final session = await FakeStorage().open(Uint8List(32));
+          final clock = FakeClock(DateTime.utc(2026, 11, 24));
+          final cam = _ListCamera(fail: k.fail)..cameraList = k.cameras;
+          final choice = SettingsPpgCameraChoiceStore(session.settings, clock);
+          await tester.pumpWidget(
+            localizedApp(
+              locale: Locale(locale),
+              home: CameraFinderScreen(
+                camera: cam,
+                choice: choice,
+                purpose: purpose,
+              ),
+            ),
+          );
+          await tester.pump();
+          final text = find.byKey(Key(k.key));
+          expect(text, findsOneWidget);
+          expect(
+            find.descendant(
+              of: text,
+              matching: find.text(locale == 'de' ? k.de : k.en),
+            ),
+            findsOneWidget,
+          );
+          for (final other in keys.where((o) => o != k.key)) {
+            expect(find.byKey(Key(other)), findsNothing);
+          }
+          expect(cam.previewWith, isEmpty);
+          expect(cam.torchOn, isFalse);
+          expect(find.byType(AspectRatio), findsNothing);
+          expect(find.byKey(const Key('camera_finder_apply')), findsNothing);
+          expect(find.byKey(const Key('camera_finder_default')), findsNothing);
+          expect(find.byType(FilledButton), findsNothing);
+          expect(await choice.readAuto(), isNull);
+          expect(await choice.readManual(), isNull);
+        });
+      }
+    }
+  }
 
   testWidgets('ohne Empfehlung und ohne Tipp ist Übernehmen gesperrt', (
     tester,

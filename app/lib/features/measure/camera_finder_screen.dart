@@ -147,6 +147,16 @@ class _CameraFinderScreenState extends State<CameraFinderScreen>
         l10n.cameraFinderOnlyOne,
         theme,
       ),
+      CameraFinderPhase.noCamera => _message(
+        const Key('camera_finder_no_camera'),
+        l10n.cameraFinderNoCamera,
+        theme,
+      ),
+      CameraFinderPhase.listFailed => _message(
+        const Key('camera_finder_list_failed'),
+        l10n.cameraFinderListFailed,
+        theme,
+      ),
       CameraFinderPhase.noPermission => _message(
         const Key('camera_finder_no_permission'),
         l10n.cameraFinderNoPermission,

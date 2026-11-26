@@ -8,8 +8,14 @@ enum CameraFinderPhase {
   /// Kameraliste und Recht werden gelesen.
   loading,
 
-  /// Höchstens eine nutzbare Kamera: keine Auswahl nötig, keine Vorschau.
+  /// Genau eine nutzbare Kamera: keine Auswahl nötig, keine Vorschau.
   onlyOne,
+
+  /// Kameraliste gelesen, aber keine nutzbare Kamera: keine Vorschau, nichts gespeichert.
+  noCamera,
+
+  /// Die Kameraliste ließ sich nicht lesen: keine Vorschau, nichts gespeichert.
+  listFailed,
 
   /// Ohne Kamera-Recht keine Vorschau.
   noPermission,
@@ -126,14 +132,20 @@ class CameraFinderController extends ChangeNotifier {
     try {
       all = await camera.cameras();
     } catch (_) {
-      all = const [];
+      // Fehler weder loggen noch anzeigen (SEC-0001 bis SEC-0010), nur die Phase setzen.
+      if (!_disposed) _set(CameraFinderPhase.listFailed);
+      return;
     }
     if (_disposed) return;
     _cameras = [
       for (final c in all)
         if (c.usable) c,
     ];
-    if (_cameras.length < 2) {
+    if (_cameras.isEmpty) {
+      _set(CameraFinderPhase.noCamera);
+      return;
+    }
+    if (_cameras.length == 1) {
       _set(CameraFinderPhase.onlyOne);
       return;
     }
