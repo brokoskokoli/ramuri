@@ -45,6 +45,7 @@ Als erste Variante wird der Edwards-TRIMP verwendet. Die Zeit in fünf Herzfrequ
 - [ ] Zeit unter 50 % HFmax hat das Gewicht 0; genau 60 % HFmax zählt zu 60–70 %; über 100 % zählt zu 90–100 % (OQ-0014).
 - [ ] Als Zeit zählt die Bewegungszeit (OQ-0015).
 - [ ] Mit Puls für mindestens 80 % der Bewegungszeit zählt der TRIMP aus der vorhandenen Zeit und ist als unvollständig markiert; darunter gilt der Lauf als nicht bewertet (OQ-0051).
+- [ ] Puls in einer Spanne nach PAR-247 zählt als Pulslücke, mit dem Fenster von PAR-009 nach PAR-248; die Abdeckungsregel gilt unverändert (OQ-0051). Das gilt ebenso für die Banister-Varianten (FR-0197).
 
 ### FR-0093 — TRIMP-Zonen beziehen sich auf die maximale Herzfrequenz
 - **Status:** Approved | **Phase:** 1
@@ -209,6 +210,7 @@ Der Nutzer kann in Phase 2 sein Belastungsprofil auswählen, nach dem gerechnet 
 - [ ] Banister: `TRIMP = Σ t[min] · r · k · e^(b · r)` mit r aus FR-0060; männlich k = 0,64, b = 1,92; weiblich k = 0,86, b = 1,67. Geprüft am 2026-11-09 an Banister, Morton, Fitz-Clarke 1992 (Ann Physiol Anthropol 11:345, Anhang Gl. 1, gibt Morton et al. 1990 wieder): Formel, r als Anteil der Herzfrequenzreserve und b sind dort belegt, aber ohne Vorfaktor k. k stammt nach Sekundärquellen aus Banister 1991 (Buchkapitel, nicht eingesehen) und wird als dort übliche Variante beibehalten (OQ-0053). Für eine Person ändert k nur die Skala; der sRPE-Faktor (PAR-087) wird je Profil bestimmt, TSB% ist skalenfrei.
 - [ ] Testfall: männlich, 30 min, HF 130, HFmax 200, HFRuhe 40 ergibt rund 32.
 - [ ] Lehnt der Nutzer die Neuberechnung ab, verfällt die Modellwahl (OQ-0053).
+- [ ] Pulslücken, Spannen nach PAR-247 und Abdeckung gelten wie bei FR-0092.
 
 ## Offene Fragen
 <!-- BEGIN OQ -->

@@ -81,7 +81,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0070 | Grenzen der ACSM-Laufformel beachten | functional | Approved | 1 | [vo2max](specs/vo2max.md#fr-0070--grenzen-der-acsm-laufformel-beachten) | FR-0074 |
 | FR-0071 | Hochrechnung auf VO2max | functional | Approved | 1 | [vo2max](specs/vo2max.md#fr-0071--hochrechnung-auf-vo2max) | FR-0060, NFR-0002, OQ-0001 |
 | FR-0072 | Keine Genauigkeit ohne Validierung versprechen | functional | Approved | 1 | [vo2max](specs/vo2max.md#fr-0072--keine-genauigkeit-ohne-validierung-versprechen) | NFR-0004, OQ-0020 |
-| FR-0073 | Auswahl geeigneter Abschnitte | functional | Approved | 1 | [vo2max](specs/vo2max.md#fr-0073--auswahl-geeigneter-abschnitte) | FR-0075, OQ-0019 |
+| FR-0073 | Auswahl geeigneter Abschnitte | functional | Approved | 1 | [vo2max](specs/vo2max.md#fr-0073--auswahl-geeigneter-abschnitte) | FR-0075, OQ-0019, PAR-247, PAR-248 |
 | FR-0074 | Klare Laufgeschwindigkeit, keine unkritische Bewertung des Gehens | functional | Approved | 1 | [vo2max](specs/vo2max.md#fr-0074--klare-laufgeschwindigkeit-keine-unkritische-bewertung-des-gehens) | FR-0070, OQ-0001 |
 | FR-0075 | Schwellenwerte sind Modellparameter | functional | Approved | 1 | [vo2max](specs/vo2max.md#fr-0075--schwellenwerte-sind-modellparameter) | NFR-0001, OQ-0019, OQ-0020 |
 | FR-0076 | Verarbeitung eines Laufs | functional | Approved | 1 | [vo2max](specs/vo2max.md#fr-0076--verarbeitung-eines-laufs) | FR-0045, FR-0053 |

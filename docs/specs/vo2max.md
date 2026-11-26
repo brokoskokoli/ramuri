@@ -93,7 +93,7 @@ Das Modell ist bewusst ein nachvollziehbarer erster Schätzer. Es muss durch Ref
 ### FR-0073 — Auswahl geeigneter Abschnitte
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §8.4, Z. 413–425
-- **Verwandt:** FR-0075, OQ-0019
+- **Verwandt:** FR-0075, OQ-0019, PAR-247, PAR-248
 
 Nicht jeder Abschnitt ist geeignet; verwendet werden bevorzugt gleichmäßige Belastungsphasen. Vorläufige Auswahlregeln:
 
@@ -105,8 +105,11 @@ Nicht jeder Abschnitt ist geeignet; verwendet werden bevorzugt gleichmäßige Be
 6. Keine offensichtlichen Messausreißer
 7. Ausreichende Belastungsintensität
 
+Puls, der nach PAR-247 nicht zum Tempo passt, zählt als fehlend (Pulslücke nach PAR-010, mit dem Fenster von PAR-009 nach PAR-248). Ein Abschnitt mit einer solchen Spanne wird mit eigenem Grund abgelehnt oder auf die Zeit nach der Spanne begrenzt; nach Spannenende gilt die Einschwingzeit wie nach einem Abschnittsbeginn (PAR-011).
+
 **Akzeptanzkriterien:**
 - [ ] Ein Abschnitt, der eine der vorläufigen Regeln verletzt, wird gegenüber einem gleichmäßigen Abschnitt nicht bevorzugt.
+- [ ] Ein Abschnitt mit einer Spanne nach PAR-247 wird mit eigenem Grund abgelehnt oder auf die Zeit nach der Spanne (samt Einschwingzeit) begrenzt; der echte Pulsanstieg nach der Spanne erzeugt keine Lücke aus PAR-009-Verwerfungen (PAR-248).
 
 ### FR-0074 — Klare Laufgeschwindigkeit, keine unkritische Bewertung des Gehens
 - **Status:** Approved | **Phase:** 1

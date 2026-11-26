@@ -42,6 +42,7 @@ double _pct(num share) => share * 100;
 
 const _pre = PreprocessingParameters.v5();
 const _fit = FitnessParameters.v5();
+const _mis = PaceMismatchParameters();
 const _sel = SectionSelectionParameters();
 const _vo2 = Vo2maxParameters();
 const _ae = AerobicEfficiencyParameters();
@@ -801,6 +802,36 @@ final Map<String, List<Object>> parCodeValues = {
     ppgSearchStartMin(relockedAt: 60) - 60,
     ppgSearchMaxRecordSeconds,
     ppgMethodVersion,
+  ],
+  'PAR-247': [
+    _sec(_mis.speedWindow),
+    // Umgekehrte Laufformel (FR-0069): 0,2 · v + 3,5; r_erw mit 3,5 zweimal.
+    _vo2.runCoefficient,
+    _vo2.restingOxygen,
+    _vo2.restingOxygen,
+    _vo2.restingOxygen,
+    _sec(_mis.speedWindow),
+    _pre.movementFrom,
+    _sec(_pre.selectionMedianWindow),
+    _mis.lowerBound,
+    _min(_mis.noCheckFor),
+    _min(_mis.noCheckFor),
+    _min(_mis.earlyUntil),
+    _mis.earlyTolerance,
+    _min(_mis.earlyUntil),
+    _mis.lateTolerance,
+    _mis.lowerBound,
+    _mis.fallbackShare,
+    _sec(_mis.speedWindow),
+    _mis.fallbackSpeedMetersPerSecond,
+    _min(_mis.noCheckFor),
+    _min(_mis.minDuration),
+  ],
+  // PAR-248 prüft PAR-009 mit denselben Werten erneut.
+  'PAR-248': [
+    _pre.heartRateOutlierDeviation,
+    _pre.heartRateOutlierRate,
+    _sec(_pre.heartRateOutlierWindow),
   ],
 };
 

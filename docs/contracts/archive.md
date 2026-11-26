@@ -111,7 +111,7 @@ Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolg
   | `value_sections.status` | `eligible`, `provisional`, `rejected` |
   | `value_sections.discard` | `null` oder `implausible`, `incomplete`, `zeroWeight` |
   | `rated_sections.gps_gaps` | gültiger JSON-Text (als String übertragen), Format `[[start_us, end_us, open], …]` mit `open` = 0 oder 1 (Schema-Kommentar, `derived_access.dart`); der Leser prüft nur `json_valid`, die App lehnt beim Lesen anderes ab (fail-closed) |
-  | `value_sections.reasons` | gültiger JSON-Text (als String übertragen) |
+  | `value_sections.reasons` | gültiger JSON-Text (als String übertragen): Liste der Gründe als Namen der Abschnittsregel (`SectionRule`, z. B. `paceVariation`, `heartRatePaceMismatch` nach PAR-247); der Leser übernimmt unbekannte Namen unverändert |
   | `preprocessing_results.method`, `rated_sections.method` | beliebiger Text |
 
   Zahlenbereiche (zum Beispiel `ended_utc_offset_s` −64800 bis 64800, `training_days_mask` 0 bis 127, positive Werte in `profile`, `end_us >= start_us`) stehen ebenfalls als CHECK in `schema.drift`. Fehlende Werte sind `null`, nie 0.

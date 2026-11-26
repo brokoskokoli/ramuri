@@ -1095,6 +1095,8 @@
   "@explSectionUsed": {"description": "WP10 D", "placeholders": {"start": {"type": "String"}, "minutes": {"type": "String"}, "weight": {"type": "String"}}},
   "explSectionNotUsed": "Ab Minute {start}, {minutes} min: ging nicht in die Schätzung ein",
   "@explSectionNotUsed": {"description": "WP10 D", "placeholders": {"start": {"type": "String"}, "minutes": {"type": "String"}}},
+  "sectionReasonPaceMismatch": "Puls passt nicht zum Tempo (Gurtkontakt?)",
+  "@sectionReasonPaceMismatch": {"description": "Grund eines VO2max-Abschnitts nach PAR-247 (SectionRule.heartRatePaceMismatch)"},
   "explMethod": "{method}, Version {version}, Parameterversion {parameters}",
   "@explMethod": {"description": "WP10 D", "placeholders": {"method": {"type": "String"}, "version": {"type": "int"}, "parameters": {"type": "int"}}},
   "explQualityProvisional": "Qualitätsstufe: vorläufig",
