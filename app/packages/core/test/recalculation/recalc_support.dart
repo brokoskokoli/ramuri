@@ -56,7 +56,8 @@ class RecalcWorld {
   );
 
   /// Legt einen beendeten Lauf an: [minutes] gleichmäßig mit [speed] m/s,
-  /// Puls [bpm], flache Höhe; Quelle [source]. Setzt die Uhr auf das Ende.
+  /// Puls [bpm] (oder je Sekunde [bpmOf]), flache Höhe; Quelle [source].
+  /// Setzt die Uhr auf das Ende.
   Future<int> seedRun(
     DateTime start, {
     int minutes = 30,
@@ -65,6 +66,7 @@ class RecalcWorld {
     String source = 'strap',
     Duration? utcOffset,
     double heartRateShare = 1,
+    int Function(int second)? bpmOf,
   }) async {
     final run = await session.runs.create(startedAt: start);
     final seconds = minutes * 60;
@@ -88,7 +90,7 @@ class RecalcWorld {
           RawHeartRate(
             time: t,
             source: source,
-            bpm: bpm,
+            bpm: bpmOf?.call(s) ?? bpm,
             contact: SensorContact.good,
           ),
         );

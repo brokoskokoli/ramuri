@@ -27,12 +27,13 @@ class FitnessParameters {
   const FitnessParameters.v5()
     : this(parameterVersion: currentParameterVersion);
 
-  /// Kopie mit ersetzten Zonengrenzen; alles andere bleibt wie in diesem Satz.
+  /// Kopie mit ersetzten Teilsätzen; alles andere bleibt wie in diesem Satz.
   FitnessParameters copyWith({
     List<double>? reserveZoneBounds,
     SectionSelectionParameters? sectionSelection,
     Vo2maxParameters? vo2max,
     AerobicEfficiencyParameters? aerobicEfficiency,
+    PaceMismatchParameters? paceMismatch,
   }) => FitnessParameters(
     parameterVersion: parameterVersion,
     minHeartRateReserveBpm: minHeartRateReserveBpm,
@@ -47,7 +48,7 @@ class FitnessParameters {
     sectionSelection: sectionSelection ?? this.sectionSelection,
     vo2max: vo2max ?? this.vo2max,
     aerobicEfficiency: aerobicEfficiency ?? this.aerobicEfficiency,
-    paceMismatch: paceMismatch,
+    paceMismatch: paceMismatch ?? this.paceMismatch,
   );
 
   /// PAR-247: Puls passt nicht zum Tempo.

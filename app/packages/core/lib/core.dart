@@ -103,6 +103,7 @@ export 'src/fitness/heart_rate_time.dart';
 export 'src/fitness/high_heart_rate_time.dart';
 export 'src/fitness/load_profile.dart';
 export 'src/fitness/personal_load_factor.dart';
+export 'src/fitness/pace_mismatch.dart';
 export 'src/fitness/reserve_zones.dart';
 export 'src/fitness/aerobic_efficiency.dart';
 export 'src/fitness/vo2max_estimator.dart';
