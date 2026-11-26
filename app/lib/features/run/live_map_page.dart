@@ -8,12 +8,12 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../map/map_consent_scope.dart';
 import '../map/map_source_holder.dart';
-import '../settings/unit_format.dart';
-import '../summary/run_charts.dart' show RoutePainter;
-import 'live_run_values.dart' show splitUnit;
-import 'live_run_view.dart'
-    show formatClock, livePaceText, averagePaceSecondsPerKm;
+import '../../ui/format/unit_format.dart';
+import '../../ui/charts/route_painter.dart';
+import '../../ui/format/split_unit.dart';
+import 'live_run_view.dart' show livePaceText, averagePaceSecondsPerKm;
 import 'run_controller.dart';
+import '../../ui/format/clock_format.dart';
 
 /// Höchstzahl der Punkte, die die Karte zeichnet (nur Anzeige; die Daten bleiben unverändert).
 const int liveMapMaxPoints = 600;

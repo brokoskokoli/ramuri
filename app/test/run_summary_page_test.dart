@@ -1,7 +1,7 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:running_app/features/settings/unit_format.dart';
+import 'package:running_app/ui/format/unit_format.dart';
 import 'package:running_app/features/summary/run_summary_body.dart';
 import 'package:running_app/features/summary/run_summary_page.dart';
 import 'package:running_app/offload_scope.dart';

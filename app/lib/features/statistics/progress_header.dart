@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/unit_format.dart';
 import '../transparency/quality_text.dart';
 import 'fitness_section.dart';
 import 'statistics_screen.dart' show ExplainValue;
+import '../../ui/format/fitness_number.dart';
 
 /// Kopf der Fortschrittsseite nach dem Design (FR-0043, OQ-0075): Kilometer der
 /// letzten 8 Wochen, VO₂max mit Verlauf, aerobe Effizienz. Prognose, Belastung

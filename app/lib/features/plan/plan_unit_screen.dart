@@ -5,9 +5,10 @@ import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../settings/app_settings.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/unit_format.dart';
 import 'plan_controller.dart' show PlanDoneRun;
-import 'plan_texts.dart';
+import '../../ui/format/plan_texts.dart';
+import 'plan_done_texts.dart';
 
 /// Beschreibung einer geplanten Einheit (FR-0143): Bezeichnung, Tag,
 /// Trainingsziel, Dauer, Ablauf mit Zielintensität je Abschnitt und die

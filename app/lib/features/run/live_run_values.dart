@@ -4,77 +4,14 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../sensors/run_heart_rate.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/unit_format.dart';
 import 'live_run_view.dart';
-import 'other_sport.dart';
 import 'run_controller.dart';
 import 'treadmill_controls.dart';
-
-/// Zahl und Einheit eines fertig formatierten Werts: Hat [text] die [unit] als
-/// Endung, steht sie getrennt; sonst (etwa „–“ oder „noch keine Daten“) ist der
-/// ganze Text der Wert.
-(String, String?) splitUnit(String text, String unit) {
-  final suffix = ' $unit';
-  if (text.length > suffix.length && text.endsWith(suffix)) {
-    return (text.substring(0, text.length - suffix.length), unit);
-  }
-  return (text, null);
-}
-
-/// Wert in der Schrift der Zahl, dahinter die Einheit klein und unumbrechbar.
-/// Der Schlüssel [id] sitzt auf dem Text, damit Tests und Hilfen ihn finden.
-/// Mit [shrink] schrumpft Zahl samt Einheit nur dann, wenn beides nicht in die
-/// Breite passt (`scaleDown`), und bleibt in einer Zeile.
-class LiveValueText extends StatelessWidget {
-  const LiveValueText({
-    super.key,
-    required this.id,
-    required this.value,
-    required this.valueStyle,
-    required this.unitStyle,
-    this.unit,
-    this.textAlign,
-    this.shrink = false,
-  });
-
-  final String id;
-  final String value;
-  final String? unit;
-  final TextStyle valueStyle;
-  final TextStyle unitStyle;
-  final TextAlign? textAlign;
-  final bool shrink;
-
-  @override
-  Widget build(BuildContext context) {
-    final unit = this.unit;
-    final text = Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(text: value, style: valueStyle),
-          if (unit != null)
-            TextSpan(
-              text: ' ${unbreakableUnit(unit)}',
-              // Der Wortverbinder soll nicht in der Sprachausgabe landen.
-              semanticsLabel: ' $unit',
-              style: unitStyle,
-            ),
-        ],
-      ),
-      key: Key(id),
-      textAlign: textAlign,
-      // Geschrumpft wird in einer Zeile; der Umbruch würde im IntrinsicHeight
-      // eine Scheinzeile messen.
-      softWrap: !shrink,
-    );
-    if (!shrink) return text;
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      alignment: AlignmentDirectional.centerStart,
-      child: text,
-    );
-  }
-}
+import '../../ui/format/clock_format.dart';
+import '../../ui/format/other_sport_format.dart';
+import '../../ui/format/split_unit.dart';
+import '../../ui/live_value_text.dart';
 
 /// Hinweiskarte der Lauf-Seiten (Pause, Dienst, Speicher, GPS).
 class LiveBanner extends StatelessWidget {

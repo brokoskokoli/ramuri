@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/unit_format.dart';
 import 'live_map_page.dart';
 import 'run_controller.dart';
-import 'treadmill_units.dart';
+import '../../ui/format/treadmill_units.dart';
 
 /// Bandgeschwindigkeit und Steigung im Lauf ändern (FR-0196, K57): Knöpfe
 /// +/− mit 48 dp, Schritte nach PAR-209/PAR-210. Der Controller schreibt die

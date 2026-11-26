@@ -1784,8 +1784,8 @@ class PlanController extends ChangeNotifier {
   }
 
   /// Schritt der Unterforderung beim Öffnen (PAR-236): Muster aus den Läufen
-  /// nach der letzten Stufe bzw. nach der letzten Änderung der HFmax
-  /// ([planUnderloadCountFrom]); erstes Muster → Hinweis, erneutes → Frage
+  /// nach der letzten Stufe bzw. nach der letzten Änderung der wirksamen
+  /// HFmax, auch der genäherten zum Jahreswechsel ([planUnderloadCountFrom]); erstes Muster → Hinweis, erneutes → Frage
   /// ([planUnderloadAdvance]). Ändert den Plan nicht.
   Future<void> _advanceUnderload() async {
     final goal = await _goals.goal();
@@ -1796,8 +1796,15 @@ class PlanController extends ChangeNotifier {
     final changed = DateTime.tryParse(
       await session.settings.get(profileHrMaxChangedAtKey) ?? '',
     )?.toUtc();
+    // Genäherte HFmax (FR-0004): Der Jahreswechsel zählt als Änderung, wenn
+    // die Näherung damit einen anderen Wert ergibt; abgeleitet, nicht
+    // gespeichert.
+    final yearStart = estimatedMaxHeartRateChangedAt(
+      await session.profile.read(),
+      now: clock.now(),
+    );
     final runs = await reader.underloadRuns(
-      planUnderloadCountFrom(state, changed),
+      planUnderloadCountFrom(state, changed, estimatedChangedAt: yearStart),
     );
     final pattern = planUnderloadPattern(runs, parameters: parameters);
     if (!pattern) return;
