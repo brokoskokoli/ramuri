@@ -45,7 +45,12 @@ class ReadyRoot extends StatefulWidget {
     this.healthConnect,
     this.healthHolder,
     this.errors,
+    required this.algorithms,
   });
+
+  /// Algorithmen-Registry der App (`AppDependencies.algorithms`); alle
+  /// Wertberechnungen dieser Sitzung rechnen mit ihr.
+  final AlgorithmLookup algorithms;
 
   /// Zähler still abgefangener Fehler (nur Typ und Ort); `null`: nicht verdrahtet.
   final ErrorCounter? errors;
@@ -102,11 +107,16 @@ class _ReadyRootState extends State<ReadyRoot> {
       calculation: ValueCalculationService(
         session: widget.session,
         clock: widget.clock,
+        algorithms: widget.algorithms,
       ),
     );
     _recalculation = RecalculationController(
       _recalculationService,
-      onStart: () => completePendingValueRefresh(widget.session, widget.clock),
+      onStart: () => completePendingValueRefresh(
+        widget.session,
+        widget.clock,
+        algorithms: widget.algorithms,
+      ),
       onDataChanged: _changes.changed,
     );
     _recalculation.start();
@@ -262,6 +272,7 @@ class _ReadyRootState extends State<ReadyRoot> {
               serialize: _recalculation.exclusive,
               resumeRunId: run!.id,
               recalculation: _recalculation,
+              algorithms: widget.algorithms,
             ),
           ),
         );
@@ -304,10 +315,9 @@ class _ReadyRootState extends State<ReadyRoot> {
         // Die Werte des Laufs wie nach einem normalen Ende (FR-0006); ein
         // Fehler hier holt der nächste Start nach.
         await _recalculation.exclusive(() async {
-          await ValueCalculationService(
-            session: widget.session,
-            clock: widget.clock,
-          ).calculateAfterRunTracked(runId);
+          await _recalculationService.calculation.calculateAfterRunTracked(
+            runId,
+          );
         });
       }
       return true;

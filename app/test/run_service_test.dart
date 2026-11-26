@@ -36,6 +36,7 @@ RunController _controller(
   })
   w,
 ) => RunController(
+  algorithms: AlgorithmRegistry.standard(),
   clock: w.clock,
   storage: w.session,
   location: w.location,
@@ -76,6 +77,7 @@ void main() {
         endedAt: _t0.add(const Duration(minutes: 1)),
       );
       final c = RunController(
+        algorithms: AlgorithmRegistry.standard(),
         clock: w.clock,
         storage: w.session,
         location: w.location,
@@ -161,6 +163,7 @@ void main() {
     test('Scheitert das Anlegen des Laufs, startet kein Dienst', () async {
       final w = await _world();
       final failing = RunController(
+        algorithms: AlgorithmRegistry.standard(),
         clock: w.clock,
         storage: w.session,
         location: w.location,
@@ -177,6 +180,7 @@ void main() {
     test('ohne Dienst läuft alles wie bisher', () async {
       final w = await _world();
       final c = RunController(
+        algorithms: AlgorithmRegistry.standard(),
         clock: w.clock,
         storage: w.session,
         location: w.location,
@@ -300,6 +304,7 @@ void main() {
       final w = await _world();
       final hr = _hrRun(w.clock);
       final c = RunController(
+        algorithms: AlgorithmRegistry.standard(),
         clock: w.clock,
         storage: w.session,
         location: w.location,
@@ -321,6 +326,7 @@ void main() {
       final service = _ThrowingUpdate();
       final hr = _hrRun(w.clock);
       final c = RunController(
+        algorithms: AlgorithmRegistry.standard(),
         clock: w.clock,
         storage: w.session,
         location: w.location,
@@ -342,6 +348,7 @@ void main() {
       final hr = _hrRun(w.clock);
       hr.handle(const HeartRateConnected('t'));
       final c = RunController(
+        algorithms: AlgorithmRegistry.standard(),
         clock: w.clock,
         storage: w.session,
         location: w.location,

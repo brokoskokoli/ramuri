@@ -22,6 +22,7 @@ Future<void> choose(WidgetTester tester, String kind) async {
 }
 
 Future<void> calc(Device d, int runId) => ValueCalculationService(
+  algorithms: AlgorithmRegistry.standard(),
   session: d.session,
   clock: d.clock,
 ).calculateAfterRun(runId);

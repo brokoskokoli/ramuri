@@ -776,6 +776,7 @@ void main() {
         Navigator.of(tester.element(key('home_screen'))).push<void>(
           MaterialPageRoute(
             builder: (_) => RunFlowScreen(
+              algorithms: AlgorithmRegistry.standard(),
               session: h.session,
               clock: h.clock,
               ports: h.runPorts,

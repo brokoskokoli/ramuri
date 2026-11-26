@@ -219,6 +219,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       widget.clock,
       runId,
       serialize: widget.recalculation.exclusive,
+      algorithms: widget.recalculation.service.algorithms,
       onDeleted: _consent?.deleteRunThumbnails,
       exports: FileHandoffScope.of(context),
     );

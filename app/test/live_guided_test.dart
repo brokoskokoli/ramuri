@@ -98,6 +98,7 @@ class _World {
   Future<void> start() async {
     final session = await FakeStorage().open(Uint8List(32));
     run = RunController(
+      algorithms: AlgorithmRegistry.standard(),
       clock: clock,
       storage: session,
       location: location,

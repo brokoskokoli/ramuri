@@ -206,6 +206,7 @@ void main() {
       int? resume,
       RunMode mode = RunMode.gps,
     }) => RunController(
+      algorithms: AlgorithmRegistry.standard(),
       clock: clock,
       storage: session,
       location: location,
@@ -306,6 +307,7 @@ void main() {
       final session = await FakeStorage().open(Uint8List(32));
       final cadence = _CountingCadence();
       final c = RunController(
+        algorithms: AlgorithmRegistry.standard(),
         clock: clock,
         storage: session,
         location: FakeLocationSource(),
@@ -327,6 +329,7 @@ void main() {
         final session = await FakeStorage().open(Uint8List(32));
         final cadence = FakeCadenceSensor();
         final c = RunController(
+          algorithms: AlgorithmRegistry.standard(),
           clock: clock,
           storage: session,
           location: FakeLocationSource(),

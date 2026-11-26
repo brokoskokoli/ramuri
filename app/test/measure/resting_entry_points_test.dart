@@ -22,7 +22,11 @@ class _Spy extends RecalculationService {
     : super(
         session: session,
         clock: clock,
-        calculation: ValueCalculationService(session: session, clock: clock),
+        calculation: ValueCalculationService(
+          algorithms: AlgorithmRegistry.standard(),
+          session: session,
+          clock: clock,
+        ),
       );
 
   int basisChanged = 0;

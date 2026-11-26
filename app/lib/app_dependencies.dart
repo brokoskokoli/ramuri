@@ -37,7 +37,9 @@ class AppDependencies {
     ReminderScheduler? reminders,
     this.reminderDebug,
     ErrorCounter? errors,
+    AlgorithmRegistry? algorithms,
   }) : errors = errors ?? ErrorCounter(),
+       algorithms = algorithms ?? AlgorithmRegistry.standard(),
        reminders = reminders ?? const _NoReminders(),
        fileHandoff = fileHandoff ?? const _NoFileHandoff(),
        ppgCamera = ppgCamera ?? const _NoPpgCamera(),
@@ -66,6 +68,12 @@ class AppDependencies {
       errors.detach();
     }
   }
+
+  /// Die eine Algorithmen-Registry der App (ADR-0004, NFR-0005), Vorgabe
+  /// [AlgorithmRegistry.standard]. Wertberechnung und Neuberechnung jeder
+  /// Sitzung rechnen mit ihr (`ReadyRoot.algorithms`); Tests setzen eine
+  /// eigene Bestückung ein.
+  final AlgorithmRegistry algorithms;
 
   /// Uhr der App (Tests setzen eine Fake-Uhr).
   final Clock clock;

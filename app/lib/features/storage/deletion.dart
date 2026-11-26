@@ -67,20 +67,33 @@ Future<void> deleteRunAndRefresh(
   Clock clock,
   int runId, {
   required Future<void> Function(Future<void> Function() action) serialize,
+  required AlgorithmLookup algorithms,
   Future<void> Function(int runId)? onDeleted,
   FileHandoff? exports,
 }) => serialize(
-  () => _deleteRunAndRefresh(session, clock, runId, onDeleted, exports),
+  () => _deleteRunAndRefresh(
+    session,
+    clock,
+    runId,
+    algorithms,
+    onDeleted,
+    exports,
+  ),
 );
 
 Future<void> _deleteRunAndRefresh(
   StorageSession session,
   Clock clock,
   int runId,
+  AlgorithmLookup algorithms,
   Future<void> Function(int runId)? onDeleted,
   FileHandoff? exports,
 ) async {
-  final calc = ValueCalculationService(session: session, clock: clock);
+  final calc = ValueCalculationService(
+    session: session,
+    clock: clock,
+    algorithms: algorithms,
+  );
   // Ein Merker eines früheren, unvollendeten Neuanlegens darf nicht verloren
   // gehen, wenn dieses Löschen nichts löscht.
   final previous = await session.settings.get(
@@ -144,9 +157,14 @@ Future<void> _deleteRunAndRefresh(
 /// Fehler werden weitergegeben; der Merker bleibt.
 Future<void> completePendingValueRefresh(
   StorageSession session,
-  Clock clock,
-) async {
-  final calc = ValueCalculationService(session: session, clock: clock);
+  Clock clock, {
+  required AlgorithmLookup algorithms,
+}) async {
+  final calc = ValueCalculationService(
+    session: session,
+    clock: clock,
+    algorithms: algorithms,
+  );
   // Beide Nachholer laufen, auch wenn der erste scheitert; der erste Fehler
   // wird weitergegeben.
   Object? failure;
@@ -173,6 +191,7 @@ Future<DeletionResult> confirmAndDeleteRun(
   Clock clock,
   int runId, {
   required Future<void> Function(Future<void> Function() action) serialize,
+  required AlgorithmLookup algorithms,
   Future<void> Function(int runId)? onDeleted,
   FileHandoff? exports,
 }) => _confirmAndDelete(
@@ -183,6 +202,7 @@ Future<DeletionResult> confirmAndDeleteRun(
     clock,
     runId,
     serialize: serialize,
+    algorithms: algorithms,
     onDeleted: onDeleted,
     exports: exports,
   ),
