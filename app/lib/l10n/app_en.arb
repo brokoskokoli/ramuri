@@ -3253,6 +3253,8 @@
   "cameraFinderApply": "Apply",
   "cameraFinderSetManual": "Set as fixed choice",
   "cameraFinderOnlyOne": "Only one camera, no choice needed",
+  "cameraFinderNoCamera": "No usable rear camera with flash found.",
+  "cameraFinderListFailed": "Could not read the cameras. Try again later.",
   "cameraFinderNoPermission": "Without camera permission there is no preview.",
   "cameraFinderStopped": "The preview has stopped.",
   "cameraFinderFailBusy": "Camera in use",
