@@ -40,15 +40,15 @@ double _days(Duration d) => _hours(d) / 24;
 double _weeks(Duration d) => _days(d) / 7;
 double _pct(num share) => share * 100;
 
-const _pre = PreprocessingParameters.v4();
-const _fit = FitnessParameters.v4();
+const _pre = PreprocessingParameters.v5();
+const _fit = FitnessParameters.v5();
 const _sel = SectionSelectionParameters();
 const _vo2 = Vo2maxParameters();
 const _ae = AerobicEfficiencyParameters();
-const _prof = ProfileParameters.v4();
+const _prof = ProfileParameters.v5();
 const _plan = PlanParameters();
 const _pred = PredictionParameters();
-const _health = HealthParameters.v4();
+const _health = HealthParameters.v5();
 const _load = trainingLoadParameters;
 const _factor = personalLoadFactorParameters;
 

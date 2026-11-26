@@ -36,7 +36,7 @@ void main() {
     r.setActive(family, 'b', 1);
     final v = r.active(family);
     final res = FitnessAvailable<int>(
-      value: v.run(2, const FitnessParameters.v4()),
+      value: v.run(2, const FitnessParameters.v5()),
       method: v.method,
       methodVersion: v.methodVersion,
       parameterVersion: currentParameterVersion,

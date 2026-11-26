@@ -18,7 +18,7 @@ class ProfileParameters {
   });
 
   /// Die Startwerte aus Version 4 von docs/model-parameters.md.
-  const ProfileParameters.v4()
+  const ProfileParameters.v5()
     : this(parameterVersion: currentParameterVersion);
 
   final int parameterVersion;

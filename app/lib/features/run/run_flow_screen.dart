@@ -455,10 +455,10 @@ class _RunFlowScreenState extends State<RunFlowScreen>
             accuracy != null &&
             accuracy >= 0 &&
             accuracy <=
-                const PreprocessingParameters.v4().positionMaxAccuracyMeters;
+                const PreprocessingParameters.v5().positionMaxAccuracyMeters;
         _gpsStale?.cancel();
         _gpsStale = good
-            ? Timer(const PreprocessingParameters.v4().gapMaxDuration, _gpsLost)
+            ? Timer(const PreprocessingParameters.v5().gapMaxDuration, _gpsLost)
             : null;
         if (good != _gpsGood && mounted) setState(() => _gpsGood = good);
       },

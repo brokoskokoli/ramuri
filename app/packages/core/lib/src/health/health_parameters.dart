@@ -23,7 +23,7 @@ class HealthParameters {
   });
 
   /// Die Startwerte aus Version 4.
-  const HealthParameters.v4() : this(parameterVersion: currentParameterVersion);
+  const HealthParameters.v5() : this(parameterVersion: currentParameterVersion);
 
   final int parameterVersion;
 

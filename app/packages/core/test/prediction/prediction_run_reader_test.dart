@@ -33,7 +33,7 @@ void main() {
         expect(
           isPaceStable(
             l.paceSamples,
-            const FitnessParameters.v4().sectionSelection,
+            const FitnessParameters.v5().sectionSelection,
           ),
           isTrue,
         );

@@ -35,8 +35,8 @@ class RecalcWorld {
 
   ValueCalculationService calc({
     StorageSession? over,
-    FitnessParameters fitness = const FitnessParameters.v4(),
-    PreprocessingParameters pre = const PreprocessingParameters.v4(),
+    FitnessParameters fitness = const FitnessParameters.v5(),
+    PreprocessingParameters pre = const PreprocessingParameters.v5(),
     AlgorithmLookup? algorithms,
   }) => ValueCalculationService(
     session: over ?? session,

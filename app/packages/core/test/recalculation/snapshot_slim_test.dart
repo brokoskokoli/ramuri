@@ -70,8 +70,8 @@ void main() {
     final run = (await w.session.runs.get(id))!;
     final offload = _CountingOffload();
     final a = await RunAnalyzer(
-      fitness: const FitnessParameters.v4(),
-      preprocessing: const PreprocessingParameters.v4(),
+      fitness: const FitnessParameters.v5(),
+      preprocessing: const PreprocessingParameters.v5(),
       basis: const HeartRateBasis(maxBpm: 190, restingBpm: 60),
       estimator: AlgorithmRegistry.standard().active(vo2maxEstimatorFamily),
       offload: offload.call,
@@ -107,8 +107,8 @@ void main() {
     final id = await w.seedRun(DateTime.utc(2030, 2, 20, 8));
     final full =
         await RunAnalyzer(
-          fitness: const FitnessParameters.v4(),
-          preprocessing: const PreprocessingParameters.v4(),
+          fitness: const FitnessParameters.v5(),
+          preprocessing: const PreprocessingParameters.v5(),
           basis: const HeartRateBasis(maxBpm: 190, restingBpm: 60),
           estimator: w.calc().vo2maxEstimator,
         ).analyze(

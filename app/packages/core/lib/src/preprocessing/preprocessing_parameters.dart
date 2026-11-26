@@ -1,6 +1,6 @@
 /// Aktuelle Version des Parametersatzes (docs/model-parameters.md). Einzige
 /// Versionsquelle; auch die Fitness-Parameter melden diese Version.
-const int currentParameterVersion = 4;
+const int currentParameterVersion = 5;
 
 /// Alle Schwellen der Vorverarbeitung (docs/model-parameters.md, Version 4).
 ///
@@ -39,7 +39,7 @@ class PreprocessingParameters {
 
   /// Die Startwerte aus Version 4 von docs/model-parameters.md. Nur hier ist
   /// die Version fest; jeder andere Parametersatz nennt seine Version selbst.
-  const PreprocessingParameters.v4()
+  const PreprocessingParameters.v5()
     : this(parameterVersion: currentParameterVersion);
 
   /// Version des Parametersatzes (ADR-0004 P.3).

@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 import 'fitness_support.dart';
 
-const p = FitnessParameters.v4();
+const p = FitnessParameters.v5();
 const zones = ReserveZones(reserve: HeartRateReserve());
 const trimp = EdwardsTrimp();
 
@@ -79,7 +79,7 @@ UnavailableReason? reasonOf(FitnessResult<Object?> r) =>
 
 void main() {
   test(
-    'PreprocessingParameters.v4() nimmt currentParameterVersion, kein Literal',
+    'PreprocessingParameters.v5() nimmt currentParameterVersion, kein Literal',
     () {
       final src = File('lib/src/preprocessing/preprocessing_parameters.dart')
           .readAsStringSync();
@@ -89,7 +89,7 @@ void main() {
       expect(line, contains('currentParameterVersion'));
       expect(line, isNot(matches(RegExp(r'parameterVersion:\s*\d'))));
       expect(
-        const PreprocessingParameters.v4().parameterVersion,
+        const PreprocessingParameters.v5().parameterVersion,
         currentParameterVersion,
       );
     },

@@ -27,7 +27,7 @@ Future<RunFigures> _figures(RecalcWorld w, int id) async {
     end: run.endedAt!,
     raw: await w.session.rawData.read(id),
     gaps: await w.session.markers.gaps(id),
-    parameters: const PreprocessingParameters.v4(),
+    parameters: const PreprocessingParameters.v5(),
   );
   return RunFigures.fromRun(run: run, preprocessing: pre, laps: const []);
 }

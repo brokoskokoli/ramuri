@@ -33,7 +33,7 @@ class ProfileService {
     this._clock, {
     ProfileParameters? parameters,
     this.settings,
-  }) : _params = parameters ?? const ProfileParameters.v4();
+  }) : _params = parameters ?? const ProfileParameters.v5();
 
   final ProfileStore _store;
   final Clock _clock;

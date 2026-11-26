@@ -49,7 +49,7 @@ void main() {
       end: end,
       raw: await w.session.rawData.read(run.id),
       gaps: const [],
-      parameters: const PreprocessingParameters.v4(),
+      parameters: const PreprocessingParameters.v5(),
     );
   }
 

@@ -62,8 +62,10 @@ class EdwardsTrimp extends LoadModel {
 
   @override
   String get method => methodId;
+
+  /// v2: Spannen nach PAR-247 zählen als Pulslücke, PAR-009 nach PAR-248.
   @override
-  int get methodVersion => 1;
+  int get methodVersion => 2;
   @override
   AlgorithmCategory get category => AlgorithmCategory.established;
 

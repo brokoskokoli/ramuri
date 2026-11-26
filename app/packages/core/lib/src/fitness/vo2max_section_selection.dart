@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import '../preprocessing/measurement.dart';
 import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/run_preprocessor.dart';
@@ -8,6 +6,7 @@ import 'fitness_parameters.dart';
 import 'heart_rate_basis.dart';
 import 'heart_rate_reserve.dart';
 import 'variation_coefficient.dart';
+import 'vo2max_section_gradient.dart';
 import 'vo2max_section_types.dart';
 
 export 'vo2max_section_types.dart';
@@ -29,7 +28,7 @@ export 'vo2max_section_types.dart';
 /// Reine Funktion der Eingaben; keine Uhr, kein Netzwerk.
 class Vo2maxSectionSelector {
   const Vo2maxSectionSelector({
-    this.parameters = const FitnessParameters.v4(),
+    this.parameters = const FitnessParameters.v5(),
     this.reserve = const HeartRateReserve(),
   });
 
@@ -57,6 +56,7 @@ class Vo2maxSectionSelector {
     required DateTime runStart,
     required DateTime until,
     BeltTrack? belt,
+    List<TimeSpan> paceMismatch = const [],
   }) {
     if (run.parameterVersion != parameters.parameterVersion) {
       throw ArgumentError(
@@ -88,10 +88,23 @@ class Vo2maxSectionSelector {
         ExcludedSpan(span: s, kind: ExclusionKind.pause),
     ]..sort((a, b) => a.span.start.compareTo(b.span.start));
 
+    // PAR-247: Spanne und die Einschwingzeit danach (PAR-011) gehören zu
+    // einem eigenen, abgelehnten Stück; der Rest des Abschnitts bleibt.
+    final blocks = [
+      for (final s in paceMismatch)
+        TimeSpan(
+          start: s.start,
+          end: s.end.add(run.parameters.settlingDuration),
+        ),
+    ];
     final sections = <EvaluatedSection>[];
     for (final phase in _subtract(moving, settling)) {
       for (final part in _split(phase)) {
-        sections.add(_evaluate(part, run, basis, runStart, belt));
+        for (final (piece, mismatch) in _cut(part, blocks)) {
+          sections.add(
+            _evaluate(piece, run, basis, runStart, belt, mismatch: mismatch),
+          );
+        }
       }
     }
     return SectionSelection(
@@ -119,6 +132,27 @@ class Vo2maxSectionSelector {
           end: phase.start.add(Duration(microseconds: length * (i + 1) ~/ k)),
         ),
     ];
+  }
+
+  /// [part] in Stücke vor, in und nach den (sortierten) [blocks]; `true`
+  /// heißt „in einem Block“. Ohne Überschneidung bleibt [part] ganz.
+  static List<(TimeSpan, bool)> _cut(TimeSpan part, List<TimeSpan> blocks) {
+    final out = <(TimeSpan, bool)>[];
+    var cursor = part.start;
+    for (final b in blocks) {
+      if (!b.end.isAfter(cursor) || !b.start.isBefore(part.end)) continue;
+      if (b.start.isAfter(cursor)) {
+        out.add((TimeSpan(start: cursor, end: b.start), false));
+        cursor = b.start;
+      }
+      final end = b.end.isBefore(part.end) ? b.end : part.end;
+      out.add((TimeSpan(start: cursor, end: end), true));
+      cursor = end;
+    }
+    if (part.end.isAfter(cursor)) {
+      out.add((TimeSpan(start: cursor, end: part.end), false));
+    }
+    return out;
   }
 
   static List<TimeSpan> _clip(
@@ -176,8 +210,9 @@ class Vo2maxSectionSelector {
     RunPreprocessing run,
     HeartRateBasis basis,
     DateTime runStart,
-    BeltTrack? belt,
-  ) {
+    BeltTrack? belt, {
+    bool mismatch = false,
+  }) {
     final from = span.start;
     final to = span.end;
     final mid = from.add(
@@ -187,6 +222,9 @@ class Vo2maxSectionSelector {
     final caveats = <SectionCaveat>[];
     void add(SectionRule r, {double? value, double? limit}) =>
         violations.add(SectionViolation(r, value: value, limit: limit));
+
+    // PAR-247
+    if (mismatch) add(SectionRule.heartRatePaceMismatch);
 
     // PAR-020
     if (span.duration < _p.minDuration) {
@@ -351,8 +389,8 @@ class Vo2maxSectionSelector {
 
     // PAR-026, PAR-027: Steigung.
     final (gradient, gradientBasis) = belt != null
-        ? _beltGradient(piece)
-        : _gradient(run, from, to, distance);
+        ? beltGradientOf(piece)
+        : gradientOf(run, from, to, distance, _p);
     switch (gradientBasis) {
       case GradientBasis.noAltitude:
         caveats.add(SectionCaveat.noAltitude);
@@ -427,15 +465,6 @@ class Vo2maxSectionSelector {
     return median;
   }
 
-  /// Steigung des Bands: eingestellt in %, als Anteil (nicht gemessen).
-  /// Ohne Angabe 0 mit dem Hinweis „keine Höhendaten“ (nie 0 statt unbekannt).
-  static (double, GradientBasis) _beltGradient(BeltPiece? piece) {
-    final g = piece?.inclinePercent;
-    return g == null
-        ? (0, GradientBasis.noAltitude)
-        : (g / FitnessParameters.percent, GradientBasis.measured);
-  }
-
   /// Einschwingzeit am Beginn jedes bewegten Stücks (Start, Fortsetzen nach
   /// Pause, jede Änderung von Geschwindigkeit oder Steigung).
   List<TimeSpan> _beltSettling(BeltTrack belt, Duration settle) => [
@@ -447,40 +476,6 @@ class Vo2maxSectionSelector {
             : p.span.start.add(settle),
       ),
   ];
-
-  /// PAR-027: `G` nur einrechnen, wenn |G| ≥ 1 % und |Δh| ≥ 2 · Vertikal-
-  /// genauigkeit (größte gemeldete im Abschnitt); sonst 0. Δh ist die Differenz
-  /// zwischen erstem und letztem 30-s-Höhenmedian im Abschnitt (PAR-013).
-  (double, GradientBasis) _gradient(
-    RunPreprocessing run,
-    DateTime from,
-    DateTime to,
-    double? distance,
-  ) {
-    final heights = [
-      for (final a in run.altitude.smoothed)
-        if (!a.time.isBefore(from) && !a.time.isAfter(to)) a.meters,
-    ];
-    if (heights.length < 2 || distance == null || !(distance > 0)) {
-      return (0, GradientBasis.noAltitude);
-    }
-    final accuracies = [
-      for (final a in run.altitude.processed)
-        if (a.accepted &&
-            !a.input.time.isBefore(from) &&
-            !a.input.time.isAfter(to) &&
-            a.input.verticalAccuracyMeters != null)
-          a.input.verticalAccuracyMeters!,
-    ];
-    if (accuracies.isEmpty) return (0, GradientBasis.noVerticalAccuracy);
-    final rise = heights.last - heights.first;
-    final g = rise / distance;
-    final noise = accuracies.reduce(math.max) * _p.gradientAltitudeFactor;
-    if (g.abs() >= _p.gradientUseFrom && rise.abs() >= noise) {
-      return (g, GradientBasis.measured);
-    }
-    return (0, GradientBasis.belowThreshold);
-  }
 
   // --- Kennzahlen -------------------------------------------------------
 

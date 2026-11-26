@@ -51,7 +51,7 @@ void main() {
           basis: const HeartRateBasis(maxBpm: 200),
           heartRate: x.heartRate,
           movement: x.movement,
-          p: const FitnessParameters.v4(),
+          p: const FitnessParameters.v5(),
         );
 
     final r = AlgorithmRegistry.standard()
@@ -131,7 +131,7 @@ void main() {
   test(
     'jedes Ergebnis nennt die erzeugende Variante (verfügbar und nicht)',
     () {
-      const p = FitnessParameters.v4();
+      const p = FitnessParameters.v5();
       final hr = fitHeartRate(fitDense(0, 59, 150));
       final mv = fitMovement([fitSpan(0, 60)]);
       const full = HeartRateBasis(maxBpm: 200, restingBpm: 50);

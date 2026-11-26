@@ -41,7 +41,7 @@ List<ReferenceSuggestion> suggestReferences({
   SectionSelectionParameters? stability,
 }) {
   final p = parameters;
-  final stable = stability ?? const FitnessParameters.v4().sectionSelection;
+  final stable = stability ?? const FitnessParameters.v5().sectionSelection;
   final out = <ReferenceSuggestion>[];
   for (final run in runs) {
     if (rejectedRunIds.contains(run.id)) continue;

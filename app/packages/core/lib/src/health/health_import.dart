@@ -116,7 +116,7 @@ class HealthImportService {
     required this._reader,
     required this.store,
     required this.clock,
-    this.params = const HealthParameters.v4(),
+    this.params = const HealthParameters.v5(),
     this.minInterval = healthImportMinInterval,
     this.window = healthImportWindow,
     this.overlap = healthImportOverlap,

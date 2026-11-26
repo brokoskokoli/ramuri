@@ -6,7 +6,7 @@ import 'support.dart';
 
 AltitudeResult runAlt(
   List<RawAltitude> v, {
-  PreprocessingParameters p = const PreprocessingParameters.v4(),
+  PreprocessingParameters p = const PreprocessingParameters.v5(),
   num? until,
 }) {
   final proc = AltitudeProcessor(p);
@@ -44,7 +44,7 @@ void main() {
       expect(descentOf([100, 105, 100, 110]), 5);
       expect(ascentOf([100, 105, 100, 110]), 15);
       expect(
-        AltitudeProcessor(const PreprocessingParameters.v4())
+        AltitudeProcessor(const PreprocessingParameters.v5())
             .result(at: at(0))
             .descentMeters,
         isNull,
@@ -135,7 +135,7 @@ void main() {
     });
 
     test('resume ohne Pause verwirft Fenster und Referenz nicht', () {
-      final proc = AltitudeProcessor(const PreprocessingParameters.v4())
+      final proc = AltitudeProcessor(const PreprocessingParameters.v5())
         ..add(alt(0, 100))
         ..resume()
         ..add(alt(40, 200));
@@ -148,7 +148,7 @@ void main() {
 
     test('keine Höhenwerte ergibt null, auch wenn alle verworfen sind', () {
       expect(
-        AltitudeProcessor(const PreprocessingParameters.v4())
+        AltitudeProcessor(const PreprocessingParameters.v5())
             .result(at: at(0))
             .ascentMeters,
         isNull,
@@ -182,7 +182,7 @@ void main() {
       alt(140, 104),
     ];
     final copy = [...input];
-    final live = AltitudeProcessor(const PreprocessingParameters.v4());
+    final live = AltitudeProcessor(const PreprocessingParameters.v5());
     for (var i = 0; i < input.length; i++) {
       live.add(input[i]);
       final when = input[i].time.difference(t0).inSeconds + 3;
@@ -199,7 +199,7 @@ void main() {
   });
 
   test('altitudeAt: letzter Wert <= t mit Alter, ohne Altersgrenze', () {
-    final proc = AltitudeProcessor(const PreprocessingParameters.v4())
+    final proc = AltitudeProcessor(const PreprocessingParameters.v5())
       ..add(alt(0, 100))
       ..add(alt(5, 101, va: 99));
     final l = proc.altitudeAt(at(1000));

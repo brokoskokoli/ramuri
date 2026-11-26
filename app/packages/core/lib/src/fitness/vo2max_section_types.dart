@@ -4,8 +4,9 @@ import 'fitness_result.dart';
 import 'heart_rate_basis.dart';
 
 /// Kennung und Version der Abschnittsauswahl für die VO₂max (ADR-0004 P.3).
+/// v2: Puls, der nicht zum Tempo passt, zählt als fehlend (PAR-247, PAR-248).
 const String vo2maxSectionSelectionMethod = 'vo2max-section-selection';
-const int vo2maxSectionSelectionMethodVersion = 1;
+const int vo2maxSectionSelectionMethodVersion = 2;
 
 /// Kategorie des Verfahrens (NFR-0002): B.
 const AlgorithmCategory vo2maxSectionSelectionCategory =
@@ -63,7 +64,11 @@ enum SectionRule {
 
   /// Basiswerte für `r` fehlen oder sind unbrauchbar (PAR-018, PAR-019); der
   /// Grund steht in [SectionViolation.basisReason].
-  heartRateBasisUnavailable('PAR-018');
+  heartRateBasisUnavailable('PAR-018'),
+
+  /// PAR-247: Der Puls passt nicht zum Tempo (Kontaktfehler des Gurts); der
+  /// Abschnitt liegt in der Spanne oder in der Einschwingzeit danach.
+  heartRatePaceMismatch('PAR-247');
 
   const SectionRule(this.parameterId);
   final String parameterId;

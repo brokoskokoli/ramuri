@@ -10,7 +10,7 @@ LoadProfileResolution res(
   requested: profile,
   basis: HeartRateBasis(maxBpm: max, restingBpm: rest),
   coefficients: c,
-  fitness: const FitnessParameters.v4(),
+  fitness: const FitnessParameters.v5(),
 );
 
 void main() {

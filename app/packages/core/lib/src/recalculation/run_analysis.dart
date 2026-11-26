@@ -5,6 +5,8 @@ import '../../ports/storage_values.dart';
 import '../fitness/fitness_parameters.dart';
 import '../fitness/fitness_result.dart';
 import '../fitness/heart_rate_basis.dart';
+import '../fitness/pace_mismatch.dart';
+import '../preprocessing/heart_rate_processor.dart';
 import '../fitness/vo2max_estimator.dart';
 import '../fitness/vo2max_section_selection.dart';
 import '../preprocessing/preprocessing_parameters.dart';
@@ -41,6 +43,7 @@ class RunAnalysis {
     required this.basis,
     required Set<String> sources,
     this.preprocessing,
+    this.fitnessHeartRate,
     this.belt,
   }) : sources = Set.unmodifiable(sources);
 
@@ -61,6 +64,11 @@ class RunAnalysis {
   /// Strecke, Bewegungszeit und Abschnitte eines Bandlaufs aus den
   /// Bandeinstellungen (FR-0196); `null` bei einem GPS-Lauf.
   final BeltTrack? belt;
+
+  /// Puls für die Fitnesswerte (PAR-247, PAR-248): Spannen, in denen der
+  /// Puls nicht zum Tempo passt, fehlen. Ohne Spanne der Puls der
+  /// Vorverarbeitung; `null` wie [preprocessing].
+  final HeartRateResult? fitnessHeartRate;
 
   DateTime get endedAt => run.endedAt!;
 
@@ -231,10 +239,14 @@ class RunAnalyzer {
 
   /// Wirft [ArgumentError] bei abweichender Parameterversion zwischen
   /// Vorverarbeitung und Fitness; das wird nicht abgefangen.
+  /// [longTermVo2max]: VO₂max-Langzeitwert, der vor dem Start des Laufs galt
+  /// (FR-0079), für den erwarteten Puls (PAR-247); `null` ohne Wert
+  /// (Ersatzregel). Nie die Schätzung dieses Laufs.
   Future<RunAnalysis> analyze(
     StorageSession session,
     StoredRun run, {
     required DateTime calculatedAt,
+    double? longTermVo2max,
   }) async {
     final end = run.endedAt;
     if (run.state != RunState.finished || end == null) {
@@ -250,6 +262,7 @@ class RunAnalyzer {
     };
     final SectionSelection selection;
     RunPreprocessing? replayed;
+    HeartRateResult? fitnessHeartRate;
     final belt = beltTrackOfRun(run, end, raw, gaps);
     if (!end.isAfter(run.startedAt)) {
       // Lauf ohne Dauer: nichts auszuwählen, der Schätzer meldet den Grund.
@@ -285,15 +298,43 @@ class RunAnalyzer {
                 resumedAt: pre.movement.resumedAt,
               ),
             );
+      // PAR-247, PAR-248: Puls, der nicht zum Tempo passt, fehlt für die
+      // Fitnesswerte (nur beim Laufen); die Vorverarbeitung bleibt.
+      final mismatch = run.mode.isRunning
+          ? paceMismatchSpans(
+              run: replayed,
+              basis: basis,
+              longTermVo2max: longTermVo2max,
+              parameters: fitness,
+              belt: belt,
+            )
+          : const <TimeSpan>[];
+      fitnessHeartRate = fitnessHeartRateOf(
+        heartRate: replayed.heartRate,
+        spans: mismatch,
+        pauses: [
+          for (final g in gaps)
+            if (g.kind == RunGapKind.manualPause ||
+                g.kind == RunGapKind.interruption)
+              TimeSpan(start: g.start, end: g.end ?? end),
+        ],
+        runStart: run.startedAt,
+        until: end,
+        parameters: preprocessing,
+      );
+      final forFitness = identical(fitnessHeartRate, replayed.heartRate)
+          ? pre
+          : pre.withHeartRate(fitnessHeartRate);
       // Keine Laufwerte für eine andere Sportart (FR-0221, DEC-0056): keine
       // Abschnitte, also keine VO₂max und keine aerobe Effizienz.
       selection = run.mode.isRunning
           ? Vo2maxSectionSelector(parameters: fitness).select(
-              run: pre,
+              run: forFitness,
               basis: basis,
               runStart: run.startedAt,
               until: end,
               belt: belt,
+              paceMismatch: mismatch,
             )
           : SectionSelection(
               parameterVersion: fitness.parameterVersion,
@@ -319,6 +360,7 @@ class RunAnalyzer {
       basis: basis,
       sources: sources,
       preprocessing: replayed,
+      fitnessHeartRate: fitnessHeartRate,
       belt: belt,
     );
   }

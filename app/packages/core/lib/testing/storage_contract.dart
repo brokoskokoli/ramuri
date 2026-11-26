@@ -264,7 +264,7 @@ Future<void> _smoothedDayValue(StorageContractHarness h) async {
   final asOf = bEnd.add(const Duration(hours: 2));
   final long = const SmoothedVo2maxLongTerm().compute(
     runs: [runValue(aStart, aEnd, 40), runValue(bStart, bEnd, 50)],
-    p: const FitnessParameters.v4(),
+    p: const FitnessParameters.v5(),
     now: asOf,
   );
   // Vorbedingung: A steckt im Wert (sonst wäre er 50), liegt aber außerhalb

@@ -21,8 +21,8 @@ class CalculationFailures {
   CalculationFailures({
     required this.settings,
     required this.clock,
-    this.fitness = const FitnessParameters.v4(),
-    this.preprocessing = const PreprocessingParameters.v4(),
+    this.fitness = const FitnessParameters.v5(),
+    this.preprocessing = const PreprocessingParameters.v5(),
   });
 
   /// Einstellungsschlüssel des Zählers.

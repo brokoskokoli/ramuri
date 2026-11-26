@@ -147,8 +147,8 @@ void main() {
           );
           final a =
               await RunAnalyzer(
-                fitness: const FitnessParameters.v4(),
-                preprocessing: const PreprocessingParameters.v4(),
+                fitness: const FitnessParameters.v5(),
+                preprocessing: const PreprocessingParameters.v5(),
                 basis: const HeartRateBasis(maxBpm: 190, restingBpm: 60),
                 estimator: const AcsmReserveVo2maxEstimator(),
               ).analyze(
@@ -184,8 +184,8 @@ void main() {
         );
         final a =
             await RunAnalyzer(
-              fitness: const FitnessParameters.v4(),
-              preprocessing: const PreprocessingParameters.v4(),
+              fitness: const FitnessParameters.v5(),
+              preprocessing: const PreprocessingParameters.v5(),
               basis: const HeartRateBasis(maxBpm: 190, restingBpm: 60),
               estimator: const AcsmReserveVo2maxEstimator(),
             ).analyze(
@@ -248,8 +248,8 @@ void main() {
         final id = await w.seedRun(DateTime.utc(2030, 2, 25, 8));
         final a =
             await RunAnalyzer(
-              fitness: const FitnessParameters.v4(),
-              preprocessing: const PreprocessingParameters.v4(),
+              fitness: const FitnessParameters.v5(),
+              preprocessing: const PreprocessingParameters.v5(),
               basis: const HeartRateBasis(maxBpm: 190, restingBpm: 60),
               estimator: const AcsmReserveVo2maxEstimator(),
             ).analyze(

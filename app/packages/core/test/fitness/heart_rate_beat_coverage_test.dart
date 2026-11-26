@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 
 import 'fitness_support.dart';
 
-const p = FitnessParameters.v4();
+const p = FitnessParameters.v5();
 const zones = ReserveZones(reserve: HeartRateReserve());
 const trimp = EdwardsTrimp();
 const basis = HeartRateBasis(maxBpm: 200, restingBpm: 50);

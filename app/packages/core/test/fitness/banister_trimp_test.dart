@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 import 'fitness_support.dart';
 
-const p = FitnessParameters.v4();
+const p = FitnessParameters.v5();
 const male = BanisterTrimp(LoadCoefficients.male);
 const female = BanisterTrimp(LoadCoefficients.female);
 

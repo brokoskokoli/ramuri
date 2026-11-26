@@ -19,7 +19,7 @@ RunPreprocessing _run(
   (int, int)? noHeartRate,
   (int, int)? still,
   bool heartRate = true,
-  PreprocessingParameters parameters = const PreprocessingParameters.v4(),
+  PreprocessingParameters parameters = const PreprocessingParameters.v5(),
 }) {
   final pre = RunPreprocessor(start: _start, parameters: parameters);
   for (var i = 0; i <= seconds; i++) {
@@ -200,7 +200,7 @@ void main() {
       // konstant 173.
       final pre = RunPreprocessor(
         start: _start,
-        parameters: const PreprocessingParameters.v4(),
+        parameters: const PreprocessingParameters.v5(),
       );
       for (var i = 0; i <= 1200; i++) {
         pre.addHeartRate(
@@ -241,7 +241,7 @@ void main() {
         : (i >= 2000 && i < 2025 ? 122 : 140 + i % 3);
     final spiked = RunPreprocessor(
       start: _start,
-      parameters: const PreprocessingParameters.v4(),
+      parameters: const PreprocessingParameters.v5(),
     );
     for (var i = 0; i <= n; i++) {
       spiked.addHeartRate(

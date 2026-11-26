@@ -19,7 +19,7 @@ RunPreprocessing _run({
 }) {
   final pre = RunPreprocessor(
     start: _t0,
-    parameters: const PreprocessingParameters.v4(),
+    parameters: const PreprocessingParameters.v5(),
   );
   var m = 0.0;
   for (var i = startFix; i <= total; i++) {
@@ -70,7 +70,7 @@ void main() {
         'Lückenzeit, Abfrage mittendrin gleich dem Ergebnis', () {
       final pre = RunPreprocessor(
         start: _t0,
-        parameters: const PreprocessingParameters.v4(),
+        parameters: const PreprocessingParameters.v5(),
       );
       pre.pause(_t0.add(const Duration(seconds: 5)));
       // Stand während der Pause (kein offener Lead-in mehr).
@@ -119,7 +119,7 @@ void main() {
     test('kein Punkt im Lead-in nach 5 s Stand der Abfrage: offen, zählt', () {
       final pre = RunPreprocessor(
         start: _t0,
-        parameters: const PreprocessingParameters.v4(),
+        parameters: const PreprocessingParameters.v5(),
       );
       final p = pre.result(at: _t0.add(const Duration(seconds: 5)));
       expect(movingTimeInPositionGaps(p), const Duration(seconds: 5));

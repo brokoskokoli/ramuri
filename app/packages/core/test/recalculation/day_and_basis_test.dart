@@ -262,7 +262,7 @@ void main() {
             sources: const ['gps'],
             method: const AcsmReserveVo2maxEstimator().method,
             methodVersion: const AcsmReserveVo2maxEstimator().methodVersion,
-            parameterVersion: const FitnessParameters.v4().parameterVersion,
+            parameterVersion: const FitnessParameters.v5().parameterVersion,
             quality: ValueQuality.sufficient,
           ),
         ]);

@@ -64,7 +64,7 @@ ResolvedHeartRate resolveHeartRate(
   ProfileRecord profile, {
   required int currentYear,
   int? externalRestingBpm,
-  FitnessParameters fitness = const FitnessParameters.v4(),
+  FitnessParameters fitness = const FitnessParameters.v5(),
 }) {
   final enteredMax = profile.maxHeartRateBpm;
   final approx = approximateMaxHeartRate(

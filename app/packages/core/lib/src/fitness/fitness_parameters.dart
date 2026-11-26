@@ -1,4 +1,7 @@
 import '../preprocessing/preprocessing_parameters.dart';
+import 'pace_mismatch.dart';
+
+export 'pace_mismatch.dart' show PaceMismatchParameters;
 
 /// Schwellen der Fitness- und Belastungsverfahren (docs/model-parameters.md,
 /// Version 4, PAR-018, PAR-019, FR-0062, FR-0092, OQ-0014, OQ-0051).
@@ -20,10 +23,11 @@ class FitnessParameters {
     this.sectionSelection = const SectionSelectionParameters(),
     this.vo2max = const Vo2maxParameters(),
     this.aerobicEfficiency = const AerobicEfficiencyParameters(),
+    this.paceMismatch = const PaceMismatchParameters(),
   });
 
-  /// Die Startwerte aus Version 4 von docs/model-parameters.md.
-  const FitnessParameters.v4()
+  /// Die Startwerte aus Version 5 von docs/model-parameters.md.
+  const FitnessParameters.v5()
     : this(parameterVersion: currentParameterVersion);
 
   /// Kopie mit ersetzten Zonengrenzen; alles andere bleibt wie in diesem Satz.
@@ -46,7 +50,11 @@ class FitnessParameters {
     sectionSelection: sectionSelection ?? this.sectionSelection,
     vo2max: vo2max ?? this.vo2max,
     aerobicEfficiency: aerobicEfficiency ?? this.aerobicEfficiency,
+    paceMismatch: paceMismatch,
   );
+
+  /// PAR-247: Puls passt nicht zum Tempo.
+  final PaceMismatchParameters paceMismatch;
 
   /// Prozent je Ganzes; Umrechnung der ganzzahligen Abdeckung.
   static const percent = 100;

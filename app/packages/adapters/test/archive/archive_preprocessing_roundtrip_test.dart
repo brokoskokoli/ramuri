@@ -24,7 +24,7 @@ const String _password = 'synthetisches Testpasswort';
 final _t0 = DateTime.utc(2030, 1, 1, 7);
 final _t1 = _t0.add(const Duration(minutes: 40));
 
-const _fitness = FitnessParameters.v4();
+const _fitness = FitnessParameters.v5();
 
 List<ComputedValue> _values(String? chain) {
   const vo2 = AcsmReserveVo2maxEstimator();

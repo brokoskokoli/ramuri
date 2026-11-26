@@ -48,7 +48,7 @@ Future<List<List<RoutePoint>>> loadRunRoute(
   StorageSession session,
   int runId, {
   Offload offload = inlineOffload,
-  PreprocessingParameters parameters = const PreprocessingParameters.v4(),
+  PreprocessingParameters parameters = const PreprocessingParameters.v5(),
   int maxPoints = runRouteThumbnailMaxPoints,
 }) async {
   final run = await session.runs.get(runId);

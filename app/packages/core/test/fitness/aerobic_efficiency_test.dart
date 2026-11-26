@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 import 'section_support.dart';
 
 const _eff = MedianAerobicEfficiency();
-const _p = FitnessParameters.v4();
+const _p = FitnessParameters.v5();
 final _now = DateTime.utc(2030, 6, 1, 12);
 
 EvaluatedSection sec({
