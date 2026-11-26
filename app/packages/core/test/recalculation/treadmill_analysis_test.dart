@@ -150,6 +150,7 @@ void main() {
                 fitness: const FitnessParameters.v4(),
                 preprocessing: const PreprocessingParameters.v4(),
                 basis: const HeartRateBasis(maxBpm: 190, restingBpm: 60),
+                estimator: const AcsmReserveVo2maxEstimator(),
               ).analyze(
                 w.session,
                 (await w.session.runs.get(id))!,
@@ -186,6 +187,7 @@ void main() {
               fitness: const FitnessParameters.v4(),
               preprocessing: const PreprocessingParameters.v4(),
               basis: const HeartRateBasis(maxBpm: 190, restingBpm: 60),
+              estimator: const AcsmReserveVo2maxEstimator(),
             ).analyze(
               w.session,
               (await w.session.runs.get(id))!,
@@ -249,6 +251,7 @@ void main() {
               fitness: const FitnessParameters.v4(),
               preprocessing: const PreprocessingParameters.v4(),
               basis: const HeartRateBasis(maxBpm: 190, restingBpm: 60),
+              estimator: const AcsmReserveVo2maxEstimator(),
             ).analyze(
               w.session,
               (await w.session.runs.get(id))!,

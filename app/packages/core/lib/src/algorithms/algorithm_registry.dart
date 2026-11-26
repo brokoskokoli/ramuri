@@ -1,27 +1,35 @@
-import 'aerobic_efficiency.dart';
-import 'algorithm_variant.dart';
-import 'banister_trimp.dart';
-import 'edwards_trimp.dart';
+import '../fitness/aerobic_efficiency.dart';
+import '../fitness/algorithm_lookup.dart';
+import '../fitness/algorithm_variant.dart';
+import '../fitness/banister_trimp.dart';
+import '../fitness/edwards_trimp.dart';
 import '../plan/plan_registry.dart';
 import '../prediction/prediction_registry.dart';
-import 'heart_rate_reserve.dart';
-import 'high_heart_rate_time.dart';
-import 'reserve_zones.dart';
-import 'vo2max_estimator.dart';
-import 'vo2max_long_term.dart';
+import '../fitness/heart_rate_reserve.dart';
+import '../fitness/high_heart_rate_time.dart';
+import '../fitness/reserve_zones.dart';
+import '../fitness/vo2max_estimator.dart';
+import '../fitness/vo2max_long_term.dart';
 
 /// Familie -> registrierte Varianten und aktive Variante (NFR-0005).
 ///
-/// Die App baut die Registry zusammen; [AlgorithmRegistry.standard] liefert
-/// die Standardbestückung des Pakets. Eine Wahl durch den Nutzer gibt es noch
-/// nicht (FR-0197, Phase 2).
+/// Die App baut die Registry einmal (`AppDependencies.algorithms`,
+/// [AlgorithmRegistry.standard]) und gibt sie als [AlgorithmLookup] an die
+/// Wertberechnung (`ValueCalculationService`); Laufanalyse und
+/// Versionsprüfung der Neuberechnung holen ihre Verfahren daraus. Ein
+/// Verfahrenswechsel ist damit nur eine Änderung hier. Eine Wahl durch den
+/// Nutzer gibt es noch nicht (FR-0197, Phase 2).
+///
+/// Das Modul `algorithms` liegt über `fitness`, `plan` und `prediction`:
+/// kein anderes Modul unter `src/` importiert es
+/// (`tool/check_architecture.py`, `CORE_TOP_MODULES`).
 ///
 /// [setActive] wählt nur, was die App danach abfragt. Auf Varianten, die schon
 /// aus anderen zusammengesetzt sind (etwa `ReserveZones` mit ihrer Reserve),
 /// wirkt es nicht: Die App baut sie mit der aktiven Variante zusammen.
 /// Welche Reserve ein Zonenergebnis nutzte, steht im Ergebnis
 /// (`reserveMethod`, `reserveMethodVersion`).
-class AlgorithmRegistry {
+class AlgorithmRegistry implements AlgorithmLookup {
   AlgorithmRegistry();
 
   /// Standardbestückung. Spätere Pakete tragen ihre Varianten hier ein.
@@ -82,6 +90,7 @@ class AlgorithmRegistry {
       List.unmodifiable((_families[family.id]?.variants ?? const []).cast<V>());
 
   /// Aktive Variante; [StateError], wenn die Familie keine hat.
+  @override
   V active<V extends AlgorithmVariant>(AlgorithmFamily<V> family) {
     final a = _families[family.id]?.active;
     if (a == null) {

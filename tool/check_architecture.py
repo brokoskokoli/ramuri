@@ -16,16 +16,22 @@ ebenfalls rot mit "Grundlinie auf <n> senken" - so sinkt sie mit jedem Fix.
 Blattmodule (CORE_LEAF_MODULES): importieren kein anderes core-Modul, auch nicht über Dateien direkt in src/. Fehlt
 ein Blattmodul im Baum, ist das rot.
 
+Obere Module (CORE_TOP_MODULES): kein anderes core-Modul importiert sie, auch nicht über Dateien direkt in src/
+(z. B. algorithms: die Registry liegt über fitness, plan und prediction). Fehlt ein oberes Modul im Baum, ist das rot.
+
 Fail-closed: fehlende Suchpfade, unlesbare Dateien, symbolische Links, Direktiven ohne lesbare URI, unbekannte
 URI-Schemata und der Barrel-Import package:core/core.dart innerhalb von core/lib/src sind rot."""
 import os, re, sys
 
 # Grundlinie: gemessener Stand. Nur senken (der Hinweis nennt den neuen Wert), nie erhöhen.
-CORE_CYCLE_MODULES = 11
+CORE_CYCLE_MODULES = 3
 APP_CYCLE_FEATURES = 16
 
 # Blattmodule in core: keine Kante zu einem anderen Modul unter src/ (Regel in docs/architecture/code-map.md).
 CORE_LEAF_MODULES = ("calendar",)
+
+# Obere Module in core: kein anderes Modul unter src/ hat eine Kante zu ihnen (Regel in docs/architecture/code-map.md).
+CORE_TOP_MODULES = ("algorithms",)
 
 CORE_SRC = "app/packages/core/lib/src/"
 APP_FEATURES = "app/lib/features/"
@@ -312,12 +318,23 @@ def check_leaves(name, graph, leaves, const):
         for t, (f, l) in sorted(graph[m].items()):
             err(f, l, f"Blattmodul {m} importiert Modul {t} ({const}; Regeln: docs/architecture/code-map.md)")
 
+def check_tops(name, graph, tops, const):
+    for m in tops:
+        if m not in graph:
+            err(name, 0, f"Oberes Modul {m} fehlt ({const} in tool/check_architecture.py, fail-closed)")
+            continue
+        for src in sorted(graph):
+            if src != m and m in graph[src]:
+                f, l = graph[src][m]
+                err(f, l, f"Modul {src} importiert oberes Modul {m} ({const}; Regeln: docs/architecture/code-map.md)")
+
 def main():
     root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else ".")
     core, nc = build_graph(root, CORE_SRC, ("core", "app/packages/core/lib/"), barrel="package:core/core.dart")
     app, na = build_graph(root, APP_FEATURES, (APP_PACKAGE, "app/lib/"))
     check("core", core, sccs(core), CORE_CYCLE_MODULES, "CORE_CYCLE_MODULES")
     check_leaves("core", core, CORE_LEAF_MODULES, "CORE_LEAF_MODULES")
+    check_tops("core", core, CORE_TOP_MODULES, "CORE_TOP_MODULES")
     check("app", app, sccs(app), APP_CYCLE_FEATURES, "APP_CYCLE_FEATURES")
     if errors:
         print("Architekturprüfung rot:")

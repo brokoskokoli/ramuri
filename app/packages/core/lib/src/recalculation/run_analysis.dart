@@ -2,12 +2,10 @@ import '../../ports/storage.dart';
 import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
-import '../fitness/aerobic_efficiency.dart';
 import '../fitness/fitness_parameters.dart';
 import '../fitness/fitness_result.dart';
 import '../fitness/heart_rate_basis.dart';
 import '../fitness/vo2max_estimator.dart';
-import '../fitness/vo2max_long_term.dart';
 import '../fitness/vo2max_section_selection.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/movement_time_processor.dart';
@@ -27,19 +25,6 @@ const String aerobicEfficiencyValueKey = 'aerobic_efficiency_change';
 const Set<String> dayValueKeys = {
   vo2maxLongTermValueKey,
   aerobicEfficiencyValueKey,
-};
-
-/// Methode und Methodenversion, mit denen die App jeden Tageswert aus
-/// [dayValueKeys] heute rechnet (die Parameterversion ist die der
-/// Fitnessparameter). Die Versionsprüfung der Neuberechnung vergleicht die
-/// gespeicherten Tageswerte damit (ADR-0004 Punkt 3); ein neuer Tagesschlüssel
-/// braucht hier einen Eintrag.
-const Map<String, (String, int)> dayValueMethods = {
-  vo2maxLongTermValueKey: (vo2maxLongTermMethod, vo2maxLongTermMethodVersion),
-  aerobicEfficiencyValueKey: (
-    aerobicEfficiencyMethod,
-    aerobicEfficiencyMethodVersion,
-  ),
 };
 
 const String vo2maxUnit = 'ml/kg/min';
@@ -205,17 +190,21 @@ AdvancedFitnessValue<double>? toAdvancedValue(ComputedValue v) {
 /// Rechnet einen beendeten Lauf aus seinen gespeicherten Rohdaten.
 ///
 /// Die Herzfrequenzbasis [basis] geht an die Abschnittsauswahl und an den
-/// Schätzer; es gibt nur diese eine Quelle je Rechnung.
+/// Schätzer; es gibt nur diese eine Quelle je Rechnung. [estimator] ist der
+/// aktive VO₂max-Schätzer der Registry
+/// (`ValueCalculationService.vo2maxEstimator`).
 class RunAnalyzer {
   RunAnalyzer({
     required this.fitness,
     required this.preprocessing,
     required this.basis,
+    required this.estimator,
   });
 
   final FitnessParameters fitness;
   final PreprocessingParameters preprocessing;
   final HeartRateBasis basis;
+  final Vo2maxEstimator estimator;
 
   /// Wirft [ArgumentError] bei abweichender Parameterversion zwischen
   /// Vorverarbeitung und Fitness; das wird nicht abgefangen.
@@ -290,7 +279,7 @@ class RunAnalyzer {
               excluded: const [],
             );
     }
-    final estimate = const AcsmReserveVo2maxEstimator().estimate(
+    final estimate = estimator.estimate(
       selection: selection,
       basis: basis,
       p: fitness,

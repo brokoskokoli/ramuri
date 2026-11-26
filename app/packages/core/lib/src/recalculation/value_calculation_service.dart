@@ -3,9 +3,12 @@ import '../../ports/storage.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
 import '../fitness/aerobic_efficiency.dart';
+import '../fitness/algorithm_lookup.dart';
 import '../fitness/fitness_parameters.dart';
 import '../fitness/heart_rate_basis.dart';
+import '../fitness/high_heart_rate_time.dart';
 import '../fitness/load_profile.dart';
+import '../fitness/vo2max_estimator.dart';
 import '../fitness/vo2max_long_term.dart';
 import '../preprocessing/preprocessing_chain.dart';
 import '../preprocessing/preprocessing_parameters.dart';
@@ -119,20 +122,49 @@ class ValueCalculationService {
   ValueCalculationService({
     required this.session,
     required this.clock,
+    required this.algorithms,
     this.fitness = const FitnessParameters.v4(),
     this.preprocessing = const PreprocessingParameters.v4(),
-    this.longTerm = const SmoothedVo2maxLongTerm(),
-    this.efficiency = const MedianAerobicEfficiency(),
     String? preprocessingVersion,
-  }) : preprocessingVersion =
+  }) : vo2maxEstimator = algorithms.active(vo2maxEstimatorFamily),
+       longTerm = algorithms.active(vo2maxLongTermFamily),
+       efficiency = algorithms.active(aerobicEfficiencyFamily),
+       highHeartRateTime = algorithms.active(highHeartRateTimeFamily),
+       preprocessingVersion =
            preprocessingVersion ?? preprocessingChainVersion();
 
   final StorageSession session;
   final Clock clock;
+
+  /// Die Registry der App (ADR-0004, NFR-0005). Die Verfahren unten sind ihre
+  /// aktiven Varianten beim Bau; Laufanalyse ([RunAnalyzer]) und
+  /// Versionsprüfung (`RecalculationService.checkVersions`) nehmen beide
+  /// diese, nie eine eigene Instanz.
+  final AlgorithmLookup algorithms;
   final FitnessParameters fitness;
   final PreprocessingParameters preprocessing;
+
+  /// VO₂max-Schätzer des Laufwerts ([vo2maxEstimatorFamily]).
+  final Vo2maxEstimator vo2maxEstimator;
+
+  /// Langzeitwert ([vo2maxLongTermFamily]).
   final Vo2maxLongTerm longTerm;
+
+  /// Aerobe Effizienz ([aerobicEfficiencyFamily]).
   final AerobicEfficiency efficiency;
+
+  /// Zeit bei mindestens 80 % HFmax ([highHeartRateTimeFamily]).
+  final HighHeartRateTimeModel highHeartRateTime;
+
+  /// Methode und Methodenversion, mit denen dieser Dienst jeden Tageswert aus
+  /// [dayValueKeys] rechnet (die Parameterversion ist die der
+  /// Fitnessparameter). Die Versionsprüfung der Neuberechnung vergleicht die
+  /// gespeicherten Tageswerte damit (ADR-0004 Punkt 3); ein neuer
+  /// Tagesschlüssel braucht hier einen Eintrag.
+  Map<String, (String, int)> get dayValueMethods => {
+    vo2maxLongTermValueKey: (longTerm.method, longTerm.methodVersion),
+    aerobicEfficiencyValueKey: (efficiency.method, efficiency.methodVersion),
+  };
 
   /// Kettenversion der Vorverarbeitung, die an jeden neuen Laufwert kommt
   /// und gegen die `RecalculationService.checkVersions` die gespeicherten
@@ -170,8 +202,12 @@ class ValueCalculationService {
   /// Basis des gespeicherten Profils für die Auflösung des Belastungsprofils.
   Future<HeartRateBasis> profileBasis() => _profileBasis();
 
-  RunAnalyzer _analyzer(HeartRateBasis basis) =>
-      RunAnalyzer(fitness: fitness, preprocessing: preprocessing, basis: basis);
+  RunAnalyzer _analyzer(HeartRateBasis basis) => RunAnalyzer(
+    fitness: fitness,
+    preprocessing: preprocessing,
+    basis: basis,
+    estimator: vo2maxEstimator,
+  );
 
   Future<List<StoredRun>> _finishedRuns() async => [
     for (final r in await session.runs.list())
@@ -279,6 +315,7 @@ class ValueCalculationService {
       sources: analysis.sources,
       computedAt: now,
       preprocessingVersion: preprocessingVersion,
+      model: highHeartRateTime,
     );
     // Kurzfassung für Historie und Vergleich (vor den Werten: scheitert sie,
     // ist nichts geschrieben und ein neuer Versuch möglich).
@@ -710,6 +747,7 @@ class ValueCalculationService {
         sources: analysis.sources,
         computedAt: now,
         preprocessingVersion: preprocessingVersion,
+        model: highHeartRateTime,
       );
       // Vorhanden: tauschen (hängt an HFmax wie der TRIMP); fehlt er (Lauf
       // von vor dieser Methode): anlegen.
