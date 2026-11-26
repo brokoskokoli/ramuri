@@ -8,6 +8,7 @@ import 'package:running_app/features/storage/deletion.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show openHistory;
+import 'run_recovery_test.dart' show crash, restart;
 import 'run_test.dart' show openRun, walk;
 
 /// Anschlüsse der einen Algorithmen-Registry der App (ADR-0004, NFR-0005):
@@ -279,6 +280,35 @@ void main() {
     await tester.tap(find.byKey(const Key('run_finish_confirm')));
     await tester.pumpAndSettle();
     final id = (await d.session.runs.list()).single.id;
+    final v = await _runValue(d.session, id);
+    expect((v?.method, v?.methodVersion), ('test-vo2max', 7));
+  });
+
+  testWidgets('Unterbrochener Lauf, Fortsetzen und Beenden: Werte mit der '
+      'Registry aus AppDependencies', (tester) async {
+    final d = Device()..algorithms = _withOther();
+    final id = await crash(d, tester);
+    await restart(d, tester);
+    await tester.tap(find.byKey(const Key('recover_resume')));
+    await tester.pumpAndSettle();
+    await walk(d, tester, 10, from: 20);
+    await tester.tap(find.byKey(const Key('run_pause')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('run_finish')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('run_finish_confirm')));
+    await tester.pumpAndSettle();
+    final v = await _runValue(d.session, id);
+    expect((v?.method, v?.methodVersion), ('test-vo2max', 7));
+  });
+
+  testWidgets('Unterbrochener Lauf, Speichern: Werte mit der Registry aus '
+      'AppDependencies', (tester) async {
+    final d = Device()..algorithms = _withOther();
+    final id = await crash(d, tester);
+    await restart(d, tester);
+    await tester.tap(find.byKey(const Key('recover_save')));
+    await tester.pumpAndSettle();
     final v = await _runValue(d.session, id);
     expect((v?.method, v?.methodVersion), ('test-vo2max', 7));
   });
