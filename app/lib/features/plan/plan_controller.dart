@@ -261,6 +261,16 @@ class PlanController extends ChangeNotifier {
   /// Controller und dem Erholungs-Auslöser ([PlanWriteQueue.of]).
   final PlanWriteQueue _writes;
 
+  /// Die Abläufe des Plans (Prüfung beim Öffnen, Wochen- und
+  /// Erholungsprüfung, Warnsignal, Neuberechnung) ohne Oberfläche.
+  late final PlanWorkflowService _workflow = planWorkflowFor(
+    session: session,
+    clock: clock,
+    reader: reader,
+    parameters: parameters,
+    readinessToday: readinessToday,
+  );
+
   SettingsPlanAdaptationStore get _adaptation =>
       SettingsPlanAdaptationStore(session.settings);
 
@@ -348,93 +358,28 @@ class PlanController extends ChangeNotifier {
   /// Lädt den Stand neu (ohne Prüfung).
   Future<void> reload() => _serial(_load);
 
+  /// Prüfung beim Öffnen ([PlanWorkflowService.dueCheck]). Bei der Heilung
+  /// des Warnsignals zeigt die Seite Banner bzw. Erinnerung zuerst, nicht
+  /// erst nach der Rechnung; unter gespeichertem Signal mit
+  /// Fortschrittsanzeige wie nach dem Melden, bis die Rechnung endet (auch
+  /// wenn sie scheitert). Das anschließende Laden in [open] blendet sie aus.
   Future<void> _checkDue() async {
-    final goal = await _goals.goal();
-    if (goal == null) return;
-    final history = await _plans.history();
-    if (history.isEmpty) {
-      await _recalculate(PlanTrigger.create, goal, null);
+    final due = await _workflow.dueCheck();
+    if (due.kind != PlanDueKind.warningHeal) {
+      await _workflow.runDue(due, onResult: _took);
       return;
     }
-    final last = history.last;
-    if (planGoalChangedSince(last.summary, goal)) {
-      await _recalculate(PlanTrigger.goalChange, goal, last);
-      return;
+    _warningRecalculating = due.warned;
+    try {
+      await _load();
+      await _workflow.runDue(due, onResult: _took);
+    } finally {
+      _warningRecalculating = false;
     }
-    // Warnsignal-Zeile und letzte Fassung müssen zueinander passen: Scheiterte
-    // das Schreiben nach dem Setzen oder Aufheben der Zeile (und auch deren
-    // Rücknahme), stellt das Öffnen den Plan her, ohne die Wochenprüfung
-    // abzuwarten.
-    final warning = _warning;
-    if (warning != null) {
-      final warned = await warning.read() != null;
-      final held = warningHeldFromSummary(last.summary) != null;
-      if (warned != held) {
-        // Banner bzw. Erinnerung zuerst zeigen, nicht erst nach der Rechnung;
-        // unter gespeichertem Signal mit Fortschrittsanzeige wie nach dem
-        // Melden, bis die Rechnung endet (auch wenn sie scheitert). Das
-        // anschließende Laden in [open] blendet sie aus.
-        _warningRecalculating = warned;
-        try {
-          await _load();
-          await _recalculate(
-            PlanTrigger.feedback,
-            goal,
-            last,
-            reason: warned ? planReasonWarning : planReasonWarningLifted,
-            // Die Heilung ist keine Wochenprüfung: der Prüftag bleibt, damit
-            // eine fällige Bewertung der Vorwoche beim nächsten Öffnen läuft.
-            markChecked: false,
-          );
-        } finally {
-          _warningRecalculating = false;
-        }
-        return;
-      }
-    }
-    final today = _today();
-    final checked = await session.settings.get(planLastCheckDayKey);
-    if (!weeklyCheckDue(checked, today)) return;
-    // Solange die Pausenfrage offen ist (PAR-202), rechnet das Öffnen keine
-    // Wochenprüfung: Nach der Antwort greift erst die Pausenregel, die
-    // Prüfung gilt dann für die Woche (Prüftag) oder läuft beim nächsten
-    // Öffnen normal. Die Wochenfassung würde sonst den Anker auf den Montag
-    // setzen und die Pausenregel ins Leere laufen lassen.
-    if (await HintService(session: session, clock: clock).pauseQuestion() !=
-        null) {
-      return;
-    }
-    // Auch unter einer älteren Regelversion bewertet die Prüfung die Woche
-    // (PAR-201, NB6 1).
-    await _recalculate(
-      last.version.isCurrent ? PlanTrigger.weekly : PlanTrigger.ruleVersion,
-      goal,
-      last,
-      adjust: true,
-    );
-    // Erholungsdaten nimmt die Prüfung nur über PAR-173 auf (FR-0158, Teil
-    // „3 (Erholung)“): bei „adaptiv“ der Wert von heute, als eigene Fassung
-    // mit Grund `readiness`, damit die Lockerung ihren Grund nennt.
-    final after = await _plans.history();
-    if (after.isNotEmpty) await _recheckRecovery(goal, after.last);
   }
 
-  /// Rechnet mit Eingaben aus dem Speicher. Anlegen: neue Eingaben aus
-  /// [buildPlanInputs]; sonst die der letzten Fassung mit den heute
-  /// gemessenen Werten ([refreshMeasuredInputs]).
-  ///
-  /// [adjust]: die wöchentliche Prüfung bewertet zuerst die letzte Woche
-  /// (PAR-201, [evaluateWeekAdjustment]); ergibt sie eine Anpassung, gilt ihr
-  /// neuer Anker, der Grund-Code der Fassung nennt die Gründe. Einmal je
-  /// Woche (die Prüfung merkt sich den Tag), und die bewertete Woche liegt
-  /// danach vor dem Anker.
-  ///
-  /// Lehnt der Speicher die Fassung ab (`rejected`, etwa weil sich der Plan
-  /// seit dem Lesen geändert hat, ADR-0010), liest die Rechnung die neueste
-  /// Fassung neu und rechnet genau einmal noch. Scheitert auch das, bleibt
-  /// der gespeicherte Stand und die Ablehnung geht an den Aufrufer (kein
-  /// stiller Verlust: Aktionen melden `rejected`, die Prüfungen beim Öffnen
-  /// setzen den Prüftag nicht und laufen beim nächsten Öffnen erneut).
+  /// Neuberechnung über den Dienst ([PlanWorkflowService.recalculate]);
+  /// `true`, wenn eine Fassung geschrieben wurde.
   Future<bool> _recalculate(
     PlanTrigger trigger,
     TrainingGoal goal,
@@ -442,139 +387,46 @@ class PlanController extends ChangeNotifier {
     bool? adjust,
     String? reason,
     bool markChecked = true,
-    Iterable<PlanReadinessDay> readiness = const [],
-  }) async {
-    Future<bool> once(PlanVersionRecord? from) => _recalculateOnce(
+  }) async => _took(
+    await _workflow.recalculate(
       trigger,
       goal,
-      from,
+      last,
       adjust: adjust,
       reason: reason,
       markChecked: markChecked,
-      readiness: readiness,
-    );
-    try {
-      return await once(last);
-    } on StorageException catch (e) {
-      if (e.failure != StorageFailure.rejected) rethrow;
-    }
-    final history = await _plans.history();
-    return once(history.isEmpty ? null : history.last);
-  }
+    ),
+  );
 
-  Future<bool> _recalculateOnce(
-    PlanTrigger trigger,
-    TrainingGoal goal,
-    PlanVersionRecord? last, {
-    bool? adjust,
-    String? reason,
-    bool markChecked = true,
-    Iterable<PlanReadinessDay> readiness = const [],
-  }) async {
-    final today = _today();
-    final built = await reader.read(goal: goal, today: today);
-    var inputs = _inputsFor(trigger, built, last);
-    // Eine Zieländerung setzt den Prüftag; eine fällige Wochenbewertung der
-    // Vorwoche fällt dadurch nicht weg (NB7 6), sie geht in dieselbe Fassung
-    // ein (Grund bleibt `goalChange`).
-    // Bei offener Pausenfrage (PAR-202) nicht: Die Bewertung setzte den
-    // Anker auf den Montag und die Pausenregel liefe danach ins Leere (NB8 1).
-    // Dann bleibt auch der Prüftag unberührt: Nach „Nein“ läuft die
-    // Wochenprüfung beim nächsten Öffnen (NB9 1).
-    final dueOnGoalChange =
-        adjust == null &&
-        trigger == PlanTrigger.goalChange &&
-        weeklyCheckDue(await session.settings.get(planLastCheckDayKey), today);
-    final skippedForPause =
-        dueOnGoalChange &&
-        await HintService(session: session, clock: clock).pauseQuestion() !=
-            null;
-    final doAdjust = adjust ?? (dueOnGoalChange && !skippedForPause);
-    if (doAdjust && last != null) {
-      final evidence = await reader.weekEvidence(today);
-      final a = evaluateWeekAdjustment(
-        goal: goal,
-        inputs: inputs,
-        today: today,
-        doneMinutes: evidence.doneMinutes,
-        plannedMinutes: evidence.plannedMinutes,
-        recentEasyRpe: evidence.recentEasyRpe,
-        fatigueReported: evidence.fatigueReported,
-        parameters: parameters,
-      );
-      if (a != null) {
-        inputs = refreshMeasuredInputs(a.inputs, built.inputs);
-        // Bei `goalChange` bleibt der Grund-Code vorn, die Gründe der
-        // Bewertung folgen (NB8 6): `goalChange,repeatWeek`.
-        final codes = ([
-          ...a.reasons,
-        ]..sort((x, y) => x.index - y.index)).map((r) => r.name).join(',');
-        if (trigger == PlanTrigger.weekly) {
-          reason = codes;
-        } else if (trigger == PlanTrigger.goalChange) {
-          reason = 'goalChange,$codes';
-        } else if (trigger == PlanTrigger.ruleVersion) {
-          reason = 'ruleVersion,$codes';
-        }
-      }
-    }
-    final r = await _write(
-      trigger: trigger,
-      today: today,
-      reason: reason,
-      inputs: inputs,
-      readiness: readiness,
-      // `manual` bewertet die Woche nicht (ADR-0010 Nachtrag WP24, K63): Der
-      // Prüftag bleibt, sonst fiele die fällige Wochenbewertung weg.
-      markChecked:
-          markChecked && !skippedForPause && trigger != PlanTrigger.manual,
-    );
+  /// Übernimmt Vorschau und Änderung einer gerechneten Fassung in den
+  /// Ansichtszustand; meldet eine geschriebene ([onChanged]).
+  bool _took(PlanRecalculation r) {
     _fresh = r.generated;
     _lastChange = r.summary;
     if (r.wasWritten) onChanged?.call();
     return r.wasWritten;
   }
 
-  /// Schreibt die Neuberechnung ([recalculatePlan]) mit den Läufen der
-  /// Woche für die Regel der Abweichung (PAR-235, [PlanDataReader.runFacts]):
-  /// Jede Fassung des Controllers rechnet mit ihnen, sonst fielen Kürzung,
-  /// Lockerung und Tausch beim nächsten Rechnen zurück.
+  /// Schreibt eine Fassung über den Dienst ([PlanWorkflowService.write]).
   Future<PlanRecalculation> _write({
     required PlanTrigger trigger,
     required DateTime today,
     String? reason,
     PlanInputs? inputs,
     bool markChecked = true,
-    Iterable<PlanReadinessDay> readiness = const [],
-  }) async => recalculatePlan(
-    plans: _plans,
-    settings: session.settings,
+  }) => _workflow.write(
     trigger: trigger,
     today: today,
-    now: clock.now(),
     reason: reason,
     inputs: inputs,
-    parameters: parameters,
-    warning: _warning,
     markChecked: markChecked,
-    readiness: readiness,
-    runs: await reader.runFacts(today),
-    // Die Wiederholung nach einer Ablehnung liest erst die neueste Fassung
-    // ([_recalculate]); der Dienst wiederholt nicht noch einmal.
-    retryRejected: false,
   );
 
-  /// Eingaben der Rechnung für [trigger]: beim Anlegen (oder ohne Fassung)
-  /// die frischen aus [buildPlanInputs], sonst die der letzten Fassung mit den
-  /// heute gemessenen Werten ([refreshMeasuredInputs]). Gemeinsam für das
-  /// Speichern ([_recalculate]) und die Einschätzung davor ([checkGoal]).
   static PlanInputs _inputsFor(
     PlanTrigger trigger,
     BuiltPlanInputs built,
     PlanVersionRecord? last,
-  ) => (trigger == PlanTrigger.create || last == null)
-      ? built.inputs
-      : refreshMeasuredInputs(last.inputs, built.inputs);
+  ) => PlanWorkflowService.inputsFor(trigger, built, last);
 
   /// Auslöser beim Speichern eines Ziels: `goalChange`, wenn schon ein Ziel
   /// mit Fassung besteht, sonst `create`.
@@ -1335,12 +1187,7 @@ class PlanController extends ChangeNotifier {
   /// Öffnen stellt den Plan her ([open]).
   Future<PlanActionResult> reportWarning({void Function()? onSaved}) =>
       _serial(() async {
-        final w = _warning;
-        final service = w == null ? null : _warningService(w);
-        final saved = await _resultOf(() async {
-          if (service == null) throw StateError('kein Warnspeicher');
-          await service.mark(source: WarningSource.manual, today: _today());
-        });
+        final saved = await _resultOf(_workflow.markWarning);
         if (saved != PlanActionResult.done) {
           await _load();
           return saved;
@@ -1349,10 +1196,7 @@ class PlanController extends ChangeNotifier {
         await _load();
         if (!_disposed) onSaved?.call();
         final result = await _resultOf(() async {
-          final r = await service!.recalculateReported(
-            today: _today(),
-            now: clock.now(),
-          );
+          final r = await _workflow.recalculateWarned();
           _fresh = null;
           if (r.wasWritten) onChanged?.call();
         });
@@ -1368,22 +1212,10 @@ class PlanController extends ChangeNotifier {
 
   /// Hebt das Warnsignal auf; die Festlegungen des Nutzers gelten wieder.
   Future<PlanActionResult> liftWarning() => _act(() async {
-    final w = _warning;
-    if (w == null) throw StateError('kein Warnspeicher');
-    final r = await _warningService(w).lift(today: _today(), now: clock.now());
+    final r = await _workflow.liftWarning();
     _fresh = null;
     if (r.wasWritten) onChanged?.call();
   });
-
-  WarningService _warningService(WarningStore w) => WarningService(
-    plans: _plans,
-    settings: session.settings,
-    warning: w,
-    parameters: parameters,
-    measuredInputs: (goal, today) async =>
-        (await reader.read(goal: goal, today: today)).inputs,
-    runFacts: reader.runFacts,
-  );
 
   /// Antwort auf die Nachfrage (PAR-200). „Passt“ und „zu leicht“ am Regler
   /// ändern den Plan nicht; „zu leicht“ davor und „zu schwer“ legen einen
@@ -1662,28 +1494,8 @@ class PlanController extends ChangeNotifier {
   /// gelockerte (sie kehrt zurück, Grund `adaptationFixed`).
   Future<PlanActionResult> setAdaptation(PlanAdaptationMode mode) =>
       _act(() async {
-        final store = _adaptation;
-        if (await store.read() == mode) return;
-        await store.set(mode, at: clock.now());
-        final goal = await _goals.goal();
-        final history = await _plans.history();
-        if (goal == null || history.isEmpty) return;
-        final last = history.last;
-        final today = _today();
-        if (mode == PlanAdaptationMode.adaptive) {
-          await _recheckRecovery(goal, last);
-        } else {
-          final easedToday = recoveryEasedFromSummary(last.summary)
-              .any((e) => planDay(e.day) == today);
-          if (!easedToday) return;
-          await _recalculate(
-            PlanTrigger.feedback,
-            goal,
-            last,
-            reason: planReasonAdaptationFixed,
-            markChecked: false,
-          );
-        }
+        final r = await _workflow.setAdaptation(mode);
+        if (r != null) _took(r);
       });
 
   /// Auslöser „veränderter Erholungszustand“ (FR-0157, Teil „3 (Erholung)“):
@@ -1697,40 +1509,14 @@ class PlanController extends ChangeNotifier {
   Future<bool> recheckRecovery() => _serial(() async {
     var written = false;
     try {
-      final goal = await _goals.goal();
-      final history = await _plans.history();
-      if (goal != null && history.isNotEmpty) {
-        written = await _recheckRecovery(goal, history.last);
-      }
+      final r = await _workflow.recheckRecoveryToday();
+      written = r != null && _took(r);
     } on Object {
       written = false;
     }
     if (written) await _load();
     return written;
   });
-
-  /// Gemeinsamer Teil von [recheckRecovery], dem Wechsel auf „adaptiv“ und
-  /// der Wochenprüfung: Lockerung der heutigen harten Einheit nach PAR-173.
-  /// Der Wert anderer Tage zählt nicht (nur der heutige wird gelesen).
-  Future<bool> _recheckRecovery(
-    TrainingGoal goal,
-    PlanVersionRecord last,
-  ) async {
-    if (await _adaptation.read() != PlanAdaptationMode.adaptive) return false;
-    final today = _today();
-    final unit = await _plans.unitOn(today);
-    if (unit == null || !recoveryEasable(unit)) return false;
-    final day = await _readinessOn(today);
-    if (day == null || !day.eases) return false;
-    return _recalculate(
-      PlanTrigger.feedback,
-      goal,
-      last,
-      reason: planReasonReadiness,
-      readiness: [day],
-      markChecked: false,
-    );
-  }
 
   /// Gespeicherter Zustand der Unterforderung (PAR-236).
   Future<PlanUnderloadState> _underloadState() async =>
@@ -1761,8 +1547,9 @@ class PlanController extends ChangeNotifier {
     if (warning != null) return true;
     final today = _today();
     if (planCorrectedDownThisWeek(history, today)) return true;
-    // Anders als die Lockerung ([_readinessOn]) unterscheidet die Sperre
-    // „kein Wert“ (nicht gesperrt) von „Fehler“ (gesperrt).
+    // Anders als die Lockerung ([PlanWorkflowService.readinessOn])
+    // unterscheidet die Sperre „kein Wert“ (nicht gesperrt) von „Fehler“
+    // (gesperrt).
     final load = readinessToday;
     if (load == null) return false;
     try {
@@ -1906,19 +1693,6 @@ class PlanController extends ChangeNotifier {
         );
       });
 
-  /// Readiness von [day] aus [readinessToday]; ohne Quelle oder bei einem
-  /// Fehler `null` (keine Lockerung).
-  Future<PlanReadinessDay?> _readinessOn(DateTime day) async {
-    final load = readinessToday;
-    if (load == null) return null;
-    try {
-      final r = await load(day);
-      return r != null && planDay(r.day) == day ? r : null;
-    } on Object {
-      return null;
-    }
-  }
-
   Future<PlanActionResult> _act(Future<void> Function() action) =>
       _serial(() async {
         final result = await _resultOf(action);
@@ -1951,25 +1725,24 @@ class PlanController extends ChangeNotifier {
   }
 }
 
-/// Ist die wöchentliche Prüfung fällig (FR-0158)? [lastCheckDay] ist der
-/// Wert von `plan.last_check_day` (`JJJJ-MM-TT`); fehlt er oder ist er
-/// unlesbar, ja; sonst, wenn er in einer früheren Kalenderwoche (ab Montag)
-/// als [today] liegt.
-bool weeklyCheckDue(String? lastCheckDay, DateTime today) {
-  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(lastCheckDay ?? '');
-  if (m == null) return true;
-  final last = DateTime.utc(
-    int.parse(m[1]!),
-    int.parse(m[2]!),
-    int.parse(m[3]!),
-  );
-  DateTime monday(DateTime d) {
-    final x = planDay(d);
-    return x.subtract(Duration(days: x.weekday - DateTime.monday));
-  }
-
-  return monday(last).isBefore(monday(today));
-}
+/// Die Abläufe des Plans für [session] ([PlanWorkflowService]): gemeinsam
+/// für den [PlanController] und den Erholungs-Auslöser; die Pausenfrage
+/// (PAR-202) kommt aus dem [HintService].
+PlanWorkflowService planWorkflowFor({
+  required StorageSession session,
+  required Clock clock,
+  required PlanDataReader reader,
+  PlanParameters parameters = const PlanParameters(),
+  Future<PlanReadinessDay?> Function(DateTime day)? readinessToday,
+}) => PlanWorkflowService(
+  session: session,
+  clock: clock,
+  reader: reader,
+  parameters: parameters,
+  readinessToday: readinessToday,
+  pauseQuestionOpen: () async =>
+      await HintService(session: session, clock: clock).pauseQuestion() != null,
+);
 
 /// Ein beendeter Lauf oder eine Sporteinheit (FR-0221) im Kalender
 /// ([PlanController.runsBetween]).
