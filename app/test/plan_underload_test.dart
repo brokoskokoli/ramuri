@@ -332,6 +332,53 @@ void main() {
         PlanUnderloadPrompt.question,
       );
     });
+
+    /// Profil nur mit [birthYear], Stufe `hintDone` seit November, zwei
+    /// passende Läufe im Dezember; Öffnen am 2. Januar 2027.
+    Future<(_Env, PlanController)> yearChange(int birthYear) async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.session.profile.save(ProfileRecord(birthYear: birthYear));
+      await e.session.settings.set(
+        planUnderloadStageKey,
+        PlanUnderloadStage.hintDone.name,
+        at: e.clock.now(),
+      );
+      await e.session.settings.set(
+        planUnderloadSinceKey,
+        DateTime.utc(2026, 11, 30, 5).toIso8601String(),
+        at: e.clock.now(),
+      );
+      await e.run(29); // Dienstag, 15. Dezember
+      await e.run(32); // Freitag, 18. Dezember
+      e.clock.advance(DateTime(2027, 1, 2, 9).difference(e.clock.now()));
+      return (e, await e.opened());
+    }
+
+    test('genäherte HFmax ändert sich zum neuen Jahr (FR-0004) → Zählung '
+        'beginnt mit den Läufen im Januar neu', () async {
+      // 1987: Näherung 2026 181, 2027 180.
+      final (e, c) = await yearChange(1987);
+      expect(
+        c.state.underloadPrompt,
+        isNull,
+        reason: 'Dezember-Läufe zählen nach dem Jahreswechsel nicht mehr',
+      );
+      expect(await e.stage(), 'hintDone');
+      await e.run(48); // Sonntag, 3. Januar
+      await e.run(50); // Dienstag, 5. Januar
+      final q = await e.opened();
+      expect(q.state.underloadPrompt, PlanUnderloadPrompt.question);
+      // Nichts Neues gespeichert: kein Zeitpunkt der HFmax-Änderung.
+      expect(await e.session.settings.get(profileHrMaxChangedAtKey), isNull);
+    });
+
+    test('genäherte HFmax bleibt zum neuen Jahr gleich → Dezember-Läufe '
+        'zählen weiter', () async {
+      // 1992: Näherung 2026 und 2027 jeweils 184.
+      final (e, c) = await yearChange(1992);
+      expect(c.state.underloadPrompt, PlanUnderloadPrompt.question);
+      expect(await e.stage(), 'question');
+    });
   });
 
   group('Zuordnung beim Öffnen vor dem Muster (PAR-231, PAR-236)', () {
