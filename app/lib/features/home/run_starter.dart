@@ -90,6 +90,7 @@ class RunStarter {
           serialize: recalculation.exclusive,
           sensors: sensors,
           recalculation: recalculation,
+          algorithms: recalculation.service.algorithms,
           onFinished: (runId) => finishedId = runId,
           plannedUnit: planned,
           startPlanned: unit != null,

@@ -331,7 +331,11 @@ void main() {
       recalculation: RecalculationService(
         session: s,
         clock: d.clock,
-        calculation: ValueCalculationService(session: s, clock: d.clock),
+        calculation: ValueCalculationService(
+          algorithms: AlgorithmRegistry.standard(),
+          session: s,
+          clock: d.clock,
+        ),
       ),
     );
     expect(snap?.today, today);

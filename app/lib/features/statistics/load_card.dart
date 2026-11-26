@@ -87,7 +87,7 @@ class _LoadCardState extends State<LoadCard> {
         service: TrainingLoadService(
           session: session,
           clock: clock,
-          calculation: ValueCalculationService(session: session, clock: clock),
+          calculation: recalculation.service.calculation,
           recalculation: recalculation.service,
         ),
         serialize: recalculation.serializedRefreshingOffer,

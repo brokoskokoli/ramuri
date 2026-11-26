@@ -24,7 +24,11 @@ Future<void> _open(WidgetTester tester, {required bool popFirst}) async {
     RecalculationService(
       session: session!,
       clock: clock,
-      calculation: ValueCalculationService(session: session, clock: clock),
+      calculation: ValueCalculationService(
+        algorithms: AlgorithmRegistry.standard(),
+        session: session,
+        clock: clock,
+      ),
     ),
   );
   addTearDown(recalc.dispose);

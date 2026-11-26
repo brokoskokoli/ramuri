@@ -168,6 +168,7 @@ RunController _controller(
   FakeLocationSource location, {
   Future<void> Function(Future<void> Function())? serialize,
 }) => RunController(
+  algorithms: AlgorithmRegistry.standard(),
   clock: clock,
   storage: session,
   location: location,
@@ -236,7 +237,11 @@ void main() {
       );
 
       // Beim nächsten Start.
-      await completePendingValueRefresh(w.session, w.clock);
+      await completePendingValueRefresh(
+        algorithms: AlgorithmRegistry.standard(),
+        w.session,
+        w.clock,
+      );
       expect(
         await w.session.values.read(ValueOwner.run(run.id)),
         hasLength(
@@ -261,6 +266,7 @@ void main() {
         session: w.session,
         clock: w.clock,
         calculation: ValueCalculationService(
+          algorithms: AlgorithmRegistry.standard(),
           session: w.session,
           clock: w.clock,
         ),
@@ -367,7 +373,11 @@ void main() {
       );
 
       // Neustart: Nachholen findet den beendeten Lauf ohne Laufwert.
-      await completePendingValueRefresh(w.session, w.clock);
+      await completePendingValueRefresh(
+        algorithms: AlgorithmRegistry.standard(),
+        w.session,
+        w.clock,
+      );
       expect(
         await w.session.values.read(ValueOwner.run(run.id)),
         hasLength(
@@ -384,7 +394,11 @@ void main() {
     final service = _CountingService(
       session: w.session,
       clock: w.clock,
-      calculation: ValueCalculationService(session: w.session, clock: w.clock),
+      calculation: ValueCalculationService(
+        algorithms: AlgorithmRegistry.standard(),
+        session: w.session,
+        clock: w.clock,
+      ),
     );
     addTearDown(service.dispose);
     final recalc = RecalculationController(service, onStart: () => gate.future);
@@ -423,7 +437,11 @@ void main() {
     final service = _CountingService(
       session: w.session,
       clock: w.clock,
-      calculation: ValueCalculationService(session: w.session, clock: w.clock),
+      calculation: ValueCalculationService(
+        algorithms: AlgorithmRegistry.standard(),
+        session: w.session,
+        clock: w.clock,
+      ),
     );
     addTearDown(service.dispose);
     final recalc = RecalculationController(service);

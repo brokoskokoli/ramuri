@@ -55,7 +55,11 @@ Future<void> _seedInto(StorageSession s) async {
   await s.profile.save(
     const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
   );
-  final calc = ValueCalculationService(session: s, clock: const SystemClock());
+  final calc = ValueCalculationService(
+    algorithms: AlgorithmRegistry.standard(),
+    session: s,
+    clock: const SystemClock(),
+  );
   final now = DateTime.now().toUtc();
   for (final days in [10, 3]) {
     final start = now.subtract(Duration(days: days));

@@ -157,7 +157,11 @@ Future<void> _seed(Device d, {List<DateTime>? starts}) async {
   await s.profile.save(
     const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
   );
-  final calc = ValueCalculationService(session: s, clock: d.clock);
+  final calc = ValueCalculationService(
+    algorithms: AlgorithmRegistry.standard(),
+    session: s,
+    clock: d.clock,
+  );
   for (final start
       in starts ??
           [DateTime.utc(2026, 5, 10, 8), DateTime.utc(2026, 5, 17, 8)]) {
@@ -605,7 +609,13 @@ void main() {
           .length;
       expect(await s.values.read(ValueOwner.day(dayOfRemaining)), isNotEmpty);
 
-      await deleteRunAndRefresh(s, d.clock, doomed, serialize: _direct);
+      await deleteRunAndRefresh(
+        algorithms: AlgorithmRegistry.standard(),
+        s,
+        d.clock,
+        doomed,
+        serialize: _direct,
+      );
 
       expect(await s.runs.get(doomed), isNull);
       expect(
@@ -630,7 +640,13 @@ void main() {
     final s = d.session;
     final id = (await s.runs.list()).first.id;
     gate.fail = true;
-    await deleteRunAndRefresh(s, d.clock, id, serialize: _direct);
+    await deleteRunAndRefresh(
+      algorithms: AlgorithmRegistry.standard(),
+      s,
+      d.clock,
+      id,
+      serialize: _direct,
+    );
     expect(await s.runs.get(id), isNull);
   });
 
@@ -653,7 +669,13 @@ void main() {
       final day = dayOfRun(runs.last);
       gate.deletedNotErased = true;
       await expectLater(
-        deleteRunAndRefresh(s, d.clock, runs[1].id, serialize: _direct),
+        deleteRunAndRefresh(
+          algorithms: AlgorithmRegistry.standard(),
+          s,
+          d.clock,
+          runs[1].id,
+          serialize: _direct,
+        ),
         throwsA(
           isA<StorageException>().having(
             (e) => e.failure,
@@ -689,7 +711,13 @@ void main() {
         ..sort((a, b) => a.id.compareTo(b.id));
       final day = dayOfRun(runs.last);
       gate.fail = true;
-      await deleteRunAndRefresh(s, d.clock, runs[1].id, serialize: _direct);
+      await deleteRunAndRefresh(
+        algorithms: AlgorithmRegistry.standard(),
+        s,
+        d.clock,
+        runs[1].id,
+        serialize: _direct,
+      );
       expect(await s.values.read(ValueOwner.day(day)), isEmpty);
       final mark = await s.settings.get(
         ValueCalculationService.refreshPendingKey,
@@ -714,6 +742,7 @@ void main() {
     final d = await _start(tester);
     final s = d.session;
     await deleteRunAndRefresh(
+      algorithms: AlgorithmRegistry.standard(),
       s,
       d.clock,
       (await s.runs.list()).first.id,
@@ -734,6 +763,7 @@ void main() {
       Future<void> Function()? queued;
       var calls = 0;
       final done = deleteRunAndRefresh(
+        algorithms: AlgorithmRegistry.standard(),
         s,
         d.clock,
         id,
@@ -768,7 +798,13 @@ void main() {
 
       // Vorher leer: der eigene Merker wird wieder entfernt.
       await expectLater(
-        deleteRunAndRefresh(s, d.clock, id, serialize: _direct),
+        deleteRunAndRefresh(
+          algorithms: AlgorithmRegistry.standard(),
+          s,
+          d.clock,
+          id,
+          serialize: _direct,
+        ),
         throwsA(isA<StorageException>()),
       );
       expect(await s.settings.get(key), anyOf(isNull, isEmpty));
@@ -780,7 +816,13 @@ void main() {
         at: d.clock.now(),
       );
       await expectLater(
-        deleteRunAndRefresh(s, d.clock, id, serialize: _direct),
+        deleteRunAndRefresh(
+          algorithms: AlgorithmRegistry.standard(),
+          s,
+          d.clock,
+          id,
+          serialize: _direct,
+        ),
         throwsA(isA<StorageException>()),
       );
       expect(await s.settings.get(key), isNotEmpty);
@@ -795,7 +837,13 @@ void main() {
     final id = (await s.runs.list()).first.id;
     gate.failSettings = true;
     await expectLater(
-      deleteRunAndRefresh(s, d.clock, id, serialize: _direct),
+      deleteRunAndRefresh(
+        algorithms: AlgorithmRegistry.standard(),
+        s,
+        d.clock,
+        id,
+        serialize: _direct,
+      ),
       throwsA(isA<StorageException>()),
     );
     expect(await s.runs.get(id), isNotNull);

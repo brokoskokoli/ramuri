@@ -24,6 +24,7 @@ class _Host extends StatelessWidget {
           TextButton(
             onPressed: () async => results.add(
               await confirmAndDeleteRun(
+                algorithms: AlgorithmRegistry.standard(),
                 context,
                 session,
                 FakeClock(DateTime.utc(2030, 6)),
