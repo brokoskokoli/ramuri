@@ -18,14 +18,14 @@ import '../plan/plan_goal_form.dart';
 import '../plan/plan_adapt_recommendation.dart';
 import '../plan/plan_recovery_trigger.dart';
 import '../plan/plan_started_unit.dart';
-import '../plan/plan_texts.dart';
+import '../../ui/format/plan_texts.dart';
 import '../plan/plan_underload_card.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/run_ports.dart';
 import '../measure/morning_belt.dart';
 import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/unit_format.dart';
 import 'data_changes.dart';
 import '../readiness/readiness_card.dart';
 import '../readiness/readiness_detail_screen.dart' show ReadinessActions;
@@ -36,6 +36,7 @@ import 'home_recovery.dart';
 import 'home_start_row.dart';
 import 'overview_screen.dart';
 import 'run_starter.dart';
+import '../plan/plan_done_texts.dart';
 
 /// Bereich „Heute“ in der Hülle ([AppShell]) nach FR-0209: Logo, Datum,
 /// Profil-Symbol, „Frei laufen“, die Woche Montag bis Sonntag mit Laufhaken

@@ -2,7 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/plan/plan_unit_screen.dart';
-import 'package:running_app/features/settings/unit_format.dart';
+import 'package:running_app/ui/format/unit_format.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'helpers/widget_helpers.dart';

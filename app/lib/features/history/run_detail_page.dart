@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../export/run_export_action.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/unit_format.dart';
 import '../summary/kilometer_table.dart';
 import '../summary/plan_origin_note.dart';
 import '../summary/run_charts.dart';

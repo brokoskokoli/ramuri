@@ -231,6 +231,7 @@ export 'src/recording/cadence_estimator.dart';
 export 'src/recording/recording_session.dart';
 export 'src/recording/run_recorder.dart';
 export 'src/recording/run_recovery.dart';
+export 'src/recording/other_sport_hints.dart';
 export 'src/recording/start_gate.dart';
 export 'src/recording/treadmill.dart';
 export 'src/statistics/classification.dart';

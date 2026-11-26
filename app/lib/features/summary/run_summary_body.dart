@@ -2,26 +2,16 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../run/live_run_view.dart' show formatClock;
-import '../run/treadmill_units.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/clock_format.dart' show formatClock;
+import '../../ui/format/treadmill_units.dart';
+import '../../ui/format/unit_format.dart';
 import '../../offload_scope.dart';
 import '../../ui/unbreakable_unit.dart';
+import '../../ui/format/reason_text.dart';
 
 /// Zeit für die Anzeige; fehlt sie, „nicht verfügbar“ (nie „–“ oder 0).
 String clockText(AppLocalizations l10n, Duration? d) =>
     d == null ? l10n.runUnavailable : formatClock(d);
-
-/// Grund aus der Profilbasis (Ruhepuls, HFmax): Die Rechnung prüft die Basis
-/// vor den Pulswerten. Einzige Liste dieser Gründe; die Anzeige nennt bei einem
-/// Lauf ohne Puls statt ihrer den fehlenden Puls (FR-0057, FR-0055).
-bool isProfileBasisReason(UnavailableReason reason) => switch (reason) {
-  UnavailableReason.missingMaxHeartRate ||
-  UnavailableReason.missingRestingHeartRate ||
-  UnavailableReason.maxNotAboveResting ||
-  UnavailableReason.reserveTooSmall => true,
-  _ => false,
-};
 
 /// Grund, warum ein Wert fehlt, als Text (nie 0). Hatte der Lauf keinen
 /// Puls ([hasHeartRate] false), nennt auch ein Grund aus der Profilbasis den
