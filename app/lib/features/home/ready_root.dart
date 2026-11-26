@@ -46,7 +46,12 @@ class ReadyRoot extends StatefulWidget {
     this.healthHolder,
     this.errors,
     required this.algorithms,
+    this.offload = inlineOffload,
   });
+
+  /// Wo die Neuberechnung die Vorverarbeitung der Läufe rechnet
+  /// (`AppDependencies.offload`, in der App ein eigener Isolate).
+  final Offload offload;
 
   /// Algorithmen-Registry der App (`AppDependencies.algorithms`); alle
   /// Wertberechnungen dieser Sitzung rechnen mit ihr.
@@ -108,6 +113,7 @@ class _ReadyRootState extends State<ReadyRoot> {
         session: widget.session,
         clock: widget.clock,
         algorithms: widget.algorithms,
+        offload: widget.offload,
       ),
     );
     _recalculation = RecalculationController(
@@ -116,6 +122,7 @@ class _ReadyRootState extends State<ReadyRoot> {
         widget.session,
         widget.clock,
         algorithms: widget.algorithms,
+        offload: widget.offload,
       ),
       onDataChanged: _changes.changed,
     );

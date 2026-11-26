@@ -12,7 +12,7 @@ import '../recording/belt_track.dart';
 import '../recalculation/run_load_values.dart';
 import '../calendar/run_day.dart' show dayOfRun;
 import '../subjective/subjective_service.dart' show refreshSrpe;
-import 'offload.dart';
+import '../offload.dart';
 import 'run_figures.dart';
 
 /// Kennzahlen eines beendeten Laufs für die Liste. Was fehlt, ist `null`

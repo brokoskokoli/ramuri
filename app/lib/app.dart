@@ -131,6 +131,7 @@ class _RunningAppState extends State<RunningApp> {
           healthHolder: _health,
           errors: dependencies.errors,
           algorithms: dependencies.algorithms,
+          offload: dependencies.offload,
         ),
       ),
     );

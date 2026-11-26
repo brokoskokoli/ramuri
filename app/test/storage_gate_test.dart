@@ -17,8 +17,11 @@ Future<void> pumpApp(
 }) async {
   tester.platformDispatcher.localesTestValue = [locale];
   addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+  // Ein Isolate läuft nicht in der Test-Uhr (pumpAndSettle): inline rechnen.
   await tester.pumpWidget(
-    RunningApp(dependencies: AppDependencies(storageStart: c)),
+    RunningApp(
+      dependencies: AppDependencies(storageStart: c, offload: inlineOffload),
+    ),
   );
   await tester.pumpAndSettle();
   await skipSetupIfShown(tester);
@@ -64,7 +67,12 @@ void main() {
       ),
     );
     await tester.pumpWidget(
-      RunningApp(dependencies: AppDependencies(storageStart: blocked)),
+      RunningApp(
+        dependencies: AppDependencies(
+          storageStart: blocked,
+          offload: inlineOffload,
+        ),
+      ),
     );
     await tester.pump();
     expect(find.text('Daten werden geöffnet …'), findsOneWidget);
