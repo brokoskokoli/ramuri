@@ -4,7 +4,7 @@ import '../preprocessing/preprocessing_parameters.dart';
 import '../recording/treadmill.dart' show RunMode;
 import '../recalculation/run_analysis.dart' show replayJob;
 import '../calendar/run_day.dart' show dayOfRun;
-import '../statistics/offload.dart';
+import '../offload.dart';
 import '../statistics/run_overview.dart';
 import 'prediction_parameters.dart';
 import 'prediction_run.dart';

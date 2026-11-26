@@ -5,7 +5,7 @@ import '../../ports/storage.dart';
 import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
 import '../recording/treadmill.dart';
-import '../statistics/offload.dart';
+import '../offload.dart';
 import 'export_run.dart';
 import 'fit_encoder.dart';
 import 'gpx_encoder.dart';

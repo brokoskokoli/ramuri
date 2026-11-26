@@ -17,7 +17,7 @@ import 'run_overview_summary.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
 import '../settings/load_settings.dart';
 import '../settings/reserve_zone_settings.dart';
-import '../statistics/offload.dart';
+import '../offload.dart';
 import 'calculation_failures.dart';
 import 'high_heart_rate_value.dart';
 import 'run_analysis.dart';

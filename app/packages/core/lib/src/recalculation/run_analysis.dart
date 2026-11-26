@@ -12,7 +12,7 @@ import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recording/belt_track.dart';
 import '../recording/sport_moving_time.dart';
-import '../statistics/offload.dart';
+import '../offload.dart';
 
 /// Schlüssel der gespeicherten Werte (`ComputedValue.key`).
 const String vo2maxRunValueKey = 'vo2max_run';
