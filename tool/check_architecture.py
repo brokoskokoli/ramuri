@@ -29,7 +29,7 @@ import os, re, sys
 
 # Grundlinie: gemessener Stand. Nur senken (der Hinweis nennt den neuen Wert), nie erhöhen.
 CORE_CYCLE_MODULES = 3
-APP_CYCLE_FEATURES = 14
+APP_CYCLE_FEATURES = 13
 
 # Blattmodule in core: keine Kante zu einem anderen Modul unter src/ (Regel in docs/architecture/code-map.md).
 CORE_LEAF_MODULES = ("calendar",)
