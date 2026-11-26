@@ -13,13 +13,19 @@ Ratsche: Gezählt werden Module in starken Zusammenhangskomponenten mit mehr als
 Grundlinie ist rot (mit Komponente, Modulnamen und je Modul der Kante Datei:Zeile, die seinen Zyklus schließt), weniger
 ebenfalls rot mit "Grundlinie auf <n> senken" - so sinkt sie mit jedem Fix.
 
+Blattmodule (CORE_LEAF_MODULES): importieren kein anderes core-Modul, auch nicht über Dateien direkt in src/. Fehlt
+ein Blattmodul im Baum, ist das rot.
+
 Fail-closed: fehlende Suchpfade, unlesbare Dateien, symbolische Links, Direktiven ohne lesbare URI, unbekannte
 URI-Schemata und der Barrel-Import package:core/core.dart innerhalb von core/lib/src sind rot."""
 import os, re, sys
 
 # Grundlinie: gemessener Stand. Nur senken (der Hinweis nennt den neuen Wert), nie erhöhen.
-CORE_CYCLE_MODULES = 12
+CORE_CYCLE_MODULES = 11
 APP_CYCLE_FEATURES = 16
+
+# Blattmodule in core: keine Kante zu einem anderen Modul unter src/ (Regel in docs/architecture/code-map.md).
+CORE_LEAF_MODULES = ("calendar",)
 
 CORE_SRC = "app/packages/core/lib/src/"
 APP_FEATURES = "app/lib/features/"
@@ -298,11 +304,20 @@ def check(name, graph, comps, baseline, const):
         err(name, 0, f"{n} Module in Zyklen, weniger als die Grundlinie: Grundlinie auf {n} senken "
                      f"({const} in tool/check_architecture.py)")
 
+def check_leaves(name, graph, leaves, const):
+    for m in leaves:
+        if m not in graph:
+            err(name, 0, f"Blattmodul {m} fehlt ({const} in tool/check_architecture.py, fail-closed)")
+            continue
+        for t, (f, l) in sorted(graph[m].items()):
+            err(f, l, f"Blattmodul {m} importiert Modul {t} ({const}; Regeln: docs/architecture/code-map.md)")
+
 def main():
     root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else ".")
     core, nc = build_graph(root, CORE_SRC, ("core", "app/packages/core/lib/"), barrel="package:core/core.dart")
     app, na = build_graph(root, APP_FEATURES, (APP_PACKAGE, "app/lib/"))
     check("core", core, sccs(core), CORE_CYCLE_MODULES, "CORE_CYCLE_MODULES")
+    check_leaves("core", core, CORE_LEAF_MODULES, "CORE_LEAF_MODULES")
     check("app", app, sccs(app), APP_CYCLE_FEATURES, "APP_CYCLE_FEATURES")
     if errors:
         print("Architekturprüfung rot:")

@@ -7,6 +7,7 @@ import '../fitness/load_profile.dart';
 import '../fitness/personal_load_factor.dart';
 import '../recalculation/recalculation_service.dart';
 import '../recalculation/run_load_values.dart';
+import '../calendar/run_day.dart' show dayOfRun;
 import '../recalculation/value_calculation_service.dart';
 import '../plan/plan_unit.dart';
 import '../settings/load_settings.dart';

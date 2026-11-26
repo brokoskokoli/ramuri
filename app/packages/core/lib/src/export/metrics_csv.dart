@@ -5,7 +5,7 @@ import '../../ports/file_handoff.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_values.dart';
 import '../recalculation/run_analysis.dart' show dayValueKeys;
-import '../recalculation/value_calculation_service.dart' show dayOfRun;
+import '../calendar/run_day.dart' show dayOfRun;
 import '../recording/treadmill.dart';
 
 /// Formatversion der Zusatzmetriken-CSV (`docs/contracts/metrics-csv.md`).

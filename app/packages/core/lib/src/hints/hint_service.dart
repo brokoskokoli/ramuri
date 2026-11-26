@@ -5,7 +5,7 @@ import '../../ports/storage_plan.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_warning.dart';
 import '../plan/plan_unit.dart';
-import '../recalculation/value_calculation_service.dart' show dayOfRun;
+import '../calendar/run_day.dart' show dayOfRun;
 import '../settings/load_settings.dart';
 import 'hint_selection.dart';
 import 'recovery_card.dart';

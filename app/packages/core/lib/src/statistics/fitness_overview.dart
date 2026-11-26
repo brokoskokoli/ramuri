@@ -4,9 +4,9 @@ import '../../ports/storage_values.dart';
 import '../fitness/vo2max_estimator.dart';
 import '../recalculation/run_analysis.dart'
     show aerobicEfficiencyValueKey, vo2maxLongTermValueKey, vo2maxRunValueKey;
-import '../recalculation/value_calculation_service.dart' show dayOfRun;
+import '../calendar/run_day.dart' show dayOfRun;
 import 'period.dart';
-import 'statistics_parameters.dart';
+import '../recalculation/statistics_parameters.dart';
 
 /// Die gespeicherte VO₂max-Schätzung eines Laufs (`current`, WP09). Der Wert
 /// kann fehlen; dann steht der Grund in [value] (`unavailableReason`).
