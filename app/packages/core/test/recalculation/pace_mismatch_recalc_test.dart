@@ -75,6 +75,30 @@ void main() {
     for (final id in normal) {
       expect(hasMismatchReason(await vo2maxRun(w, id)), isFalse);
     }
+    // TRIMP der Neuberechnung ohne die Spanne: kleiner als derselbe Lauf
+    // ohne Spanne (früher Lauf, Ersatzregel; gleiche Rohdaten).
+    final lateTrimp = (await valueOf(w, late, trimpRunValueKey)).value!;
+    final earlyTrimp = (await valueOf(w, early, trimpRunValueKey)).value!;
+    expect(lateTrimp, lessThan(earlyTrimp));
+  });
+
+  test('spätere Läufe zählen nicht für den Langzeitwert davor', () async {
+    final w = await RecalcWorld.create();
+    for (final d in [
+      DateTime.utc(2030, 2, 1, 8),
+      DateTime.utc(2030, 2, 8, 8),
+      DateTime.utc(2030, 2, 15, 8),
+    ]) {
+      await w.calc().calculateAfterRun(await w.seedRun(d));
+    }
+    // Nachgetragen: Plateau-Lauf vor allen anderen.
+    final id = await w.seedRun(
+      DateTime.utc(2030, 1, 25, 8),
+      speed: 2.8,
+      bpmOf: plateauBpm,
+    );
+    await w.calc().calculateAfterRun(id);
+    expect(hasMismatchReason(await vo2maxRun(w, id)), isFalse);
   });
 
   test('Berechnung nach dem Lauf: Langzeitwert der früheren Läufe; TRIMP '
