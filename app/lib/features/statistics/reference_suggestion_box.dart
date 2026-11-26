@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/unit_format.dart';
 import 'prediction_card.dart' show clockTimeText;
 
 /// Vorschlag eines Laufs als Referenz (PAR-185, FR-0131) mit „Als Referenz

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../plan/plan_texts.dart';
+import '../../ui/format/plan_texts.dart';
 
 /// Die Plan-Einheit, der der Lauf [runId] zugeordnet ist; `null` ohne Plan,
 /// ohne Zuordnung oder bei einem Lesefehler. Die Zuordnung liegt am Starttag

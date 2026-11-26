@@ -4,7 +4,7 @@ import '../../ports/storage_runs.dart';
 import '../preprocessing/movement_time_processor.dart' show TimeSpan;
 import '../preprocessing/preprocessing_parameters.dart';
 import '../recalculation/run_analysis.dart';
-import 'offload.dart';
+import '../offload.dart';
 import 'run_detail.dart';
 
 /// Höchstzahl der Punkte einer Route für die Miniatur (WP13 D): sie ist klein, mehr Punkte sind nicht zu sehen.

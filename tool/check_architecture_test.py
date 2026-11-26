@@ -11,6 +11,7 @@ REPO = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.pat
 CHECK = os.path.join(REPO, "tool", "check_architecture.py")
 C = "app/packages/core/lib/src/"
 A = "app/lib/features/"
+U = "app/lib/ui/"
 
 # Grundbaum ohne Zyklus: core a → b → c, App x → y; dazu Fremdimporte, die nicht zählen.
 BASE = {
@@ -24,6 +25,8 @@ BASE = {
     A + "x/x_screen.dart": "import 'package:flutter/widgets.dart';\nimport 'package:core/core.dart';\n"
                            "import '../y/y.dart';\nimport '../../ui/ui.dart';\nclass X {}\n",
     A + "y/y.dart": "import '../../app.dart';\nclass Y {}\n",
+    U + "ui.dart": "export 'format/f.dart';\nimport '../l10n/app_localizations.dart';\n// import '../features/x/x_screen.dart';\n",
+    U + "format/f.dart": "import 'package:core/core.dart';\nimport 'package:running_app/ui/ui.dart';\nString f() => '';\n",
 }
 
 CYCLE = {C + "c/c.dart": "import '../a/a.dart';\nclass Cc {}\n"}
@@ -77,6 +80,17 @@ CASES = [
     ("aneinandergereihte Zeichenketten", {C + "c/c.dart": "import '../a' '/a.dart';\n"}, 0, 0,
      r"src/c/c\.dart:1: import: aneinandergereihte Zeichenketten"),
     ("Kommentar nicht beendet", {C + "c/c.dart": "/* import '../a/a.dart';\n"}, 0, 0, r"src/c/c\.dart:1: Kommentar nicht beendet"),
+    ("lib/ui importiert Feature relativ", {U + "format/f.dart": "import '../../features/x/x_screen.dart';\n"}, 0, 0,
+     r"app/lib/ui/format/f\.dart:1: lib/ui importiert Feature x"),
+    ("lib/ui importiert Feature über package:", {U + "ui.dart": "import 'package:running_app/features/y/y.dart';\n"}, 0, 0,
+     r"app/lib/ui/ui\.dart:1: lib/ui importiert Feature y"),
+    ("lib/ui exportiert Feature", {U + "ui.dart": "export 'format/f.dart';\nexport '../features/x/x_screen.dart';\n"}, 0, 0,
+     r"app/lib/ui/ui\.dart:2: lib/ui importiert Feature x"),
+    ("lib/ui bindet Feature-Teil ein", {U + "charts/c.dart": "part '../../features/x/x_part.dart';\n"}, 0, 0,
+     r"app/lib/ui/charts/c\.dart:1: lib/ui importiert Feature x"),
+    ("lib/ui importiert Datei direkt in features", {U + "ui.dart": "import '../features/root.dart';\n"}, 0, 0,
+     r"app/lib/ui/ui\.dart:1: lib/ui importiert Feature root\.dart"),
+    ("lib/ui fehlt", {U + "ui.dart": None, U + "format/f.dart": None}, 0, 0, r"app/lib/ui/: Suchpfad fehlt"),
     ("Suchpfad fehlt", {A + "x/x_screen.dart": None, A + "y/y.dart": None}, 0, 0, r"app/lib/features/: Suchpfad fehlt"),
 ]
 

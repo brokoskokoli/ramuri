@@ -6,21 +6,22 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../plan/plan_started_unit.dart';
-import '../plan/plan_texts.dart';
+import '../../ui/format/plan_texts.dart';
 import '../plan/plan_unit_screen.dart' show PlanSegmentRow;
 import '../recalculation/recalculation_controller.dart';
 import '../sensors/sensor_manager.dart';
 import '../sensors/sensors_screen.dart';
 import '../settings/app_settings.dart';
 import '../history/manual_training_screen.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/unit_format.dart';
 import 'guided_segments.dart';
 import 'live_run_view.dart';
 import 'other_sport.dart';
 import 'run_controller.dart';
 import 'run_ports.dart';
-import 'treadmill_units.dart';
+import '../../ui/format/treadmill_units.dart';
 import 'voice_texts.dart';
+import '../../ui/format/other_sport_format.dart';
 
 /// Ablauf „Lauf starten“: Seite „Lauf vorbereiten“ (FR-0210) mit Startprüfung
 /// (FR-0195), Live-Bildschirm

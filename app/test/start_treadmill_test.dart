@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/run/live_run_view.dart';
 import 'package:running_app/features/run/run_controller.dart';
 import 'package:running_app/features/run/run_ports.dart';
-import 'package:running_app/features/run/treadmill_units.dart';
+import 'package:running_app/ui/format/treadmill_units.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';

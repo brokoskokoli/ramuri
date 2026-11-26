@@ -12,7 +12,7 @@ import 'package:running_app/features/run/run_controller.dart';
 import 'package:running_app/features/run/voice_texts.dart';
 import 'package:running_app/features/sensors/run_heart_rate.dart';
 import 'package:running_app/features/sensors/sensor_manager.dart';
-import 'package:running_app/features/settings/unit_format.dart';
+import 'package:running_app/ui/format/unit_format.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 

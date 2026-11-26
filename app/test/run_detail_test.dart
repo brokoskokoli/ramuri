@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:running_app/features/summary/run_charts.dart';
 import 'package:running_app/l10n/app_localizations.dart';
+import 'package:running_app/ui/charts/route_painter.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show openHistory, started, text;

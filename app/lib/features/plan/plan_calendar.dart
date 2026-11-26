@@ -7,7 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import 'plan_controller.dart';
 import 'plan_page_view_state.dart';
-import 'plan_texts.dart';
+import '../../ui/format/plan_texts.dart';
 
 part 'plan_calendar_actions.dart';
 part 'plan_calendar_dialogs.dart';

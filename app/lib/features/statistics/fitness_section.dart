@@ -3,54 +3,13 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_card.dart';
-import '../settings/unit_format.dart' show asOfDateText;
-import '../summary/run_summary_body.dart' show isProfileBasisReason;
+import '../../ui/format/unit_format.dart' show asOfDateText;
+import '../../ui/format/reason_text.dart';
 import 'period_date.dart';
 import '../transparency/value_explanation_screen.dart';
 import 'statistics_screen.dart' show ExplainValue;
 import 'statistics_view.dart';
-
-/// Text zu einem Grund, warum ein Fitnesswert fehlt (FR-0068). Jeder Grund hat
-/// einen eigenen Text; fehlende Profilwerte weisen auf das Profil hin
-/// (FR-0055). Hatte der Lauf keinen Puls ([hasHeartRate] false), nennt auch ein
-/// Grund aus der Profilbasis den fehlenden Puls (FR-0057,
-/// [isProfileBasisReason]).
-String reasonText(
-  AppLocalizations l10n,
-  UnavailableReason reason, {
-  bool hasHeartRate = true,
-}) => !hasHeartRate && isProfileBasisReason(reason)
-    ? l10n.sumNoHeartRate
-    : switch (reason) {
-        UnavailableReason.missingMaxHeartRate ||
-        UnavailableReason.missingRestingHeartRate ||
-        UnavailableReason.maxNotAboveResting ||
-        UnavailableReason.reserveTooSmall ||
-        UnavailableReason.missingLoadCoefficients => l10n.runZoneNoBasis,
-        UnavailableReason.noHeartRate => l10n.sumNoHeartRate,
-        UnavailableReason.insufficientCoverage => l10n.sumCoverageLow,
-        UnavailableReason.noMovingTime => l10n.statReasonNoMoving,
-        UnavailableReason.insufficientData => l10n.statReasonInsufficient,
-        UnavailableReason.noValidSection => l10n.statReasonNoSection,
-        UnavailableReason.allEstimatesImplausible => l10n.statReasonImplausible,
-        UnavailableReason.spreadTooHigh => l10n.statReasonSpread,
-        UnavailableReason.currentWindowTooSmall => l10n.statReasonCurrentWindow,
-        UnavailableReason.referenceWindowTooSmall =>
-          l10n.statReasonReferenceWindow,
-      };
-
-/// Zahl mit einer Nachkommastelle, im Deutschen mit Komma; mit [sign] steht
-/// bei positiven Werten ein Plus (FR-0087: 5,56 wird „5,6“). Das Vorzeichen
-/// richtet sich nach dem gerundeten Wert: Was zu 0,0 rundet, steht ohne
-/// Vorzeichen da. Minus ist das echte Minuszeichen „−“.
-String fitnessNumber(bool german, double v, {bool sign = false}) {
-  final rounded = double.parse(v.toStringAsFixed(1));
-  final digits = rounded.abs().toStringAsFixed(1);
-  final text = rounded < 0
-      ? '\u2212$digits'
-      : (sign && rounded > 0 ? '+$digits' : digits);
-  return german ? text.replaceAll('.', ',') : text;
-}
+import '../../ui/format/fitness_number.dart';
 
 /// Wert eines gespeicherten Fitnesswerts oder, wenn er fehlt, sein Grund
 /// (FR-0068, FR-0057).

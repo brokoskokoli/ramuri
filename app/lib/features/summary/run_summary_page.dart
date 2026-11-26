@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../run/live_run_values.dart' show LiveValueText, splitUnit;
-import '../run/live_run_view.dart' show formatClock;
-import '../run/other_sport.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/split_unit.dart';
+import '../../ui/live_value_text.dart';
+import '../../ui/format/clock_format.dart' show formatClock;
+import '../../ui/format/other_sport_format.dart';
+import '../../ui/format/unit_format.dart';
 import '../transparency/value_explanation_screen.dart';
 import 'plan_origin_note.dart';
 import 'run_charts.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../settings/unit_format.dart' show asOfDateText;
+import '../../ui/format/unit_format.dart' show asOfDateText;
 
 /// Datum eines Zeitraums auf „Fortschritt“ (FR-0044): ohne Jahr, solange alle
 /// Tage des Zeitraums im laufenden Jahr liegen; sonst mit Jahr im Format der
