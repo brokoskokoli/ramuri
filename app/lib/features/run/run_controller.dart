@@ -49,6 +49,7 @@ class RunController extends ChangeNotifier {
     this.guidedSegments,
     this.guidedKind,
     this.recentEasyRuns = recentEasyRunExposures,
+    this.offload = inlineOffload,
     RunRecorder? recorder,
   }) : _recorder =
            recorder ??
@@ -67,6 +68,10 @@ class RunController extends ChangeNotifier {
   /// Algorithmen-Registry der App; die Werte nach dem Lauf rechnen mit ihr
   /// wie die Neuberechnung.
   final AlgorithmLookup algorithms;
+
+  /// Wo die Vorverarbeitung des Laufs bei der Berechnung nach dem Lauf rechnet
+  /// ([RunAnalyzer.offload]; in der App der eigene Isolate).
+  final Offload offload;
   final LocationSource location;
 
   /// Pulsquelle dieses Laufs aus der Sensorverwaltung; sie wird mit dem Ende
@@ -817,6 +822,7 @@ class RunController extends ChangeNotifier {
         session: storage,
         clock: clock,
         algorithms: algorithms,
+        offload: offload,
       ).calculateAfterRunTracked(runId);
     }
 

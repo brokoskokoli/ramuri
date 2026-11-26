@@ -18,7 +18,13 @@ const _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 class _CountingOffload {
   final replayed = <int>[];
 
+  /// Wirft bei jeder Vorverarbeitung (Fehler des Isolates).
+  bool fail = false;
+
   Future<R> call<A, R>(R Function(A) job, A argument) async {
+    if (identical(job, replayJob) && fail) {
+      throw StateError('offload');
+    }
     if (identical(job, replayJob) &&
         argument
             is ({
@@ -430,6 +436,81 @@ void main() {
     final last = runs.map((r) => r.id).reduce((a, b) => a > b ? a : b);
     expect(offload.replayed, contains(last));
     expect(await d.session.values.read(ValueOwner.run(last)), isNotEmpty);
+  });
+
+  group('Löschen über die Oberfläche rechnet über den Offload der App', () {
+    final starts = [
+      DateTime.utc(2026, 5, 10, 8),
+      DateTime.utc(2026, 5, 17, 8),
+      DateTime.utc(2026, 5, 17, 15),
+    ];
+
+    /// Startet mit drei Läufen; liefert die Lauf-IDs aufsteigend.
+    Future<(Device, List<int>)> threeRuns(
+      WidgetTester tester,
+      _CountingOffload offload,
+    ) async {
+      final d = await _start(tester, offload: offload.call, starts: starts);
+      final ids = [for (final r in await d.session.runs.list()) r.id]..sort();
+      return (d, ids);
+    }
+
+    testWidgets('Historie: jeder übrige Lauf im Fenster', (tester) async {
+      final offload = _CountingOffload();
+      final (d, ids) = await threeRuns(tester, offload);
+      final doomed = ids[1];
+      await openHistory(d, tester);
+      offload.replayed.clear();
+      await tester.tap(find.byKey(Key('history_delete_$doomed')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lauf löschen').last);
+      await tester.pumpAndSettle();
+      expect(await d.session.runs.get(doomed), isNull);
+      expect(offload.replayed.toSet().toList()..sort(), [ids[0], ids[2]]);
+      expect(
+        await d.session.settings.get(ValueCalculationService.refreshPendingKey),
+        '',
+      );
+    });
+
+    testWidgets('Laufdetail: jeder übrige Lauf im Fenster', (tester) async {
+      final offload = _CountingOffload();
+      final (d, ids) = await threeRuns(tester, offload);
+      final doomed = ids[0];
+      await openHistory(d, tester);
+      await tester.ensureVisible(find.byKey(Key('history_run_$doomed')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(Key('history_run_$doomed')));
+      await tester.pumpAndSettle();
+      offload.replayed.clear();
+      await tester.tap(find.byKey(const Key('detail_delete')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lauf löschen').last);
+      await tester.pumpAndSettle();
+      expect(await d.session.runs.get(doomed), isNull);
+      expect(offload.replayed.toSet().toList()..sort(), [ids[1], ids[2]]);
+    });
+
+    testWidgets('Offload wirft: Lauf bleibt gelöscht, Merker bleibt stehen', (
+      tester,
+    ) async {
+      final offload = _CountingOffload();
+      final (d, ids) = await threeRuns(tester, offload);
+      final doomed = ids[1];
+      await openHistory(d, tester);
+      offload.fail = true;
+      await tester.tap(find.byKey(Key('history_delete_$doomed')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lauf löschen').last);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(await d.session.runs.get(doomed), isNull);
+      expect(find.text('Gelöscht.'), findsOneWidget);
+      expect(
+        await d.session.settings.get(ValueCalculationService.refreshPendingKey),
+        startsWith('$doomed@'),
+      );
+    });
   });
 
   testWidgets('Annehmen tauscht current, original bleibt (FR-0058)', (

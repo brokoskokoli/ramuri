@@ -222,6 +222,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       algorithms: widget.recalculation.service.algorithms,
       onDeleted: _consent?.deleteRunThumbnails,
       exports: FileHandoffScope.of(context),
+      offload: OffloadScope.of(context),
     );
     if (!mounted) return;
     if (result == DeletionResult.deleted ||
