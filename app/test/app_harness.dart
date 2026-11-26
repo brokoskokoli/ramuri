@@ -92,6 +92,9 @@ class Device {
   /// Kamera der Ruhepulsmessung (ADR-0011); `null`: keine Kamera.
   PpgCamera? ppgCamera;
 
+  /// Algorithmen-Registry der App (ADR-0004); `null`: Standardbestückung.
+  AlgorithmRegistry? algorithms;
+
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate] (Gerät 'hr1', ohne Verwaltung); [lastRun] ist die Pulsquelle
   /// des jüngsten Laufs.
@@ -165,6 +168,7 @@ class Device {
           reminders: reminders,
           healthConnect: healthConnect,
           ppgCamera: ppgCamera,
+          algorithms: algorithms,
           permissions: permissions,
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,
