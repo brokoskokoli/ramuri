@@ -2219,7 +2219,11 @@ void main() {
       final service = RecalculationService(
         session: session,
         clock: clock,
-        calculation: ValueCalculationService(session: session, clock: clock),
+        calculation: ValueCalculationService(
+          session: session,
+          clock: clock,
+          algorithms: AlgorithmRegistry.standard(),
+        ),
       );
       addTearDown(service.dispose);
       expect((await service.checkVersions())?.causes, {
