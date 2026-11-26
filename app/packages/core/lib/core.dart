@@ -238,7 +238,7 @@ export 'src/statistics/classification.dart';
 export 'src/statistics/fitness_overview.dart';
 export 'src/statistics/history_summary.dart';
 export 'src/statistics/kilometer_splits.dart';
-export 'src/statistics/offload.dart';
+export 'src/offload.dart';
 export 'src/statistics/period.dart';
 export 'src/statistics/period_statistics.dart';
 export 'src/statistics/run_detail.dart';
