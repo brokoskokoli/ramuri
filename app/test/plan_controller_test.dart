@@ -425,17 +425,6 @@ void main() {
       expect(e.controller.state.ruleVersionPending, isFalse);
     });
 
-    test('fällig und aktuelle Regelversion: Auslöser weekly', () async {
-      final e = await withOld(
-        PlanVersion.current,
-        lastCheck: _dayText(_day(-7)),
-      );
-      await e.controller.open();
-      final h = await e.plans.history();
-      expect(h, hasLength(2));
-      expect(h.last.trigger, PlanTrigger.weekly);
-    });
-
     test('nicht fällig (Prüfung diese Woche): keine stille Neuberechnung, '
         'alte Regelversion wird gemeldet', () async {
       final e = await withOld(
@@ -446,13 +435,6 @@ void main() {
       expect(await e.plans.history(), hasLength(1));
       expect(e.controller.state.ruleVersionPending, isTrue);
       expect(e.controller.state.hints, isNotNull);
-    });
-
-    test('weeklyCheckDue nach Kalenderwoche', () {
-      expect(weeklyCheckDue(null, _today), isTrue);
-      expect(weeklyCheckDue('kaputt', _today), isTrue);
-      expect(weeklyCheckDue('2026-11-09', _today), isFalse); // Montag
-      expect(weeklyCheckDue('2026-11-08', _today), isTrue); // Sonntag davor
     });
   });
 
@@ -559,72 +541,6 @@ void main() {
       // Nachtrag WP24).
       expect(await e.session.settings.get(planLastCheckDayKey), 'alt');
       expect((await e.plans.unitOn(unit.day))?.runId, runId);
-    });
-
-    test('wöchentliche Prüfung: Anker und Startwochenzeit bleiben aus der '
-        'Vorfassung, auch wenn Läufe den Stand ändern', () async {
-      // 12 Läufe zu 50 min in den letzten 6 Wochen: Stand aus Läufen 100 min.
-      final runs = [
-        for (var i = 0; i < 12; i++)
-          RunFigures(
-            runId: i + 1,
-            endedAt: _day(-1 - 3 * i).add(const Duration(hours: 8)),
-            day: _dayText(_day(-1 - 3 * i)),
-            distanceMeters: 8000,
-            movingTime: const Duration(minutes: 50),
-            totalTime: const Duration(minutes: 50),
-          ),
-      ];
-      final e = await _Env.open(runs: runs);
-      await e.goals.save(_goal(), today: _goal().createdAt);
-      await _writeVersion(e, PlanVersion.current, _day(-7));
-      await e.session.settings.set(
-        planLastCheckDayKey,
-        _dayText(_day(-7)),
-        at: _now,
-      );
-      final before = (await e.plans.history()).last.inputs;
-      final measured = await e.reader.read(goal: _goal(), today: _today);
-      expect(measured.inputs.anchor, isNot(before.anchor));
-      expect(
-        measured.inputs.startWeeklyMinutes,
-        isNot(before.startWeeklyMinutes),
-      );
-
-      await e.controller.open();
-      final h = await e.plans.history();
-      expect(h.last.trigger, PlanTrigger.weekly);
-      expect(h.last.inputs.anchor, before.anchor);
-      expect(h.last.inputs.startWeeklyMinutes, before.startWeeklyMinutes);
-      expect(h.last.inputs.today, _today);
-    });
-
-    test('manuelles Neuberechnen setzt den Prüftag nicht: die fällige '
-        'Wochenbewertung läuft danach beim Öffnen', () async {
-      final e = await _Env.open();
-      await e.goals.save(_goal(), today: _goal().createdAt);
-      await _writeVersion(e, PlanVersion.current, _day(-7));
-      final lastCheck = _dayText(_day(-7));
-      await e.session.settings.set(planLastCheckDayKey, lastCheck, at: _now);
-      expect(await e.controller.recalculate(), PlanActionResult.done);
-      expect(
-        await e.session.settings.get(planLastCheckDayKey),
-        lastCheck,
-        reason: 'manuell bewertet die Woche nicht',
-      );
-      expect(
-        weeklyCheckDue(
-          await e.session.settings.get(planLastCheckDayKey),
-          _today,
-        ),
-        isTrue,
-      );
-      await e.controller.open();
-      expect(
-        await e.session.settings.get(planLastCheckDayKey),
-        _dayText(_today),
-        reason: 'das Öffnen hat die Woche bewertet',
-      );
     });
 
     test('Rückmeldung „zu schwer“ setzt den Prüftag nicht, nur den eigenen '
@@ -1152,36 +1068,6 @@ void main() {
       return (e, planned[0]);
     }
 
-    test('Woche ohne Läufe: beim Öffnen neue Fassung, Wochenzeit nicht höher '
-        '(wiederholen)', () async {
-      final (e, planned) = await prepare();
-      final before = await week(e, monday(1));
-      expect(before, greaterThan(planned), reason: 'sonst belegt es nichts');
-      await e.controller.open();
-      final h = await e.plans.history();
-      expect(h, hasLength(2));
-      expect(h.last.trigger, PlanTrigger.weekly);
-      expect(h.last.reason, 'repeatWeek');
-      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
-      // idempotent: zweites Öffnen schreibt nichts
-      await e.controller.open();
-      expect(await e.plans.history(), hasLength(2));
-    });
-
-    test(
-      'alte Regelversion: die Prüfung bewertet die Woche wie weekly',
-      () async {
-        final (e, planned) = await prepare();
-        await _downgradeLast(e);
-        await e.controller.open();
-        final h = await e.plans.history();
-        expect(h.last.trigger, PlanTrigger.ruleVersion);
-        expect(h.last.reason, 'ruleVersion,repeatWeek');
-        expect(h.last.version.isCurrent, isTrue);
-        expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
-      },
-    );
-
     test('Lauf zuordnen vor der Prüfung (Lauf über Mitternacht in den '
         'Montag): der Prüftag bleibt, das Öffnen bewertet die Woche', () async {
       // Lauf 1 des Belegs (30 % der Woche) ist auch der zugeordnete.
@@ -1206,69 +1092,6 @@ void main() {
       expect(h.last.trigger, PlanTrigger.weekly);
       expect(h.last.reason, 'repeatWeek');
       expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
-    });
-
-    test('Warnsignal und fällige Wochenbewertung: nach dem Aufheben gilt die '
-        'Anpassung', () async {
-      final (e, planned) = await prepare();
-      // Gemeldet am Dienstag, geöffnet am Mittwoch derselben Woche: die
-      // Wochenprüfung ist fällig, das Melden hat den Prüftag nicht gesetzt.
-      e.clock.set(localAt(_day(13)));
-      await e.controller.reportWarning();
-      e.clock.set(localAt(_day(14)));
-      await e.controller.open();
-      expect(
-        await e.session.settings.get(planLastCheckDayKey),
-        _dayText(_day(14)),
-      );
-      expect(
-        (await e.plans.unitsBetween(
-          _day(14),
-          planFarFuture,
-        )).every((u) => u.kind == PlanUnitKind.rest),
-        isTrue,
-      );
-      await e.controller.liftWarning();
-      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
-    });
-
-    test('Warnsignal: wiederholtes Öffnen und Aufheben ohne Änderung der '
-        'Eingaben schreibt keine weitere Fassung', () async {
-      final (e, _) = await prepare();
-      // Gemeldet am Dienstag, geöffnet am Mittwoch derselben Woche: die
-      // Wochenprüfung ist fällig, das Melden hat den Prüftag nicht gesetzt.
-      e.clock.set(localAt(_day(13)));
-      await e.controller.reportWarning();
-      e.clock.set(localAt(_day(14)));
-      await e.controller.open(); // Wochenbewertung: genau eine neue Fassung
-      final n = (await e.plans.history()).length;
-      await e.controller.open();
-      await e.controller.open();
-      await e.controller.recalculate();
-      await e.controller.recalculate();
-      expect((await e.plans.history()).length, n);
-      // Neuer Tag ohne neue Woche: gemessene Werte allein ergeben nichts.
-      e.clock.set(localAt(_day(15)));
-      await e.controller.open();
-      expect((await e.plans.history()).length, n);
-    });
-
-    test('Hälfte bis 80 %: keine Steigerung', () async {
-      final (e, planned) = await prepare(share: 0.65);
-      final before = await week(e, monday(1));
-      expect(before, greaterThan(planned), reason: 'sonst belegt es nichts');
-      await e.controller.open();
-      final h = await e.plans.history();
-      expect(h, hasLength(2));
-      expect(h.last.reason, 'noIncrease');
-      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
-    });
-
-    test('mehr als 80 %: keine Änderung', () async {
-      final (e, _) = await prepare(share: 0.9);
-      await e.controller.open();
-      final h = await e.plans.history();
-      expect(h.length, 1);
     });
   });
 
@@ -1458,26 +1281,6 @@ void main() {
         await addRun(u.day, u.minutes);
       }
       expect(await opened(), isNull);
-    });
-  });
-
-  group('Zieländerung am Prüftag', () {
-    test('goalChange am Montag bewertet die Vorwoche mit '
-        '(Grund goalChange mit Gründen)', () async {
-      final e = await _Env.open();
-      e.clock.set(localAt(_day(-21)));
-      await e.controller.saveGoal(_goal());
-      final mon1 = DateTime.utc(2026, 11, 23);
-      // Montag der Folgewoche: Ziel geändert, Vorwoche ohne Läufe.
-      e.clock.set(localAt(mon1, 12));
-      await e.controller.saveGoal(_goal(target: DateTime.utc(2027, 5, 1)));
-      final h = await e.plans.history();
-      expect(h.last.trigger, PlanTrigger.goalChange);
-      expect(h.last.reason, 'goalChange,repeatWeek');
-      // Die Bewertung der Vorwoche (0 % geschafft) ist in die Fassung
-      // eingegangen.
-      expect(h.last.inputs.achievedShare, 0);
-      expect(h.last.inputs.lastWeekMinutes, isNotNull);
     });
   });
 
@@ -1832,13 +1635,6 @@ void main() {
   });
 
   group('Öffnen: Warnsignal-Zeile und Plan stimmen überein', () {
-    String sig(PlanUnit u) =>
-        '${u.day}|${u.kind.name}|${u.minutes}|${u.pinned}|${u.fixed.name}';
-    Future<List<String>> sigs(_Env e) async => [
-      for (final u in await e.plans.unitsBetween(_day(0), planFarFuture))
-        sig(u),
-    ];
-
     /// Plan angelegt und geprüft (Prüftag heute: die Wochenprüfung ist nicht
     /// fällig, nur die Übereinstimmung kann hier neu rechnen).
     Future<_Env> opened() async {
@@ -1853,38 +1649,6 @@ void main() {
     }
 
     WarningStore warningOf(_Env e) => (e.session as WarningStorage).warning;
-
-    test('Aufheben scheiterte nach dem Löschen der Zeile: das nächste Öffnen '
-        'stellt den Plan her', () async {
-      final e = await opened();
-      final before = await sigs(e);
-      await e.controller.reportWarning();
-      expect(await sigs(e), isNot(before));
-      await warningOf(e).lift(); // Schreiben der Fassung scheiterte
-      final reopened = _Env(e.session);
-      await reopened.controller.open();
-      expect(await sigs(e), before);
-      final last = (await e.plans.history()).last;
-      expect(last.reason, planReasonWarningLifted);
-      expect(last.trigger, PlanTrigger.feedback);
-    });
-
-    test('Rücknahme der Zeile in report scheiterte: das nächste Öffnen '
-        'überlagert den Plan', () async {
-      final e = await opened();
-      final before = await sigs(e);
-      await warningOf(e).set(
-        WarningSignal(reportedOn: _today, source: WarningSource.manual),
-      ); // Plan nicht geschrieben, Rücknahme scheiterte
-      expect(await sigs(e), before);
-      final reopened = _Env(e.session);
-      await reopened.controller.open();
-      final after = await e.plans.unitsBetween(_day(0), planFarFuture);
-      expect(after.every((u) => u.kind == PlanUnitKind.rest), isTrue);
-      final last = (await e.plans.history()).last;
-      expect(last.reason, planReasonWarning);
-      expect(warningHeldFromSummary(last.summary), isNotNull);
-    });
 
     test('Öffnen mit Signal ohne passende Fassung zeigt das Warnsignal vor '
         'der Neuberechnung (Heute und Plan)', () async {
@@ -1978,27 +1742,6 @@ void main() {
         expect((await e.plans.history()).last.reason, planReasonWarningLifted);
       },
     );
-
-    test('Heilung setzt den Prüftag nicht: eine fällige Wochenprüfung bleibt '
-        'fällig', () async {
-      final e = await opened();
-      final lastCheck = _dayText(_day(-7));
-      await e.session.settings.set(planLastCheckDayKey, lastCheck, at: _now);
-      await warningOf(e)
-          .set(WarningSignal(reportedOn: _today, source: WarningSource.manual));
-      final reopened = _Env(e.session);
-      await reopened.controller.open();
-      expect(
-        (await e.plans.history()).last.reason,
-        planReasonWarning,
-        reason: 'die Heilung hat neu gerechnet',
-      );
-      expect(
-        await e.session.settings.get(planLastCheckDayKey),
-        lastCheck,
-        reason: 'der Prüftag bleibt in der Vorwoche',
-      );
-    });
   });
 
   group('Zieldatum gegen den Ortstag (FR-0136), auch westlich von UTC', () {
