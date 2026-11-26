@@ -1,4 +1,4 @@
-import '../run_day/run_day.dart' show runDayMethodVersion;
+import '../calendar/run_day.dart' show runDayMethodVersion;
 import 'altitude_processor.dart';
 import 'heart_rate_processor.dart';
 import 'movement_time_processor.dart';

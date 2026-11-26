@@ -10,7 +10,7 @@ import '../fitness/vo2max_long_term.dart';
 import '../preprocessing/preprocessing_chain.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../recording/treadmill.dart' show RunMode;
-import '../statistics/run_overview.dart' show overviewOf;
+import 'run_overview_summary.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
 import '../settings/load_settings.dart';
 import '../settings/reserve_zone_settings.dart';
@@ -19,9 +19,7 @@ import 'high_heart_rate_value.dart';
 import 'run_analysis.dart';
 import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'run_load_values.dart';
-import '../run_day/run_day.dart';
-
-export '../run_day/run_day.dart';
+import '../calendar/run_day.dart';
 
 /// Die Werte, die nach einem Lauf entstehen.
 class RunCalculationResult {

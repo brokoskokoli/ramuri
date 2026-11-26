@@ -55,7 +55,7 @@ Kernregeln mit einer Mutation belegen: `sh tool/mutate.sh <datei> <zeile> '<erse
 - Sicherheitsanforderungen nicht abschwächen. Keine Geheimnisse ins Repository. Gesundheitsdaten nur gemäß `SEC-0001` bis `SEC-0010` behandeln, auch in Logs, Testdaten und CI-Artefakten; Testdaten sind synthetisch.
 - Öffentlich: keine Namen, Kontaktdaten, Orte oder Geräte von Personen („Maintainer“ schreiben), keine absoluten lokalen Pfade, keine echten Messwerte.
 - Der Status `Approved` und die Beantwortung einer offenen Frage sind dem Maintainer vorbehalten.
-- Architektur: Fachlogik (Modelle, Planung) in `app/packages/core` ohne Flutter und einzeln testbar; Geräte, GPS, Bluetooth, Health Connect, Kamera und Speicher über Ports mit Fakes (`app/packages/adapters`). Jede Berechnung trägt Methode und Version (NFR-0001, NFR-0005). Keine neuen Abhängigkeitszyklen zwischen Modulen unter `app/packages/core/lib/src/` bzw. Features unter `app/lib/features/` (Prüfung `tool/check_architecture.py`). Ordner, Ablageorte und geprüfte Regeln stehen in der [Code-Landkarte](docs/architecture/code-map.md).
+- Architektur: Fachlogik (Modelle, Planung) in `app/packages/core` ohne Flutter und einzeln testbar; Geräte, GPS, Bluetooth, Health Connect, Kamera und Speicher über Ports mit Fakes (`app/packages/adapters`). Jede Berechnung trägt Methode und Version (NFR-0001, NFR-0005). Keine neuen Abhängigkeitszyklen zwischen Modulen unter `app/packages/core/lib/src/` bzw. Features unter `app/lib/features/`; die Tageszuordnung `core/lib/src/calendar/` ist Blattmodul ohne Importe anderer Module (Prüfung `tool/check_architecture.py`). Ordner, Ablageorte und geprüfte Regeln stehen in der [Code-Landkarte](docs/architecture/code-map.md).
 
 ## Freigabe nötig für
 
