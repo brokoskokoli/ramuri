@@ -163,6 +163,7 @@ step tools "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh
 step tools "Pre-Push-Regeln Selbsttest" bash tool/hooks/pre-push_test.sh
 step tools "ci_e2e Selbsttest (Attrappen)" sh tool/ci_e2e_test.sh
 step tools "ci_ndk Selbsttest (Attrappen)" bash tool/ci_ndk_test.sh
+step tools "ci_sysimage Selbsttest (Attrappen)" bash tool/ci_sysimage_test.sh
 step tools "Gate-Stufen Selbsttest" sh tool/gate_stages_test.sh
 
 # --- Flutter und Dart: je Paket (app und app/packages/*) ---

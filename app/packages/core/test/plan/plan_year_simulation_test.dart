@@ -628,7 +628,7 @@ Future<_Result> _simulate(_Scenario sc) async {
           startedAt: today.add(const Duration(hours: 7)),
         );
         runId = created.id;
-        await plans.assignRun(unit.id!, runId);
+        await plans.assignRun(unit.id!, runId, expectedRunId: null);
         doneByDay[today] = unit.minutes;
         lastTraining = today;
         if (!unit.isHard) {
@@ -825,7 +825,7 @@ void main() {
         await plans.confirmMove(tuesday.id!, monday, today: _day(66));
         final r = (await session.runs.create(startedAt: monday)).id;
         final moved = await plans.unitOn(monday);
-        await plans.assignRun(moved!.id!, r);
+        await plans.assignRun(moved!.id!, r, expectedRunId: null);
         await run(PlanTrigger.run, grabMonday(68));
         final after = sum(
           await plans.unitsBetween(monday, monday.add(const Duration(days: 6))),

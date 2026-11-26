@@ -36,20 +36,25 @@ TrainingGoal _goal() => TrainingGoal(
 );
 
 class _Env {
-  _Env(this.session, this.clock, {this.readiness});
+  _Env(this.storage, this.session, this.clock, {this.readiness});
 
+  final FakeStorage storage;
   final StorageSession session;
   final LocalFakeClock clock;
   final Future<PlanReadinessDay?> Function(DateTime day)? readiness;
 
   PlanRepository get plans => (session as PlanStorage).plans;
 
-  /// Neuer Controller wie nach einem Neustart der App.
-  PlanController controller() => PlanController(
+  /// Neuer Controller wie nach einem Neustart der App; mit [exclusive] wie
+  /// in der App hinter der Sperre der Wertberechnung.
+  PlanController controller({
+    Future<void> Function(Future<void> Function() action)? exclusive,
+  }) => PlanController(
     session: session,
     clock: clock,
     reader: PlanDataReader(session: session, clock: clock),
     readinessToday: readiness,
+    exclusive: exclusive,
   );
 
   /// Plan ab Montag [_d0] (Wochenzeit 120 min, Rechnung ab Tag 14), Schalter
@@ -58,8 +63,10 @@ class _Env {
     PlanAdaptationMode mode, {
     Future<PlanReadinessDay?> Function(DateTime day)? readiness,
   }) async {
-    final session = await FakeStorage().open(_key);
+    final storage = FakeStorage();
+    final session = await storage.open(_key);
     final e = _Env(
+      storage,
       session,
       LocalFakeClock(DateTime(2026, 11, 30, 6)),
       readiness: readiness,
@@ -101,12 +108,14 @@ class _Env {
   /// Tags zugeordnet, mit RPE [rpe] und [highHr] Minuten bei mindestens 80 %
   /// HFmax; die Uhr steht danach auf 8 Uhr dieses Tags.
   /// Mit [sport] ist es eine andere Sportart (FR-0221), die die Einheit
-  /// ersetzt (FR-0222).
-  Future<void> run(
+  /// ersetzt (FR-0222). Ohne [assign] bleibt die Zuordnung aus (wie nach
+  /// einem Absturz am Lauf-Ende); das Öffnen holt sie nach (PAR-231).
+  Future<int> run(
     int n, {
     int? rpe = 3,
     double? highHr = 12,
     bool sport = false,
+    bool assign = true,
   }) async {
     final unit = (await plans.unitOn(_day(n)))!;
     expect(unit.kind, isIn([PlanUnitKind.easy, PlanUnitKind.long]));
@@ -144,19 +153,26 @@ class _Env {
         ),
       ]);
     }
-    await plans.assignRun(unit.id!, r.id);
+    if (assign) await plans.assignRun(unit.id!, r.id, expectedRunId: null);
     clock.advance(
       DateTime(start.year, start.month, start.day, 8).difference(clock.now()),
     );
+    return r.id;
   }
 
   /// Öffnet die Plan-Seite mit einem neuen Controller und gibt ihn zurück.
-  Future<PlanController> opened() async {
+  Future<PlanController> opened({
+    Future<void> Function(Future<void> Function() action)? exclusive,
+  }) async {
     await checked();
-    final c = controller();
+    final c = controller(exclusive: exclusive);
     await c.open();
     return c;
   }
+
+  /// Die Einheit am Tag [n] trägt den Lauf [runId].
+  Future<bool> assigned(int n, int runId) async =>
+      (await plans.unitOn(_day(n)))?.runId == runId;
 
   Future<String?> stage() => session.settings.get(planUnderloadStageKey);
 
@@ -315,6 +331,106 @@ void main() {
         (await e.opened()).state.underloadPrompt,
         PlanUnderloadPrompt.question,
       );
+    });
+  });
+
+  group('Zuordnung beim Öffnen vor dem Muster (PAR-231, PAR-236)', () {
+    test('Lauf, den erst das Öffnen zuordnet, zählt schon bei diesem Öffnen: '
+        'Hinweis', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      final late = await e.run(18, assign: false);
+      final c = await e.opened();
+      expect(await e.assigned(18, late), isTrue);
+      expect(c.state.underloadPrompt, PlanUnderloadPrompt.hint);
+      expect(await e.stage(), 'hint');
+    });
+
+    test('nach „Passt so“: späterer Lauf, den erst das Öffnen zuordnet, '
+        'führt beim selben Öffnen zur Frage', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      final c = await _toHint(e);
+      expect(await c.answerUnderloadHint(), PlanActionResult.done);
+      await e.run(20);
+      final late = await e.run(22, assign: false);
+      final q = await e.opened();
+      expect(await e.assigned(22, late), isTrue);
+      expect(q.state.underloadPrompt, PlanUnderloadPrompt.question);
+      expect(await e.stage(), 'question');
+    });
+
+    test('Zuordnung wirft: Öffnen endet ohne Fehler, nur zugeordnete Läufe '
+        'zählen, kein Hinweis aus dem nicht zugeordneten', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      final late = await e.run(18, assign: false);
+      e.storage.data.failAssignRun = true;
+      final c = await e.opened();
+      expect(await e.assigned(18, late), isFalse);
+      expect(c.state.underloadPrompt, isNull);
+      expect(await e.stage(), isNull);
+      // Gegenprobe: Ist die Zuordnung wieder möglich, zählt der Lauf.
+      e.storage.data.failAssignRun = false;
+      expect(
+        (await e.opened()).state.underloadPrompt,
+        PlanUnderloadPrompt.hint,
+      );
+    });
+
+    test('Zuordnung wirft: Muster aus schon zugeordneten Läufen zeigt den '
+        'Hinweis trotzdem', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      await e.run(18);
+      final late = await e.run(20, assign: false);
+      e.storage.data.failAssignRun = true;
+      final c = await e.opened();
+      expect(await e.assigned(20, late), isFalse);
+      expect(c.state.underloadPrompt, PlanUnderloadPrompt.hint);
+    });
+
+    test(
+      'bei „fix“: Zuordnung beim Öffnen, aber weder Hinweis noch Frage',
+      () async {
+        final e = await _Env.open(PlanAdaptationMode.fixed);
+        await e.run(15);
+        final late = await e.run(18, assign: false);
+        final c = await e.opened();
+        expect(await e.assigned(18, late), isTrue);
+        expect(c.state.underloadPrompt, isNull);
+        expect(await e.stage(), isNull);
+      },
+    );
+
+    test('mit Sperre der Wertberechnung: Zuordnung hinter der Sperre, danach '
+        'Hinweis beim selben Öffnen', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      final late = await e.run(18, assign: false);
+      var locked = 0;
+      final c = await e.opened(
+        exclusive: (action) async {
+          locked++;
+          await action();
+        },
+      );
+      expect(locked, 1);
+      expect(await e.assigned(18, late), isTrue);
+      expect(c.state.underloadPrompt, PlanUnderloadPrompt.hint);
+    });
+
+    test('Sperre scheitert: Muster aus schon zugeordneten Läufen zeigt den '
+        'Hinweis trotzdem', () async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.run(15);
+      await e.run(18);
+      final late = await e.run(20, assign: false);
+      final c = await e.opened(
+        exclusive: (_) async =>
+            throw const StorageException(StorageFailure.failed),
+      );
+      expect(await e.assigned(20, late), isFalse);
+      expect(c.state.underloadPrompt, PlanUnderloadPrompt.hint);
     });
   });
 

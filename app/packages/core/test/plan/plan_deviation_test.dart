@@ -110,7 +110,7 @@ class _Env {
   }) async {
     final unit = (await plans.unitOn(_day(n)))!;
     final id = (await session.runs.create(startedAt: _day(n))).id;
-    await plans.assignRun(unit.id!, id);
+    await plans.assignRun(unit.id!, id, expectedRunId: null);
     runs.add(
       _facts(runId: id, day: n, minutes: minutes, rpe: rpe, highHr: highHr),
     );

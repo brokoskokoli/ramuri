@@ -226,7 +226,9 @@ class PlanController extends ChangeNotifier {
     this.parameters = const PlanParameters(),
     this.onChanged,
     this.readinessToday,
-  }) : reader =
+    this.exclusive,
+  }) : _writes = PlanWriteQueue.of(session),
+       reader =
            reader ??
            PlanDataReader(
              session: session,
@@ -248,6 +250,17 @@ class PlanController extends ChangeNotifier {
   /// loggen.
   final Future<PlanReadinessDay?> Function(DateTime day)? readinessToday;
 
+  /// Sperre der Neuberechnung der Werte (`RecalculationController`), hinter
+  /// der die automatische Zuordnung beim Öffnen läuft (PAR-231): wie nach dem
+  /// Lauf-Ende erst nach dessen Wertberechnung, nie parallel zu ihr. `null`
+  /// (Tests, Aufrufer schon innerhalb der Sperre): ohne. Nie innerhalb der
+  /// Sperre an einen Controller mit Sperre übergeben (nicht wiedereintretend).
+  final Future<void> Function(Future<void> Function() action)? exclusive;
+
+  /// Die Schreibreihe des Plans dieser Sitzung, gemeinsam mit jedem anderen
+  /// Controller und dem Erholungs-Auslöser ([PlanWriteQueue.of]).
+  final PlanWriteQueue _writes;
+
   SettingsPlanAdaptationStore get _adaptation =>
       SettingsPlanAdaptationStore(session.settings);
 
@@ -262,23 +275,13 @@ class PlanController extends ChangeNotifier {
   GeneratedPlan? _fresh;
   PlanChangeSummary? _lastChange;
 
-  Future<void> _tail = Future.value();
   bool _disposed = false;
 
   DateTime _today() => calendarDay(clock.now());
 
-  /// Führt [action] nach allen vorher angestoßenen aus.
-  Future<T> _serial<T>(Future<T> Function() action) {
-    final done = Completer<T>();
-    _tail = _tail.then((_) async {
-      try {
-        done.complete(await action());
-      } on Object catch (e, s) {
-        done.completeError(e, s);
-      }
-    });
-    return done.future;
-  }
+  /// Führt [action] in der Schreibreihe der Sitzung aus: nach allen vorher
+  /// angestoßenen Aktionen jedes Plan-Controllers der Sitzung, nie parallel.
+  Future<T> _serial<T>(Future<T> Function() action) => _writes.run(action);
 
   /// Öffnen der Plan-Seite: wöchentliche Prüfung (FR-0158), falls fällig,
   /// dann laden. Fällig ist sie, wenn `plan.last_check_day` fehlt oder in
@@ -290,26 +293,57 @@ class PlanController extends ChangeNotifier {
   /// Weicht das Ziel von dem der neuesten Fassung ab (Neuberechnung nach dem
   /// Speichern gescheitert, [PlanActionResult.savedNotPlanned]), rechnet das
   /// Öffnen sofort mit `goalChange`.
-  Future<void> open() => _serial(() async {
-    _fresh = null;
+  ///
+  /// Danach ordnet das Öffnen Läufe der Woche bis heute ihren offenen
+  /// Einheiten zu (PAR-231); mit [exclusive] hinter der Wertberechnung, dann
+  /// erst nach dem ersten Laden der Seite. Erst nach der Zuordnung prüft es
+  /// das Muster der Unterforderung (PAR-236), auch wenn die Zuordnung
+  /// scheitert; dann zählen die schon zugeordneten Läufe.
+  Future<void> open() async {
+    final lock = exclusive;
+    await _serial(() async {
+      _fresh = null;
+      try {
+        // Pause hat Vorrang (PAR-202): ihre Fassung gilt für diese Woche und
+        // setzt den Prüftag, die Wochenprüfung schreibt danach keine zweite.
+        await _checkPauseRestart();
+        await _checkDue();
+      } on Object {
+        // Die Prüfung holt der nächste Start nach; die Seite zeigt den
+        // gespeicherten Plan.
+      }
+      // Erst zuordnen, dann das Muster prüfen (PAR-236): Ein Lauf, dessen
+      // Zuordnung erst dieses Öffnen nachholt, zählt schon jetzt.
+      if (lock == null) {
+        await _autoAssignQuietly();
+        await _advanceUnderloadQuietly();
+      }
+      await _load();
+    });
+    if (lock == null) return;
+    // Sperre zuerst, dann die Schreibreihe (wie nach dem Lauf-Ende), nie
+    // umgekehrt: sonst warteten beide aufeinander.
+    var advanced = false;
     try {
-      // Pause hat Vorrang (PAR-202): ihre Fassung gilt für diese Woche und
-      // setzt den Prüftag, die Wochenprüfung schreibt danach keine zweite.
-      await _checkPauseRestart();
-      await _checkDue();
+      await lock(
+        () => _serial(() async {
+          await _autoAssignQuietly();
+          await _advanceUnderloadQuietly();
+          advanced = true;
+        }),
+      );
     } on Object {
-      // Die Prüfung holt der nächste Start nach; die Seite zeigt den
-      // gespeicherten Plan.
+      // Das nächste Öffnen holt die Zuordnung nach.
     }
-    try {
-      await _advanceUnderload();
-    } on Object {
-      // Ohne lesbaren Stand bleibt die Stufe; das nächste Öffnen prüft neu.
-    }
-    // Läufe der Woche bis heute zählen für ihre offenen Einheiten (PAR-231).
-    await _autoAssignQuietly();
-    await _load();
-  });
+    // Neu laden, auch ohne eigene Zuordnung: Während des Wartens auf die
+    // Sperre kann eine andere Stelle (Lauf-Ende) zugeordnet haben. Ohne
+    // Sperre prüft das Öffnen das Muster trotzdem mit den schon zugeordneten
+    // Läufen.
+    await _serial(() async {
+      if (!advanced) await _advanceUnderloadQuietly();
+      await _load();
+    });
+  }
 
   /// Lädt den Stand neu (ohne Prüfung).
   Future<void> reload() => _serial(_load);
@@ -394,7 +428,41 @@ class PlanController extends ChangeNotifier {
   /// neuer Anker, der Grund-Code der Fassung nennt die Gründe. Einmal je
   /// Woche (die Prüfung merkt sich den Tag), und die bewertete Woche liegt
   /// danach vor dem Anker.
+  ///
+  /// Lehnt der Speicher die Fassung ab (`rejected`, etwa weil sich der Plan
+  /// seit dem Lesen geändert hat, ADR-0010), liest die Rechnung die neueste
+  /// Fassung neu und rechnet genau einmal noch. Scheitert auch das, bleibt
+  /// der gespeicherte Stand und die Ablehnung geht an den Aufrufer (kein
+  /// stiller Verlust: Aktionen melden `rejected`, die Prüfungen beim Öffnen
+  /// setzen den Prüftag nicht und laufen beim nächsten Öffnen erneut).
   Future<bool> _recalculate(
+    PlanTrigger trigger,
+    TrainingGoal goal,
+    PlanVersionRecord? last, {
+    bool? adjust,
+    String? reason,
+    bool markChecked = true,
+    Iterable<PlanReadinessDay> readiness = const [],
+  }) async {
+    Future<bool> once(PlanVersionRecord? from) => _recalculateOnce(
+      trigger,
+      goal,
+      from,
+      adjust: adjust,
+      reason: reason,
+      markChecked: markChecked,
+      readiness: readiness,
+    );
+    try {
+      return await once(last);
+    } on StorageException catch (e) {
+      if (e.failure != StorageFailure.rejected) rethrow;
+    }
+    final history = await _plans.history();
+    return once(history.isEmpty ? null : history.last);
+  }
+
+  Future<bool> _recalculateOnce(
     PlanTrigger trigger,
     TrainingGoal goal,
     PlanVersionRecord? last, {
@@ -491,6 +559,9 @@ class PlanController extends ChangeNotifier {
     markChecked: markChecked,
     readiness: readiness,
     runs: await reader.runFacts(today),
+    // Die Wiederholung nach einer Ablehnung liest erst die neueste Fassung
+    // ([_recalculate]); der Dienst wiederholt nicht noch einmal.
+    retryRejected: false,
   );
 
   /// Eingaben der Rechnung für [trigger]: beim Anlegen (oder ohne Fassung)
@@ -904,8 +975,30 @@ class PlanController extends ChangeNotifier {
   /// Ordnet der Einheit den Lauf zu (`null` hebt die Zuordnung auf) und
   /// rechnet danach ab heute neu (Auslöser `run`; die Zuordnung zählt für
   /// „locker“, PAR-205, und friert die Einheit ein).
-  Future<PlanActionResult> assignRun(int unitId, int? runId) =>
-      _act(() => _assignAndRecalculate(unitId, runId));
+  /// Trägt die Einheit beim Schreiben nicht mehr den Lauf, den sie beim Lesen
+  /// in dieser Aktion trug (veraltet): nichts geschrieben, `rejected`, der
+  /// Stand wird neu geladen.
+  Future<PlanActionResult> assignRun(int unitId, int? runId) => _act(() async {
+    final unit = await _unitById(unitId);
+    if (unit == null) throw const StorageException(StorageFailure.notFound);
+    if (!await _assignAndRecalculate(
+      unitId,
+      runId,
+      expectedRunId: unit.runId,
+    )) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+  });
+
+  Future<PlanUnit?> _unitById(int unitId) async {
+    for (final u in await _plans.unitsBetween(
+      DateTime.utc(2000),
+      planFarFuture,
+    )) {
+      if (u.id == unitId) return u;
+    }
+    return null;
+  }
 
   /// Ordnet beendete Läufe den offenen Einheiten ihres Ortstags zu (PAR-231,
   /// [planAutoAssignments]): Einheiten vom Sonntag der Vorwoche (oder dem
@@ -916,16 +1009,19 @@ class PlanController extends ChangeNotifier {
       _act(() => _autoAssign(since: since));
 
   /// Wie [autoAssignRuns], innerhalb einer laufenden Aktion; ein Fehler bleibt
-  /// still (das nächste Öffnen holt die Zuordnung nach).
-  Future<void> _autoAssignQuietly() async {
+  /// still (das nächste Öffnen holt die Zuordnung nach). Gibt die Zahl der
+  /// geschriebenen Zuordnungen zurück.
+  Future<int> _autoAssignQuietly() async {
     try {
-      await _autoAssign();
+      return await _autoAssign();
     } on Object {
       // Siehe oben.
+      return 0;
     }
   }
 
-  Future<void> _autoAssign({DateTime? since}) async {
+  /// Gibt die Zahl der geschriebenen Zuordnungen zurück.
+  Future<int> _autoAssign({DateTime? since}) async {
     final today = _today();
     // Fenster ab dem Sonntag der Vorwoche (PAR-231): ein Sonntagslauf, dessen
     // Zuordnung nach dem Lauf ausblieb (Absturz, Fehler, Lauf über
@@ -937,12 +1033,13 @@ class PlanController extends ChangeNotifier {
     // Kennung): darum nach jeder Zuordnung neu lesen. Jede Runde füllt eine
     // offene Einheit; mehr Runden als Einheiten gibt es nicht.
     var rounds = 0;
+    var assigned = 0;
     while (true) {
       final units = await _plans.unitsBetween(
         DateTime.utc(2000),
         planFarFuture,
       );
-      if (rounds++ > units.length) return;
+      if (rounds++ > units.length) return assigned;
       final overviews = await session.preprocessing.readOverviews();
       // Läufe ab dem Start über „Einheit starten“ ordnet der Merker zu
       // (`PlanStartedUnitStore.settle`, auch der Nachholversuch nach einer
@@ -964,8 +1061,16 @@ class PlanController extends ChangeNotifier {
         today: today,
         from: from,
       ).firstOrNull;
-      if (next == null) return;
-      await _assignAndRecalculate(next.unitId, next.runId);
+      if (next == null) return assigned;
+      // Die Einheit war beim Lesen offen; trägt sie inzwischen einen Lauf
+      // (veraltet), liest die nächste Runde neu.
+      if (await _assignAndRecalculate(
+        next.unitId,
+        next.runId,
+        expectedRunId: null,
+      )) {
+        assigned++;
+      }
     }
   }
 
@@ -1010,26 +1115,30 @@ class PlanController extends ChangeNotifier {
     );
   }
 
-  Future<void> _assignAndRecalculate(int unitId, int? runId) async {
+  /// Schreibt die Zuordnung, wenn die Einheit noch [expectedRunId] trägt, und
+  /// rechnet neu; `false` (veraltet): nichts geschrieben, nicht gerechnet.
+  Future<bool> _assignAndRecalculate(
+    int unitId,
+    int? runId, {
+    required int? expectedRunId,
+  }) async {
     // Eine andere Sportart ersetzt nur eine lockere Einheit nach PAR-233.
     if (runId != null &&
         !((await session.runs.get(runId))?.mode.isRunning ?? true)) {
-      PlanUnit? unit;
-      for (final u in await _plans.unitsBetween(
-        DateTime.utc(2000),
-        planFarFuture,
-      )) {
-        if (u.id == unitId) unit = u;
-      }
-      if (await _sportBlock(unit, runId) != null) {
+      if (await _sportBlock(await _unitById(unitId), runId) != null) {
         throw const StorageException(StorageFailure.rejected);
       }
     }
-    await _plans.assignRun(unitId, runId);
+    final written = await _plans.assignRun(
+      unitId,
+      runId,
+      expectedRunId: expectedRunId,
+    );
+    if (written == PlanAssignResult.stale) return false;
     _fresh = null;
     onChanged?.call();
     final goal = await _goals.goal();
-    if (goal == null) return;
+    if (goal == null) return true;
     final history = await _plans.history();
     final last = history.isEmpty ? null : history.last;
     final goalChanged =
@@ -1043,6 +1152,7 @@ class PlanController extends ChangeNotifier {
       // NB7 1). `goalChange` bewertet bei Fälligkeit selbst.
       markChecked: goalChanged,
     );
+    return true;
   }
 
   /// Verschiebt die Einheit nach Bestätigung des Nutzers auf [day] (setzt
@@ -1660,6 +1770,16 @@ class PlanController extends ChangeNotifier {
       return r != null && planDay(r.day) == today && r.eases;
     } on Object {
       return true;
+    }
+  }
+
+  /// Wie [_advanceUnderload]; ein Fehler bleibt still: Ohne lesbaren Stand
+  /// bleibt die Stufe, das nächste Öffnen prüft neu.
+  Future<void> _advanceUnderloadQuietly() async {
+    try {
+      await _advanceUnderload();
+    } on Object {
+      // Siehe oben.
     }
   }
 

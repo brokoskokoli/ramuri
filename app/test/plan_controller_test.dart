@@ -500,7 +500,7 @@ void main() {
       );
       final units = await e.plans.unitsBetween(_today, _day(3));
       for (var i = 0; i < 4; i++) {
-        await e.plans.assignRun(units[i].id!, ids[i]);
+        await e.plans.assignRun(units[i].id!, ids[i], expectedRunId: null);
       }
       await e.session.subjective.save(ids[3], RunSubjective(rpe: 3));
       await e.session.subjective.save(ids[4], RunSubjective(rpe: 3));
@@ -1320,7 +1320,9 @@ void main() {
           RunSubjective(rpe: rpe, wellbeing: wellbeing),
         );
       }
-      if (unit != null) await e.plans.assignRun(unit.id!, r.id);
+      if (unit != null) {
+        await e.plans.assignRun(unit.id!, r.id, expectedRunId: null);
+      }
       runs.add(
         RunFigures(
           runId: r.id,
@@ -1522,8 +1524,8 @@ void main() {
         ),
       );
       final units = await e.plans.unitsBetween(monday, _day(2));
-      await e.plans.assignRun(units[0].id!, ids[0]);
-      await e.plans.assignRun(units[1].id!, ids[1]);
+      await e.plans.assignRun(units[0].id!, ids[0], expectedRunId: null);
+      await e.plans.assignRun(units[1].id!, ids[1], expectedRunId: null);
 
       e.clock.set(localAt(thursday, 12));
       await e.controller.open();

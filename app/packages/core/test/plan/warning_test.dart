@@ -339,7 +339,7 @@ void main() {
       final e = await _Env.withFixed();
       final first = await _single(e, (u) => !u.day.isBefore(_day(0)));
       final run = await e.session.runs.create(startedAt: _now(0));
-      await e.plans.assignRun(first.id!, run.id);
+      await e.plans.assignRun(first.id!, run.id, expectedRunId: null);
       final past = await _single(e, (u) => u.runId == run.id);
       await e.service.report(
         source: WarningSource.manual,

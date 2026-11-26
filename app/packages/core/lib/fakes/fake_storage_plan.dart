@@ -52,17 +52,25 @@ class FakePlanRepository implements PlanRepository {
       (_d.planVersions.values.toList()..sort((a, b) => a.id.compareTo(b.id)));
 
   @override
-  Future<void> assignRun(int unitId, int? runId) async {
+  Future<PlanAssignResult> assignRun(
+    int unitId,
+    int? runId, {
+    required int? expectedRunId,
+  }) async {
     if (_d.failAssignRun) {
       throw const StorageException(StorageFailure.failed);
     }
+    await _d.beforeAssignRun?.call();
     final u = _d.planUnits[unitId];
     if (u == null || (runId != null && !_d.runs.containsKey(runId))) {
       throw const StorageException(StorageFailure.notFound);
     }
+    if (u.runId != expectedRunId) return PlanAssignResult.stale;
     _d.planUnits[unitId] = runId == null
         ? u.copyWith(clearRun: true)
         : u.copyWith(runId: runId);
+    _d.planAssignWrites++;
+    return PlanAssignResult.assigned;
   }
 
   @override
@@ -198,9 +206,16 @@ class FakePlanRepository implements PlanRepository {
   Future<PlanVersionRecord> writeVersion(PlanVersionDraft draft) async {
     if (_d.goal == null) throw const StorageException(StorageFailure.notFound);
     checkPlanDraftForStorage(draft);
+    await _d.beforePlanWrite?.call();
+    if (_d.rejectPlanWrites > 0) {
+      _d.rejectPlanWrites--;
+      _d.rejectedPlanWrites++;
+      throw const StorageException(StorageFailure.rejected);
+    }
     // Hat sich der Plan seit dem Lesen geändert, rechnet der Aufrufer neu.
     final now = await unitsBetween(draft.inputs.anchor, planFarFuture);
     if (planUnitsFingerprint(now) != draft.readState) {
+      _d.rejectedPlanWrites++;
       throw const StorageException(StorageFailure.rejected);
     }
     // Ein Tag, der schon eine Einheit mit Lauf trägt (Lauf kam nach dem Lesen
@@ -210,6 +225,7 @@ class FakePlanRepository implements PlanRepository {
         if (u.runId != null && !u.day.isBefore(draft.validFrom)) u.day,
     };
     if (draft.units.any((u) => runDays.contains(planDay(u.day)))) {
+      _d.rejectedPlanWrites++;
       throw const StorageException(StorageFailure.rejected);
     }
     // Alles in dieser Methode ist ab hier ohne Fehlerquelle; die Prüfung

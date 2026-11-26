@@ -310,7 +310,7 @@ Future<PlanUnit> _doneBefore(StorageSession s, DateTime today) async {
     s,
   ).unitsBetween(_d0, today)).firstWhere((u) => u.day.isBefore(today));
   final run = await seedRun(s, unit.day.add(const Duration(hours: 7)));
-  await _plans(s).assignRun(unit.id!, run);
+  await _plans(s).assignRun(unit.id!, run, expectedRunId: null);
   return (await _plans(s).unitOn(unit.day))!;
 }
 

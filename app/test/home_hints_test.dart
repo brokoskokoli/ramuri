@@ -458,8 +458,11 @@ void main() {
       final unit = (await (s as PlanStorage).plans.unitOn(
         DateTime.utc(2026, 11, 11),
       ))!;
-      await plansOf(s)
-          .assignRun(unit.id!, await _run(s, 0, minutes: 10, wellbeing: 1));
+      await plansOf(s).assignRun(
+        unit.id!,
+        await _run(s, 0, minutes: 10, wellbeing: 1),
+        expectedRunId: null,
+      );
       await _run(s, 1, wellbeing: 1);
       await d.start(tester, const Locale('de'));
       expect(key('home_recovery_card'), findsOneWidget);

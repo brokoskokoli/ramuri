@@ -74,7 +74,9 @@ class PlanRecalculation {
 /// Lehnt [PlanRepository.writeVersion] mit `rejected` ab (der Plan hat sich
 /// seit dem Lesen geändert, z. B. Lauf zugeordnet), liest der Dienst genau
 /// einmal neu, rechnet neu und schreibt neu. Ein zweites `rejected` geht an
-/// den Aufrufer.
+/// den Aufrufer. [retryRejected] `false`: schon das erste `rejected` geht an
+/// den Aufrufer – für Aufrufer, die vor der Wiederholung selbst neu lesen
+/// (Eingaben aus der neuesten Fassung) und höchstens einmal wiederholen.
 ///
 /// [warning]: Besteht ein Warnsignal (FR-0203, K58), sind alle künftigen,
 /// nicht absolvierten Einheiten Ruhetage ([applyWarningRest]); Art, `fixed`
@@ -118,6 +120,7 @@ Future<PlanRecalculation> recalculatePlan({
   bool markChecked = true,
   Iterable<PlanReadinessDay> readiness = const [],
   Iterable<PlanRunFacts> runs = const [],
+  bool retryRejected = true,
 }) async {
   Future<PlanRecalculation> once() => _recalculateOnce(
     plans: plans,
@@ -136,7 +139,7 @@ Future<PlanRecalculation> recalculatePlan({
   try {
     return await once();
   } on StorageException catch (e) {
-    if (e.failure != StorageFailure.rejected) rethrow;
+    if (!retryRejected || e.failure != StorageFailure.rejected) rethrow;
     return once();
   }
 }
