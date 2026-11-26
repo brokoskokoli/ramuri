@@ -1,6 +1,6 @@
 import 'period.dart';
 import 'run_figures.dart';
-import 'statistics_parameters.dart';
+import '../recalculation/statistics_parameters.dart';
 
 /// Einheit: Meter je Kilometer, Mikrosekunden je Sekunde.
 const double _metersPerKilometer = 1000;

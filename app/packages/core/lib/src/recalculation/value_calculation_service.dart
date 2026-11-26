@@ -10,7 +10,7 @@ import '../fitness/vo2max_long_term.dart';
 import '../preprocessing/preprocessing_chain.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../recording/treadmill.dart' show RunMode;
-import '../statistics/run_overview.dart' show overviewOf;
+import 'run_overview_summary.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
 import '../settings/load_settings.dart';
 import '../settings/reserve_zone_settings.dart';

@@ -77,12 +77,12 @@ Fachlogik ohne Flutter; Barrel `app/packages/core/lib/core.dart`.
 | `app/packages/core/lib/src/preprocessing/` | Vorverarbeitung der Messwerte: Lücken, Bewegung, Höhe, Puls. |
 | `app/packages/core/lib/src/profile/` | Profil, Prüfung der Eingaben und Herkunft des Ruhepulses. |
 | `app/packages/core/lib/src/readiness/` | Readiness-Modell und Erklärung. |
-| `app/packages/core/lib/src/recalculation/` | Analyse eines Laufs und Neuberechnung abgeleiteter Werte. |
+| `app/packages/core/lib/src/recalculation/` | Analyse eines Laufs und Neuberechnung abgeleiteter Werte; gespeicherte Kurzfassung eines Laufs (`overviewOf`, `runOverviewMethod`) mit Bestpace (`bestPace`) und deren Parametern (`StatisticsParameters`). |
 | `app/packages/core/lib/src/recording/` | Aufzeichnung, Startprüfung, Wiederanlauf und Laufband. |
 | `app/packages/core/lib/src/reminders/` | Regeln der Erinnerungen. |
 | `app/packages/core/lib/src/sensors/` | Auswertung der Pulsdaten und Wahl der Pulsquelle. |
 | `app/packages/core/lib/src/settings/` | Einstellungen als Werte. |
-| `app/packages/core/lib/src/statistics/` | Historie, Perioden, Bestzeiten und Kilometer-Splits. |
+| `app/packages/core/lib/src/statistics/` | Historie, Perioden, Laufübersicht (`RunOverviewService`) und Kilometer-Splits; liest Analyseergebnisse aus `recalculation/`, nicht umgekehrt. |
 | `app/packages/core/lib/src/storage/` | Schlüsseldienst der Datenbank. |
 | `app/packages/core/lib/src/subjective/` | Subjektive Angaben und nachgetragene Trainings. |
 | `app/packages/core/test/` | Unit-Tests, je Modul ein Ordner wie unter `app/packages/core/lib/src/`. |

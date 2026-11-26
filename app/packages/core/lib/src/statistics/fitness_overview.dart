@@ -6,7 +6,7 @@ import '../recalculation/run_analysis.dart'
     show aerobicEfficiencyValueKey, vo2maxLongTermValueKey, vo2maxRunValueKey;
 import '../calendar/run_day.dart' show dayOfRun;
 import 'period.dart';
-import 'statistics_parameters.dart';
+import '../recalculation/statistics_parameters.dart';
 
 /// Die gespeicherte VO₂max-Schätzung eines Laufs (`current`, WP09). Der Wert
 /// kann fehlen; dann steht der Grund in [value] (`unavailableReason`).

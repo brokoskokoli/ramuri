@@ -1,5 +1,5 @@
 import 'run_figures.dart';
-import 'statistics_parameters.dart';
+import '../recalculation/statistics_parameters.dart';
 
 /// Warum keine Einordnung möglich ist.
 enum ClassificationUnavailable {

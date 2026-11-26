@@ -1,7 +1,7 @@
 import 'period.dart';
 import 'period_statistics.dart';
 import 'run_figures.dart';
-import 'statistics_parameters.dart';
+import '../recalculation/statistics_parameters.dart';
 
 /// Zahl der Wochen der Fortschrittsansicht (FR-0043: Kilometer der letzten 8
 /// Wochen).

@@ -1,5 +1,5 @@
 import '../calendar/run_day.dart' show isoDay;
-import 'statistics_parameters.dart';
+import '../recalculation/statistics_parameters.dart';
 
 /// Art des Auswertungszeitraums (FR-0044).
 enum PeriodKind { run, week, month, custom }
