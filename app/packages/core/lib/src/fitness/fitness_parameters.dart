@@ -1,10 +1,7 @@
 import '../preprocessing/preprocessing_parameters.dart';
-import 'pace_mismatch.dart';
-
-export 'pace_mismatch.dart' show PaceMismatchParameters;
 
 /// Schwellen der Fitness- und Belastungsverfahren (docs/model-parameters.md,
-/// Version 4, PAR-018, PAR-019, FR-0062, FR-0092, OQ-0014, OQ-0051).
+/// Version 5, PAR-018, PAR-019, FR-0062, FR-0092, OQ-0014, OQ-0051).
 ///
 /// Keine dieser Zahlen steht außerhalb dieser Klasse. Verfahren bekommen den
 /// Satz als Argument; seine Version ist [currentParameterVersion].
@@ -396,4 +393,45 @@ class AerobicEfficiencyParameters {
   /// PAR-047: Unterschied der mittleren Steigungen (Anteil, 0,01 = 1
   /// Prozentpunkt), über dem höchstens „vorläufig“ gilt.
   final double maxGradientDifference;
+}
+
+/// Grenzen für „Puls passt nicht zum Tempo“ (PAR-247). Alle Werte sind
+/// Startwerte (Heuristik).
+class PaceMismatchParameters {
+  const PaceMismatchParameters({
+    this.lowerBound = 0.4,
+    this.earlyTolerance = 0.25,
+    this.lateTolerance = 0.15,
+    this.noCheckFor = const Duration(minutes: 1),
+    this.earlyUntil = const Duration(minutes: 3),
+    this.minDuration = const Duration(minutes: 1),
+    this.fallbackShare = 0.25,
+    this.fallbackSpeedMetersPerSecond = 2.0,
+    this.speedWindow = const Duration(seconds: 60),
+  });
+
+  /// Untergrenze: ab diesem Anteil der Reserve passt der Puls immer.
+  final double lowerBound;
+
+  /// Toleranz von [noCheckFor] bis [earlyUntil] seit Lauf- bzw. Pausenende.
+  final double earlyTolerance;
+
+  /// Toleranz ab [earlyUntil].
+  final double lateTolerance;
+
+  /// Keine Prüfung in dieser Zeit nach Lauf- bzw. Pausenende.
+  final Duration noCheckFor;
+  final Duration earlyUntil;
+
+  /// Die Bedingung muss ununterbrochen länger als diese Zeit gelten.
+  final Duration minDuration;
+
+  /// Ersatzregel ohne VO₂max-Langzeitwert: `r` unter diesem Anteil …
+  final double fallbackShare;
+
+  /// … bei einem 60-s-Tempo ab dieser Geschwindigkeit.
+  final double fallbackSpeedMetersPerSecond;
+
+  /// Fenster des gleitenden Tempomittels.
+  final Duration speedWindow;
 }

@@ -412,7 +412,7 @@ void main() {
       final r = both(cur(3, 2), ref(3, 2));
       final m = r.change.metadata;
       expect(m.method, 'aerobic-efficiency-median');
-      expect(m.methodVersion, 1);
+      expect(m.methodVersion, 2);
       expect(m.parameterVersion, _p.parameterVersion);
       expect(m.calculatedAt, _now);
       expect(m.usableMeasurements, 6);

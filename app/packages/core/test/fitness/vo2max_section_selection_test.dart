@@ -43,7 +43,7 @@ void main() {
       expect(s.relativeLoad, closeTo(90 / 130, 1e-12));
       expect(s.gradient, 0);
       expect(r.method, 'vo2max-section-selection');
-      expect(r.methodVersion, 1);
+      expect(r.methodVersion, 2);
       expect(r.parameterVersion, currentParameterVersion);
       expect(r.usable, [s]);
       expect(r.rejected, isEmpty);

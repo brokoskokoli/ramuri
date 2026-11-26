@@ -12,7 +12,7 @@ void main() {
     expect(currentParameterVersion, docVersion);
     expect(const PreprocessingParameters.v5().parameterVersion, docVersion);
     expect(const FitnessParameters.v5().parameterVersion, docVersion);
-    expect(docVersion, 4);
+    expect(docVersion, 5);
   });
 
   test('Startwerte aus FR-0062, FR-0092, PAR-019, OQ-0051', () {

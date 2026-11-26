@@ -29,7 +29,7 @@ void main() {
   ComputedValue trimpValue(
     double? value, {
     String method = 'edwards-trimp',
-    int version = 1,
+    int version = 2,
     UnavailableReason? reason,
   }) => ComputedValue(
     key: trimpRunValueKey,
@@ -332,7 +332,7 @@ void main() {
     test('gleiche Methode, andere Version: unbewertet', () async {
       await addRun(
         ago(2).add(const Duration(hours: 9)),
-        trimp: trimpValue(90, method: BanisterTrimp.methodIdMale, version: 2),
+        trimp: trimpValue(90, method: BanisterTrimp.methodIdMale, version: 1),
       );
       final r = await service.load();
       expect(dayOf(r, ago(2)).load, isNull);
@@ -362,7 +362,7 @@ void main() {
           trimp: trimpValue(
             9.0 * 30 * rpe,
             method: BanisterTrimp.methodIdMale,
-            version: 2,
+            version: 1,
           ),
           rpe: rpe,
         );

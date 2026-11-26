@@ -11,47 +11,6 @@ import 'heart_rate_basis.dart';
 import 'heart_rate_reserve.dart';
 import 'vo2max_section_gradient.dart';
 
-/// Grenzen für „Puls passt nicht zum Tempo“ (PAR-247). Alle Werte sind
-/// Startwerte (Heuristik).
-class PaceMismatchParameters {
-  const PaceMismatchParameters({
-    this.lowerBound = 0.4,
-    this.earlyTolerance = 0.25,
-    this.lateTolerance = 0.15,
-    this.noCheckFor = const Duration(minutes: 1),
-    this.earlyUntil = const Duration(minutes: 3),
-    this.minDuration = const Duration(minutes: 1),
-    this.fallbackShare = 0.25,
-    this.fallbackSpeedMetersPerSecond = 2.0,
-    this.speedWindow = const Duration(seconds: 60),
-  });
-
-  /// Untergrenze: ab diesem Anteil der Reserve passt der Puls immer.
-  final double lowerBound;
-
-  /// Toleranz von [noCheckFor] bis [earlyUntil] seit Lauf- bzw. Pausenende.
-  final double earlyTolerance;
-
-  /// Toleranz ab [earlyUntil].
-  final double lateTolerance;
-
-  /// Keine Prüfung in dieser Zeit nach Lauf- bzw. Pausenende.
-  final Duration noCheckFor;
-  final Duration earlyUntil;
-
-  /// Die Bedingung muss ununterbrochen länger als diese Zeit gelten.
-  final Duration minDuration;
-
-  /// Ersatzregel ohne VO₂max-Langzeitwert: `r` unter diesem Anteil …
-  final double fallbackShare;
-
-  /// … bei einem 60-s-Tempo ab dieser Geschwindigkeit.
-  final double fallbackSpeedMetersPerSecond;
-
-  /// Fenster des gleitenden Tempomittels.
-  final Duration speedWindow;
-}
-
 /// Erwarteter Anteil der Herzfrequenzreserve (PAR-247): die ACSM-Laufformel
 /// (FR-0069) rückwärts über die Reserve (FR-0071),
 /// `r_erw = (VO₂ − Ruhe) / (VO₂max − Ruhe)` mit
@@ -144,7 +103,9 @@ List<TimeSpan> paceMismatchSpans({
                   run,
                   from,
                   t,
-                  speed * t.difference(from).inMicroseconds / 1e6,
+                  speed *
+                      t.difference(from).inMicroseconds /
+                      Duration.microsecondsPerSecond,
                   parameters.sectionSelection,
                 ).$1
               : beltGradientOf(belt.pieceAt(t)).$1;
@@ -299,7 +260,8 @@ HeartRateResult fitnessHeartRateOf({
                       if (!v.time.isAfter(t)) v.bpm.toDouble(),
                   ]))
               .abs();
-      final seconds = t.difference(a.time).inMicroseconds / 1e6;
+      final seconds =
+          t.difference(a.time).inMicroseconds / Duration.microsecondsPerSecond;
       final rate = (h.input.bpm - a.bpm).abs() / seconds;
       if (deviation > p.heartRateOutlierDeviation &&
           rate > p.heartRateOutlierRate) {

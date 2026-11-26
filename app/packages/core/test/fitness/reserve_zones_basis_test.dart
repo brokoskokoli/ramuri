@@ -84,7 +84,7 @@ void main() {
       final src = File('lib/src/preprocessing/preprocessing_parameters.dart')
           .readAsStringSync();
       final lines = src.split('\n');
-      final at = lines.indexWhere((l) => l.contains('.v4()'));
+      final at = lines.indexWhere((l) => l.contains('.v5()'));
       final line = '${lines[at]} ${lines[at + 1]}';
       expect(line, contains('currentParameterVersion'));
       expect(line, isNot(matches(RegExp(r'parameterVersion:\s*\d'))));

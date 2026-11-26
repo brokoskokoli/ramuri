@@ -33,7 +33,7 @@ void main() {
     expect(points(r), closeTo(31.8026, 1e-3));
     expect(points(r), closeTo(0.36 * math.exp(1.08) * 30, 1e-9));
     expect(r.method, 'banister-trimp-male');
-    expect(r.methodVersion, 1);
+    expect(r.methodVersion, 2);
   });
 
   test('weiblich nutzt k 0,86 und b 1,67', () {
