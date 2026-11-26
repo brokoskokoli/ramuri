@@ -17,6 +17,7 @@ import 'run_overview_summary.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
 import '../settings/load_settings.dart';
 import '../settings/reserve_zone_settings.dart';
+import '../statistics/offload.dart';
 import 'calculation_failures.dart';
 import 'high_heart_rate_value.dart';
 import 'run_analysis.dart';
@@ -125,6 +126,7 @@ class ValueCalculationService {
     required this.algorithms,
     this.fitness = const FitnessParameters.v4(),
     this.preprocessing = const PreprocessingParameters.v4(),
+    this.offload = inlineOffload,
     String? preprocessingVersion,
   }) : vo2maxEstimator = algorithms.active(vo2maxEstimatorFamily),
        longTerm = algorithms.active(vo2maxLongTermFamily),
@@ -143,6 +145,10 @@ class ValueCalculationService {
   final AlgorithmLookup algorithms;
   final FitnessParameters fitness;
   final PreprocessingParameters preprocessing;
+
+  /// Wo die Vorverarbeitung jedes Laufs gerechnet wird ([RunAnalyzer.offload]);
+  /// in der App für die Neuberechnung ein eigener Isolate.
+  final Offload offload;
 
   /// VO₂max-Schätzer des Laufwerts ([vo2maxEstimatorFamily]).
   final Vo2maxEstimator vo2maxEstimator;
@@ -207,6 +213,7 @@ class ValueCalculationService {
     preprocessing: preprocessing,
     basis: basis,
     estimator: vo2maxEstimator,
+    offload: offload,
   );
 
   Future<List<StoredRun>> _finishedRuns() async => [
@@ -708,9 +715,17 @@ class ValueCalculationService {
   ///
   /// [coefficients]: die Koeffizienten-Angabe, mit der gerechnet wird (Änderung
   /// nach Bestätigung); ohne Angabe die gespeicherte.
+  ///
+  /// Speicher: Die Vorverarbeitung eines Laufs wird nur für seine eigenen
+  /// Laufwerte gebraucht (Zeit bei hoher Herzfrequenz, TRIMP) und danach
+  /// nicht gehalten; die Tageswerte brauchen nur Auswahl und Quellen
+  /// ([RunAnalysisCache]). [analyses]: wohin die Analysen gelegt werden (ohne
+  /// Angabe ein eigener Zwischenspeicher; Tests prüfen darüber, was gehalten
+  /// wird).
   Future<ValueSnapshot> buildSnapshot({
     LoadProfile? loadProfile,
     CoefficientChange? coefficients,
+    RunAnalysisCache? analyses,
   }) async {
     final now = clock.now();
     final runs = await _finishedRuns();
@@ -721,9 +736,17 @@ class ValueCalculationService {
       coefficients: coefficients,
     );
     final analyzer = _analyzer(profile);
-    final cache = <int, RunAnalysis>{};
+    final cache = analyses ?? RunAnalysisCache();
+    // Volle Analyse (mit Vorverarbeitung) nur für den Aufrufer; gehalten wird
+    // sie ohne.
+    Future<RunAnalysis> analyze(StoredRun r) async {
+      final a = await analyzer.analyze(session, r, calculatedAt: now);
+      cache.keep(a);
+      return a;
+    }
+
     Future<RunAnalysis> analysisOf(StoredRun r, HeartRateBasis _) async =>
-        cache[r.id] ??= await analyzer.analyze(session, r, calculatedAt: now);
+        cache[r.id] ?? await analyze(r);
 
     // Laufwerte aller Läufe in EINER Abfrage (nur die Schlüssel zählen, keine
     // Abschnitte nötig).
@@ -738,7 +761,8 @@ class ValueCalculationService {
       final stored = storedRuns[r.id]?.keys.toSet() ?? const <String>{};
       if (!hasRecalculatedRunKey(stored)) continue;
       final hasTrimp = stored.contains(trimpRunValueKey);
-      final analysis = await analysisOf(r, profile);
+      // Jeder Lauf kommt hier genau einmal vor, die Tageswerte danach.
+      final analysis = await analyze(r);
       final high = buildHighHeartRateTimeValue(
         run: r,
         pre: analysis.preprocessing,
