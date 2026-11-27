@@ -74,7 +74,7 @@ Fachlogik ohne Flutter; Barrel `app/packages/core/lib/core.dart`.
 | `app/packages/core/lib/src/hints/` | Hinweise, Erklärungen und Erholungskarte. |
 | `app/packages/core/lib/src/load/` | Trainingsbelastung und Pausentage. |
 | `app/packages/core/lib/src/morning/` | Morgenmessung und Gurtvergleich. |
-| `app/packages/core/lib/src/plan/` | Planerstellung, Anpassung, Verschieben, Warnungen und Geh-Lauf-Programm; die Schreibreihe des Plans je Sitzung (`app/packages/core/lib/src/plan/plan_write_queue.dart`). |
+| `app/packages/core/lib/src/plan/` | Planerstellung, Anpassung, Verschieben, Warnungen und Geh-Lauf-Programm; die Schreibreihe des Plans je Sitzung (`app/packages/core/lib/src/plan/plan_write_queue.dart`). Die Prüfabläufe Wochenprüfung, Erholungsprüfung und Heilung bei Warnsignal liegen in `PlanWorkflowService` (`app/packages/core/lib/src/plan/plan_workflow_service.dart`, Lese-Port `PlanWorkflowReader`, App-Adapter `app/lib/features/plan/plan_data_reader.dart`); `PlanController` und der Erholungs-Auslöser rufen nur den Dienst. |
 | `app/packages/core/lib/src/ppg/` | Kamera-PPG-Auswertung (Beschreibung in `app/packages/core/lib/src/ppg/ALGORITHMUS.md`). |
 | `app/packages/core/lib/src/prediction/` | Leistungsprognosen. |
 | `app/packages/core/lib/src/preprocessing/` | Vorverarbeitung der Messwerte: Lücken, Bewegung, Höhe, Puls. |
@@ -132,7 +132,7 @@ Diese Dateien muss man nicht ganz lesen. Die Suchbegriffe markieren, wo ihre Abs
 
 | Datei | Zeilen | Abschnitte (Suchbegriffe) |
 |---|---|---|
-| `app/lib/features/plan/plan_controller.dart` | 1500 | `class PlanViewState`, `class PlanController`, `Future<void> open`, `Future<GoalDraftCheck> checkGoal`, `Future<PlanActionResult> saveGoal`, `Future<PlanActionResult> recalculate`, `Future<PlanActionResult> confirmMove`, `Future<PlanActionResult> replaceUnit`, `Future<PlanActionResult> reportWarning`, `Future<PlanFeedbackOutcome> answerFeedback`, `Future<PlanActionResult> answerPause`, `Future<PlanActionResult> setAdaptation`, `Future<bool> recheckRecovery` |
+| `app/lib/features/plan/plan_controller.dart` | 1800 | `class PlanViewState`, `class PlanController`, `Future<void> open`, `Future<GoalDraftCheck> checkGoal`, `Future<PlanActionResult> saveGoal`, `Future<PlanActionResult> recalculate`, `Future<PlanActionResult> confirmMove`, `Future<PlanActionResult> replaceUnit`, `Future<PlanActionResult> reportWarning`, `Future<PlanFeedbackOutcome> answerFeedback`, `Future<PlanActionResult> answerPause`, `Future<PlanActionResult> setAdaptation`, `Future<bool> recheckRecovery` |
 | `app/lib/features/run/run_flow_screen.dart` | 1200 | `class RunFlowScreen`, `void initState`, `void _startGps`, `Future<void> _check(`, `Widget build`, `Widget _modeCard`, `Widget _plannedCard` |
 | `app/lib/features/home/home_screen.dart` | 1200 | `class HomeScreen`, `class _HomeScreenState`, `Widget _cards`, `Widget build`, `Widget _content`, `class _LastRun` |
 | `app/lib/features/statistics/load_card.dart` | 1100 | `class LoadCard`, `class LoadCardBody` |
