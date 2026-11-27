@@ -19,8 +19,13 @@ Future<void> enterField(WidgetTester t, String key, String text) async {
   await pumpFor(t, const Duration(milliseconds: 300));
 }
 
-bool daySelected(WidgetTester t, int weekday) =>
-    t.widget<FilterChip>(find.byKey(Key('plan_form_day_$weekday'))).selected;
+/// Auswahl des Chips [weekday]; wartet ([widgetWhen]), bis er im Baum steht.
+Future<bool> daySelected(WidgetTester t, int weekday) async =>
+    (await widgetWhen<FilterChip>(
+      t,
+      find.byKey(Key('plan_form_day_$weekday')),
+      'plan_form_day_$weekday',
+    )).selected;
 
 /// Wie [daySelected], aber `null`, wenn der Chip nicht im Baum steht (fuer
 /// Bedingungen von [tapUntil], die nicht werfen duerfen).
@@ -42,7 +47,7 @@ int weekdayFromToday(int add) => ((DateTime.now().weekday - 1 + add) % 7) + 1;
 Future<void> setRunDays(WidgetTester t, Set<int> days) async {
   for (var d = 1; d <= 7; d++) {
     final want = days.contains(d);
-    if (daySelected(t, d) != want) {
+    if (await daySelected(t, d) != want) {
       await tapUntil(
         t,
         find.byKey(Key('plan_form_day_$d')),

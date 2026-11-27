@@ -492,7 +492,11 @@ void main() {
     expect(txt('readiness_stage'), isNotEmpty, reason: 'S5 Stufe benannt');
     expect(txt('readiness_title'), isNotEmpty, reason: 'S5 Titel');
     final insufficient = AppLocalizations.of(
-      t.element(find.byKey(const Key('readiness_title'))),
+      await elementWhen(
+        t,
+        find.byKey(const Key('readiness_title')),
+        'S5 Titel readiness_title',
+      ),
     ).readinessInsufficientTitle;
     expect(
       txt('readiness_title'),

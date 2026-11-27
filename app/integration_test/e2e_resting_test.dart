@@ -456,13 +456,16 @@ void main() {
       );
       await pumpFor(t, const Duration(milliseconds: 300));
       // Texte aus der Sprache der App (die Sammlung laeuft auch auf Englisch).
+      final current = find.byKey(const Key('settings_ppg_camera_current'));
       final l10n = AppLocalizations.of(
-        t.element(find.byKey(const Key('settings_ppg_camera_current'))),
+        await elementWhen(t, current, 'settings_ppg_camera_current'),
       );
       expect(
-        t
-            .widget<Text>(find.byKey(const Key('settings_ppg_camera_current')))
-            .data,
+        (await widgetWhen<Text>(
+          t,
+          current,
+          'settings_ppg_camera_current',
+        )).data,
         startsWith(l10n.devCameraName(second.key)),
       );
       await tapKey(t, 'settings_ppg_camera_find');
@@ -477,11 +480,7 @@ void main() {
       await waitFor(
         t,
         () =>
-            t
-                .widget<Text>(
-                  find.byKey(const Key('settings_ppg_camera_current')),
-                )
-                .data
+            maybeWidget<Text>(current)?.data
                 ?.startsWith(l10n.settingsCameraDefault) ??
             false,
         'Einstellungen zeigen die Standardkamera',
