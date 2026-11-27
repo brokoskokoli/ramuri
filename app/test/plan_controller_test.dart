@@ -45,8 +45,16 @@ class _Env {
       clock: clock,
       loadRuns: loadRuns ?? () async => runs,
     );
-    controller = PlanController(session: session, clock: clock, reader: reader);
+    controller = PlanController(
+      session: session,
+      clock: clock,
+      reader: reader,
+      onChanged: () => changes++,
+    );
   }
+
+  /// Zahl der gemeldeten Änderungen ([PlanController.onChanged]).
+  int changes = 0;
   final StorageSession session;
   final FakeClock clock;
   late final PlanDataReader reader;
@@ -201,10 +209,12 @@ void main() {
         for (var i = 1; i < 21; i++)
           if (!busy.contains(_day(i))) _day(i),
       ].first;
+      final before = e.changes;
       expect(
         await e.controller.confirmMove(u.id!, free),
         PlanActionResult.done,
       );
+      expect(e.changes, greaterThan(before), reason: 'Änderung gemeldet');
       final moved = await e.plans.unitOn(free);
       expect(moved?.id, u.id);
       expect(moved?.pinned, isTrue);
@@ -232,10 +242,12 @@ void main() {
         await e.controller.replaceUnit(9999, PlanUnitKind.tempo),
         PlanActionResult.notFound,
       );
+      final before = e.changes;
       expect(
         await e.controller.replaceUnit(easy.id!, PlanUnitKind.tempo),
         PlanActionResult.done,
       );
+      expect(e.changes, greaterThan(before), reason: 'Änderung gemeldet');
       final r = (await e.plans.unitOn(easy.day))!;
       expect(r.id, easy.id);
       expect(r.kind, PlanUnitKind.tempo);
@@ -266,6 +278,7 @@ void main() {
       expect(rc.unit?.id, first.id);
       expect(rc.alternatives, isNotEmpty);
       final alt = rc.alternatives.first;
+      var before = e.changes;
       expect(
         await e.controller.setRestDay(
           first.day,
@@ -274,6 +287,7 @@ void main() {
         ),
         PlanActionResult.done,
       );
+      expect(e.changes, greaterThan(before), reason: 'Ruhetag gemeldet');
       expect((await e.plans.unitOn(first.day))!.isRestDay, isTrue);
       expect((await e.plans.unitOn(first.day))!.fixed, PlanUnitFixed.day);
       expect((await e.plans.unitOn(alt))?.id, first.id);
@@ -316,11 +330,14 @@ void main() {
         for (var i = 7; i < 28; i++)
           if (!taken.contains(_day(i))) _day(i),
       ].first;
+      final set = await e.controller.setRestDay(free, expectedUnitId: null);
+      before = e.changes;
       final results = [
-        await e.controller.setRestDay(free, expectedUnitId: null),
+        set,
         await e.controller.clearRestDay(free),
         await e.controller.clearRestDay(free),
       ];
+      expect(e.changes, greaterThan(before), reason: 'Aufheben gemeldet');
       expect(results, [
         PlanActionResult.done,
         PlanActionResult.done,
@@ -1639,6 +1656,7 @@ void main() {
         );
         expect((await past.goals.goal())!.targetDate, before!.targetDate);
         final ok = await pausing();
+        final changed = ok.changes;
         expect(
           await ok.controller.restartAfterLongPause(
             _goal(target: localDay(ok, 0)),
@@ -1646,6 +1664,7 @@ void main() {
           isNot(PlanActionResult.rejected),
         );
         expect((await ok.goals.goal())!.targetDate, localDay(ok, 0));
+        expect(ok.changes, greaterThan(changed), reason: 'Neustart gemeldet');
       },
     );
   });
@@ -1729,10 +1748,12 @@ void main() {
       await e.controller.saveGoal(_goal(days: {1, 3, 5}));
       final short = await runAt(e.session, _today, 6, 0, minutes: 20);
       final unit = (await e.controller.unitOn(_today))!;
+      final before = e.changes;
       expect(
         await e.controller.assignRun(unit.id!, short),
         PlanActionResult.done,
       );
+      expect(e.changes, greaterThan(before), reason: 'Neuberechnung gemeldet');
       await runAt(e.session, _today, 10, 0, minutes: 90);
       await e.controller.open();
       expect((await e.controller.unitOn(_today))!.runId, short);
@@ -1777,6 +1798,36 @@ void main() {
         expect(await assigned(e), isEmpty);
         return e;
       }
+
+      test('Lauf am Samstag der Vorwoche, Zuordnung am Montag mit dem '
+          'Starttag des Laufs: die Einheit vom Samstag trägt den Lauf; ohne '
+          'Starttag bleibt sie offen', () async {
+        final saturday = _day(3);
+        expect(saturday.weekday, DateTime.saturday);
+
+        // Gegenprobe: ohne Starttag beginnt das Fenster am Sonntag.
+        final plain = await planned();
+        final unit = (await plain.controller.unitOn(saturday))!;
+        expect(unit.kind, isNot(PlanUnitKind.rest));
+        await runAt(plain.session, saturday, 9, 0);
+        plain.clock.set(localAt(monday, 9));
+        expect(await plain.controller.autoAssignRuns(), PlanActionResult.done);
+        expect((await plain.controller.unitOn(saturday))!.runId, isNull);
+        expect(await assigned(plain), isEmpty);
+
+        // Mit dem Starttag des Laufs (Samstag) reicht das Fenster zurück.
+        final e = await planned();
+        final run = await runAt(e.session, saturday, 9, 0);
+        e.clock.set(localAt(monday, 9));
+        expect(
+          await e.controller.autoAssignRuns(since: saturday),
+          PlanActionResult.done,
+        );
+        final after = (await e.controller.unitOn(saturday))!;
+        expect(after.kind, unit.kind);
+        expect(after.runId, run);
+        expect((await assigned(e)).values, [run]);
+      });
 
       test('Zuordnung über „Einheit starten“ am Sonntag bleibt, auch mit '
           'einem längeren freien Lauf am Sonntag', () async {
