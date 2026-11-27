@@ -65,7 +65,7 @@ Future<(StorageSession, RunController, int)> _finishRun(Offload offload) async {
         verticalAccuracyMeters: 3,
       ),
     );
-    await Future<void>.delayed(Duration.zero);
+    await pumpEventQueue(times: 2);
   }
   await c.finish();
   final id = (await session.runs.list()).single.id;
