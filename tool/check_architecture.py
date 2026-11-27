@@ -333,9 +333,55 @@ def check_tops(name, graph, tops, const):
                 f, l = graph[src][m]
                 err(f, l, f"Modul {src} importiert oberes Modul {m} ({const}; Regeln: docs/architecture/code-map.md)")
 
+APP_LIB = "app/lib/"
+APP_L10N = "app/lib/l10n/"  # generierte Lokalisierung: fehlt sie (nicht eingecheckt), wird sie übersprungen
+
+def lib_targets(root, rel, cache):
+    """Ziele unter app/lib/ der Direktiven einer Datei als [(Zeile, Ziel)] oder None (fehlt, Link, nicht lesbar)."""
+    if rel not in cache:
+        p = os.path.join(root, rel)
+        try:
+            if os.path.islink(p) or not rel.endswith(".dart"):
+                raise OSError
+            text = open(p, encoding="utf-8").read()
+        except (OSError, UnicodeDecodeError):
+            cache[rel] = None
+            return None
+        out = []
+        for line, uri in directives(rel, text):
+            target = resolve(rel, line, uri, (APP_PACKAGE, APP_LIB))
+            if target is not None and target.startswith(APP_LIB):
+                out.append((line, target))
+        cache[rel] = out
+    return cache[rel]
+
+def ui_chain(root, first, cache):
+    """Breitensuche ab einer Wurzeldatei (unter app/lib/, nicht in features/ oder ui/) durch weitere solche Dateien.
+    Rückgabe (Art, Kette): ("feature", [(Datei, Zeile), …, Ziel]) bzw. ("missing", [(Datei, Zeile), …, Ziel]) für ein
+    fehlendes oder unlesbares Ziel, oder None. Jede Datei wird höchstens einmal besucht (Zyklen enden)."""
+    seen, queue = {first}, [(first, [])]
+    while queue:
+        cur, hops = queue.pop(0)
+        if cur.startswith(APP_FEATURES):
+            return "feature", hops + [cur]
+        targets = lib_targets(root, cur, cache)
+        if targets is None:
+            if cur.startswith(APP_L10N) and not os.path.lexists(os.path.join(root, cur)):
+                continue
+            return "missing", hops + [cur]
+        for line, target in targets:
+            if target.startswith(APP_UI) or target in seen:
+                continue  # Dateien unter app/lib/ui/ prüft check_ui selbst
+            seen.add(target)
+            queue.append((target, hops + [(cur, line)]))
+    return None
+
 def check_ui(root):
-    """Keine Datei unter APP_UI importiert eine Datei unter APP_FEATURES (Regel in docs/architecture/code-map.md)."""
+    """Keine Datei unter APP_UI erreicht eine Datei unter APP_FEATURES, direkt oder über Wurzeldateien unter app/lib/
+    (Regel in docs/architecture/code-map.md)."""
     files = collect(root, APP_UI)
+    cache = {}
+    short = lambda path: path[len(APP_LIB):] if path.startswith(APP_LIB) else path
     for rel in files:
         try:
             text = open(os.path.join(root, rel), encoding="utf-8").read()
@@ -343,12 +389,25 @@ def check_ui(root):
             err(rel, 0, "nicht lesbar (fail-closed)")
             continue
         for line, uri in directives(rel, text):
-            target = resolve(rel, line, uri, (APP_PACKAGE, "app/lib/"))
-            if target is not None and target.startswith(APP_FEATURES):
-                feature = module_of(target, APP_FEATURES)
-                err(rel, line, f"lib/ui importiert Feature {feature.lstrip('.')} ({uri}); Gemeinsames gehört nach "
+            target = resolve(rel, line, uri, (APP_PACKAGE, APP_LIB))
+            if target is None or not target.startswith(APP_LIB) or target.startswith(APP_UI):
+                continue
+            found = ui_chain(root, target, cache)
+            if found is None:
+                continue
+            kind, chain = found
+            hops = chain[:-1]  # [(Datei, Zeile der weiterführenden Direktive)], erste Datei ist das Ziel von uri
+            via = " → ".join([uri] + [short(f) for f, _ in hops[1:]] + ([short(chain[-1])] if hops else []))
+            if hops:
+                via += " (Kanten: " + ", ".join(f"{short(f)}:{l}" for f, l in hops) + ")"
+            if kind == "feature":
+                feature = module_of(chain[-1], APP_FEATURES)
+                how = f"über {via}" if len(chain) > 1 else f"({uri})"
+                err(rel, line, f"lib/ui importiert Feature {feature.lstrip('.')} {how}; Gemeinsames gehört nach "
                                f"app/lib/ui/, Features nur über Routen bzw. app_dependencies (Regeln: "
                                f"docs/architecture/code-map.md)")
+            else:
+                err(rel, line, f"lib/ui: Ziel {short(chain[-1])} fehlt oder ist nicht lesbar (über {via}, fail-closed)")
     return len(files)
 
 def main():
