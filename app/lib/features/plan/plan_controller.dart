@@ -527,26 +527,6 @@ class PlanController extends ChangeNotifier {
         if (r != null) _took(r);
       });
 
-  /// Auslöser „veränderter Erholungszustand“ (FR-0157, Teil „3 (Erholung)“):
-  /// nach neuen Gesundheitsdaten aus dem Import und nach einer Morgenmessung.
-  /// Nur bei „adaptiv“ und nur für heute: Ist heute eine harte Einheit offen
-  /// ([recoveryEasable]) und liegt der heutige Wert in einem Band nach
-  /// PAR-173, entsteht eine Fassung (`feedback`, Grund `readiness`), in der
-  /// genau diese Einheit locker ist. Sonst (auch bei „fix“, ohne Wert oder bei
-  /// einem Fehler) geschieht nichts. `true`, wenn eine Fassung geschrieben
-  /// wurde.
-  Future<bool> recheckRecovery() => _serial(() async {
-    var written = false;
-    try {
-      final r = await _workflow.recheckRecoveryToday();
-      written = r != null && _took(r);
-    } on Object {
-      written = false;
-    }
-    if (written) await _load();
-    return written;
-  });
-
   /// Antwort auf den Hinweis „HFmax prüfen“ bzw. „Passt so“ (PAR-236,
   /// [PlanUnderloadWorkflow.answerUnderloadHint]).
   Future<PlanActionResult> answerUnderloadHint() =>

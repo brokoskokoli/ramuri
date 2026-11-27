@@ -102,6 +102,18 @@ class _Env {
     readinessToday: source,
   );
 
+  /// Aufrufe von `onChanged` des Auslösers aus [trigger].
+  int changed = 0;
+
+  /// Der Auslöser, wie die App ihn für die Sitzung baut (gleiche Sitzung,
+  /// Uhr und Readiness-Quelle wie der Controller).
+  PlanRecoveryTrigger trigger() => PlanRecoveryTrigger(
+    session: session,
+    clock: clock,
+    readinessToday: source,
+    onChanged: () => changed++,
+  );
+
   Future<int> versions() async => (await plans.history()).length;
 
   Future<List<String>> all() async => [
@@ -116,153 +128,158 @@ PlanReadinessDay _band(DateTime day, ReadinessBand band) => PlanReadinessDay(
 );
 
 void main() {
-  group('recheckRecovery (Auslöser nach Import und Morgenmessung)', () {
-    for (final band in [
-      ReadinessBand.elevatedLoad,
-      ReadinessBand.recoveryAdvised,
-    ]) {
-      test('„adaptiv“, harte Einheit heute, Band ${band.name}: eine Fassung '
-          '(feedback, Grund readiness), nur die Einheit von heute wird '
-          'locker', () async {
-        final e = await _Env.open();
-        await e.mode(PlanAdaptationMode.adaptive);
-        final today = e.today;
-        final hard = (await e.plans.unitOn(today))!;
-        final before = await e.all();
-        final versions = await e.versions();
-        e.readiness = (d) => _band(d, band);
-        final c = e.controller();
-        expect(await c.recheckRecovery(), isTrue);
-        expect(await e.versions(), versions + 1);
-        final v = (await e.plans.history()).last;
-        expect(v.trigger, PlanTrigger.feedback);
-        expect(v.reason, planReasonReadiness);
-        final now = (await e.plans.unitOn(today))!;
-        expect(now.kind, PlanUnitKind.easy);
-        expect(now.minutes, hard.minutes);
-        // Nur die Einheit von heute ändert sich (FR-0157, PAR-173).
-        final after = await e.all();
-        final changed = [
-          for (var i = 0; i < before.length; i++)
-            if (before[i] != after[i]) after[i],
-        ];
-        expect(after.length, before.length);
-        expect(changed, [_sig(now)]);
-        expect(e.asked, [today]);
-        // Die Lockerung zeigt einen Grund (FR-0170, ACC-10).
-        await c.reload();
-        final notice = c.state.changeNotice!;
-        expect(notice.explanation.code, planReasonReadiness);
-        expect(
-          planChangeReasonText(
-            AppLocalizationsDe(),
-            notice.explanation,
-            notice.version,
-          ),
-          AppLocalizationsDe().planAdaptReasonReadiness,
-        );
-        c.dispose();
-      });
-    }
-
-    test('„adaptiv“, zweiter Aufruf nach der Lockerung: keine weitere '
-        'Fassung; ein besserer Wert macht sie nicht rückgängig', () async {
-      final e = await _Env.open();
-      await e.mode(PlanAdaptationMode.adaptive);
-      e.readiness = (d) => _band(d, ReadinessBand.recoveryAdvised);
-      final c = e.controller();
-      expect(await c.recheckRecovery(), isTrue);
-      final versions = await e.versions();
-      final eased = await e.all();
-      e.readiness = (d) => _band(d, ReadinessBand.wellRecovered);
-      expect(await c.recheckRecovery(), isFalse);
-      expect(await e.versions(), versions);
-      expect(await e.all(), eased);
-      c.dispose();
-    });
-
-    test(
-      '„fix“: ein niedriger Wert ändert nichts und wird nicht gelesen',
-      () async {
-        final e = await _Env.open();
-        e.readiness = (d) => _band(d, ReadinessBand.recoveryAdvised);
-        final before = await e.all();
-        final versions = await e.versions();
-        final c = e.controller();
-        expect(await c.recheckRecovery(), isFalse);
-        expect(await e.versions(), versions);
-        expect(await e.all(), before);
-        expect(e.asked, isEmpty);
-        c.dispose();
-      },
-    );
-
-    for (final (name, source)
-        in <(String, PlanReadinessDay? Function(DateTime))>[
-          ('ohne Wert', (_) => null),
-          ('Wert ohne Zahl', (d) => PlanReadinessDay(day: d, band: null)),
-          ('normaler Wert', (d) => _band(d, ReadinessBand.normal)),
-          ('hoher Wert', (d) => _band(d, ReadinessBand.wellRecovered)),
-          (
-            'niedriger Wert des Vortags',
-            (d) => _band(
-              d.subtract(const Duration(days: 1)),
-              ReadinessBand.recoveryAdvised,
-            ),
-          ),
-          ('Fehler beim Laden', (_) => throw StateError('x')),
-        ]) {
-      test('„adaptiv“, harte Einheit heute, $name: nichts', () async {
-        final e = await _Env.open();
-        await e.mode(PlanAdaptationMode.adaptive);
-        e.readiness = source;
-        final before = await e.all();
-        final versions = await e.versions();
-        final c = e.controller();
-        expect(await c.recheckRecovery(), isFalse);
-        expect(await e.versions(), versions);
-        expect(await e.all(), before);
-        c.dispose();
-      });
-    }
-
-    test('„adaptiv“, heute keine harte Einheit: nichts, auch die harte '
-        'Einheit eines späteren Tags bleibt (nur heute)', () async {
-      final e = await _Env.open();
-      await e.mode(PlanAdaptationMode.adaptive);
-      // Ein Tag vor der harten Einheit ohne harte Einheit.
-      e.clock.advance(const Duration(days: -1));
-      final u = await e.plans.unitOn(e.today);
-      expect(u == null || !u.isHard, isTrue);
-      e.readiness = (_) => _band(
-        e.today.add(const Duration(days: 1)),
+  group(
+    'PlanRecoveryTrigger.recheck (Auslöser nach Import und Morgenmessung)',
+    () {
+      for (final band in [
+        ReadinessBand.elevatedLoad,
         ReadinessBand.recoveryAdvised,
-      );
-      final before = await e.all();
-      final c = e.controller();
-      expect(await c.recheckRecovery(), isFalse);
-      expect(await e.all(), before);
-      // Auch der heutige niedrige Wert ändert keine spätere Einheit.
-      e.readiness = (d) => _band(d, ReadinessBand.recoveryAdvised);
-      expect(await c.recheckRecovery(), isFalse);
-      expect(await e.all(), before);
-      c.dispose();
-    });
+      ]) {
+        test('„adaptiv“, harte Einheit heute, Band ${band.name}: eine Fassung '
+            '(feedback, Grund readiness), nur die Einheit von heute wird '
+            'locker', () async {
+          final e = await _Env.open();
+          await e.mode(PlanAdaptationMode.adaptive);
+          final today = e.today;
+          final hard = (await e.plans.unitOn(today))!;
+          final before = await e.all();
+          final versions = await e.versions();
+          e.readiness = (d) => _band(d, band);
+          expect(await e.trigger().recheck(), isTrue);
+          expect(e.changed, 1);
+          expect(await e.versions(), versions + 1);
+          final v = (await e.plans.history()).last;
+          expect(v.trigger, PlanTrigger.feedback);
+          expect(v.reason, planReasonReadiness);
+          final now = (await e.plans.unitOn(today))!;
+          expect(now.kind, PlanUnitKind.easy);
+          expect(now.minutes, hard.minutes);
+          // Nur die Einheit von heute ändert sich (FR-0157, PAR-173).
+          final after = await e.all();
+          final changed = [
+            for (var i = 0; i < before.length; i++)
+              if (before[i] != after[i]) after[i],
+          ];
+          expect(after.length, before.length);
+          expect(changed, [_sig(now)]);
+          expect(e.asked, [today]);
+          // Die Lockerung zeigt einen Grund (FR-0170, ACC-10): die danach
+          // geöffnete Seite zeigt die Notiz.
+          final c = e.controller();
+          await c.open();
+          final notice = c.state.changeNotice!;
+          expect(notice.explanation.code, planReasonReadiness);
+          expect(
+            planChangeReasonText(
+              AppLocalizationsDe(),
+              notice.explanation,
+              notice.version,
+            ),
+            AppLocalizationsDe().planAdaptReasonReadiness,
+          );
+          c.dispose();
+        });
+      }
 
-    test('„adaptiv“ unter Warnsignal: nichts (Vorrang, FR-0203)', () async {
-      final e = await _Env.open();
-      await e.mode(PlanAdaptationMode.adaptive);
-      final c = e.controller();
-      expect(await c.reportWarning(), PlanActionResult.done);
-      final before = await e.all();
-      final versions = await e.versions();
-      e.readiness = (d) => _band(d, ReadinessBand.recoveryAdvised);
-      expect(await c.recheckRecovery(), isFalse);
-      expect(await e.versions(), versions);
-      expect(await e.all(), before);
-      c.dispose();
-    });
-  });
+      test('„adaptiv“, zweiter Aufruf nach der Lockerung: keine weitere '
+          'Fassung; ein besserer Wert macht sie nicht rückgängig', () async {
+        final e = await _Env.open();
+        await e.mode(PlanAdaptationMode.adaptive);
+        e.readiness = (d) => _band(d, ReadinessBand.recoveryAdvised);
+        final t = e.trigger();
+        expect(await t.recheck(), isTrue);
+        expect(e.changed, 1);
+        final versions = await e.versions();
+        final eased = await e.all();
+        e.readiness = (d) => _band(d, ReadinessBand.wellRecovered);
+        expect(await t.recheck(), isFalse);
+        expect(e.changed, 1);
+        expect(await e.versions(), versions);
+        expect(await e.all(), eased);
+      });
+
+      test(
+        '„fix“: ein niedriger Wert ändert nichts und wird nicht gelesen',
+        () async {
+          final e = await _Env.open();
+          e.readiness = (d) => _band(d, ReadinessBand.recoveryAdvised);
+          final before = await e.all();
+          final versions = await e.versions();
+          expect(await e.trigger().recheck(), isFalse);
+          expect(e.changed, 0);
+          expect(await e.versions(), versions);
+          expect(await e.all(), before);
+          expect(e.asked, isEmpty);
+        },
+      );
+
+      for (final (name, source)
+          in <(String, PlanReadinessDay? Function(DateTime))>[
+            ('ohne Wert', (_) => null),
+            ('Wert ohne Zahl', (d) => PlanReadinessDay(day: d, band: null)),
+            ('normaler Wert', (d) => _band(d, ReadinessBand.normal)),
+            ('hoher Wert', (d) => _band(d, ReadinessBand.wellRecovered)),
+            (
+              'niedriger Wert des Vortags',
+              (d) => _band(
+                d.subtract(const Duration(days: 1)),
+                ReadinessBand.recoveryAdvised,
+              ),
+            ),
+            ('Fehler beim Laden', (_) => throw StateError('x')),
+          ]) {
+        test('„adaptiv“, harte Einheit heute, $name: nichts', () async {
+          final e = await _Env.open();
+          await e.mode(PlanAdaptationMode.adaptive);
+          e.readiness = source;
+          final before = await e.all();
+          final versions = await e.versions();
+          expect(await e.trigger().recheck(), isFalse);
+          expect(e.changed, 0);
+          expect(await e.versions(), versions);
+          expect(await e.all(), before);
+        });
+      }
+
+      test('„adaptiv“, heute keine harte Einheit: nichts, auch die harte '
+          'Einheit eines späteren Tags bleibt (nur heute)', () async {
+        final e = await _Env.open();
+        await e.mode(PlanAdaptationMode.adaptive);
+        // Ein Tag vor der harten Einheit ohne harte Einheit.
+        e.clock.advance(const Duration(days: -1));
+        final u = await e.plans.unitOn(e.today);
+        expect(u == null || !u.isHard, isTrue);
+        e.readiness = (_) => _band(
+          e.today.add(const Duration(days: 1)),
+          ReadinessBand.recoveryAdvised,
+        );
+        final before = await e.all();
+        final t = e.trigger();
+        expect(await t.recheck(), isFalse);
+        expect(await e.all(), before);
+        // Auch der heutige niedrige Wert ändert keine spätere Einheit.
+        e.readiness = (d) => _band(d, ReadinessBand.recoveryAdvised);
+        expect(await t.recheck(), isFalse);
+        expect(await e.all(), before);
+        expect(e.changed, 0);
+      });
+
+      test('„adaptiv“ unter Warnsignal: nichts (Vorrang, FR-0203)', () async {
+        final e = await _Env.open();
+        await e.mode(PlanAdaptationMode.adaptive);
+        final c = e.controller();
+        expect(await c.reportWarning(), PlanActionResult.done);
+        final before = await e.all();
+        final versions = await e.versions();
+        e.readiness = (d) => _band(d, ReadinessBand.recoveryAdvised);
+        expect(await e.trigger().recheck(), isFalse);
+        expect(e.changed, 0);
+        expect(await e.versions(), versions);
+        expect(await e.all(), before);
+        c.dispose();
+      });
+    },
+  );
 
   group('Wochenprüfung (FR-0158)', () {
     Future<_Env> due() async {
