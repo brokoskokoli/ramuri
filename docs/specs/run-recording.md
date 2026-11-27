@@ -245,9 +245,11 @@ Bei GPS-Verlust laufen Zeit und Puls weiter. Die Lücke wird markiert, und die S
 ### FR-0195 — Start nur mit Standortberechtigung
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-003 (OQ-0021); SRC-003 (Maintainer 2026-11-15)
-- **Verwandt:** OQ-0021, OQ-0064
+- **Verwandt:** OQ-0021, OQ-0064, PAR-249
 
 Ohne Standortberechtigung startet kein GPS-Lauf. Läufe ohne GPS gibt es in Phase 1 nicht; ein Laufbandmodus folgt in Phase 2 (FR-0196).
+
+Lässt sich der Stand nicht ermitteln – auch wenn eine Antwort nicht innerhalb der Frist PAR-249 kommt –, startet kein Lauf; die Seite nennt den Grund und bietet „Erneut prüfen“ an.
 
 **Festlegungen (Maintainer 2026-11-15):**
 - Ist der Standort ausgeschaltet, bietet die Seite „Lauf vorbereiten“ an, die Standort-Einstellungen des Systems zu öffnen, und prüft nach der Rückkehr erneut. Die Erklärung des Grunds bleibt stehen; ein neues Recht braucht das nicht.

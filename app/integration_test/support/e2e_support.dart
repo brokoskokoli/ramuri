@@ -499,8 +499,10 @@ const gpsErsteFrist = Duration(seconds: 30);
 const gpsZweiteFrist = Duration(seconds: 60);
 
 /// Bekannte Schluessel der Start-Seite zu Sperre und GPS-Zustand
-/// (run_flow_screen.dart): Sperrtexte, ihre Tasten und die GPS-Anzeige.
+/// (run_flow_screen.dart): laufende Startpruefung („Pruefe …“), Sperrtexte,
+/// ihre Tasten und die GPS-Anzeige.
 final startPageKeys = <String>[
+  'run_checking',
   for (final b in StartBlock.values) 'run_block_${b.name}',
   'run_block_ask',
   'run_block_location_settings',
@@ -561,8 +563,9 @@ Future<bool> _gpsGoodWithin(WidgetTester t, Duration frist) async {
 /// Wartet auf der offenen Start-Seite auf „GPS gut“. Nach [erste] ohne Erfolg
 /// verlaesst sie die Seite einmal (Zurueck) und oeffnet sie neu, damit die
 /// Seite den Standortstrom neu abonniert; danach bis [zweite]. Scheitert auch
-/// das, nennt die Meldung die sichtbaren Schluessel aus [startPageKeys]
-/// (Recht, Sperre, Suche), nie Standortwerte.
+/// das, nennt die Meldung, ob die Startpruefung noch laeuft (run_checking),
+/// und die sichtbaren Schluessel aus [startPageKeys] (Recht, Sperre, Suche),
+/// nie Standortwerte.
 Future<void> _waitGpsGood(
   WidgetTester t,
   Duration erste,
@@ -574,9 +577,10 @@ Future<void> _waitGpsGood(
   await _openStartPage(t);
   if (await _gpsGoodWithin(t, zweite)) return;
   final sichtbar = visibleStartKeys();
+  final pruefung = sichtbar.contains('run_checking') ? 'laeuft' : 'fertig';
   fail(
-    'GPS gut nicht erreicht (Emulator-Fix); sichtbar: '
-    '${sichtbar.isEmpty ? 'keiner' : sichtbar.join(', ')}',
+    'GPS gut nicht erreicht (Emulator-Fix); Startpruefung $pruefung; '
+    'sichtbar: ${sichtbar.isEmpty ? 'keiner' : sichtbar.join(', ')}',
   );
 }
 

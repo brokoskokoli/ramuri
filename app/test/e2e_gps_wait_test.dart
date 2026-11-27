@@ -17,8 +17,11 @@ const _zweite = Duration(milliseconds: 3000);
 /// Verzoegerung, nach der die Seite „GPS gut“ zeigt; null oder fehlend: nie.
 /// Bis dahin „sucht“ und die Taste „Erneut pruefen“.
 class _Fake {
-  _Fake(this.gutNach);
+  _Fake(this.gutNach, {this.prueft = false});
   final List<Duration?> gutNach;
+
+  /// Die Seite bleibt in der Startpruefung („Pruefe …“, run_checking).
+  final bool prueft;
   int geoeffnet = 0;
   int geschlossen = 0;
   int erneut = 0;
@@ -34,7 +37,8 @@ class _Fake {
               final d = i < gutNach.length ? gutNach[i] : null;
               await Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => _StartSeite(d, () => erneut++),
+                  builder: (_) =>
+                      _StartSeite(d, () => erneut++, prueft: prueft),
                 ),
               );
               geschlossen++;
@@ -48,9 +52,10 @@ class _Fake {
 }
 
 class _StartSeite extends StatefulWidget {
-  const _StartSeite(this.gutNach, this.erneut);
+  const _StartSeite(this.gutNach, this.erneut, {this.prueft = false});
   final Duration? gutNach;
   final VoidCallback erneut;
+  final bool prueft;
 
   @override
   State<_StartSeite> createState() => _StartSeiteState();
@@ -92,7 +97,9 @@ class _StartSeiteState extends State<_StartSeite> {
           ),
           child: const Text('Start'),
         ),
-        if (gut)
+        if (widget.prueft)
+          const Text('pruefe', key: Key('run_checking'))
+        else if (gut)
           const Text('gut', key: Key('start_gps_good'))
         else ...[
           const Text('sucht', key: Key('start_gps_searching')),
@@ -166,8 +173,8 @@ void main() {
         isA<TestFailure>().having(
           (e) => e.message,
           'message',
-          'GPS gut nicht erreicht (Emulator-Fix); sichtbar: '
-              'run_block_recheck, start_gps_searching',
+          'GPS gut nicht erreicht (Emulator-Fix); Startpruefung fertig; '
+              'sichtbar: run_block_recheck, start_gps_searching',
         ),
       ),
     );
@@ -176,6 +183,24 @@ void main() {
     expect(f.geschlossen, 1);
     // „Erneut pruefen“ wurde beim Warten getippt.
     expect(f.erneut, greaterThan(0));
+  });
+
+  testWidgets('Startpruefung haengt: Meldung nennt run_checking', (t) async {
+    final f = _Fake([], prueft: true);
+    await t.pumpWidget(f.app());
+    expect(startPageKeys, contains('run_checking'));
+    await expectLater(
+      startRun(t, gpsErste: _erste, gpsZweite: _zweite),
+      throwsA(
+        isA<TestFailure>().having(
+          (e) => e.message,
+          'message',
+          'GPS gut nicht erreicht (Emulator-Fix); Startpruefung laeuft; '
+              'sichtbar: run_checking',
+        ),
+      ),
+    );
+    expect(f.geoeffnet, 2);
   });
 
   testWidgets('sichtbare Schluessel: keiner, wenn die Seite fehlt', (t) async {
