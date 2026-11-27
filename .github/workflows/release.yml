@@ -12,10 +12,13 @@ jobs:
   release:
     if: github.repository == 'brokoskokoli/ramuri'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 60 min für Gate und Build plus bis zu 45 min Warten auf einen laufenden e2e-Lauf des Tag-Commits.
+    timeout-minutes: 105
     environment: release
     permissions:
       contents: write
+      # Nur zum Lesen der e2e-Läufe des Tag-Commits (Schritt „e2e grün auf dem Tag-Commit“).
+      actions: read
     env:
       TAG: ${{ github.ref_name }}
     steps:
@@ -29,6 +32,12 @@ jobs:
           tool/build_signed.sh --print-version "$TAG"
           git fetch --no-tags origin main:refs/remotes/origin/main
           git merge-base --is-ancestor HEAD refs/remotes/origin/main || { echo "FEHLER: $TAG liegt nicht in main"; exit 1; }
+      # Ein Release entsteht nur aus einem Commit mit grünem e2e (alle Jobs success); läuft e2e noch, wartet der
+      # Schritt bis zu 45 min. Keine Ausnahme, kein Schalter zum Umgehen.
+      - name: e2e grün auf dem Tag-Commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tool/check_e2e_green.sh "$(git rev-parse 'HEAD^{commit}')"
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
