@@ -332,6 +332,10 @@ class RestingMeasureController extends ChangeNotifier {
   // Stand) und ob eine im festen Fenster lag (Ruhepuls-Messung).
   double? _relockedAt;
   bool _relocking = false;
+  // Das letzte Neu-Einschwingen endete ohne neue Sperre (PAR-246): die Anzeige
+  // zeigt ab der vorläufigen Sperre wieder Werte, ohne die 2,5 s danach.
+  bool _relockUnconfirmed = false;
+  double? _relockingAt;
   int _relocks = 0;
   bool _relockInWindow = false;
   PpgCameraDetails? _details;
@@ -385,11 +389,19 @@ class RestingMeasureController extends ChangeNotifier {
   double get elapsedSeconds => _elapsed;
 
   /// Das Einschwingen (vor dem Messfenster) läuft noch: zu Beginn und nach einem
-  /// Helligkeitssprung von `relocking` bis 2,5 s nach der neuen Sperre (PAR-246).
-  bool get settling => _relocking || _elapsed < _startMin;
+  /// Helligkeitssprung von `relocking` bis 2,5 s nach der neuen Sperre; bleibt
+  /// die neue Sperre aus, nur bis zur vorläufigen Sperre (PAR-246).
+  bool get settling =>
+      _relocking || (!_relockUnconfirmed && _elapsed < _startMin);
 
   /// Frühester Beginn eines Fensters (Fenstersuche) bzw. der Live-Auswertung.
   double get _startMin => ppgSearchStartMin(relockedAt: _relockedAt);
+
+  /// Frühester Beginn der Live-Auswertung: wie [_startMin], nach einem
+  /// Neu-Einschwingen ohne neue Sperre ab der vorläufigen Sperre (PAR-246, nur
+  /// Anzeige).
+  double get _liveStartMin =>
+      _relockUnconfirmed ? math.min(_relockedAt!, _startMin) : _startMin;
 
   /// Fortschritt des Messfensters von 0 bis 1.
   double get progress {
@@ -710,6 +722,8 @@ class RestingMeasureController extends ChangeNotifier {
     _lastImageT = null;
     _relockedAt = null;
     _relocking = false;
+    _relockUnconfirmed = false;
+    _relockingAt = null;
     _relocks = 0;
     _relockInWindow = false;
     _details = null;
@@ -752,6 +766,11 @@ class RestingMeasureController extends ChangeNotifier {
           _relocking = false;
           if (t != null) _relockedAt = t;
           _notify();
+        } else if (_relockUnconfirmed && t != null && t > _relockingAt!) {
+          // Späte Sperre nach dem Ende ohne Sperre: ab ihr wie nach jeder Sperre.
+          _relockUnconfirmed = false;
+          if (t > _relockedAt!) _relockedAt = t;
+          _notify();
         }
       case PpgCameraRelocking(:final t):
         _onRelocking(t);
@@ -770,6 +789,8 @@ class RestingMeasureController extends ChangeNotifier {
   /// festen Fenster der Ruhepuls-Messung macht das die Messung unbrauchbar.
   void _onRelocking(double t) {
     _relocking = true;
+    _relockUnconfirmed = false;
+    _relockingAt = t;
     _relocks++;
     _relockedAt = t + ppgExposureLockSeconds;
     final w = ppgStandardWindow;
@@ -799,6 +820,13 @@ class RestingMeasureController extends ChangeNotifier {
             : List.filled(ppgIspValueCount, double.nan),
       );
     }
+    // Kam auf das Bild, mit dem die neue Sperre fällig war (vorläufige Sperre),
+    // kein `locked`, endet das Neu-Einschwingen ohne Sperre (PAR-246). `locked`
+    // folgt in der Kamera erst nach dem Bild selbst, daher erst beim nächsten.
+    if (_relocking && prevT != null && prevT >= _relockedAt!) {
+      _relocking = false;
+      _relockUnconfirmed = true;
+    }
     _elapsed = f.t;
     _curve = _recentCurve();
     if (f.t >= dataEnd) {
@@ -806,7 +834,7 @@ class RestingMeasureController extends ChangeNotifier {
       return;
     }
     if (searchWindow && _checkDue(f.t)) unawaited(_runCheck(run, f.t));
-    if (f.t > _startMin &&
+    if (f.t > _liveStartMin &&
         !_relocking &&
         !_liveBusy &&
         f.t - _lastLiveT >= restingLiveIntervalSeconds) {
@@ -886,7 +914,13 @@ class RestingMeasureController extends ChangeNotifier {
           if (f.t >= stageWindow.filterStart) f,
       ], stageWindow);
       if (run != _run || _phase != RestingMeasurePhase.measuring) return;
-      _livePulse = pulse.hasResult ? pulse.bpm!.round() : null;
+      if (pulse.hasResult) {
+        _livePulse = pulse.bpm!.round();
+      } else if (!_relockUnconfirmed || t >= _startMin) {
+        // Nach einem Ende ohne Sperre bleibt bis zum Ende der Wartezeit der
+        // letzte bekannte Wert stehen (PAR-246).
+        _livePulse = null;
+      }
       _liveQuality = ppgLiveStage(stage);
       _liveHint = _hintOf(stage);
       _notify();
@@ -902,7 +936,7 @@ class RestingMeasureController extends ChangeNotifier {
   PpgWindow _liveWindow(double t, double seconds) {
     final w = ppgStandardWindow;
     final lead = w.start - w.filterStart;
-    final start = math.max(_startMin, t - seconds);
+    final start = math.max(_liveStartMin, t - seconds);
     return PpgWindow(
       filterStart: start - lead,
       start: start,

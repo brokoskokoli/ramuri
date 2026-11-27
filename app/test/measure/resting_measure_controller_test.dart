@@ -615,16 +615,17 @@ void main() {
 
       test(
         'Morgenmessung: Sperre später als 2,5 s nach relocking: Einschwingen '
-        'bis zur Sperre und danach 2,5 s nach ihrer Sensorzeit',
+        'bis zur vorläufigen Sperre, Live-Werte, ab der späten Sperre wieder '
+        '2,5 s Einschwingen',
         () async {
           final r = await Rig.make();
           final checkedWith = <double?>[];
-          var relocking = false;
-          final liveWhileRelocking = <PpgWindow>[];
+          final liveAfter = <PpgWindow>[];
+          var afterRelock = false;
           final c = search(
             r,
             evaluate: (frames, window) async {
-              if (relocking) liveWhileRelocking.add(window);
+              if (afterRelock) liveAfter.add(window);
               return evaluatePpg(frames, window: window);
             },
             check: (frames, {relockedAt}) async {
@@ -638,29 +639,290 @@ void main() {
           r.cam.emitLocked(2.5);
           await src.emitUntil(r.cam, 24);
           r.cam.emitRelocking(24);
-          relocking = true;
+          afterRelock = true;
           await pump();
-          // Die Sperre kommt erst bei 30,3 s: bis dahin bleibt es Einschwingen,
-          // auch nach dem vorläufigen frühesten Beginn (29 s).
+          await src.emitUntil(r.cam, 26.5);
+          expect(c.settling, isTrue, reason: 'locked kann noch folgen');
+          expect(liveAfter, isEmpty);
+          await src.emitUntil(r.cam, 26.54);
+          expect(c.settling, isFalse, reason: 'keine Sperre: Ende bei 26,5 s');
+          // Die Sperre kommt erst bei 30,3 s.
           await src.emitUntil(r.cam, 30.2);
-          expect(c.settling, isTrue, reason: 'Sperre steht noch aus');
-          expect(liveWhileRelocking, isEmpty, reason: 'keine Live-Auswertung');
-          relocking = false;
+          expect(c.settling, isFalse);
+          expect(liveAfter, isNotEmpty);
           r.cam.emitLocked(30.3);
+          await pump();
+          expect(c.settling, isTrue, reason: 'späte Sperre: wie jede Sperre');
+          final liveBefore = liveAfter.length;
           await src.emitUntil(r.cam, 32.7);
           expect(
             c.settling,
             isTrue,
             reason: 'bis 2,5 s nach der Sperre bei 30,3 s',
           );
+          expect(liveAfter.length, liveBefore, reason: 'keine Live-Auswertung');
           await src.emitUntil(r.cam, 33.0);
           expect(c.settling, isFalse);
           await src.emitUntil(r.cam, 40);
           await pump();
           expect(checkedWith, isNotEmpty);
           expect(checkedWith.last, 30.3);
+          for (final w in liveAfter.skip(liveBefore)) {
+            expect(w.start, greaterThanOrEqualTo(32.8));
+          }
         },
       );
+
+      test(
+        'Morgenmessung: relocking bei 24 s ohne locked: Einschwingen bis zur '
+        'vorläufigen Sperre (26,5 s), danach sofort Live-Werte',
+        () async {
+          final r = await Rig.make();
+          final liveAfter = <PpgWindow>[];
+          var afterRelock = false;
+          final c = search(
+            r,
+            evaluate: (frames, window) async {
+              if (afterRelock) liveAfter.add(window);
+              return evaluatePpg(frames, window: window);
+            },
+            check: (_, {relockedAt}) async => const PpgRecordingCheck(
+              goodWindowReached: false,
+              goodStretchSeconds: 0,
+            ),
+          );
+          await c.startNow();
+          final src = FrameSource();
+          await src.emitUntil(r.cam, 2.5);
+          r.cam.emitLocked(2.5);
+          await src.emitUntil(r.cam, 24);
+          r.cam.emitRelocking(24);
+          afterRelock = true;
+          await pump();
+          expect(c.livePulse, isNull);
+          await src.emitUntil(r.cam, 26.4);
+          expect(c.settling, isTrue);
+          await src.emitUntil(r.cam, 26.5);
+          expect(c.settling, isTrue, reason: 'Bild der fälligen Sperre');
+          await src.emitUntil(r.cam, 26.54);
+          expect(c.settling, isFalse, reason: 'erstes Bild danach');
+          await src.emitUntil(r.cam, 28.9);
+          expect(
+            c.settling,
+            isFalse,
+            reason: 'keine Wartezeit für die Anzeige',
+          );
+          expect(liveAfter, isNotEmpty, reason: 'Live-Auswertung vor 29 s');
+          await src.emitUntil(r.cam, 40);
+          await pump();
+          expect(c.settling, isFalse);
+          expect(c.livePulse, isNotNull);
+          expect(c.liveQuality, isNotNull);
+          for (final w in liveAfter) {
+            expect(w.start, greaterThanOrEqualTo(26.5));
+          }
+          expect(liveAfter.first.start, lessThan(29.0));
+        },
+      );
+
+      test(
+        'Morgenmessung: ohne locked bleibt bis 29 s der letzte bekannte Puls '
+        'stehen, danach gilt die Auswertung',
+        () async {
+          final r = await Rig.make();
+          var afterRelock = false;
+          var calls = 0;
+          const good = PpgMeasurement(
+            quality: PpgQuality.good,
+            reasons: [],
+            bpm: 70,
+          );
+          const none = PpgMeasurement(
+            quality: PpgQuality.unusable,
+            reasons: [],
+          );
+          final c = search(
+            r,
+            evaluate: (frames, window) async {
+              if (!afterRelock) return good;
+              // Paare aus Puls- und Stufenfenster: nur die erste liefert einen Puls.
+              return calls++ < 2 ? good : none;
+            },
+            check: (_, {relockedAt}) async => const PpgRecordingCheck(
+              goodWindowReached: false,
+              goodStretchSeconds: 0,
+            ),
+          );
+          await c.startNow();
+          final src = FrameSource();
+          await src.emitUntil(r.cam, 2.5);
+          r.cam.emitLocked(2.5);
+          await src.emitUntil(r.cam, 24);
+          r.cam.emitRelocking(24);
+          afterRelock = true;
+          await pump();
+          expect(c.livePulse, isNull);
+          await src.emitUntil(r.cam, 26.6);
+          await pump();
+          expect(c.livePulse, 70);
+          await src.emitUntil(r.cam, 28.9);
+          await pump();
+          expect(
+            calls,
+            greaterThan(2),
+            reason: 'weitere Auswertungen ohne Puls',
+          );
+          expect(c.livePulse, 70, reason: 'letzter bekannter Wert bis 29 s');
+          await src.emitUntil(r.cam, 31);
+          await pump();
+          expect(c.livePulse, isNull);
+        },
+      );
+
+      test('Morgenmessung: locked folgt dem Bild der fälligen Sperre (26,5 s): '
+          'wie bisher Einschwingen bis 29 s', () async {
+        final r = await Rig.make();
+        final searchedWith = <double?>[];
+        final c = search(
+          r,
+          best: (frames, {relockedAt}) async {
+            searchedWith.add(relockedAt);
+            return evaluatePpgBestWindow(frames, relockedAt: relockedAt);
+          },
+          check: (_, {relockedAt}) async => const PpgRecordingCheck(
+            goodWindowReached: false,
+            goodStretchSeconds: 0,
+          ),
+        );
+        await c.startNow();
+        final src = FrameSource();
+        await src.emitUntil(r.cam, 24);
+        r.cam.emitRelocking(24);
+        await src.emitUntil(r.cam, 26.5);
+        r.cam.emitLocked(26.5); // wie in der Kamera: nach dem Bild
+        await src.emitUntil(r.cam, 28.9);
+        expect(c.settling, isTrue, reason: 'bis 2,5 s nach der Sperre');
+        await src.emitUntil(r.cam, 29.1);
+        expect(c.settling, isFalse);
+        await src.emitUntil(r.cam, 120.1);
+        await pump();
+        expect(searchedWith, [26.5]);
+        expect(c.result!.windowStartSeconds, greaterThanOrEqualTo(29.0));
+      });
+
+      Future<(double?, double?, bool)> lateLock(
+        void Function(Rig r) lock,
+      ) async {
+        final r = await Rig.make();
+        final searchedWith = <double?>[];
+        final c = search(
+          r,
+          best: (frames, {relockedAt}) async {
+            searchedWith.add(relockedAt);
+            return evaluatePpgBestWindow(frames, relockedAt: relockedAt);
+          },
+          check: (_, {relockedAt}) async => const PpgRecordingCheck(
+            goodWindowReached: false,
+            goodStretchSeconds: 0,
+          ),
+        );
+        await c.startNow();
+        final src = FrameSource();
+        await src.emitUntil(r.cam, 24);
+        r.cam.emitRelocking(24);
+        await src.emitUntil(r.cam, 27.9);
+        expect(c.settling, isFalse);
+        lock(r);
+        await src.emitUntil(r.cam, 28.1);
+        final settlingAfter = c.settling;
+        await src.emitUntil(r.cam, 120.1);
+        await pump();
+        expect(searchedWith, hasLength(1));
+        return (
+          searchedWith.single,
+          c.result!.windowStartSeconds,
+          settlingAfter,
+        );
+      }
+
+      test('Morgenmessung: späte Sperre bei 28 s nach dem Ende ohne Sperre: '
+          'frühester Fensterbeginn 30,5 s', () async {
+        final (relockedAt, start, settling) = await lateLock(
+          (r) => r.cam.emitLocked(28),
+        );
+        expect(relockedAt, 28);
+        expect(settling, isTrue, reason: 'bis 2,5 s nach der späten Sperre');
+        expect(start, greaterThanOrEqualTo(30.5));
+      });
+
+      test('Morgenmessung: locked ohne Sensorzeit oder vor dem relocking nach '
+          'dem Ende ohne Sperre: Grenze bleibt 29 s', () async {
+        final (noT, startNoT, settlingNoT) = await lateLock(
+          (r) => r.cam.emitLocked(),
+        );
+        expect(noT, 26.5);
+        expect(startNoT, greaterThanOrEqualTo(29.0));
+        expect(settlingNoT, isFalse, reason: 'ändert nichts');
+        final (early, _, settlingEarly) = await lateLock(
+          (r) => r.cam.emitLocked(23),
+        );
+        expect(early, 26.5);
+        expect(settlingEarly, isFalse, reason: 'ändert nichts');
+      });
+
+      test(
+        'Morgenmessung: zweites relocking bei 40 s ohne locked: Einschwingen '
+        'ab 40 s bis zur vorläufigen Sperre bei 42,5 s',
+        () async {
+          final r = await Rig.make();
+          final c = search(
+            r,
+            check: (_, {relockedAt}) async => const PpgRecordingCheck(
+              goodWindowReached: false,
+              goodStretchSeconds: 0,
+            ),
+          );
+          await c.startNow();
+          final src = FrameSource();
+          await src.emitUntil(r.cam, 24);
+          r.cam.emitRelocking(24);
+          await src.emitUntil(r.cam, 39.9);
+          expect(c.settling, isFalse);
+          await src.emitUntil(r.cam, 40);
+          r.cam.emitRelocking(40);
+          await pump();
+          expect(c.settling, isTrue);
+          expect(c.livePulse, isNull);
+          await src.emitUntil(r.cam, 42.5);
+          expect(c.settling, isTrue);
+          await src.emitUntil(r.cam, 42.54);
+          expect(c.settling, isFalse);
+        },
+      );
+
+      test('Morgenmessung: nach einem Ende ohne Sperre gilt beim nächsten '
+          'relocking mit locked wieder die Wartezeit von 2,5 s', () async {
+        final r = await Rig.make();
+        final c = search(
+          r,
+          check: (_, {relockedAt}) async => const PpgRecordingCheck(
+            goodWindowReached: false,
+            goodStretchSeconds: 0,
+          ),
+        );
+        await c.startNow();
+        final src = FrameSource();
+        await src.emitUntil(r.cam, 24);
+        r.cam.emitRelocking(24);
+        await src.emitUntil(r.cam, 40);
+        r.cam.emitRelocking(40);
+        await src.emitUntil(r.cam, 42.5);
+        r.cam.emitLocked(42.5);
+        await src.emitUntil(r.cam, 44.9);
+        expect(c.settling, isTrue, reason: 'bis 2,5 s nach der Sperre');
+        await src.emitUntil(r.cam, 45.1);
+        expect(c.settling, isFalse);
+      });
 
       test(
         'Morgenmessung: Höchstdauer bleibt 120 s, die Endauswertung kennt die '
@@ -752,6 +1014,24 @@ void main() {
         r.cam.emitRelocking(30);
         await src.emitUntil(r.cam, 32.4);
         r.cam.emitLocked(32.5);
+        await src.emitUntil(r.cam, 66.6);
+        await pump();
+        expect(r.c.phase, RestingMeasurePhase.result);
+        final res = r.c.result!;
+        expect(res.quality, PpgQuality.unusable);
+        expect(res.measurement.reasons, [PpgQualityReason.tooManyDisturbances]);
+        expect(res.hasValue, isFalse);
+      });
+
+      test('Ruhepuls-Messung: relocking bei 30 s ohne locked bleibt '
+          'unbrauchbar mit tooManyDisturbances', () async {
+        final r = await Rig.make();
+        await r.c.startNow();
+        final src = FrameSource();
+        await src.emitUntil(r.cam, 30);
+        r.cam.emitRelocking(30);
+        await src.emitUntil(r.cam, 33);
+        expect(r.c.settling, isFalse, reason: 'Ende ohne Sperre');
         await src.emitUntil(r.cam, 66.6);
         await pump();
         expect(r.c.phase, RestingMeasurePhase.result);
