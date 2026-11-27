@@ -338,11 +338,23 @@ class PlanController extends ChangeNotifier {
       _act(() => _workflow.recalculateManual(events: _events));
 
   /// Ordnet der Einheit den Lauf zu (`null` hebt die Zuordnung auf) und
-  /// rechnet neu ([PlanAssignWorkflow.assignRun]). Veraltet (die Einheit
-  /// trägt beim Schreiben einen anderen Lauf als beim Lesen): `rejected`,
-  /// der Stand wird neu geladen.
-  Future<PlanActionResult> assignRun(int unitId, int? runId) =>
-      _act(() => _workflow.assignRun(unitId, runId, events: _events));
+  /// rechnet neu ([PlanAssignWorkflow.assignRun]). [expectedRunId] ist der
+  /// Lauf, den die Einheit in der Ansicht des Aufrufers trug (`null`: offen
+  /// gesehen; beim Aufheben der bisher zugeordnete Lauf). Veraltet (die
+  /// Einheit trägt beim Schreiben einen anderen Lauf): `rejected`, der Stand
+  /// wird neu geladen.
+  Future<PlanActionResult> assignRun(
+    int unitId,
+    int? runId, {
+    required int? expectedRunId,
+  }) => _act(
+    () => _workflow.assignRun(
+      unitId,
+      runId,
+      expectedRunId: expectedRunId,
+      events: _events,
+    ),
+  );
 
   /// Zuordnung über „Einheit starten“ ([PlanAssignWorkflow.assignStartedRun]):
   /// ersetzte Einheit → die offene Einheit desselben Ortstags [day].

@@ -142,7 +142,7 @@ void main() {
       await e.service.saveGoal(_goal({1, 3, 5}));
       final short = await _runAt(e.session, today, 6, 0, minutes: 20);
       final unit = (await _unitOn(e, today))!;
-      await e.service.assignRun(unit.id!, short);
+      await e.service.assignRun(unit.id!, short, expectedRunId: null);
       await _runAt(e.session, today, 10, 0, minutes: 90);
       await e.openPlan();
       expect((await _unitOn(e, today))!.runId, short);
@@ -356,7 +356,11 @@ void main() {
       final e = await WorkflowEnv.open();
       await e.service.saveGoal(_goal({1, 3, 5}));
       final first = await _runAt(e.session, today, 7, 0);
-      await e.service.assignRun((await _unitOn(e, today))!.id!, first);
+      await e.service.assignRun(
+        (await _unitOn(e, today))!.id!,
+        first,
+        expectedRunId: null,
+      );
       // Die Zuordnung rechnet neu und kann Kennungen ersetzen: neu lesen.
       final unit = (await _unitOn(e, today))!;
       expect(unit.runId, first);

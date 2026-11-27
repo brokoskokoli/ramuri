@@ -111,7 +111,10 @@ void main() {
       expect(await planRunAssignedOn(s, _day, null), isFalse);
 
       final c = PlanController(session: s, clock: clock);
-      expect(await c.assignRun(unitId, a), PlanActionResult.done);
+      expect(
+        await c.assignRun(unitId, a, expectedRunId: null),
+        PlanActionResult.done,
+      );
       c.dispose();
 
       expect(await planRunAssignedOn(s, _day, a), isTrue);
@@ -147,5 +150,88 @@ void main() {
     expect((await plans.unitOn(DateTime.utc(2026, 11, 13)))!.runId, later);
     expect((await plans.unitOn(_today))!.runId, isNull);
     expect(await store.read(), isNull);
+  });
+
+  group('assignRunToUnit erwartet den Stand der Ansicht (offen)', () {
+    test('ein anderer Schreiber ordnet der offen gesehenen Einheit Lauf A '
+        'zu: Lauf B wird abgelehnt, A bleibt, keine neue Fassung', () async {
+      final (s, clock, unitId) = await _withPlan();
+      final plans = (s as PlanStorage).plans;
+      final a = await _finishedRun(s, _now.add(const Duration(minutes: 1)));
+      final b = await _finishedRun(s, _now.add(const Duration(hours: 1)));
+      // Die Ansicht sieht die Einheit offen.
+      expect(await openPlanUnitOn(s, _day), isNotNull);
+      // Danach ordnet ein anderer Schreiber ihr A zu.
+      expect(
+        await plans.assignRun(unitId, a, expectedRunId: null),
+        PlanAssignResult.assigned,
+      );
+      final versions = (await plans.history()).length;
+
+      expect(
+        await assignRunToUnit(
+          session: s,
+          clock: clock,
+          unitId: unitId,
+          day: _day,
+          runId: b,
+        ),
+        PlanActionResult.rejected,
+      );
+      expect((await plans.unitOn(_today))!.runId, a);
+      expect(await plans.history(), hasLength(versions));
+    });
+
+    test('Einheit offen: Lauf B wird zugeordnet, genau eine neue Fassung '
+        '(Auslöser run)', () async {
+      final (s, clock, _) = await _withPlan();
+      final plans = (s as PlanStorage).plans;
+      // Eine Fassung nur mit der Einheit von heute: Die Neuberechnung nach
+      // der Zuordnung ergänzt die übrigen und schreibt so eine neue Fassung.
+      final last = (await plans.history()).last;
+      final today = (await plans.unitOn(_today))!;
+      await plans.writeVersion(
+        PlanVersionDraft(
+          createdAt: _now.toUtc(),
+          validFrom: _today,
+          trigger: last.trigger,
+          reason: 'test',
+          version: last.version,
+          inputs: last.inputs,
+          summary: last.summary,
+          units: [
+            PlanUnit(
+              day: today.day,
+              kind: today.kind,
+              phase: today.phase,
+              weekIndex: today.weekIndex,
+              minutes: today.minutes,
+              segments: today.segments,
+            ),
+          ],
+          readState: planUnitsFingerprint(
+            await plans.unitsBetween(DateTime.utc(2000), planFarFuture),
+          ),
+        ),
+      );
+      final unitId = (await plans.unitOn(_today))!.id!;
+      final b = await _finishedRun(s, _now.add(const Duration(minutes: 1)));
+      final before = await plans.history();
+
+      expect(
+        await assignRunToUnit(
+          session: s,
+          clock: clock,
+          unitId: unitId,
+          day: _day,
+          runId: b,
+        ),
+        PlanActionResult.done,
+      );
+      expect((await plans.unitOn(_today))!.runId, b);
+      final after = await plans.history();
+      expect(after, hasLength(before.length + 1));
+      expect(after.last.trigger, PlanTrigger.run);
+    });
   });
 }
