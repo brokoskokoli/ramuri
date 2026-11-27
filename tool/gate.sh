@@ -162,6 +162,8 @@ step tools "privat" sh tool/check_private.sh
 # Release-APK zusätzlich über die Marker je Datei (release_rechte).
 [ -f app/pubspec.yaml ] && step tools "Debug-Quellen nur im Debug-Einstieg" python3 tool/check_debug_code.py static
 [ -f app/pubspec.yaml ] && step tools "Debug-Prüfung Selbsttest" python3 tool/check_debug_code_test.py
+# Release-AAB mit denselben Regeln (tool/check_release_aab.sh aus tool/build_signed.sh): Umwandlung des Basismoduls.
+step tools "AAB-Umwandlung Selbsttest" python3 tool/aab_to_apk_test.py
 # WP30: Versionsrechnung des Release-Builds und Tag-Regel des Pre-Push-Hooks (bash explizit, läuft auch unter Linux/dash).
 step tools "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh
 step tools "Pre-Push-Regeln Selbsttest" bash tool/hooks/pre-push_test.sh
