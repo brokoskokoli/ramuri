@@ -5,7 +5,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/home/app_shell.dart';
-import 'package:running_app/features/home/data_changes.dart';
+import 'package:running_app/data_changes.dart';
 import 'package:running_app/features/settings/app_settings.dart';
 import 'package:running_app/features/statistics/prediction_card.dart';
 import 'package:running_app/features/statistics/prediction_controller.dart';

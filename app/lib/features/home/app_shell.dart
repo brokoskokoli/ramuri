@@ -14,7 +14,7 @@ import '../run/run_ports.dart';
 import '../sensors/sensor_manager.dart';
 import '../statistics/statistics_screen.dart';
 import '../statistics/statistics_view_state.dart';
-import 'data_changes.dart';
+import '../../data_changes.dart';
 import 'home_screen.dart';
 import 'overview_screen.dart';
 import 'run_starter.dart';

@@ -23,6 +23,7 @@ Abhängigkeiten zeigen nur in diese Richtung: `app` nutzt `adapters` und `core`,
 | `app/lib/app_dependencies.dart` | Manueller Zusammenbau (ohne DI-Bibliothek): bindet die Adapter aus `adapters` an die Ports aus `core`; Tests setzen stattdessen Fakes ein. |
 | `app/lib/app.dart` | Wurzel-Widget mit Theme, Lokalisierung und Navigation. |
 | `app/lib/system_clock.dart` | Echte Uhr (`SystemClock`) als Umsetzung des Ports `Clock`. |
+| `app/lib/data_changes.dart` | Gemeinsame Benachrichtigung über Datenänderungen (`DataChanges`), eine Instanz je Sitzung in `ReadyRoot`; die Bereiche hören darauf und laden neu. |
 | `app/lib/features/<bereich>/` | Je Bereich die Screens und ihr `ChangeNotifier`-Controller (z. B. `app/lib/features/plan/`, `app/lib/features/run/`); nur Darstellung, Ablauf und Verdrahtung, keine Fachregel. |
 | `app/lib/ui/` | Gemeinsame Bausteine der Oberfläche: Theme, Farben, Schrift, Karten, Chips, Zeichner (z. B. `app/lib/ui/sparkline.dart`), Barrel `app/lib/ui/ui.dart`. |
 | `app/lib/ui/format/` | Gemeinsame Formatierer und Texte mehrerer Bereiche (z. B. `app/lib/ui/format/clock_format.dart`, `app/lib/ui/format/unit_format.dart`); einzeln importiert, nicht über das Barrel. |

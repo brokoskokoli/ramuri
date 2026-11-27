@@ -6,7 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
 import '../health/vo2_comparison_card.dart';
-import '../home/data_changes.dart';
+import '../../data_changes.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
 import 'fitness_explanations.dart';
