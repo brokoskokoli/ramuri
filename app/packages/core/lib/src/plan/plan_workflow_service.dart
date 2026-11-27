@@ -1,21 +1,48 @@
 import '../../ports/clock.dart';
 import '../../ports/storage.dart';
+import '../../ports/storage_values.dart' show ValueOwner;
 import '../../ports/storage_goals.dart';
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_warning.dart';
 import '../goals/training_goal.dart';
 import '../calendar/calendar_day.dart' show calendarDay;
+import '../profile/heart_rate_resolution.dart';
+import '../recalculation/high_heart_rate_value.dart'
+    show highHeartRateTimeValueKey;
+import '../profile/profile_service.dart' show profileHrMaxChangedAtKey;
+import '../settings/display_settings.dart' show SettingKeys;
+import '../settings/reserve_zone_settings.dart';
+import '../statistics/run_figures.dart';
 import 'build_plan_inputs.dart';
-import 'plan_adjust.dart' show evaluateWeekAdjustment;
-import 'plan_deviation.dart' show PlanRunFacts;
+import 'goal_feasibility.dart';
+import 'plan_adjust.dart';
+import 'plan_auto_assign.dart';
+import 'plan_change_notice.dart';
+import 'plan_course.dart';
+import 'plan_deviation.dart' show PlanRunFacts, planRunSpacingConflicts;
+import 'generate_plan.dart';
+import 'plan_hints.dart';
 import 'plan_goal_fingerprint.dart' show planGoalChangedSince;
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
+import 'plan_pause.dart';
 import 'plan_recovery.dart';
+import 'plan_replace.dart';
+import 'plan_sport_replacement.dart';
+import 'plan_started_unit.dart';
+import 'plan_underload.dart';
+import 'plan_unit.dart';
 import 'plan_warning.dart';
 import 'recalculate_plan.dart';
 import 'warning_service.dart';
 import 'weekly_time.dart' show planDay;
+
+part 'plan_workflow_assign.dart';
+part 'plan_workflow_edit.dart';
+part 'plan_workflow_goal.dart';
+part 'plan_workflow_pause.dart';
+part 'plan_workflow_underload.dart';
+part 'plan_workflow_view.dart';
 
 /// Port: Eingaben der Plan-Abläufe aus dem Speicher (App: Lese-Adapter über
 /// Läufe, Rückmeldungen, Referenz, Profil und Werte). Gerechnet wird nur in
@@ -30,8 +57,28 @@ abstract interface class PlanWorkflowReader {
   /// Belege der Wochenprüfung (PAR-201) für die Woche vor der von [today].
   Future<WeekEvidence> weekEvidence(DateTime today);
 
+  /// Ortstage der absolvierten intensiven Läufe (PAR-058) mit
+  /// `from <= Tag <= to`, für den Abstand beim Ersetzen und beim Ruhetag
+  /// (PAR-059, PAR-060).
+  Future<List<DateTime>> intensiveDaysBetween(DateTime from, DateTime to);
+
   /// Läufe für die Regel der Abweichung (PAR-235) bis [today].
   Future<List<PlanRunFacts>> runFacts(DateTime today);
+
+  /// Kennzahlen der Sporteinheit [runId] (FR-0221) für PAR-233; `null`,
+  /// wenn es keine beendete Sporteinheit dieser Kennung gibt.
+  Future<RunFigures?> sportFigures(int runId);
+
+  /// Locker geplante Läufe für das Muster der Unterforderung (PAR-236) ab
+  /// [from] (`null`: alle).
+  Future<List<PlanUnderloadRun>> underloadRuns(DateTime? from);
+
+  /// Grundlage der Einschätzung eines Zeitziels (PAR-206) für [goal] am
+  /// Ortstag [today].
+  Future<TimeGoalBasis> timeGoalBasis({
+    required TrainingGoal goal,
+    required DateTime today,
+  });
 }
 
 /// Belege der Wochenprüfung ([PlanWorkflowReader.weekEvidence]): Minuten der
@@ -114,10 +161,38 @@ class PlanDueCheck {
 /// Der Aufrufer übernimmt Vorschau und Änderung in seinen Ansichtszustand.
 typedef PlanRecalculationSink = void Function(PlanRecalculation r);
 
+/// Rückmeldungen eines Ablaufs an den Aufrufer: [onResult] bekommt jede
+/// gerechnete Fassung, [onStored] meldet eine gespeicherte Änderung ohne
+/// eigene Rechnung (Ziel, Zuordnung, Verschieben). Beides nur für den
+/// Ansichtszustand.
+class PlanWorkflowEvents {
+  const PlanWorkflowEvents({this.onResult, this.onStored});
+
+  static const PlanWorkflowEvents none = PlanWorkflowEvents();
+
+  final PlanRecalculationSink? onResult;
+  final void Function()? onStored;
+
+  void result(PlanRecalculation r) => onResult?.call(r);
+  void stored() => onStored?.call();
+}
+
+/// Das Ziel ist gespeichert, die Neuberechnung danach scheiterte. Der Plan
+/// gehört noch zum alten Ziel; die nächste Neuberechnung holt die
+/// Zieländerung nach ([planGoalChangedSince]).
+class PlanSavedNotPlanned implements Exception {
+  const PlanSavedNotPlanned();
+}
+
 /// Die Abläufe des Plans ohne Oberfläche (ADR-0010): Prüfung beim Öffnen
 /// (erste Fassung, Zieländerung, Heilung bei Warnsignal FR-0203,
 /// Wochenprüfung PAR-201), Erholungsprüfung (PAR-173, nur bei „adaptiv“,
-/// FR-0216) und die gemeinsame Neuberechnung. „Heute“ ist der Ortstag der
+/// FR-0216) und die gemeinsame Neuberechnung; dazu in eigenen Dateien die
+/// automatische Zuordnung (PAR-231, [PlanAssignWorkflow]), der Neustart zur
+/// Pause (PAR-202, PAR-181, [PlanPauseWorkflow]), Ziel und Rückmeldungen
+/// ([PlanGoalWorkflow]), die Unterforderung (PAR-236,
+/// [PlanUnderloadWorkflow]) und Änderungen einzelner Einheiten nach
+/// Bestätigung ([PlanEditWorkflow]). „Heute“ ist der Ortstag der
 /// [clock]. Der Dienst hat keinen eigenen Zustand; die Reihenfolge der
 /// Aufrufe sichert der Aufrufer über die Schreibreihe der Sitzung
 /// ([PlanWriteQueue]).
@@ -126,7 +201,7 @@ class PlanWorkflowService {
     required this.session,
     required this.clock,
     required this.reader,
-    required this.pauseQuestionOpen,
+    required this.pauses,
     this.parameters = const PlanParameters(),
     this.readinessToday,
   });
@@ -136,9 +211,12 @@ class PlanWorkflowService {
   final PlanWorkflowReader reader;
   final PlanParameters parameters;
 
-  /// Ist die Pausenfrage (PAR-202) offen? Solange rechnet keine
-  /// Wochenbewertung.
-  final Future<bool> Function() pauseQuestionOpen;
+  /// Pausenfrage und anstehender Neustart (PAR-202, PAR-181). Solange die
+  /// Pausenfrage offen ist, rechnet keine Wochenbewertung.
+  final PlanPauseSource pauses;
+
+  Future<bool> pauseQuestionOpen() async =>
+      await pauses.pauseQuestion() != null;
 
   /// Readiness des Tags für die Lockerung nach PAR-173; `null` oder ein
   /// Fehler: keine Lockerung (fail-closed). Gesundheitsdatum: nie loggen.
