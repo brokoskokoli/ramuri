@@ -135,6 +135,8 @@ void main() {
 
   testWidgets('themeAt: ohne Ziel null statt Fehler', (t) async {
     await t.pumpWidget(const _Spaet());
-    expect(themeAt(t, 'ziel'), isNull);
+    Brightness? b = Brightness.light;
+    expect(() => b = themeAt(t, 'ziel'), returnsNormally);
+    expect(b, isNull);
   });
 }
