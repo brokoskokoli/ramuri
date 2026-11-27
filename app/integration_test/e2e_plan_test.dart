@@ -23,13 +23,17 @@ Future<void> _enter(WidgetTester t, String key, String text) async {
   await pumpFor(t, const Duration(milliseconds: 300));
 }
 
-bool _daySelected(WidgetTester t, int weekday) =>
-    t.widget<FilterChip>(find.byKey(Key('plan_form_day_$weekday'))).selected;
+Future<bool> _daySelected(WidgetTester t, int weekday) async =>
+    (await widgetWhen<FilterChip>(
+      t,
+      find.byKey(Key('plan_form_day_$weekday')),
+      'plan_form_day_$weekday',
+    )).selected;
 
 /// Lauftage genau auf [days] stellen (aus dem Profil koennen welche vorbelegt sein).
 Future<void> _setDays(WidgetTester t, Set<int> days) async {
   for (var d = 1; d <= 7; d++) {
-    if (_daySelected(t, d) != days.contains(d)) {
+    if (await _daySelected(t, d) != days.contains(d)) {
       await tapKey(t, 'plan_form_day_$d');
     }
   }
@@ -269,9 +273,11 @@ void main() {
     // nach der Fortschrittsanzeige.
     await waitFor(
       t,
-      () => t
-          .widget<PopupMenuButton<String>>(find.byKey(const Key('plan_menu')))
-          .enabled,
+      () =>
+          maybeWidget<PopupMenuButton<String>>(
+            find.byKey(const Key('plan_menu')),
+          )?.enabled ??
+          false,
       'Menue bereit (plan_menu)',
     );
     await tapKey(t, 'plan_menu');

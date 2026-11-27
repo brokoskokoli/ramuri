@@ -48,7 +48,14 @@ void main() {
     await tapKey(t, 'treadmill_mode_belt');
     await waitFor(t, () => has('treadmill_start_speed'), 'Geschwindigkeit');
     // Ohne Geschwindigkeit ist Los gesperrt.
-    expect(t.widget<RamuriStartButton>(_goFinder).onPressed, isNull);
+    expect(
+      (await widgetWhen<RamuriStartButton>(
+        t,
+        _goFinder,
+        'Los run_start_ready',
+      )).onPressed,
+      isNull,
+    );
     await t.enterText(find.byKey(const Key('treadmill_start_speed')), '10.5');
     await t.enterText(find.byKey(const Key('treadmill_start_incline')), '1.5');
     FocusManager.instance.primaryFocus?.unfocus();
@@ -178,7 +185,14 @@ Future<void> _guidedUnit(WidgetTester t) async {
     reason: 'Einheit bleibt nach der Bandwahl gewaehlt',
   );
   // Ohne Geschwindigkeit ist Los gesperrt.
-  expect(t.widget<RamuriStartButton>(_goFinder).onPressed, isNull);
+  expect(
+    (await widgetWhen<RamuriStartButton>(
+      t,
+      _goFinder,
+      'Los run_start_ready',
+    )).onPressed,
+    isNull,
+  );
   await enterField(t, 'treadmill_start_speed', '7.5');
   await enterField(t, 'treadmill_start_incline', '1');
   expect(

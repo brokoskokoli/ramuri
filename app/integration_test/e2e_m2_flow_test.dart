@@ -267,7 +267,7 @@ void main() {
       await tapKey(t, 'plan_edit_goal');
       await waitFor(t, () => has('plan_form'), 'Zielformular (Aendern)');
       await revealInPlanForm(t, 'plan_form_day_${wd(1)}');
-      final was = daySelected(t, wd(1));
+      final was = await daySelected(t, wd(1));
       await tapUntil(
         t,
         find.byKey(Key('plan_form_day_${wd(1)}')),
