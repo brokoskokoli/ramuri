@@ -64,10 +64,10 @@ Maßgeblich ist `tool/gate.sh` (lokal und in `.github/workflows/gate.yml`). Seit
 
 Stufen des Gates: Jeder Schritt gehört zu genau einer Stufe; `sh tool/gate.sh --stage <stufe>` führt nur diese aus (damit die CI Stufen parallel laufen lassen kann), `--list-stages` nennt alle, ohne Option laufen alle Stufen nacheinander wie bisher. Grün ist das Gate nur, wenn alle Stufen grün sind; die Pflicht, das Gate vor jedem Merge grün zu haben, bleibt. Die Stufen:
 
-- `tools`: Spezifikation, private Daten, Netz, Architektur und die Selbsttests der Werkzeuge (Doku-, Netz-, Architektur- und Release-Manifest-Prüfung, Versionsrechnung, Pre-Push-Regeln, `ci_e2e`, `ci_ndk`, `ci_sysimage`, Gate-Stufen).
+- `tools`: Spezifikation, private Daten, Netz, Architektur, Debug-Quellen nur im Debug-Einstieg (`tool/check_debug_code.py static`) und die Selbsttests der Werkzeuge (Doku-, Netz-, Architektur-, Release-Manifest- und Debug-Prüfung, AAB-Umwandlung, Versionsrechnung samt Release-Prüfung von APK und AAB im Build, Pre-Push-Regeln, `ci_e2e`, `ci_ndk`, `ci_sysimage`, Gate-Stufen).
 - `analyze`: Flutter-Version, `pub get`, `core flutterfrei`, Format und Analyse aller Pakete und am Ende „Lock unverändert“.
 - `app` und je Paket unter `app/packages/` sein Verzeichnisname (heute `adapters`, `core`): die Tests des Pakets.
-- `zones`: Tageszuordnung in Zeitzonen; `drift`: Drift-Schema; `android`: Kotlin-Tests; `release`: Release-APK und seine Rechte.
+- `zones`: Tageszuordnung in Zeitzonen; `drift`: Drift-Schema; `android`: Kotlin-Tests; `release`: Release-APK, seine Rechte und sein Manifest (System-Backups aus, nur freigegebene Komponenten exportiert, FileProvider nur `cache-path` `exports/`, kein Marker einer Debug-Quelle; `tool/check_release_apk.sh`). Dieselben Prüfungen laufen in `tool/build_signed.sh` auch am AAB (`tool/check_release_aab.sh`: Basismodul über `aapt2 convert` aus den Build-Tools in ein APK umgewandelt).
 
 Stufen außer `tools` und `analyze` holen die Pakete vorher (`pub get --enforce-lockfile`), falls sie noch nicht aufgelöst sind. Der Selbsttest `tool/gate_stages_test.sh` (Stufe `tools`) vergleicht per `--dry-run` die Schritte des vollen Laufs mit denen aller Stufen (jeder genau einmal, keine Stufe führt fremde Schritte aus) und zeigt an Kopien von `tool/gate.sh` mit eingebautem Fehler, dass eine Lücke rot wird. `flutter test` läuft ohne `--coverage`.
 
