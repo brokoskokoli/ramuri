@@ -249,6 +249,125 @@ void main() {
       expect(h.last.trigger, PlanTrigger.weekly);
     });
 
+    test('einmal je Pause: nach dem Neustart (Zusage), einer Rückmeldung und '
+        'dem Widerruf der Zusage schreibt „Ja“ auf die Pausenfrage keine '
+        'zweite Fassung', () async {
+      final e = await prepared(10);
+      await e.openPlan();
+      expect((await e.plans.history()).last.trigger, PlanTrigger.pause);
+      final mark = PauseRestartMark.parse(
+        await e.session.settings.get(planPauseRestartKey),
+      );
+      expect(mark?.restarted, isTrue);
+      // Die Rückmeldung legt den Anker in eine spätere Woche; ein zweiter
+      // Neustart fände damit wieder eine anpassbare Woche (PAR-202).
+      await e.service.answerFeedback(PlanFeedback.tooEasy);
+      final h = await e.plans.history();
+      expect(h.last.trigger, PlanTrigger.feedback);
+      expect(h.last.inputs.anchor.isAfter(DateTime.utc(2026, 11, 9)), isTrue);
+      // Ohne Zusage stellt die App die Pausenfrage für dieselbe Pause; der
+      // Merker gilt weiter (einmal je Pause).
+      await LoadSettings.saveAllRecorded(
+        e.session.settings,
+        false,
+        at: workflowNow,
+      );
+      expect(await _hints(e).pauseQuestion(), isNotNull);
+      await e.service.answerPause(true);
+      expect((await e.plans.history()).length, h.length);
+      await e.openPlan();
+      expect((await e.plans.history()).length, h.length);
+      expect(
+        PauseRestartMark.parse(
+          await e.session.settings.get(planPauseRestartKey),
+        )?.restarted,
+        isTrue,
+      );
+    });
+
+    group('Grenze pauseNewStartDays (PAR-202, PAR-181)', () {
+      Future<(WorkflowEnv, PauseQuestion, PauseRestartMark?)> restarted(
+        int Function(PlanParameters p) days,
+      ) async {
+        const p = PlanParameters();
+        final e = await prepared(days(p));
+        expect(e.service.parameters.pauseNewStartDays, p.pauseNewStartDays);
+        final q = await _hints(e).pauseRestartDue();
+        expect(q, isNotNull);
+        // Die Tageszählung nach Ortstag liegt genau auf dem gewollten Tag.
+        expect(q!.daysSinceTraining, days(p));
+        await e.openPlan();
+        final mark = PauseRestartMark.parse(
+          await e.session.settings.get(planPauseRestartKey),
+        );
+        return (e, q, mark);
+      }
+
+      test(
+        'ein Tag vor der Grenze: Neustart ohne vorläufige Vorgabe',
+        () async {
+          final (e, q, mark) = await restarted((p) => p.pauseNewStartDays - 1);
+          final h = await e.plans.history();
+          expect(h.last.trigger, PlanTrigger.pause);
+          expect(mark?.restarted, isTrue);
+          expect(mark?.provisional, isFalse);
+          expect(mark?.day, warningDay(q.lastTrainingDay));
+          expect(await e.service.newStartPossible(), isFalse);
+        },
+      );
+
+      test(
+        'am Grenztag: vorläufige Vorgabe (Stufe 2), Merker provisional',
+        () async {
+          final (e, q, mark) = await restarted((p) => p.pauseNewStartDays);
+          final p = e.service.parameters;
+          final h = await e.plans.history();
+          expect(h.last.trigger, PlanTrigger.pause);
+          expect(mark?.restarted, isTrue);
+          expect(mark?.provisional, isTrue);
+          expect(mark?.day, warningDay(q.lastTrainingDay));
+          // Stufe 2 (2 bis unter 8 Wochen): Anteil der Basiswoche, keine harte
+          // Einheit in den nächsten Wochen.
+          expect(
+            h.last.inputs.startWeeklyMinutes,
+            (q.baseWeekMinutes * p.pauseLongShare).round(),
+          );
+          expect(h.last.inputs.noHardUntil, isNotNull);
+          expect(h.last.inputs.anchor, DateTime.utc(2026, 11, 9));
+          expect(
+            h.last.inputs.noHardUntil!.difference(h.last.inputs.anchor).inDays,
+            7 * p.pauseLongNoHardWeeks - 1,
+          );
+        },
+      );
+
+      test('nach der vorläufigen Vorgabe schreibt der gewählte Einstieg trotz '
+          'Merker genau eine weitere Fassung, danach keine mehr', () async {
+        final (e, _, mark) = await restarted((p) => p.pauseNewStartDays);
+        expect(mark?.provisional, isTrue);
+        final before = (await e.plans.history()).length;
+        await e.service.restartAfterLongPause(
+          workflowGoal(target: DateTime.utc(2027, 6, 1)),
+        );
+        final h = await e.plans.history();
+        expect(h.length, before + 1);
+        expect(h.last.trigger, PlanTrigger.goalChange);
+        final chosen = PauseRestartMark.parse(
+          await e.session.settings.get(planPauseRestartKey),
+        );
+        expect(chosen?.provisional, isFalse);
+        // Ein zweiter gewählter Einstieg steht nicht mehr an.
+        await expectLater(
+          e.service.restartAfterLongPause(
+            workflowGoal(target: DateTime.utc(2027, 6, 1)),
+          ),
+          throwsA(isA<StorageException>()),
+        );
+        await e.openPlan();
+        expect((await e.plans.history()).length, before + 1);
+      });
+    });
+
     test(
       'ohne offene Pausenfrage: Antwort abgelehnt, nichts geändert',
       () async {
