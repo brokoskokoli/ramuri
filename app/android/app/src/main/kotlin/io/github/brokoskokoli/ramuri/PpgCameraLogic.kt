@@ -924,6 +924,15 @@ object PpgPreviewLogic {
     }
 
     /**
+     * PAR-227: Scheitert das Einrichten der gemeinsamen Sitzung ([mode] "simultaneous" mit mehr als
+     * einer Kamera, [cameras]) trotz Bestätigung, bevor ein Bild kam ([framesSeen] false), fällt die
+     * Suche einmal in den Wechsel zurück; [alreadyFellBack] true, im Wechsel, bei einer einzelnen Kamera
+     * oder nach dem ersten Bild nicht (Fehlerweg wie bisher).
+     */
+    fun fallbackAfterSharedFailure(mode: String, cameras: Int, alreadyFellBack: Boolean, framesSeen: Boolean): Boolean =
+        mode == "simultaneous" && cameras > 1 && !alreadyFellBack && !framesSeen
+
+    /**
      * Nächste Kamera im Wechsel nach [current] (Reihenfolge der Anfrage, Standardkamera zuerst, endlos),
      * ausgelassen werden die mit Fehler ([failed]); `null`, wenn keine mehr übrig ist. [current] -1 = Beginn.
      */

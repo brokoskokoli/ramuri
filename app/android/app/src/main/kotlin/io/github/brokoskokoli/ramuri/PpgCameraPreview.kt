@@ -26,7 +26,8 @@ import io.flutter.view.TextureRegistry
  * mit Taschenlampe. Gleichzeitig, wenn alle Kameras zu derselben logischen Kamera gehören (die logische
  * selbst und ihre physischen Kameras, eine Sitzung) und das Gerät die Sitzung bestätigt
  * (isSessionConfigurationSupported), sonst im Wechsel je
- * PpgPreviewLogic.PREVIEW_TURN_NS. Je Kamera ein kleiner YUV-Ausgang: R, G der Bildmitte
+ * PpgPreviewLogic.PREVIEW_TURN_NS. Scheitert die bestätigte gemeinsame Sitzung vor dem ersten Bild,
+ * fällt die Suche einmal in den Wechsel zurück. Je Kamera ein kleiner YUV-Ausgang: R, G der Bildmitte
  * (PpgFrameStats), Belichtungszeit und ISO aus dem CaptureResult gehen als Zahlen an Dart; das Bild wird
  * nativ verkleinert in eine Flutter-Texture (SurfaceProducer) gezeichnet und sofort verworfen – keine
  * Pixel nach Dart, nichts gespeichert, nichts ins Log. Automatische Belichtung bleibt an.
@@ -73,6 +74,9 @@ object PpgCameraPreview {
         val exposureNs = HashMap<PpgPreviewRef, Long?>()
         val iso = HashMap<PpgPreviewRef, Int?>()
         var closed = false
+
+        // Ein Bild dieser Sitzung kam an (danach kein Rückfall in den Wechsel, PAR-227).
+        var framesSeen = false
     }
 
     private class Search(
@@ -97,6 +101,8 @@ object PpgCameraPreview {
         private var unit: Group? = null
         private var turn = -1
         private val failed = HashSet<Int>()
+        private var mode = "simultaneous"
+        private var fellBack = false
         private val startNs = SystemClock.elapsedRealtimeNanos()
         private val pixels = IntArray(PpgPreviewLogic.PREVIEW_WIDTH * PpgPreviewLogic.PREVIEW_HEIGHT)
         private val bitmap = Bitmap.createBitmap(
@@ -144,6 +150,7 @@ object PpgCameraPreview {
         }
 
         private fun alternate(ids: Map<PpgPreviewRef, Long>) {
+            mode = "alternating"
             send(PpgPreviewLogic.startedMap("alternating", ids))
             advance()
         }
@@ -174,6 +181,23 @@ object PpgCameraPreview {
                 u.refs.forEach { send(PpgPreviewLogic.failedMap(it, reason)) }
                 finishFromThread(reason)
             }
+        }
+
+        /**
+         * Einrichten der Sitzung [u] gescheitert (onConfigureFailed, Ausnahme beim Anlegen oder bei der
+         * Wiederholanfrage). War es die gemeinsame Sitzung vor dem ersten Bild, fällt die Suche einmal in
+         * den Wechsel zurück (PAR-227, [PpgPreviewLogic.fallbackAfterSharedFailure]): Sitzung, Leser und
+         * Gerät zu (Taschenlampe aus), dann dieselbe Kameraliste im Wechsel mit neuem "started". Sonst [fail].
+         */
+        private fun failSetup(u: Group, reason: String, ids: Map<PpgPreviewRef, Long>?) {
+            if (finished || u.closed) return
+            if (!PpgPreviewLogic.fallbackAfterSharedFailure(mode, u.refs.size, fellBack, u.framesSeen)) {
+                return fail(u, reason)
+            }
+            fellBack = true
+            close(u)
+            if (unit === u) unit = null
+            alternate(ids.orEmpty())
         }
 
         /**
@@ -240,11 +264,11 @@ object PpgCameraPreview {
                                 s.setRepeatingRequest(b.build(), captureCallback(u), handler)
                                 if (ids != null) send(PpgPreviewLogic.startedMap("simultaneous", ids))
                             } catch (e: Throwable) {
-                                fail(u, PpgCameraLogic.fromException(e))
+                                failSetup(u, PpgCameraLogic.fromException(e), ids)
                             }
                         }
 
-                        override fun onConfigureFailed(s: CameraCaptureSession) = fail(u, "error")
+                        override fun onConfigureFailed(s: CameraCaptureSession) = failSetup(u, "error", ids)
                     },
                 )
                 if (check) {
@@ -261,7 +285,7 @@ object PpgCameraPreview {
                 }
                 d.createCaptureSession(config)
             } catch (e: Throwable) {
-                fail(u, PpgCameraLogic.fromException(e))
+                failSetup(u, PpgCameraLogic.fromException(e), ids)
             }
         }
 
@@ -284,6 +308,7 @@ object PpgCameraPreview {
             } ?: return
             try {
                 if (finished || u.closed) return
+                u.framesSeen = true
                 val p = img.planes
                 val y = PpgPlane(p[0].buffer, p[0].rowStride, p[0].pixelStride)
                 val cu = PpgPlane(p[1].buffer, p[1].rowStride, p[1].pixelStride)

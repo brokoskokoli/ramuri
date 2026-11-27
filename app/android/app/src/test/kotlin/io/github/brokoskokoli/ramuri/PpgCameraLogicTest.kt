@@ -866,4 +866,28 @@ class PpgCameraLogicTest {
         )
         assertTrue(PpgDiagnostic.fromWire(null).isEmpty())
     }
+
+    // --- Kamerasuche: Rückfall in den Wechsel (PAR-227) ---
+
+    @Test fun sharedSessionFailedBeforeFirstFrameFallsBackToAlternatingOnce() {
+        assertTrue(PpgPreviewLogic.fallbackAfterSharedFailure("simultaneous", 3, alreadyFellBack = false, framesSeen = false))
+        assertTrue(PpgPreviewLogic.fallbackAfterSharedFailure("simultaneous", 2, alreadyFellBack = false, framesSeen = false))
+    }
+
+    @Test fun noSecondFallbackAfterOneFallback() {
+        assertFalse(PpgPreviewLogic.fallbackAfterSharedFailure("simultaneous", 3, alreadyFellBack = true, framesSeen = false))
+    }
+
+    @Test fun alternatingFailureNeverFallsBack() {
+        assertFalse(PpgPreviewLogic.fallbackAfterSharedFailure("alternating", 3, alreadyFellBack = false, framesSeen = false))
+        assertFalse(PpgPreviewLogic.fallbackAfterSharedFailure("alternating", 3, alreadyFellBack = true, framesSeen = false))
+    }
+
+    @Test fun failureAfterFirstFrameKeepsErrorPath() {
+        assertFalse(PpgPreviewLogic.fallbackAfterSharedFailure("simultaneous", 3, alreadyFellBack = false, framesSeen = true))
+    }
+
+    @Test fun singleCameraHasNoSharedSessionToFallBackFrom() {
+        assertFalse(PpgPreviewLogic.fallbackAfterSharedFailure("simultaneous", 1, alreadyFellBack = false, framesSeen = false))
+    }
 }
