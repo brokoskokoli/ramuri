@@ -391,20 +391,14 @@ class PlanDataReader implements PlanWorkflowReader {
     return result;
   }
 
-  /// Ortstage der intensiven Läufe und Sporteinheiten (PAR-058, PAR-233),
-  /// zu denen die harte Einheit der Woche von [today] Abstand halten muss
-  /// (PAR-059), wie [planIntensiveRunDays]; über [runsBetween], damit die
-  /// Seite nicht auf die Kennzahlen aller Läufe wartet.
-  Future<Set<DateTime>> intensiveRunDays(DateTime today) async {
-    final monday = today.subtract(Duration(days: today.weekday - 1));
-    return {
-      for (final r in await runsBetween(
-        monday.subtract(Duration(days: parameters.minGapDays - 1)),
-        today,
-      ))
-        if (r.intensive) r.day,
-    };
-  }
+  @override
+  Future<List<DateTime>> intensiveDaysBetween(
+    DateTime from,
+    DateTime to,
+  ) async => [
+    for (final r in await runsBetween(from, to))
+      if (r.intensive) r.day,
+  ];
 
   /// Die zugeordneten Läufe der erledigten Einheiten in [units] (ohne
   /// Ruhetage) für die Anzeige (FR-0171): Bewegungszeit und Strecke wie in der

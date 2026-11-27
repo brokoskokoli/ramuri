@@ -123,6 +123,18 @@ class WorkflowReader implements PlanWorkflowReader {
   @override
   Future<RunFigures?> sportFigures(int runId) async => sport[runId];
 
+  /// Ortstage absolvierter intensiver Läufe (PAR-058).
+  List<DateTime> intensive = [];
+
+  @override
+  Future<List<DateTime>> intensiveDaysBetween(
+    DateTime from,
+    DateTime to,
+  ) async => [
+    for (final d in intensive)
+      if (!d.isBefore(planDay(from)) && !d.isAfter(planDay(to))) d,
+  ];
+
   /// Läufe für das Muster der Unterforderung (PAR-236).
   List<PlanUnderloadRun> underload = [];
 

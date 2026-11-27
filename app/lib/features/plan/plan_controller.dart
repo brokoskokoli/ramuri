@@ -218,66 +218,18 @@ class PlanController extends ChangeNotifier {
     final goal = await _goals.goal();
     final history = await _plans.history();
     final version = history.isEmpty ? null : history.last;
-    GeneratedPlan? hints = _fresh;
     final units = version == null
         ? const <PlanUnit>[]
         : await _plans.unitsBetween(version.inputs.anchor, planFarFuture);
-    if (hints == null && goal != null && version != null) {
-      final inputs = version.inputs.copyWith(today: today);
-      hints =
-          planHintsFromSummary(
-            version.summary,
-            version: version.version,
-            units: units,
-            today: today,
-          ) ??
-          previewPlan(
-            goal: goal,
-            inputs: inputs,
-            units: units,
-            today: today,
-            parameters: parameters,
-          );
-    }
-    // Abstandskonflikte immer aus den gespeicherten Einheiten: Eine bestätigte
-    // Verschiebung ändert sie ohne neue Fassung. Die übrigen Konflikte
-    // stammen aus der letzten Rechnung, die vor heute fallen weg.
-    if (hints != null) {
-      hints = hints.copyWith(
-        pinnedConflicts: [
-          for (final c in hints.pinnedConflicts)
-            if (c.kind != PinnedConflictKind.spacing && !c.day.isBefore(today))
-              c,
-          ...planSpacingConflicts(units, today, parameters: parameters),
-          // Bei „fix“ zusätzlich der Abstand der nächsten harten Einheit zu
-          // einem intensiven Lauf, wenn kein Tausch möglich war (PAR-235).
-          if (await _adaptation.read() == PlanAdaptationMode.fixed)
-            ...planRunSpacingConflicts(
-              units,
-              await reader.intensiveRunDays(today),
-              today,
-              parameters: parameters,
-            ),
-        ],
-      );
-    }
+    final hints = await _workflow.planHints(
+      fresh: _fresh,
+      goal: goal,
+      version: version,
+      units: units,
+      today: today,
+    );
+    final assessment = await _workflow.goalAssessment(goal, version, today);
     final monday = today.subtract(Duration(days: today.weekday - 1));
-    GoalAssessment? assessment;
-    if (goal != null && version != null) {
-      try {
-        assessment = assessGoal(
-          goal: goal,
-          inputs: version.inputs.copyWith(today: today),
-          today: today,
-          basis: await reader.timeGoalBasis(goal: goal, today: today),
-          parameters: parameters,
-        );
-      } on Object {
-        // Ohne Einschätzung bleibt die Seite benutzbar; der Inhalt eines
-        // Fehlers wird nie gezeigt.
-        assessment = null;
-      }
-    }
     final warning = await _warning?.read();
     final reminderDue =
         warning != null &&
@@ -323,21 +275,9 @@ class PlanController extends ChangeNotifier {
   Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) =>
       _plans.unitsBetween(from, to);
 
-  /// Ortstag der frühesten gespeicherten Planeinheit vor [before] über alle
-  /// Fassungen, `null` ohne solche Einheit: untere Blättergrenze des
-  /// Kalenders (FR-0172). Liest nur die Einheiten vor [before].
-  Future<DateTime?> firstUnitDayBefore(DateTime before) async {
-    final units = await _plans.unitsBetween(
-      DateTime.utc(2000),
-      planDay(before).subtract(const Duration(days: 1)),
-    );
-    DateTime? first;
-    for (final u in units) {
-      final d = planDay(u.day);
-      if (first == null || d.isBefore(first)) first = d;
-    }
-    return first;
-  }
+  /// Früheste Einheit vor [before] ([PlanEditWorkflow.firstUnitDayBefore]).
+  Future<DateTime?> firstUnitDayBefore(DateTime before) =>
+      _workflow.firstUnitDayBefore(before);
 
   /// Beendete Läufe mit Ortstag in `from <= Tag <= to`
   /// ([PlanDataReader.runsBetween]).
@@ -437,165 +377,43 @@ class PlanController extends ChangeNotifier {
   Future<PlanActionResult> confirmMove(int unitId, DateTime day) =>
       _act(() => _workflow.confirmMove(unitId, day, events: _events));
 
-  /// Prüft vor der Bestätigung, ob [unit] die Art [kind] bekommen kann
-  /// ([checkPlanReplace] mit Ziel und Eingaben der neuesten Fassung, Einheiten
-  /// und absolvierten intensiven Läufen um die Woche, „heute“). `null` ohne
-  /// Ziel oder Fassung.
-  /// Anker der Wochenzählung und Länge der Geh-Lauf-Abfolge (PAR-192), wie
-  /// sie der Wochenverlauf des Plans nutzt ([planCourseSetup] aus dem
-  /// gespeicherten Ziel und den Eingaben der letzten Fassung). Für den
-  /// Hinweis auf die Reduktion beim Verschieben ([checkPlanMove], FR-0177).
-  /// `null` ohne Ziel oder Fassung.
+  /// Anker und Geh-Lauf-Wochen des Wochenverlaufs
+  /// ([PlanEditWorkflow.courseWeeks]); `null` ohne Ziel oder Fassung.
   Future<({DateTime anchor, int walkRunWeeks})?> courseWeeks() =>
-      _serial(() async {
-        final goal = await _goals.goal();
-        final history = await _plans.history();
-        if (goal == null || history.isEmpty) return null;
-        final inputs = history.last.inputs;
-        return (
-          anchor: inputs.anchor,
-          walkRunWeeks: planCourseSetup(
-            goal,
-            inputs,
-            parameters: parameters,
-          ).walkRunWeeks,
-        );
-      });
+      _serial(_workflow.courseWeeks);
 
+  /// Prüfung vor dem Ersetzen ([PlanEditWorkflow.checkReplace]).
   Future<PlanReplaceCheck?> checkReplace(PlanUnit unit, PlanUnitKind kind) =>
-      _serial(() => _replaceCheck(unit, kind, _today()));
+      _serial(() => _workflow.checkReplace(unit, kind));
 
-  Future<PlanReplaceCheck?> _replaceCheck(
-    PlanUnit unit,
-    PlanUnitKind kind,
-    DateTime today,
-  ) async {
-    final goal = await _goals.goal();
-    final history = await _plans.history();
-    if (goal == null || history.isEmpty) return null;
-    final w = await _weekAround(unit.day);
-    return checkPlanReplace(
-      units: w.units,
-      unit: unit,
-      kind: kind,
-      goal: goal,
-      inputs: history.last.inputs,
-      today: today,
-      completedIntensiveDays: w.intensive,
-      parameters: parameters,
-    );
-  }
+  /// Prüfung vor dem Ruhetag ([PlanEditWorkflow.checkRestDay]).
+  Future<PlanRestDayCheck?> checkRestDay(DateTime day) =>
+      _serial(() => _workflow.checkRestDay(day));
 
-  /// Prüft vor der Bestätigung, ob [day] Ruhetag werden kann
-  /// ([checkPlanRestDay]: Alternativtage derselben Woche für eine Einheit
-  /// auf dem Tag). `null` ohne Ziel oder Fassung.
-  Future<PlanRestDayCheck?> checkRestDay(DateTime day) => _serial(() async {
-    final goal = await _goals.goal();
-    if (goal == null || (await _plans.history()).isEmpty) return null;
-    final w = await _weekAround(day);
-    return checkPlanRestDay(
-      units: w.units,
-      day: day,
-      today: _today(),
-      weeklyCapSeconds: goal.weeklyCapSeconds,
-      completedIntensiveDays: w.intensive,
-      runDays: goal.runDays,
-      parameters: parameters,
-    );
-  });
-
-  /// Einheiten und absolvierte intensive Läufe von einer Woche vor bis eine
-  /// Woche nach der Woche von [day] (Abstand PAR-059/PAR-060 über die
-  /// Wochengrenze).
-  Future<({List<PlanUnit> units, List<DateTime> intensive})> _weekAround(
-    DateTime day,
-  ) async {
-    final d = planDay(day);
-    final monday = d.subtract(Duration(days: d.weekday - DateTime.monday));
-    final from = monday.subtract(const Duration(days: 7));
-    final to = monday.add(const Duration(days: 13));
-    return (
-      units: await _plans.unitsBetween(from, to),
-      intensive: [
-        for (final r in await reader.runsBetween(from, to))
-          if (r.intensive) r.day,
-      ],
-    );
-  }
-
-  /// Ersetzt die Art der Einheit nach Bestätigung des Nutzers durch [kind]
-  /// (FR-0173, `fixed = kind`): Dauer, Abschnitte und Zielintensität rechnet
-  /// [checkPlanReplace] mit „heute“ neu, wie beim Bestätigen gezeigt. Keine
-  /// Neuberechnung (wie [confirmMove]). Fehlt die Einheit, das Ziel oder die
-  /// Fassung: `notFound`; sperrt die Prüfung (eingefroren, vergangen,
-  /// Geh-Lauf, Art passt nicht in die maximale Zeit, …): `rejected`.
+  /// Ersetzt die Art der Einheit nach Bestätigung
+  /// ([PlanEditWorkflow.replaceUnit]); keine Neuberechnung.
   Future<PlanActionResult> replaceUnit(int unitId, PlanUnitKind kind) =>
-      _act(() async {
-        final today = _today();
-        final history = await _plans.history();
-        if (history.isEmpty) {
-          throw const StorageException(StorageFailure.notFound);
-        }
-        final unit = (await _plans.unitsBetween(
-          history.last.inputs.anchor,
-          planFarFuture,
-        )).where((u) => u.id == unitId).firstOrNull;
-        if (unit == null) throw const StorageException(StorageFailure.notFound);
-        final check = await _replaceCheck(unit, kind, today);
-        if (check == null) {
-          throw const StorageException(StorageFailure.notFound);
-        }
-        if (!check.allowed) {
-          throw const StorageException(StorageFailure.rejected);
-        }
-        await _plans.replaceUnit(unitId, check.unit!, today: today);
-        _fresh = null;
-        onChanged?.call();
-      });
+      _act(() => _workflow.replaceUnit(unitId, kind, events: _events));
 
-  /// Legt [day] nach Bestätigung als Ruhetag fest ([planRestDayUnit] mit Ziel
-  /// und Eingaben der neuesten Fassung). Eine Einheit auf dem Tag geht auf
-  /// [moveUnitTo] (gewählter Alternativtag aus [checkRestDay]) oder entfällt
-  /// ohne ihn. [expectedUnitId] ist die Einheit, die [checkRestDay] auf dem
-  /// Tag gezeigt hat (`null`: Tag frei); liegt jetzt eine andere dort, ändert
-  /// sich nichts (FR-0176). Keine Neuberechnung. Ohne Ziel oder Fassung:
-  /// `notFound`; Tag vor heute, Einheit mit Lauf, schon festgelegter
-  /// Ruhetag, abweichende Einheit, ungültiger Zieltag: `rejected`.
+  /// Legt [day] nach Bestätigung als Ruhetag fest
+  /// ([PlanEditWorkflow.setRestDay]); keine Neuberechnung.
   Future<PlanActionResult> setRestDay(
     DateTime day, {
     required int? expectedUnitId,
     DateTime? moveUnitTo,
-  }) => _act(() async {
-    final today = _today();
-    final goal = await _goals.goal();
-    final history = await _plans.history();
-    if (goal == null || history.isEmpty) {
-      throw const StorageException(StorageFailure.notFound);
-    }
-    await _plans.setRestDay(
-      planRestDayUnit(
-        day: day,
-        goal: goal,
-        inputs: history.last.inputs,
-        today: today,
-        parameters: parameters,
-      ),
-      today: today,
+  }) => _act(
+    () => _workflow.setRestDay(
+      day,
       expectedUnitId: expectedUnitId,
       moveUnitTo: moveUnitTo,
-    );
-    _fresh = null;
-    onChanged?.call();
-  });
+      events: _events,
+    ),
+  );
 
-  /// Hebt den Ruhetag an [day] nach Bestätigung auf; die App plant dort erst
-  /// bei der nächsten Neuberechnung wieder (OQ-0011). Kein Ruhetag:
-  /// `notFound`; Tag vor heute: `rejected`.
-  Future<PlanActionResult> clearRestDay(DateTime day) => _act(() async {
-    await _plans.clearRestDay(day, today: _today());
-    _fresh = null;
-    onChanged?.call();
-  });
+  /// Hebt den Ruhetag an [day] nach Bestätigung auf
+  /// ([PlanEditWorkflow.clearRestDay]).
+  Future<PlanActionResult> clearRestDay(DateTime day) =>
+      _act(() => _workflow.clearRestDay(day, events: _events));
 
   /// Meldet Beschwerden, Krankheit oder Überlastung (FR-0203, Quelle
   /// `manual`): Warnsignal setzen, Plan zeigt nur Ruhetage. Doppeltes
