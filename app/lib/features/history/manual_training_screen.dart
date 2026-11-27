@@ -5,6 +5,34 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../summary/subjective_section.dart' show SubjectiveChoice, rpeWord;
 
+/// Übernahme einer importierten Einheit als Training (K62 F2, FR-0199): öffnet
+/// den Nachtrag, vorbelegt mit Tag, Art und Dauer von [e] und seiner Kennung;
+/// der Puls geht nie ein (SEC-0005). Liefert `true`, wenn gespeichert wurde.
+/// Passt als `onAdopt` des Detail-Screens einer importierten Einheit.
+Future<bool> adoptImportedExercise(
+  BuildContext context,
+  HealthRecord e, {
+  required SubjectiveService service,
+  required Clock clock,
+  required String today,
+}) async {
+  final saved = await Navigator.of(context).push<bool>(
+    MaterialPageRoute(
+      builder: (_) => ManualTrainingScreen(
+        service: service,
+        today: today,
+        prefill: ManualTrainingPrefill(
+          day: exerciseLocalDay(e, clock.utcOffsetAt(e.start)),
+          kind: manualKindOfExercise(e.exerciseType),
+          minutes: exerciseMinutes(e),
+          hcId: e.id,
+        ),
+      ),
+    ),
+  );
+  return saved == true;
+}
+
 /// Training nachtragen oder ändern (FR-0199): Datum (Standard heute, nie nach
 /// heute), Art (Lauf / Sonstiges), Dauer in Minuten und RPE (Pflicht). Nichts
 /// ist vorausgewählt außer Datum und Art. Gibt `true` zurück, wenn gespeichert
