@@ -8,6 +8,17 @@ typedef ArchiveExportRunner = Future<ExportFile> Function({
   ArchiveCancel? cancel,
 });
 
+/// Ziel der neuen Sitzung nach einem Import (FR-0198): übernimmt sie nach dem
+/// Tausch oder startet das Öffnen neu, wenn es danach scheiterte. In der App
+/// `StorageStartController`; so hängt das Archiv nicht am Speicher-Feature.
+abstract interface class ArchiveSessionTarget {
+  /// Übernimmt die neue Sitzung nach dem Tausch der Datenbank.
+  void adoptSession(StorageSession session);
+
+  /// Startet den normalen Ablauf neu (Tausch erfolgt, Öffnen gescheitert).
+  Future<void> restart();
+}
+
 /// Reiht eine Aktion hinter Aufnahme und Neuberechnung ein (in der App
 /// `RecalculationController.exclusive`).
 typedef SerializeAction = Future<T> Function<T>(Future<T> Function() action);
