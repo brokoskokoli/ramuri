@@ -1,3 +1,4 @@
+import '../calendar/calendar_day.dart';
 import '../fitness/fitness_parameters.dart';
 import 'pace_stability.dart';
 import 'prediction_parameters.dart';
