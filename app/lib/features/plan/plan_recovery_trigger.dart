@@ -2,11 +2,12 @@ import 'package:core/core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'plan_controller.dart';
+import 'plan_data_reader.dart';
 
 /// Auslöser „veränderter Erholungszustand“ (FR-0157, Teil „3 (Erholung)“)
 /// für eine Sitzung: nach neuen Gesundheitsdaten aus dem Import und nach
 /// einer Morgenmessung prüft [recheck] den Plan für heute
-/// ([PlanController.recheckRecovery]). Nur bei „adaptiv“ ändert sich etwas
+/// ([PlanWorkflowService.recheckRecoveryToday]). Nur bei „adaptiv“ ändert sich etwas
 /// (FR-0216); bei „fix“ bleibt der Plan, wie er ist.
 ///
 /// Prüfungen laufen nacheinander in der Schreibreihe des Plans; eine
@@ -35,18 +36,20 @@ class PlanRecoveryTrigger {
   /// laufen nacheinander und nie parallel zu einer anderen Planänderung.
   Future<bool> recheck() async {
     if (session is! GoalStorage || session is! PlanStorage) return false;
-    final plan = PlanController(
+    final workflow = planWorkflowFor(
       session: session,
       clock: clock,
+      reader: PlanDataReader(session: session, clock: clock),
       readinessToday: readinessToday,
     );
     bool written;
     try {
-      written = await plan.recheckRecovery();
+      written = await PlanWriteQueue.of(session).run(
+        () async =>
+            (await workflow.recheckRecoveryToday())?.wasWritten ?? false,
+      );
     } on Object {
       written = false;
-    } finally {
-      plan.dispose();
     }
     if (written) onChanged?.call();
     return written;

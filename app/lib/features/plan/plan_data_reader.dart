@@ -7,7 +7,7 @@ typedef RunFiguresLoader = Future<List<RunFigures>> Function();
 /// sammelt aus dem Speicher die Läufe, die RPE je Lauf, die Zuordnung der
 /// Läufe zu Plan-Einheiten, die aktive Referenz, Puls und Zonen des Profils
 /// und die VO₂max samt Güte (PAR-081). Gerechnet wird nur in `core`.
-class PlanDataReader {
+class PlanDataReader implements PlanWorkflowReader {
   PlanDataReader({
     required this.session,
     required this.clock,
@@ -66,6 +66,7 @@ class PlanDataReader {
   /// Eingaben für [goal] am Ortstag [today]. Die Zuordnung „locker“/„andere“
   /// kommt aus allen Einheiten mit Lauf ([plannedRunIds]); RPE nur aus der
   /// Rückmeldung zum Lauf.
+  @override
   Future<BuiltPlanInputs> read({
     required TrainingGoal goal,
     required DateTime today,
@@ -160,6 +161,7 @@ class PlanDataReader {
   /// ohne Angabe) und gemeldete
   /// Ermüdung (PAR-188: Befinden 1 oder 2 beim letzten Lauf, höchstens
   /// 3 Tage alt).
+  @override
   Future<WeekEvidence> weekEvidence(DateTime today) async {
     final t = planDay(today);
     final thisMonday = t.subtract(Duration(days: t.weekday - DateTime.monday));
@@ -239,6 +241,7 @@ class PlanDataReader {
   /// Läufe der laufenden Woche und die, zu denen ihre harte Einheit Abstand
   /// halten muss (PAR-059). RPE aus der Rückmeldung, Zeit bei mindestens
   /// 80 % HFmax aus dem Laufwert [highHeartRateTimeValueKey] (PAR-058).
+  @override
   Future<List<PlanRunFacts>> runFacts(DateTime today) async {
     final t = planDay(today);
     final monday = t.subtract(Duration(days: t.weekday - DateTime.monday));
@@ -341,21 +344,6 @@ class PlanDataReader {
     );
     return (longTerm?.value, grade);
   }
-}
-
-/// Belege der Wochenprüfung ([PlanDataReader.weekEvidence]).
-class WeekEvidence {
-  const WeekEvidence({
-    required this.doneMinutes,
-    required this.plannedMinutes,
-    required this.recentEasyRpe,
-    required this.fatigueReported,
-  });
-
-  final double doneMinutes;
-  final int? plannedMinutes;
-  final List<int?> recentEasyRpe;
-  final bool fatigueReported;
 }
 
 DateTime? _parseDay(String day) {
