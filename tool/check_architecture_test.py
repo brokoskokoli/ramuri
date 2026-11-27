@@ -116,6 +116,24 @@ CASES = [
      {U + "a.dart": "import 'package:running_app/root.dart';\n",
       "app/lib/root.dart": "import 'package:running_app/features/y/y.dart';\n"}, 0, 0,
      r"app/lib/ui/a\.dart:1: lib/ui importiert Feature y über package:running_app/root\.dart → features/y/y\.dart"),
+    ("Wurzeldatei in der Kette ist symbolischer Link",
+     {U + "a.dart": "import '../root.dart';\n", "app/lib/real.dart": "class Real {}\n",
+      "app/lib/root.dart": ("link", "real.dart")}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel root\.dart fehlt oder ist nicht lesbar"),
+    ("Wurzeldatei in der Kette ist keine Dart-Datei",
+     {U + "a.dart": "import '../root.txt';\n", "app/lib/root.txt": "class Root {}\n"}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel root\.txt fehlt oder ist nicht lesbar"),
+    ("vorhandene, aber unlesbare generierte Lokalisierung",
+     {U + "a.dart": "import '../l10n/app_localizations.dart';\n", "app/lib/l10n/app_localizations.dart": b"\xff\xfe import"},
+     0, 0, r"app/lib/ui/a\.dart:1: lib/ui: Ziel l10n/app_localizations\.dart fehlt oder ist nicht lesbar"),
+    ("generierte Lokalisierung ist symbolischer Link",
+     {U + "a.dart": "import '../l10n/app_localizations.dart';\n", "app/lib/l10n/real.dart": "class L {}\n",
+      "app/lib/l10n/app_localizations.dart": ("link", "real.dart")}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel l10n/app_localizations\.dart fehlt oder ist nicht lesbar"),
+    ("generierte Lokalisierung ist toter symbolischer Link",
+     {U + "a.dart": "import '../l10n/app_localizations.dart';\n",
+      "app/lib/l10n/app_localizations.dart": ("link", "gone.dart")}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel l10n/app_localizations\.dart fehlt oder ist nicht lesbar"),
     ("lib/ui fehlt", {U + "ui.dart": None, U + "format/f.dart": None}, 0, 0, r"app/lib/ui/: Suchpfad fehlt"),
     ("Suchpfad fehlt", {A + "x/x_screen.dart": None, A + "y/y.dart": None}, 0, 0, r"app/lib/features/: Suchpfad fehlt"),
 ]
@@ -127,6 +145,9 @@ def build(extra):
             continue
         p = os.path.join(d, rel)
         os.makedirs(os.path.dirname(p), exist_ok=True)
+        if isinstance(content, tuple):  # ("link", Ziel relativ zum Ordner des Links)
+            os.symlink(content[1], p)
+            continue
         open(p, "w" if isinstance(content, str) else "wb").write(content)
     for rel, content in extra.items():  # leere Ordner nach Entfernen aufräumen
         if content is None:
