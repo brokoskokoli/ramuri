@@ -182,6 +182,34 @@ void main() {
       expect(await plans.history(), hasLength(versions));
     });
 
+    test('ein anderer Schreiber ordnet der offen gesehenen Einheit Lauf A '
+        'zu: derselbe Lauf A gilt als erledigt, keine neue Fassung', () async {
+      final (s, clock, unitId) = await _withPlan();
+      final plans = (s as PlanStorage).plans;
+      final a = await _finishedRun(s, _now.add(const Duration(minutes: 1)));
+      // Die Ansicht sieht die Einheit offen.
+      expect(await openPlanUnitOn(s, _day), isNotNull);
+      // Danach ordnet ein anderer Schreiber ihr A zu.
+      expect(
+        await plans.assignRun(unitId, a, expectedRunId: null),
+        PlanAssignResult.assigned,
+      );
+      final versions = (await plans.history()).length;
+
+      expect(
+        await assignRunToUnit(
+          session: s,
+          clock: clock,
+          unitId: unitId,
+          day: _day,
+          runId: a,
+        ),
+        PlanActionResult.done,
+      );
+      expect((await plans.unitOn(_today))!.runId, a);
+      expect(await plans.history(), hasLength(versions));
+    });
+
     test('Einheit offen: Lauf B wird zugeordnet, genau eine neue Fassung '
         '(Auslöser run)', () async {
       final (s, clock, _) = await _withPlan();
