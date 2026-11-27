@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../history/manual_training_screen.dart';
 
 /// Ortszeit des Beginns einer importierten Einheit: Zonenversatz des
 /// Datensatzes, sonst der der Uhr zum Beginn.
@@ -23,10 +22,11 @@ String importedExerciseKindText(AppLocalizations l10n, HealthRecord e) =>
 /// Detail einer aus Health Connect importierten Trainingseinheit (WP32 Teil E,
 /// K62 F2, SEC-0005): Art, Beginn, Dauer, Quell-App und Pulskurve, nur zur
 /// Anzeige (keine Zonen, keine Berechnung). Die Einheit zählt für Belastung,
-/// Pausenregel und Plan erst nach „Als Training übernehmen“: Das öffnet den
-/// Nachtrag nach FR-0199 mit vorausgefüllter Dauer; die Anstrengung (RPE) fragt
-/// die App. Der Puls geht nie in den Nachtrag ein. Eine schon übernommene
-/// Einheit zeigt „übernommen“ statt des Knopfs.
+/// Pausenregel und Plan erst nach „Als Training übernehmen“: Das ruft [onAdopt]
+/// des Aufrufers, der den Nachtrag nach FR-0199 mit vorausgefüllter Dauer
+/// öffnet; die Anstrengung (RPE) fragt die App. Der Puls geht nie in den
+/// Nachtrag ein. Eine schon übernommene Einheit zeigt „übernommen“ statt des
+/// Knopfs.
 class ImportedExerciseScreen extends StatefulWidget {
   const ImportedExerciseScreen({
     super.key,
@@ -34,6 +34,7 @@ class ImportedExerciseScreen extends StatefulWidget {
     required this.session,
     required this.clock,
     required this.today,
+    required this.onAdopt,
   });
 
   final HealthRecord exercise;
@@ -42,6 +43,11 @@ class ImportedExerciseScreen extends StatefulWidget {
 
   /// Heutiger Ortstag (`JJJJ-MM-TT`).
   final String today;
+
+  /// Öffnet den Nachtrag für [HealthRecord] und liefert `true`, wenn er
+  /// gespeichert wurde; dann lädt das Detail neu und zeigt „übernommen“.
+  final Future<bool> Function(BuildContext context, HealthRecord exercise)
+  onAdopt;
 
   @override
   State<ImportedExerciseScreen> createState() => _ImportedExerciseScreenState();
@@ -70,21 +76,7 @@ class _ImportedExerciseScreenState extends State<ImportedExerciseScreen> {
   }
 
   Future<void> _adopt() async {
-    final e = widget.exercise;
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => ManualTrainingScreen(
-          service: _subjective,
-          today: widget.today,
-          prefill: ManualTrainingPrefill(
-            day: exerciseLocalDay(e, widget.clock.utcOffsetAt(e.start)),
-            kind: manualKindOfExercise(e.exerciseType),
-            minutes: exerciseMinutes(e),
-            hcId: e.id,
-          ),
-        ),
-      ),
-    );
+    final saved = await widget.onAdopt(context, widget.exercise);
     if (mounted && saved == true) {
       setState(() {
         _future = _load();
