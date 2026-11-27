@@ -855,6 +855,16 @@ void main() {
         expect(start, greaterThanOrEqualTo(30.5));
       });
 
+      test('Morgenmessung: spätes locked bei 25 s, früher als die vorläufige '
+          'Sperre: Grenze bleibt 26,5 s, Fensterbeginn ab 29 s', () async {
+        final (relockedAt, start, settling) = await lateLock(
+          (r) => r.cam.emitLocked(25),
+        );
+        expect(relockedAt, 26.5, reason: 'nur eine spätere Sperre verschiebt');
+        expect(start, greaterThanOrEqualTo(29.0));
+        expect(settling, isTrue, reason: 'bis 2,5 s nach der Grenze 26,5 s');
+      });
+
       test('Morgenmessung: locked ohne Sensorzeit oder vor dem relocking nach '
           'dem Ende ohne Sperre: Grenze bleibt 29 s', () async {
         final (noT, startNoT, settlingNoT) = await lateLock(
