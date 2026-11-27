@@ -42,9 +42,11 @@ trap 'rm -rf "$tmp"' EXIT
 g() { git -C "$tmp/r" -c user.name=Test -c user.email=test@example.invalid -c commit.gpgsign=false -c tag.gpgsign=false "$@"; }
 # commit <Datum mit Zone>: leerer Commit mit fester Autor- und Commit-Zeit
 commit() { GIT_AUTHOR_DATE=$1 GIT_COMMITTER_DATE=$1 g commit -q --allow-empty -m "c $1"; }
-nightly() { (cd "$tmp/r" && ./tool/build_signed.sh --print-version --nightly 2>&1); }
-expect_nightly() { # <beschreibung> <erwartete Ausgabe> [TZ]
+# nightly [Verzeichnis]: stdout der Nightly-Version, stderr landet getrennt in $tmp/err.
+nightly() { (cd "${1:-$tmp/r}" && ./tool/build_signed.sh --print-version --nightly 2>"$tmp/err"); }
+expect_nightly() { # <beschreibung> <erwartete Ausgabe> [TZ]; erwartet außerdem leeres stderr
   out=$(if [ -n "${3:-}" ]; then TZ=$3 nightly; else nightly; fi) && [ "$out" = "$2" ] && ok "Nightly $1 -> $2" || nok "Nightly $1: erwartet '$2', erhalten '$out'"
+  [ ! -s "$tmp/err" ] && ok "Nightly $1: stderr leer" || nok "Nightly $1: stderr nicht leer: '$(cat "$tmp/err")'"
 }
 sha7() { g rev-parse HEAD | cut -c1-7; }
 mkdir -p "$tmp/r/tool" && git init -q "$tmp/r" && cp tool/build_signed.sh "$tmp/r/tool/" || exit 1
@@ -55,7 +57,15 @@ if nightly >/dev/null; then nok "Nightly ohne Commit nicht abgelehnt"; else ok "
 # Ohne passenden Tag (nur nightly und foo): Basis 0.0.0, Code 1.
 commit "2026-11-10T12:00:00+00:00"
 g tag nightly; g tag foo
-expect_nightly "ohne passenden Tag" "0.0.0-nightly.20261110+$(sha7) 1"
+# stdout unverändert, Exit-Code 0, genau eine Warnzeile auf stderr.
+exp0="0.0.0-nightly.20261110+$(sha7) 1"
+out=$(nightly) && [ "$out" = "$exp0" ] && ok "Nightly ohne passenden Tag -> $exp0" || nok "Nightly ohne passenden Tag: erwartet '$exp0', erhalten '$out'"
+err=$(cat "$tmp/err")
+if [[ $err == WARNUNG:* && $(wc -l <"$tmp/err") -eq 1 && $err == *"0.0.0"* && $err == *"versionCode 1"* ]]; then
+  ok "Nightly ohne passenden Tag: eine Zeile WARNUNG auf stderr"
+else
+  nok "Nightly ohne passenden Tag: erwartet eine Zeile 'WARNUNG: …' auf stderr, erhalten '$err'"
+fi
 
 # Tag v0.1.0-rc1 und ein Commit danach (23:30 UTC am 18.11., mit Zone +14:00 aufgezeichnet).
 # Ein näherer Tag, den version_aus_tag nicht annimmt (v1.2), zählt nicht.
@@ -67,6 +77,23 @@ exp="0.1.0-rc1-nightly.20261118+$(sha7) 10001"
 expect_nightly "nach v0.1.0-rc1" "$exp"
 expect_nightly "TZ=Pacific/Kiritimati" "$exp" Pacific/Kiritimati
 expect_nightly "TZ=America/Los_Angeles" "$exp" America/Los_Angeles
+
+# Flacher Klon desselben Stands (file://, sonst ignoriert Git --depth bei lokalen Pfaden): Nightly abgelehnt, stdout
+# leer; der Tag-Aufruf geht dort weiter.
+git clone -q --depth 1 "file://$tmp/r" "$tmp/f" && mkdir -p "$tmp/f/tool" && cp tool/build_signed.sh "$tmp/f/tool/" || exit 1
+if [ "$(git -C "$tmp/f" rev-parse --is-shallow-repository)" != true ]; then
+  nok "Testaufbau: Klon in $tmp/f ist nicht flach"
+elif out=$(nightly "$tmp/f"); then
+  nok "Nightly flacher Klon nicht abgelehnt (Ausgabe '$out')"
+elif [ -n "$out" ]; then
+  nok "Nightly flacher Klon: stdout nicht leer: '$out'"
+elif ! grep -q 'Flacher Git-Klon' "$tmp/err"; then
+  nok "Nightly flacher Klon: stderr ohne 'Flacher Git-Klon': '$(cat "$tmp/err")'"
+else
+  ok "Nightly flacher Klon abgelehnt"
+fi
+out=$(cd "$tmp/f" && ./tool/build_signed.sh --print-version v1.2.3 2>&1) && [ "$out" = "1.2.3 1020399" ] \
+  && ok "flacher Klon: v1.2.3 -> 1.2.3 1020399" || nok "flacher Klon: v1.2.3: erwartet '1.2.3 1020399', erhalten '$out'"
 
 # Ein Tag, der nicht Vorfahre von HEAD ist, zählt nicht.
 main=$(g rev-parse HEAD)
