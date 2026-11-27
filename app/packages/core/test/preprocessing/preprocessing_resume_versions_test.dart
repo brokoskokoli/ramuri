@@ -14,7 +14,7 @@ void main() {
         ..add(pos(2, 6));
       expect(pos3.positionAt(at(2)).state, MeasurementState.estimated);
       expect(pos3.positionAt(at(0)).state, MeasurementState.present);
-      final h = HeartRateProcessor(const PreprocessingParameters.v4())
+      final h = HeartRateProcessor(const PreprocessingParameters.v5())
         ..add(hr(0, 100))
         ..add(hr(1, 101, state: MeasurementState.estimated));
       expect(h.heartRateAt(at(1)).state, MeasurementState.estimated);
@@ -57,12 +57,12 @@ void main() {
 
   group('resume ohne Pause in den Prozessoren allein', () {
     test('resume ohne Pause lässt die Lücke ab Start stehen', () {
-      final p = processor(const PreprocessingParameters.v4(), t0)
+      final p = processor(const PreprocessingParameters.v5(), t0)
         ..resume(at(25))
         ..add(pos(30, 0));
       expect(p.result(at: at(30)).gaps.single.start, t0);
       final h = HeartRateProcessor(
-        const PreprocessingParameters.v4(),
+        const PreprocessingParameters.v5(),
         sectionStart: t0,
       )..resume(at(25));
       h.add(hr(30, 100));
@@ -130,7 +130,7 @@ void main() {
       expect(res.position.parameterVersion, 9);
       expect(res.settling.parameterVersion, 9);
       expect(
-        const PreprocessingParameters.v4().parameterVersion,
+        const PreprocessingParameters.v5().parameterVersion,
         currentParameterVersion,
       );
     });
@@ -155,7 +155,7 @@ void main() {
       final p3 = run([pos(0, 0)]);
       expect(() => q(h4, p3, v4), throwsArgumentError);
       expect(
-        () => q(h4, p4, const PreprocessingParameters.v4()),
+        () => q(h4, p4, const PreprocessingParameters.v5()),
         throwsArgumentError,
       );
     });
@@ -164,7 +164,7 @@ void main() {
       final a = q(
         runHr(beat(0, 10, 100)),
         run([pos(0, 0)]),
-        const PreprocessingParameters.v4(),
+        const PreprocessingParameters.v5(),
       );
       final b = SectionQuality(
         parameterVersion: a.parameterVersion,
@@ -207,7 +207,7 @@ void main() {
         heartRate: runHr(values),
         position: run([pos(0, 0)]),
         settlingIntervals: const [],
-        parameters: const PreprocessingParameters.v4(),
+        parameters: const PreprocessingParameters.v5(),
       );
       expect(qual.missingHeartRateShare, 0);
       expect(qual.meetsHeartRateGapRule, isTrue);

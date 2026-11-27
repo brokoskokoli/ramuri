@@ -7,7 +7,11 @@ import 'vo2max_section_types.dart';
 /// (Heuristik): Bereich, Mengen und Stufen sind eigene Wahl (OQ-0036,
 /// PAR-044 bis PAR-047).
 const String aerobicEfficiencyMethod = 'aerobic-efficiency-median';
-const int aerobicEfficiencyMethodVersion = 1;
+
+///
+/// v2: Abschnitte nach PAR-247 und PAR-248 (dieselben Spannen wie die
+/// VO₂max-Auswahl).
+const int aerobicEfficiencyMethodVersion = 2;
 
 /// Kategorie der aeroben Effizienz (NFR-0002): B.
 const AlgorithmCategory aerobicEfficiencyCategory = AlgorithmCategory.heuristic;

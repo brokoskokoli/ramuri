@@ -15,7 +15,7 @@ RunPreprocessing _run(
 }) {
   final pre = RunPreprocessor(
     start: _start,
-    parameters: const PreprocessingParameters.v4(),
+    parameters: const PreprocessingParameters.v5(),
   );
   var metres = 0.0;
   for (var i = 0; i <= seconds; i++) {
@@ -57,7 +57,7 @@ RunPreprocessing _run(
 /// Sekunden.
 RunPreprocessing _restRun(
   int stillSeconds, {
-  PreprocessingParameters parameters = const PreprocessingParameters.v4(),
+  PreprocessingParameters parameters = const PreprocessingParameters.v5(),
 }) {
   final pre = RunPreprocessor(start: _start, parameters: parameters);
   RawPosition at(int i, double metres) => RawPosition(
@@ -160,7 +160,7 @@ void main() {
   test('Puls fehlt nur in einem Kilometer: dort null, sonst Wert', () {
     final pre = RunPreprocessor(
       start: _start,
-      parameters: const PreprocessingParameters.v4(),
+      parameters: const PreprocessingParameters.v5(),
     );
     for (var i = 0; i <= 700; i++) {
       final t = _start.add(Duration(seconds: i));
@@ -240,7 +240,7 @@ void main() {
   test('Puls im Stillstand ohne Autopause zählt nicht zum Kilometermittel', () {
     final pre = RunPreprocessor(
       start: _start,
-      parameters: const PreprocessingParameters.v4(),
+      parameters: const PreprocessingParameters.v5(),
     );
     // 100 s mit 3 m/s bei 150 bpm, dann 60 s Stillstand; der Puls steigt dabei
     // langsam (0,5 bpm/s), damit ihn der Ausreißerfilter nicht verwirft.
@@ -402,7 +402,7 @@ void main() {
       // Zeit wären es 0,499 m/s (keine Pace), ohne die Lücke 4 m/s.
       final pre = RunPreprocessor(
         start: _start,
-        parameters: const PreprocessingParameters.v4(),
+        parameters: const PreprocessingParameters.v5(),
       );
       for (var i = 0; i <= 300; i++) {
         pre.addPosition(

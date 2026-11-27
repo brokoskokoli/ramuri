@@ -2133,7 +2133,7 @@ void main() {
       final v18 = await verifier.schemaAt(18);
       // Synthetisch: ein beendeter Lauf mit VO2max, TRIMP und Zeit über
       // 80 % HFmax in der heutigen Methode, dazu ein Tageswert.
-      const fitness = FitnessParameters.v4();
+      const fitness = FitnessParameters.v5();
       const vo2 = AcsmReserveVo2maxEstimator();
       const trimp = EdwardsTrimp();
       const high = HighHeartRateTime();

@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 import 'fitness_support.dart';
 
 const sec = 1000000;
-const p = FitnessParameters.v4();
+const p = FitnessParameters.v5();
 
 HeartRateTime run(
   List<TimeSpan> m,

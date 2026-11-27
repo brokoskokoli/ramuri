@@ -124,8 +124,8 @@ class ValueCalculationService {
     required this.session,
     required this.clock,
     required this.algorithms,
-    this.fitness = const FitnessParameters.v4(),
-    this.preprocessing = const PreprocessingParameters.v4(),
+    this.fitness = const FitnessParameters.v5(),
+    this.preprocessing = const PreprocessingParameters.v5(),
     this.offload = inlineOffload,
     String? preprocessingVersion,
   }) : vo2maxEstimator = algorithms.active(vo2maxEstimatorFamily),
@@ -248,20 +248,23 @@ class ValueCalculationService {
     final run = await session.runs.get(runId);
     if (run == null) throw const StorageException(StorageFailure.notFound);
     final profile = await _profileBasis();
-    final analysis = await _analyzer(profile)
-        .analyze(session, run, calculatedAt: now);
+    final runs = await _finishedRuns();
+    final stored = await session.values.readRunValues({vo2maxRunValueKey});
+    final others = <int, ComputedValue>{
+      for (final other in runs)
+        if (other.id != runId) other.id: ?stored[other.id]?[vo2maxRunValueKey],
+    };
+    final analysis = await _analyzer(profile).analyze(
+      session,
+      run,
+      calculatedAt: now,
+      longTermVo2max: _longTermBefore(run, runs, others),
+    );
     final runValue = analysis.vo2maxValue(
       now,
       preprocessingVersion: preprocessingVersion,
     );
-
-    final runs = await _finishedRuns();
-    final stored = await session.values.readRunValues({vo2maxRunValueKey});
-    final runValues = <int, ComputedValue>{
-      runId: runValue,
-      for (final other in runs)
-        if (other.id != runId) other.id: ?stored[other.id]?[vo2maxRunValueKey],
-    };
+    final runValues = <int, ComputedValue>{runId: runValue, ...others};
     final day = dayOfRun(run);
     final cache = <int, RunAnalysis>{runId: analysis};
     final values = await _dayValues(
@@ -271,9 +274,13 @@ class ValueCalculationService {
       computedAt: now,
       runValues: runValues,
       fallback: profile,
-      analysisOf: (r, basis) async =>
-          cache[r.id] ??= await _analyzer(basis)
-              .analyze(session, r, calculatedAt: now),
+      analysisOf: (r, basis) async => cache[r.id] ??= await _analyzer(basis)
+          .analyze(
+            session,
+            r,
+            calculatedAt: now,
+            longTermVo2max: _longTermBefore(r, runs, runValues),
+          ),
     );
     // Tageswerte des Tags und aller späteren Tage in EINER Abfrage; geschrieben
     // wird erst am Ende, alle Entscheidungen sehen also denselben Stand.
@@ -292,9 +299,13 @@ class ValueCalculationService {
         computedAt: now,
         runValues: runValues,
         fallback: profile,
-        analysisOf: (r, basis) async =>
-            cache[r.id] ??= await _analyzer(basis)
-                .analyze(session, r, calculatedAt: now),
+        analysisOf: (r, basis) async => cache[r.id] ??= await _analyzer(basis)
+            .analyze(
+              session,
+              r,
+              calculatedAt: now,
+              longTermVo2max: _longTermBefore(r, runs, runValues),
+            ),
       );
       plan.add(d, dayValues.all);
     }
@@ -312,6 +323,7 @@ class ValueCalculationService {
       computedAt: now,
       preprocessingVersion: preprocessingVersion,
       loadProfile: await loadResolution(profile),
+      trimpHeartRate: analysis.fitnessHeartRate,
     );
     // Zeit bei mindestens 80 % HFmax (PAR-058) mit der Basis zum Laufende.
     final highTime = buildHighHeartRateTimeValue(
@@ -683,9 +695,13 @@ class ValueCalculationService {
         computedAt: now,
         runValues: runValues,
         fallback: profile,
-        analysisOf: (r, basis) async =>
-            cache[r.id] ??= await _analyzer(basis)
-                .analyze(session, r, calculatedAt: now),
+        analysisOf: (r, basis) async => cache[r.id] ??= await _analyzer(basis)
+            .analyze(
+              session,
+              r,
+              calculatedAt: now,
+              longTermVo2max: _longTermBefore(r, runs, runValues),
+            ),
       );
       plan.add(day, values.all);
     }
@@ -737,10 +753,16 @@ class ValueCalculationService {
     );
     final analyzer = _analyzer(profile);
     final cache = analyses ?? RunAnalysisCache();
+    final runValues = <int, ComputedValue>{};
     // Volle Analyse (mit Vorverarbeitung) nur für den Aufrufer; gehalten wird
     // sie ohne.
     Future<RunAnalysis> analyze(StoredRun r) async {
-      final a = await analyzer.analyze(session, r, calculatedAt: now);
+      final a = await analyzer.analyze(
+        session,
+        r,
+        calculatedAt: now,
+        longTermVo2max: _longTermBefore(r, runs, runValues),
+      );
       cache.keep(a);
       return a;
     }
@@ -754,10 +776,13 @@ class ValueCalculationService {
       ...recalculatedRunValueKeys,
       highHeartRateTimeValueKey,
     });
-    final runValues = <int, ComputedValue>{};
     final runOwners = <ValueOwner, List<ComputedValue>>{};
     final runCreates = <ValueOwner, List<ComputedValue>>{};
-    for (final r in runs) {
+    // Nach dem Start: Der Langzeitwert vor einem Lauf (PAR-247) kommt aus den
+    // schon neu gerechneten Laufwerten der früheren Läufe.
+    final byStart = [...runs]
+      ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+    for (final r in byStart) {
       final stored = storedRuns[r.id]?.keys.toSet() ?? const <String>{};
       if (!hasRecalculatedRunKey(stored)) continue;
       final hasTrimp = stored.contains(trimpRunValueKey);
@@ -882,9 +907,34 @@ class ValueCalculationService {
         computedAt: now,
         preprocessingVersion: preprocessingVersion,
         loadProfile: resolution,
+        trimpHeartRate: analysis.fitnessHeartRate,
       ))
         if (v.key == trimpRunValueKey) v,
     ];
+  }
+
+  /// VO₂max-Langzeitwert, der vor dem Start von [run] galt (FR-0079, für
+  /// PAR-247): aus den Laufwerten in [runValues] der Läufe aus [runs], die
+  /// spätestens zum Start endeten, nie aus [run] selbst; `null` ohne Wert.
+  double? _longTermBefore(
+    StoredRun run,
+    List<StoredRun> runs,
+    Map<int, ComputedValue> runValues,
+  ) {
+    final before = {
+      for (final r in runs)
+        if (r.id != run.id && !r.endedAt!.isAfter(run.startedAt)) r.id,
+    };
+    return longTerm
+        .compute(
+          runs: [
+            for (final MapEntry(key: id, value: v) in runValues.entries)
+              if (before.contains(id)) ?toAdvancedValue(v),
+          ],
+          p: fitness,
+          now: run.startedAt,
+        )
+        .value;
   }
 
   /// Zeitpunkt, für den der Tageswert des lokalen Tages [day] gilt: Ende des

@@ -8,6 +8,7 @@ import '../fitness/heart_rate_basis.dart';
 import '../fitness/heart_rate_reserve.dart';
 import '../fitness/load_profile.dart';
 import '../fitness/reserve_zones.dart';
+import '../preprocessing/heart_rate_processor.dart';
 import '../preprocessing/run_preprocessor.dart';
 import 'run_analysis.dart' show snapshotOf;
 
@@ -47,6 +48,9 @@ final Set<String> runLoadValueKeys = Set.unmodifiable({
 /// der TRIMP „nicht verfügbar“ mit Grund, nie mit einem anderen Modell
 /// gerechnet (kein stiller Wechsel). [preprocessingVersion] ist die
 /// Kettenversion der Vorverarbeitung an jedem Wert (ADR-0004).
+/// [trimpHeartRate]: Puls für den TRIMP (Fitnesssicht nach PAR-247 und
+/// PAR-248, [RunAnalysis.fitnessHeartRate]); ohne Angabe der aus [pre].
+/// Zonenzeiten nehmen immer den Puls aus [pre].
 List<ComputedValue> buildRunLoadValues({
   required StoredRun run,
   required RunPreprocessing? pre,
@@ -56,6 +60,7 @@ List<ComputedValue> buildRunLoadValues({
   required DateTime computedAt,
   required String preprocessingVersion,
   LoadProfileResolution? loadProfile,
+  HeartRateResult? trimpHeartRate,
 }) {
   final snapshot = snapshotOf(basis);
   final sorted = (sources.toList()..sort());
@@ -138,7 +143,7 @@ List<ComputedValue> buildRunLoadValues({
   } else {
     trimp = model.compute(
       basis: basis,
-      heartRate: pre.heartRate,
+      heartRate: trimpHeartRate ?? pre.heartRate,
       movement: pre.movement,
       p: fitness,
     );

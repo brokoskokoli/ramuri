@@ -35,6 +35,18 @@ class RunPreprocessing {
   final AltitudeResult altitude;
   final StepsResult steps;
 
+  /// Dasselbe Ergebnis mit anderem Puls (Fitnesssicht, PAR-247, PAR-248).
+  RunPreprocessing withHeartRate(HeartRateResult heartRate) => RunPreprocessing(
+    parameters: parameters,
+    position: position,
+    pace: pace,
+    movement: movement,
+    heartRate: heartRate,
+    settling: settling,
+    altitude: altitude,
+    steps: steps,
+  );
+
   /// Dasselbe Ergebnis mit anderer Bewegungszeit (Bandlauf, FR-0196: sie
   /// kommt aus den Bandeinstellungen, nicht aus Positionen).
   RunPreprocessing withMovement(MovementResult movement) => RunPreprocessing(
@@ -53,7 +65,7 @@ class RunPreprocessing {
 class RunPreprocessor {
   RunPreprocessor({
     required this.start,
-    this.parameters = const PreprocessingParameters.v4(),
+    this.parameters = const PreprocessingParameters.v5(),
   }) : _position = PositionProcessor(parameters, sectionStart: start),
        _pace = PaceProcessor(parameters),
        _movement = MovementTimeProcessor(parameters, start: start),

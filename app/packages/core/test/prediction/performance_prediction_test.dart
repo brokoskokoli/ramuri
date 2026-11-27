@@ -730,7 +730,7 @@ void main() {
   });
 
   group('Tempostabilität (PAR-022)', () {
-    final p = const FitnessParameters.v4().sectionSelection;
+    final p = const FitnessParameters.v5().sectionSelection;
     test('gleichmäßig, schwankend, Hälften, nicht bestimmbar', () {
       expect(isPaceStable(List.filled(10, 3.0), p), isTrue);
       expect(isPaceStable([3, 3.5, 2.5, 3.4, 2.6, 3.3], p), isFalse);

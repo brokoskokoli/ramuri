@@ -196,7 +196,7 @@ void main() {
       expect(r.isEstimate, isFalse);
       expect(r.method.method, 'sleep-summary');
       expect(r.method.methodVersion, 2); // NFR-0001, PAR-164 bis Mitternacht
-      expect(r.method.parameterVersion, 4);
+      expect(r.method.parameterVersion, currentParameterVersion);
     });
     test('ohne Phasen: Sitzungsdauer, Schätzung, keine Effizienz', () {
       final r = hp.sleepSummary(sess('a', 9, 2));

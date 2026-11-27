@@ -79,7 +79,7 @@ class RunSummaryService {
   RunSummaryService({
     required this.session,
     required this.clock,
-    this.preprocessing = const PreprocessingParameters.v4(),
+    this.preprocessing = const PreprocessingParameters.v5(),
     this.statistics = const StatisticsParameters(),
     this.offload = inlineOffload,
   });

@@ -10,7 +10,7 @@ const _restingHrVersion = 1;
 
 /// Aufbereitung von Health-Connect-Daten, reine Funktionen (WP32 Teil D).
 class HealthProcessing {
-  const HealthProcessing([this.params = const HealthParameters.v4()]);
+  const HealthProcessing([this.params = const HealthParameters.v5()]);
 
   final HealthParameters params;
 

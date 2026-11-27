@@ -14,7 +14,7 @@ void main() {
         end: run.endedAt!,
         raw: raw,
         gaps: gaps,
-        parameters: const PreprocessingParameters.v4(),
+        parameters: const PreprocessingParameters.v5(),
       );
       return (
         RunFigures.fromRun(run: run, preprocessing: pre, laps: const []),
@@ -34,7 +34,7 @@ void main() {
           end: stored.endedAt!,
           raw: raw,
           gaps: const [],
-          parameters: const PreprocessingParameters.v4(),
+          parameters: const PreprocessingParameters.v5(),
         );
         for (final (mode, running) in [
           (RunMode.gps, true),

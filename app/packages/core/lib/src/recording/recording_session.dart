@@ -169,7 +169,7 @@ class RecordingSnapshot {
 class RecordingSession {
   RecordingSession({
     required Clock clock,
-    this.parameters = const PreprocessingParameters.v4(),
+    this.parameters = const PreprocessingParameters.v5(),
     bool autoPause = false,
     this.positionSource = 'gps',
   }) : _clock = clock,

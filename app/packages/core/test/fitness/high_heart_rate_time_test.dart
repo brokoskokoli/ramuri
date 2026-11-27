@@ -3,7 +3,7 @@ import 'package:test/test.dart';
 
 import 'fitness_support.dart';
 
-const p = FitnessParameters.v4();
+const p = FitnessParameters.v5();
 const model = HighHeartRateTime();
 const plan = PlanParameters();
 

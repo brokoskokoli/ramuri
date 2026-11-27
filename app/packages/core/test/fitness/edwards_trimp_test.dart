@@ -3,7 +3,7 @@ import 'package:test/test.dart';
 
 import 'fitness_support.dart';
 
-const p = FitnessParameters.v4();
+const p = FitnessParameters.v5();
 const trimp = EdwardsTrimp();
 const sec = 1000000;
 
@@ -62,7 +62,7 @@ void main() {
   test('Ergebnis nennt Methode, Version, Kategorie, Parameterversion', () {
     final r = run(moving: [span(0, 60)], hrs: fitDense(0, 59, 150));
     expect(r.method, 'edwards-trimp');
-    expect(r.methodVersion, 1);
+    expect(r.methodVersion, 2);
     expect(r.parameterVersion, currentParameterVersion);
     expect(trimp.category, AlgorithmCategory.established);
   });

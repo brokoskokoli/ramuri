@@ -135,7 +135,7 @@ class RunOverviewService {
   RunOverviewService({
     required this.session,
     required this.clock,
-    this.parameters = const PreprocessingParameters.v4(),
+    this.parameters = const PreprocessingParameters.v5(),
     this.offload = inlineOffload,
   });
 

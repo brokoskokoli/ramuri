@@ -470,6 +470,7 @@
   "explSectionsHeading": "Rated sections",
   "explSectionUsed": "From minute {start}, {minutes} min: entered the estimate with weight {weight}",
   "explSectionNotUsed": "From minute {start}, {minutes} min: did not enter the estimate",
+  "sectionReasonPaceMismatch": "Heart rate doesn't match pace (strap contact?)",
   "explMethod": "{method}, version {version}, parameter version {parameters}",
   "explQualityProvisional": "Quality level: provisional",
   "explQualitySufficient": "Quality level: sufficient",

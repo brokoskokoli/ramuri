@@ -1,7 +1,7 @@
 import 'package:core/core.dart';
 import 'package:test/test.dart';
 
-const p = FitnessParameters.v4();
+const p = FitnessParameters.v5();
 const reserve = HeartRateReserve();
 
 double r(int max, int rest, int hf) {

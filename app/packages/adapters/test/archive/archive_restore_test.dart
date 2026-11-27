@@ -79,7 +79,11 @@ Future<void> _extra(AppDatabase db) async {
               .data['m']!
           as int;
   await sql(db, "$vs VALUES ($o, 0, 1, 2, 1.0, 1.0, 'eligible', '[]')");
-  await sql(db, "$vs VALUES ($o, 1, 2, 3, 0.5, 1.0, 'provisional', '[\"r\"]')");
+  // Grund nach PAR-247: Name der SectionRule, beim Reimport lesbar.
+  await sql(
+    db,
+    "$vs VALUES ($o, 1, 2, 3, 0.5, 1.0, 'provisional', '[\"heartRatePaceMismatch\"]')",
+  );
   await sql(
     db,
     "$cv VALUES (2, 'vo2.neu', 'current', 42.5, 'x', 10, 3, '[]', 'm', 1, 1, 'good')",
@@ -393,6 +397,18 @@ void main() {
       expect(cv.map((r) => r['role']).toSet(), {'original', 'current'});
       expect(cv.map((r) => r['value_key']), contains('zone_time.unbekannt'));
       expect(got['value_sections'], hasLength(4));
+      // Abschnittsgrund nach PAR-247 übersteht den Rundgang und ist als
+      // SectionRule lesbar.
+      final run2 = await session.values.read(const ValueOwner.run(2));
+      final reasons = [
+        for (final p in run2)
+          for (final sec in p.original.sections) ...sec.reasons,
+      ];
+      expect(reasons, ['heartRatePaceMismatch']);
+      expect(
+        SectionRule.values.byName(reasons.single),
+        SectionRule.heartRatePaceMismatch,
+      );
       // Einwilligungen nicht erteilt, Merker weg.
       expect(await session.consents.all(), isEmpty);
       expect(await session.settings.get('values.refreshPending'), isNull);

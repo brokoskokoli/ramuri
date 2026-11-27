@@ -84,7 +84,7 @@ class _Drive {
         unavailable: const [],
       ),
       gaps: manual,
-      parameters: const PreprocessingParameters.v4(),
+      parameters: const PreprocessingParameters.v5(),
     );
   }
 }

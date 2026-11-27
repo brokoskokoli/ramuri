@@ -5,7 +5,7 @@ import '../preprocessing/support.dart';
 
 const trimp = EdwardsTrimp();
 const zones = ReserveZones(reserve: HeartRateReserve());
-const p = FitnessParameters.v4();
+const p = FitnessParameters.v5();
 const basis = HeartRateBasis(maxBpm: 200, restingBpm: 50);
 
 /// 3 m/s Position im 1-Hz-Raster von 0 bis [until], Puls zu den Sekunden, für
@@ -14,7 +14,7 @@ RunPreprocessing record({
   required int until,
   required int? Function(int s) bpmAt,
   (int, int)? pause,
-  PreprocessingParameters params = const PreprocessingParameters.v4(),
+  PreprocessingParameters params = const PreprocessingParameters.v5(),
 }) {
   final r = RunPreprocessor(start: t0, parameters: params);
   for (var s = 0; s <= until; s++) {

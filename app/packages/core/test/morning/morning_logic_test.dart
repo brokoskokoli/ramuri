@@ -69,7 +69,7 @@ void main() {
     });
 
     test('Ruhepulsgrenzen sind die aus PAR-017 (Profil)', () {
-      const p = ProfileParameters.v4();
+      const p = ProfileParameters.v5();
       expect(morningRestingHrMinBpm, p.restHrRejectBelowBpm.toDouble());
       expect(morningRestingHrMaxBpm, p.restHrRejectAboveBpm.toDouble());
     });

@@ -18,7 +18,7 @@ SectionQuality assess(
   heartRate: runHr(values, until: to),
   position: position ?? noPosition,
   settlingIntervals: settling,
-  parameters: const PreprocessingParameters.v4(),
+  parameters: const PreprocessingParameters.v5(),
 );
 
 /// 0..[to] im Sekundentakt ohne die Sekunden in [skip].

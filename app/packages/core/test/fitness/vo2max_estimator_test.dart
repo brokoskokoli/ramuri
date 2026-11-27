@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 import 'section_support.dart';
 
 const _est = AcsmReserveVo2maxEstimator();
-const _p = FitnessParameters.v4();
+const _p = FitnessParameters.v5();
 final _t0 = DateTime.utc(2030, 1, 1, 12);
 final _end = _t0.add(const Duration(hours: 1));
 

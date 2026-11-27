@@ -71,7 +71,7 @@ void main() {
     // Segmente mit exakt darstellbaren Metern: die Grenze 0,25 selbst.
     List<(DateTime, DateTime)> exact(double second) {
       final p = SettlingProcessor(
-        const PreprocessingParameters.v4(),
+        const PreprocessingParameters.v5(),
         start: t0,
       );
       for (var s = 1; s <= 800; s++) {

@@ -22,7 +22,7 @@ RunPreprocessor apply(List<Step> steps) {
 
 void main() {
   test('Parametersatz v4 trägt alle Startwerte PAR-001..015 und PAR-207', () {
-    const v = PreprocessingParameters.v4();
+    const v = PreprocessingParameters.v5();
     expect(v.parameterVersion, currentParameterVersion);
     expect(v.positionMaxAccuracyMeters, 25);
     expect(v.hardJumpMaxSpeed, 12.5);

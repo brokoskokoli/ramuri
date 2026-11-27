@@ -18,7 +18,7 @@ ComputedValue _trimp(double value) => ComputedValue(
   measurementCount: 1,
   sources: const [],
   method: 'edwards-trimp',
-  methodVersion: 1,
+  methodVersion: const EdwardsTrimp().methodVersion,
   parameterVersion: 1,
   quality: ValueQuality.good,
 );

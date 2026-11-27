@@ -28,7 +28,7 @@ class PredictionRunReader {
     required this.session,
     required this.clock,
     this.parameters = const PredictionParameters(),
-    this.preprocessing = const PreprocessingParameters.v4(),
+    this.preprocessing = const PreprocessingParameters.v5(),
     this.offload = inlineOffload,
   });
 

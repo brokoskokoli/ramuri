@@ -7,7 +7,7 @@ void main() {
   group('PAR-007 absolute Plausibilität', () {
     // Je Wert eigener Lauf, damit PAR-009 (Sprung) nicht mitspielt.
     String one(int bpm, [PreprocessingParameters? p]) => verdicts(
-      runHr([hr(0, bpm)], p: p ?? const PreprocessingParameters.v4()),
+      runHr([hr(0, bpm)], p: p ?? const PreprocessingParameters.v5()),
     ).single;
 
     test('30 und 240 gelten, 29 und 241 nicht', () {
