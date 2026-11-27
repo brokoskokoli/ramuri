@@ -4,7 +4,7 @@ import '../../ports/storage_goals.dart';
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_warning.dart';
 import '../goals/training_goal.dart';
-import '../prediction/reference_performance.dart' show calendarDay;
+import '../calendar/calendar_day.dart' show calendarDay;
 import 'build_plan_inputs.dart';
 import 'plan_adjust.dart' show evaluateWeekAdjustment;
 import 'plan_deviation.dart' show PlanRunFacts;

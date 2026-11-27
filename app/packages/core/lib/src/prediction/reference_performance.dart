@@ -1,3 +1,4 @@
+import '../calendar/calendar_day.dart';
 import 'prediction_parameters.dart';
 
 /// Art der Referenzleistung (FR-0129, OQ-0034).
@@ -123,14 +124,3 @@ ReferencePerformance? _newest(Iterable<ReferencePerformance> all) {
   }
   return best;
 }
-
-/// Kalendertag im lokalen Datum als UTC-Mitternacht: Tagesdifferenzen sind
-/// damit frei von Sommerzeit.
-DateTime calendarDay(DateTime t) {
-  final l = t.toLocal();
-  return DateTime.utc(l.year, l.month, l.day);
-}
-
-/// Ganze Kalendertage von [from] bis [to] (negativ, wenn [to] davor liegt).
-int daysBetween(DateTime from, DateTime to) =>
-    calendarDay(to).difference(calendarDay(from)).inDays;

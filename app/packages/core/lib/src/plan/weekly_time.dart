@@ -1,5 +1,5 @@
 import '../goals/training_goal.dart';
-import '../prediction/reference_performance.dart' show calendarDay;
+import '../calendar/calendar_day.dart' show calendarDay;
 import 'plan_parameters.dart';
 
 /// Phase einer Planwoche (FR-0141). Weitere Phasen sind nicht vorgesehen.

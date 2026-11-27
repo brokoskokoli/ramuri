@@ -1,5 +1,5 @@
 import '../prediction/prediction_parameters.dart';
-import '../prediction/reference_performance.dart' show calendarDay;
+import '../calendar/calendar_day.dart' show calendarDay;
 
 /// Zielart (FR-0135): Strecke, Zeit oder offenes Fitnessziel.
 enum GoalType {

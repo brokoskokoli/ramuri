@@ -8,7 +8,7 @@ import '../offload.dart';
 import '../statistics/run_overview.dart';
 import 'prediction_parameters.dart';
 import 'prediction_run.dart';
-import 'reference_performance.dart' show calendarDay;
+import '../calendar/calendar_day.dart' show calendarDay;
 
 /// Baut [PredictionRun] aus den vorhandenen Daten, ohne neue Rechnung:
 /// Bewegungszeit und Distanz aus der Kurzfassung des Laufs
