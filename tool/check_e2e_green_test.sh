@@ -57,7 +57,8 @@ case_no=0
 check() {
   name=$1 want_rc=$2 want_out=$3 want_q=$4 want_s=$5; shift 5
   [ $# -gt 0 ] || set -- "$SHA"
-  bash "$script" "$@" > "$FAKE/out" 2>&1; rc=$?
+  # Obergrenze gegen eine Endlosschleife (etwa Wartezeit zählt nicht hoch); Exit 124 = Zeit überschritten.
+  timeout 60 bash "$script" "$@" > "$FAKE/out" 2>&1; rc=$?
   q=$(cat "$FAKE/count" 2>/dev/null || echo 0)
   s=$(awk '{t += $1} END {print t + 0}' "$FAKE/sleeps" 2>/dev/null || echo 0)
   if [ "$rc" -eq "$want_rc" ] && grep -qF -- "$want_out" "$FAKE/out" && [ "$q" -eq "$want_q" ] && [ "$s" -eq "$want_s" ]; then
@@ -137,7 +138,7 @@ fresh; runs runs.json "$(run_json 36 "$SHA" in_progress null 2026-01-01T10:00:00
 E2E_WAIT_SECONDS=60 E2E_POLL_SECONDS=15 check "Wartegrenze über Umgebung" 1 "Lauf nach 1 min nicht abgeschlossen" 5 60
 
 # Falsche Aufrufe und Umgebung: Exit ungleich 0, keine Abfrage.
-fresh; bash "$script" > "$FAKE/out" 2>&1; rc=$?
+fresh; timeout 60 bash "$script" > "$FAKE/out" 2>&1; rc=$?
 [ "$rc" -eq 2 ] && echo "OK   ohne Argument (Exit 2)" || { echo "FAIL ohne Argument: rc=$rc"; fails=$((fails + 1)); }
 fresh; check "zwei Argumente" 2 "Aufruf:" 0 0 "$SHA" "$SHA"
 fresh; check "kurzer Commit" 1 "ungültiger Commit" 0 0 0123456
