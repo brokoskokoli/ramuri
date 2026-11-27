@@ -134,8 +134,11 @@ if ! grep -qi "SHA-256 digest: $RELEASE_CERT_SHA256" <<<"$certs"; then
   fehler "APK ist nicht mit dem Release-Zertifikat $RELEASE_CERT_SHA256 signiert"
 fi
 
-# --- Release-Prüfung des Gates auf genau diese APK ---
+# --- Release-Prüfung des Gates auf genau diese APK und dieses AAB (dieselben Regeln, tool/check_release_aab.sh) ---
 tool/check_release_apk.sh "$apk" || fehler "Release-Prüfung der APK ist rot"
+if [[ $nightly -eq 0 ]]; then
+  tool/check_release_aab.sh "$aab" || fehler "Release-Prüfung des AAB ist rot"
+fi
 
 # --- dist/ ---
 rm -rf dist
