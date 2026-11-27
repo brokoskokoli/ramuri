@@ -25,14 +25,16 @@ String _states() => HealthDataKind.values
     .join(' ');
 
 // Hinweis aus der Übersetzung der App, nicht fest eingetragen: so gilt die
-// Prüfung in jeder Emulatorsprache.
-bool _missingText(WidgetTester t) => find
-    .textContaining(
-      AppLocalizations.of(t.element(find.byKey(const Key('health_main'))))
-          .healthRightsMissing,
-    )
-    .evaluate()
-    .isNotEmpty;
+// Prüfung in jeder Emulatorsprache. Ohne Seite (health_main nicht im Baum)
+// `false`, damit die Log-Zeile nicht wirft; die Prüfung danach meldet es.
+bool _missingText(WidgetTester t) {
+  final page = find.byKey(const Key('health_main')).evaluate();
+  if (page.isEmpty) return false;
+  return find
+      .textContaining(AppLocalizations.of(page.first).healthRightsMissing)
+      .evaluate()
+      .isNotEmpty;
+}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

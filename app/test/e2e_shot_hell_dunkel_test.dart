@@ -27,7 +27,7 @@ void main() {
         print: (self, parent, zone, line) {
           final i = line.indexOf('SHOT ');
           if (i >= 0) {
-            out.add('${line.substring(i + 5)}:${themeAt(t, 'seite').name}');
+            out.add('${line.substring(i + 5)}:${themeAt(t, 'seite')?.name}');
           }
         },
       ),
@@ -68,15 +68,28 @@ void main() {
     expect(t.platformDispatcher.platformBrightness, Brightness.light);
   });
 
-  testWidgets('falscher Schlüssel: rot, Helligkeit zurück', (t) async {
+  testWidgets('falscher Schlüssel: rot mit Schlüssel, Helligkeit zurück', (
+    t,
+  ) async {
     await t.pumpWidget(app());
     Object? fehler;
     try {
-      await shotHellDunkel(t, 'probe', 'gibt_es_nicht', pause: false);
+      await shotHellDunkel(
+        t,
+        'probe',
+        'gibt_es_nicht',
+        timeout: const Duration(seconds: 1),
+        pause: false,
+      );
     } catch (e) {
       fehler = e;
     }
-    expect(fehler, isNotNull);
+    // Fehlt der Schluessel, wartet waitFor bis zur Frist (kein StateError).
+    expect(fehler, isA<TestFailure>());
+    expect(
+      (fehler! as TestFailure).message,
+      'nach 1 s nicht erreicht: Thema dunkel (gibt_es_nicht)',
+    );
     expect(t.platformDispatcher.platformBrightness, Brightness.light);
   });
 }

@@ -349,6 +349,38 @@ void main() {
         ),
       );
     });
+
+    test('Zuordnung über „Einheit starten“: ersetzte Einheit, die Einheit des '
+        'Tags trägt schon einen Lauf → `notFound`, die bestehende Zuordnung '
+        'bleibt (PAR-231)', () async {
+      final e = await WorkflowEnv.open();
+      await e.service.saveGoal(_goal({1, 3, 5}));
+      final first = await _runAt(e.session, today, 7, 0);
+      await e.service.assignRun((await _unitOn(e, today))!.id!, first);
+      // Die Zuordnung rechnet neu und kann Kennungen ersetzen: neu lesen.
+      final unit = (await _unitOn(e, today))!;
+      expect(unit.runId, first);
+      final second = await _runAt(e.session, today, 12, 0);
+      final versions = (await e.plans.history()).length;
+      await expectLater(
+        e.service.assignStartedRun(
+          unitId: unit.id! + 1000,
+          day: workflowDayText(today),
+          runId: second,
+        ),
+        throwsA(
+          isA<StorageException>().having(
+            (x) => x.failure,
+            'failure',
+            StorageFailure.notFound,
+          ),
+        ),
+      );
+      expect((await _unitOn(e, today))!.runId, first);
+      expect((await _assigned(e)).values, [first]);
+      expect((await _assigned(e)).values, isNot(contains(second)));
+      expect((await e.plans.history()).length, versions);
+    });
   });
 
   group('Fenster der Zuordnung (PAR-231) an den Grenzen', () {

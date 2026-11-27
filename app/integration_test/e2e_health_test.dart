@@ -240,7 +240,11 @@ void main() {
       );
     }
     final never = AppLocalizations.of(
-      t.element(find.byKey(const Key('health_last'))),
+      await elementWhen(
+        t,
+        find.byKey(const Key('health_last')),
+        'HC1 letzter Abruf health_last',
+      ),
     ).healthLastNever;
     expect(txt('health_last'), isNot(never), reason: 'letzter Abruf gesetzt');
     log('HC1 letzter Abruf gesetzt');

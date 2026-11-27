@@ -50,9 +50,12 @@ Future<void> shot(WidgetTester t, String name, {bool pause = e2eShots}) async {
   if (pause) await pumpFor(t, const Duration(milliseconds: 2500));
 }
 
-/// Helligkeit des Themas, das am Widget mit [key] gilt.
-Brightness themeAt(WidgetTester t, String key) =>
-    Theme.of(t.element(find.byKey(Key(key)))).brightness;
+/// Helligkeit des Themas, das am Widget mit [key] gilt, oder `null`, solange
+/// es nicht im Baum steht (Bedingung fuer [waitFor], wirft nicht).
+Brightness? themeAt(WidgetTester t, String key) {
+  final e = find.byKey(Key(key)).evaluate();
+  return e.isEmpty ? null : Theme.of(e.first).brightness;
+}
 
 /// Fotopaar dunkel und hell: schaltet die Systemhelligkeit der Testumgebung
 /// auf dunkel, wartet ([waitFor], Frist [timeout]), bis das Thema am Widget
@@ -252,6 +255,31 @@ bool hittable(WidgetTester t, Finder f) {
 T? maybeWidget<T extends Widget>(Finder f) {
   final e = f.evaluate();
   return e.isEmpty ? null : e.first.widget as T;
+}
+
+/// Wartet ([waitFor]), bis [f] etwas findet, und liefert das erste Element
+/// (z. B. fuer `AppLocalizations.of`); sonst endet der Test mit
+/// `nach … s nicht erreicht: <what>`. Fuer Zugriffe nach einem Seitenwechsel
+/// oder Scrollen, bevor das Ziel sicher gebaut ist. Keine feste Pause.
+Future<Element> elementWhen(
+  WidgetTester t,
+  Finder f,
+  String what, {
+  Duration timeout = const Duration(seconds: 40),
+}) async {
+  await waitFor(t, () => f.evaluate().isNotEmpty, what, timeout: timeout);
+  return f.evaluate().first;
+}
+
+/// Wie [elementWhen], liefert aber das Widget vom Typ [T].
+Future<T> widgetWhen<T extends Widget>(
+  WidgetTester t,
+  Finder f,
+  String what, {
+  Duration timeout = const Duration(seconds: 40),
+}) async {
+  await waitFor(t, () => maybeWidget<T>(f) != null, what, timeout: timeout);
+  return maybeWidget<T>(f)!;
 }
 
 String _imBaum(Finder f) => f.evaluate().isEmpty ? 'nein' : 'ja';
