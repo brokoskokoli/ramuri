@@ -8,12 +8,15 @@ extension PlanAssignWorkflow on PlanWorkflowService {
   /// Ordnet der Einheit [unitId] den Lauf [runId] zu (`null` hebt die
   /// Zuordnung auf) und rechnet danach ab heute neu (die Zuordnung zählt für
   /// „locker“, PAR-205, und friert die Einheit ein). Fehlt die Einheit:
-  /// `notFound`. Trägt sie beim Schreiben nicht mehr den Lauf, den sie beim
-  /// Lesen trug (veraltet), oder sperrt PAR-233 die Sporteinheit: nichts
-  /// geschrieben, `rejected`.
+  /// `notFound`. [expectedRunId] ist der Lauf, den die Einheit in der Ansicht
+  /// des Aufrufers trug (`null`: offen gesehen; beim Aufheben der bisher
+  /// zugeordnete Lauf). Trägt sie beim Schreiben einen anderen (veraltet,
+  /// etwa nach einer automatischen Zuordnung), oder sperrt PAR-233 die
+  /// Sporteinheit: nichts geschrieben, `rejected`.
   Future<void> assignRun(
     int unitId,
     int? runId, {
+    required int? expectedRunId,
     PlanWorkflowEvents events = PlanWorkflowEvents.none,
   }) async {
     final unit = await _unitById(unitId);
@@ -21,7 +24,7 @@ extension PlanAssignWorkflow on PlanWorkflowService {
     if (!await _assignAndRecalculate(
       unitId,
       runId,
-      expectedRunId: unit.runId,
+      expectedRunId: expectedRunId,
       events: events,
     )) {
       throw const StorageException(StorageFailure.rejected);
@@ -31,7 +34,8 @@ extension PlanAssignWorkflow on PlanWorkflowService {
   /// Zuordnung über „Einheit starten“ ([PlanStartedUnit]): wie [assignRun];
   /// hat eine Neuberechnung die gemerkte Einheit ersetzt (`notFound`), gilt
   /// die offene Einheit (kein Ruhetag, ohne Lauf) desselben Ortstags [day]
-  /// (`JJJJ-MM-TT`).
+  /// (`JJJJ-MM-TT`). Beide Einheiten hat der Aufrufer als offen gesehen bzw.
+  /// geprüft: erwartet wird kein Lauf.
   Future<void> assignStartedRun({
     required int unitId,
     required String day,
@@ -39,7 +43,7 @@ extension PlanAssignWorkflow on PlanWorkflowService {
     PlanWorkflowEvents events = PlanWorkflowEvents.none,
   }) async {
     try {
-      await assignRun(unitId, runId, events: events);
+      await assignRun(unitId, runId, expectedRunId: null, events: events);
     } on StorageException catch (e) {
       if (e.failure != StorageFailure.notFound) rethrow;
       final unit = await _plans.unitOn(DateTime.parse('${day}T00:00:00Z'));
@@ -51,7 +55,7 @@ extension PlanAssignWorkflow on PlanWorkflowService {
           unit.runId != null) {
         rethrow;
       }
-      await assignRun(id, runId, events: events);
+      await assignRun(id, runId, expectedRunId: null, events: events);
     }
   }
 

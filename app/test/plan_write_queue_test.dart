@@ -353,11 +353,35 @@ void main() {
         final unit = (await e.plans.unitOn(e.today))!;
         await e.plans.assignRun(unit.id!, run, expectedRunId: null);
         final c = e.controller();
-        expect(await c.assignRun(unit.id!, null), PlanActionResult.done);
+        expect(
+          await c.assignRun(unit.id!, null, expectedRunId: run),
+          PlanActionResult.done,
+        );
         expect((await e.plans.unitOn(e.today))!.runId, isNull);
         c.dispose();
       },
     );
+
+    test('Zuordnung aufheben mit einem anderen erwarteten Lauf: abgelehnt, '
+        'die Einheit trägt weiter ihren Lauf', () async {
+      final e = await _Env.open();
+      final run = await e.runToday(8);
+      final other = await e.runToday(10);
+      final unit = (await e.plans.unitOn(e.today))!;
+      await e.plans.assignRun(unit.id!, run, expectedRunId: null);
+      final c = e.controller();
+      expect(
+        await c.assignRun(unit.id!, null, expectedRunId: other),
+        PlanActionResult.rejected,
+      );
+      expect((await e.plans.unitOn(e.today))!.runId, run);
+      expect(
+        await c.assignRun(unit.id!, null, expectedRunId: run),
+        PlanActionResult.done,
+      );
+      expect((await e.plans.unitOn(e.today))!.runId, isNull);
+      c.dispose();
+    });
 
     test('ein anderer Schreiber ordnet zwischen Lesen und Schreiben zu: '
         'nichts überschrieben, abgelehnt, die Seite zeigt den neuen '
@@ -374,7 +398,10 @@ void main() {
         await e.plans.assignRun(unit.id!, other, expectedRunId: null);
       };
       final writes = e.storage.data.planAssignWrites;
-      expect(await c.assignRun(unit.id!, mine), PlanActionResult.rejected);
+      expect(
+        await c.assignRun(unit.id!, mine, expectedRunId: null),
+        PlanActionResult.rejected,
+      );
       expect((await e.plans.unitOn(e.today))!.runId, other);
       expect(e.storage.data.planAssignWrites, writes + 1);
       expect(

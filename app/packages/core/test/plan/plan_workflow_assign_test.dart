@@ -142,7 +142,7 @@ void main() {
       await e.service.saveGoal(_goal({1, 3, 5}));
       final short = await _runAt(e.session, today, 6, 0, minutes: 20);
       final unit = (await _unitOn(e, today))!;
-      await e.service.assignRun(unit.id!, short);
+      await e.service.assignRun(unit.id!, short, expectedRunId: null);
       await _runAt(e.session, today, 10, 0, minutes: 90);
       await e.openPlan();
       expect((await _unitOn(e, today))!.runId, short);

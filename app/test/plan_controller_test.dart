@@ -539,7 +539,11 @@ void main() {
       reads = 0;
       gate = Completer<void>();
       final manual = e.controller.recalculate();
-      final assign = e.controller.assignRun(unit.id!, runId);
+      final assign = e.controller.assignRun(
+        unit.id!,
+        runId,
+        expectedRunId: null,
+      );
       for (var i = 0; i < 20; i++) {
         await Future<void>.delayed(Duration.zero);
       }
@@ -985,7 +989,7 @@ void main() {
           await e.controller.open();
         case 'assignRun':
           expect(
-            await e.controller.assignRun(next.id!, runId),
+            await e.controller.assignRun(next.id!, runId, expectedRunId: null),
             PlanActionResult.done,
           );
         case 'recalculate':
@@ -1028,7 +1032,7 @@ void main() {
       runs = [fig(runId, 0)];
       final tue = await e.plans.unitOn(_day(6));
       expect(
-        await e.controller.assignRun(tue!.id!, null),
+        await e.controller.assignRun(tue!.id!, null, expectedRunId: null),
         PlanActionResult.done,
       );
       h = await e.plans.history();
@@ -1096,7 +1100,7 @@ void main() {
       final lastCheck = await e.session.settings.get(planLastCheckDayKey);
       final unit = (await e.plans.unitsBetween(_day(14), planFarFuture)).first;
       expect(
-        await e.controller.assignRun(unit.id!, runId),
+        await e.controller.assignRun(unit.id!, runId, expectedRunId: null),
         PlanActionResult.done,
       );
       expect(
@@ -1750,7 +1754,7 @@ void main() {
       final unit = (await e.controller.unitOn(_today))!;
       final before = e.changes;
       expect(
-        await e.controller.assignRun(unit.id!, short),
+        await e.controller.assignRun(unit.id!, short, expectedRunId: null),
         PlanActionResult.done,
       );
       expect(e.changes, greaterThan(before), reason: 'Neuberechnung gemeldet');
