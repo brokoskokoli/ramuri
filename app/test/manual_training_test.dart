@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/health/imported_exercise_screen.dart';
+import 'package:running_app/features/history/manual_training_screen.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
@@ -362,6 +363,13 @@ void main() {
                 session: session,
                 clock: clock,
                 today: '2026-11-20',
+                onAdopt: (context, e) => adoptImportedExercise(
+                  context,
+                  e,
+                  service: SubjectiveService(session: session, clock: clock),
+                  clock: clock,
+                  today: '2026-11-20',
+                ),
               ),
             ),
           );

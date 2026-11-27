@@ -1,6 +1,6 @@
 # Verfahrenskategorien
 
-Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeordnet (A etabliert, B Heuristik, C individuell kalibriert). Im Code steht die Kategorie an der Variante (`AlgorithmVariant.category`, [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md)) nur für die Verfahren aus WP04; sie laufen über die Registry der Standardbestückung `AlgorithmRegistry.standard()`, ein Test gleicht sie mit dieser Tabelle ab. WP03-Verfahren und die Abschnittsauswahl tragen die Kategorie als Konstante `<x>Category`; `algorithm_category_test` (`app/packages/core/test/fitness/algorithm_category_test.dart`) gleicht sie ab. Neue Verfahren tragen sich hier ein.
+Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeordnet (A etabliert, B Heuristik, C individuell kalibriert). Im Code steht die Kategorie an der Variante (`AlgorithmVariant.category`, [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md)) nur für die Verfahren aus WP04; sie laufen über die Registry der Standardbestückung `AlgorithmRegistry.standard()` (`app/packages/core/lib/src/algorithms/algorithm_registry.dart`), ein Test gleicht sie mit dieser Tabelle ab. WP03-Verfahren und die Abschnittsauswahl tragen die Kategorie als Konstante `<x>Category`; `algorithm_category_test` (`app/packages/core/test/fitness/algorithm_category_test.dart`) gleicht sie ab. Neue Verfahren tragen sich hier ein.
 
 | Verfahren | Kennung | Kategorie | Begründung | Paket |
 |---|---|---|---|---|

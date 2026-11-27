@@ -120,7 +120,11 @@ bool _snack(String text) => find
 Future<int> _loadUnits(WidgetTester t, AppDependencies d) async {
   final session = await _session(t, d);
   const clock = SystemClock();
-  final calc = ValueCalculationService(session: session, clock: clock);
+  final calc = ValueCalculationService(
+    algorithms: AlgorithmRegistry.standard(),
+    session: session,
+    clock: clock,
+  );
   final service = TrainingLoadService(
     session: session,
     clock: clock,
@@ -236,7 +240,11 @@ void main() {
       );
     }
     final never = AppLocalizations.of(
-      t.element(find.byKey(const Key('health_last'))),
+      await elementWhen(
+        t,
+        find.byKey(const Key('health_last')),
+        'HC1 letzter Abruf health_last',
+      ),
     ).healthLastNever;
     expect(txt('health_last'), isNot(never), reason: 'letzter Abruf gesetzt');
     log('HC1 letzter Abruf gesetzt');

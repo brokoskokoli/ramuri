@@ -11,10 +11,10 @@ import '../map/map_consent_controller.dart';
 import '../map/map_consent_scope.dart';
 import '../map/miniature_service.dart';
 import '../recalculation/recalculation_controller.dart';
-import '../run/live_run_view.dart' show formatClock;
-import '../run/other_sport.dart';
+import '../../ui/format/clock_format.dart' show formatClock;
+import '../../ui/format/other_sport_format.dart';
 import '../settings/app_settings.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/unit_format.dart';
 import '../storage/deletion.dart';
 import 'history_view_state.dart';
 import 'manual_training_screen.dart';
@@ -146,6 +146,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
           session: widget.session,
           clock: widget.clock,
           today: _today,
+          onAdopt: (context, exercise) => adoptImportedExercise(
+            context,
+            exercise,
+            service: _subjective,
+            clock: widget.clock,
+            today: _today,
+          ),
         ),
       ),
     );
@@ -219,8 +226,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       widget.clock,
       runId,
       serialize: widget.recalculation.exclusive,
+      algorithms: widget.recalculation.service.algorithms,
       onDeleted: _consent?.deleteRunThumbnails,
       exports: FileHandoffScope.of(context),
+      offload: OffloadScope.of(context),
     );
     if (!mounted) return;
     if (result == DeletionResult.deleted ||

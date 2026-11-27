@@ -5,9 +5,8 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_card.dart';
 import '../../ui/ramuri_type.dart';
 import '../../ui/section_heading.dart';
-import '../settings/unit_format.dart';
-import '../statistics/fitness_section.dart' show reasonText;
-import '../summary/run_summary_body.dart' show isProfileBasisReason;
+import '../../ui/format/unit_format.dart';
+import '../../ui/format/reason_text.dart';
 import 'quality_text.dart';
 
 /// Schlüssel für die Quellen eines Laufs (SEC-0005); kein gespeicherter Wert.

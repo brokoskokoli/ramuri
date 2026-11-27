@@ -15,7 +15,7 @@ Future<ReadinessSnapshot?> loadReadinessToday({
     final report = await TrainingLoadService(
       session: session,
       clock: clock,
-      calculation: ValueCalculationService(session: session, clock: clock),
+      calculation: recalculation.calculation,
       recalculation: recalculation,
     ).loadReadOnly();
     final days = report.series.days;

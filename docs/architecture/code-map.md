@@ -23,8 +23,11 @@ Abhängigkeiten zeigen nur in diese Richtung: `app` nutzt `adapters` und `core`,
 | `app/lib/app_dependencies.dart` | Manueller Zusammenbau (ohne DI-Bibliothek): bindet die Adapter aus `adapters` an die Ports aus `core`; Tests setzen stattdessen Fakes ein. |
 | `app/lib/app.dart` | Wurzel-Widget mit Theme, Lokalisierung und Navigation. |
 | `app/lib/system_clock.dart` | Echte Uhr (`SystemClock`) als Umsetzung des Ports `Clock`. |
+| `app/lib/data_changes.dart` | Gemeinsame Benachrichtigung über Datenänderungen (`DataChanges`), eine Instanz je Sitzung in `ReadyRoot`; die Bereiche hören darauf und laden neu. |
 | `app/lib/features/<bereich>/` | Je Bereich die Screens und ihr `ChangeNotifier`-Controller (z. B. `app/lib/features/plan/`, `app/lib/features/run/`); nur Darstellung, Ablauf und Verdrahtung, keine Fachregel. |
 | `app/lib/ui/` | Gemeinsame Bausteine der Oberfläche: Theme, Farben, Schrift, Karten, Chips, Zeichner (z. B. `app/lib/ui/sparkline.dart`), Barrel `app/lib/ui/ui.dart`. |
+| `app/lib/ui/format/` | Gemeinsame Formatierer und Texte mehrerer Bereiche (z. B. `app/lib/ui/format/clock_format.dart`, `app/lib/ui/format/unit_format.dart`); einzeln importiert, nicht über das Barrel. |
+| `app/lib/ui/charts/` | Gemeinsame Zeichner und Diagramme mehrerer Bereiche (z. B. `app/lib/ui/charts/route_painter.dart`); einzeln importiert. |
 | `app/lib/l10n/` | Texte als ARB (`app/lib/l10n/app_de.arb` ist die Vorlage, dazu `app/lib/l10n/app_en.arb`); `pub get` erzeugt daraus `app_localizations*.dart` (nicht eingecheckt). |
 | `app/lib/debug/` | Test-Sensor, Test-Kamera, Test-Health-Connect und Debug-Panel; nur aus `app/lib/main_debug.dart` erreichbar. |
 | `app/test/` | Widget- und Verdrahtungstests der App; Hilfen in `app/test/helpers/`, Debug-Quellen in `app/test/debug/`. |
@@ -60,29 +63,30 @@ Fachlogik ohne Flutter; Barrel `app/packages/core/lib/core.dart`.
 | `app/packages/core/lib/ports/` | Schnittstellen zu Uhr, Geräten, Plattform und Speicher (z. B. `app/packages/core/lib/ports/clock.dart`, `app/packages/core/lib/ports/storage.dart`). |
 | `app/packages/core/lib/fakes/` | Fakes zu den Ports für Tests und Debug-Build. |
 | `app/packages/core/lib/testing/` | Speicher-Vertrag (`app/packages/core/lib/testing/storage_contract.dart`): dieselben Tests laufen gegen den Fake und gegen die drift-Umsetzung. |
+| `app/packages/core/lib/src/algorithms/` | Algorithmen-Registry (`app/packages/core/lib/src/algorithms/algorithm_registry.dart`, ADR-0004, NFR-0005): Familien, Varianten und Standardbestückung `AlgorithmRegistry.standard()`. Oberes Modul: darf `fitness`, `plan` und `prediction` importieren, kein anderes Modul unter `src/` importiert es (`CORE_TOP_MODULES` in `tool/check_architecture.py`). Die App baut die Registry einmal (`AppDependencies.algorithms`); die Wertberechnung bekommt sie als `AlgorithmLookup` (`app/packages/core/lib/src/fitness/algorithm_lookup.dart`), Laufanalyse und Versionsprüfung nehmen ihre Verfahren daraus. |
 | `app/packages/core/lib/src/archive/` | Format, Export und Import des Gesamtarchivs. |
+| `app/packages/core/lib/src/calendar/` | Tageszuordnung (Blattmodul, importiert kein anderes Modul unter `src/`): ISO-Tag `isoDay` und Tag eines Laufs `dayOfRun` (Ortstag seines Starts, PAR-237) mit den zugehörigen Tagesfunktionen in `app/packages/core/lib/src/calendar/run_day.dart`. Kalendertag `calendarDay` (Ortstag als UTC-Mitternacht) und ganze Kalendertage `daysBetween` für Prognose, Plan, Ziele und Erinnerungen in `app/packages/core/lib/src/calendar/calendar_day.dart`. |
 | `app/packages/core/lib/src/consent/` | Einwilligungen, Widerruf und eingewilligte Quellen. |
 | `app/packages/core/lib/src/export/` | Dateiexporte GPX, TCX, FIT und CSV. |
-| `app/packages/core/lib/src/fitness/` | Zonen, VO₂max, aerobe Effizienz, TRIMP und Algorithmen-Register (`app/packages/core/lib/src/fitness/algorithm_registry.dart`). |
+| `app/packages/core/lib/src/fitness/` | Zonen, VO₂max, aerobe Effizienz, TRIMP und die Lesesicht `AlgorithmLookup` auf die Registry (die Registry selbst liegt in `algorithms/`). |
 | `app/packages/core/lib/src/goals/` | Trainingsziele. |
 | `app/packages/core/lib/src/guidance/` | Geführte Einheit: Position im Ablauf, Ansagen, Gehpausen. |
 | `app/packages/core/lib/src/health/` | Verarbeitung importierter Gesundheitsdaten (Tageswerte, Schlaf). |
 | `app/packages/core/lib/src/hints/` | Hinweise, Erklärungen und Erholungskarte. |
 | `app/packages/core/lib/src/load/` | Trainingsbelastung und Pausentage. |
 | `app/packages/core/lib/src/morning/` | Morgenmessung und Gurtvergleich. |
-| `app/packages/core/lib/src/plan/` | Planerstellung, Anpassung, Verschieben, Warnungen und Geh-Lauf-Programm; die Schreibreihe des Plans je Sitzung (`app/packages/core/lib/src/plan/plan_write_queue.dart`). |
+| `app/packages/core/lib/src/plan/` | Planerstellung, Anpassung, Verschieben, Warnungen und Geh-Lauf-Programm; die Schreibreihe des Plans je Sitzung (`app/packages/core/lib/src/plan/plan_write_queue.dart`). Die Abläufe des Plans liegen in `PlanWorkflowService` (`app/packages/core/lib/src/plan/plan_workflow_service.dart`: Wochenprüfung, Erholungsprüfung, Heilung bei Warnsignal; Lese-Port `PlanWorkflowReader`, App-Adapter `app/lib/features/plan/plan_data_reader.dart`) und seinen Teilen: Zuordnung mit Zeitfenster PAR-231 (`app/packages/core/lib/src/plan/plan_workflow_assign.dart`), Neustart zur Pause PAR-202/PAR-181 (`app/packages/core/lib/src/plan/plan_workflow_pause.dart`, Port `PlanPauseSource` in `app/packages/core/lib/src/plan/plan_pause.dart`), Ziel und Rückmeldungen (`app/packages/core/lib/src/plan/plan_workflow_goal.dart`), Unterforderung PAR-236 (`app/packages/core/lib/src/plan/plan_workflow_underload.dart`), Ersetzen und Ruhetag (`app/packages/core/lib/src/plan/plan_workflow_edit.dart`), Hinweise und Einschätzung der Seite (`app/packages/core/lib/src/plan/plan_workflow_view.dart`); der Merker von „Einheit starten“ ist `PlanStartedUnit` (`app/packages/core/lib/src/plan/plan_started_unit.dart`, Speicher in `app/lib/features/plan/plan_started_unit.dart`). `PlanController` hält nur den Ansichtszustand (`app/lib/features/plan/plan_view_state.dart`) und ruft den Dienst; ebenso der Erholungs-Auslöser. |
 | `app/packages/core/lib/src/ppg/` | Kamera-PPG-Auswertung (Beschreibung in `app/packages/core/lib/src/ppg/ALGORITHMUS.md`). |
 | `app/packages/core/lib/src/prediction/` | Leistungsprognosen. |
 | `app/packages/core/lib/src/preprocessing/` | Vorverarbeitung der Messwerte: Lücken, Bewegung, Höhe, Puls. |
 | `app/packages/core/lib/src/profile/` | Profil, Prüfung der Eingaben und Herkunft des Ruhepulses. |
 | `app/packages/core/lib/src/readiness/` | Readiness-Modell und Erklärung. |
-| `app/packages/core/lib/src/recalculation/` | Analyse eines Laufs und Neuberechnung abgeleiteter Werte. |
+| `app/packages/core/lib/src/recalculation/` | Analyse eines Laufs und Neuberechnung abgeleiteter Werte; gespeicherte Kurzfassung eines Laufs (`overviewOf`, `runOverviewMethod`) mit Bestpace (`bestPace`) und deren Parametern (`StatisticsParameters`). |
 | `app/packages/core/lib/src/recording/` | Aufzeichnung, Startprüfung, Wiederanlauf und Laufband. |
 | `app/packages/core/lib/src/reminders/` | Regeln der Erinnerungen. |
-| `app/packages/core/lib/src/run_day/` | Tag eines Laufs: Ortstag seines Starts (PAR-237), ohne Abhängigkeit zu anderen Modulen. |
 | `app/packages/core/lib/src/sensors/` | Auswertung der Pulsdaten und Wahl der Pulsquelle. |
 | `app/packages/core/lib/src/settings/` | Einstellungen als Werte. |
-| `app/packages/core/lib/src/statistics/` | Historie, Perioden, Bestzeiten und Kilometer-Splits. |
+| `app/packages/core/lib/src/statistics/` | Historie, Perioden, Laufübersicht (`RunOverviewService`) und Kilometer-Splits; liest Analyseergebnisse aus `recalculation/`, nicht umgekehrt. |
 | `app/packages/core/lib/src/storage/` | Schlüsseldienst der Datenbank. |
 | `app/packages/core/lib/src/subjective/` | Subjektive Angaben und nachgetragene Trainings. |
 | `app/packages/core/test/` | Unit-Tests, je Modul ein Ordner wie unter `app/packages/core/lib/src/`. |
@@ -97,7 +101,7 @@ Fachlogik ohne Flutter; Barrel `app/packages/core/lib/core.dart`.
 | Adapter (Umsetzung eines Ports) | `app/packages/adapters/lib/src/<bereich>/` | Export über `app/packages/adapters/lib/adapters.dart`, Verdrahtung in `app/lib/app_dependencies.dart`. |
 | Controller | `app/lib/features/<bereich>/` | `ChangeNotifier`, bekommt Ports und Dienste von außen; Fachregeln ruft er aus `core` auf. |
 | Screen | `app/lib/features/<bereich>/` | Neben seinem Controller. |
-| Gemeinsamer Formatierer oder Zeichner | `app/lib/ui/` | Für Bausteine, die mehr als ein Bereich nutzt; Export über `app/lib/ui/ui.dart`. |
+| Gemeinsamer Formatierer oder Zeichner | `app/lib/ui/format/` bzw. `app/lib/ui/charts/` | Für Bausteine, die mehr als ein Bereich nutzt; nie im Feature eines anderen Bereichs ablegen. Kleine Widgets und Theme direkt in `app/lib/ui/`, Export über `app/lib/ui/ui.dart`. |
 | Unit-Test der Fachlogik | `app/packages/core/test/<modul>/` | `dart test`, Uhr über `FakeClock`. |
 | Test eines Adapters | `app/packages/adapters/test/<bereich>/` | Speicher zusätzlich über den Vertrag in `app/packages/core/lib/testing/`. |
 | Widget- oder Verdrahtungstest | `app/test/` | Fakes statt Geräte; Hilfen in `app/test/helpers/`. |
@@ -117,8 +121,10 @@ Heute geltende Regeln und wo sie geprüft werden. Weitere Regeln ergänzt die Ä
 | `core` ist frei von Flutter, `dart:ui` und `adapters`. | Schritt „core flutterfrei“ in `tool/gate.sh` (Abhängigkeits-Walk und Übersetzung außerhalb des Workspace). |
 | Netz nur im Kartenadapter (`app/packages/adapters/lib/src/map/`), Pakete nur laut `tool/net_allowed_packages.txt`. | `tool/check_net.py` mit Selbsttest `tool/check_net_test.py`, beide in `tool/gate.sh`. |
 | Keine neuen Zyklen zwischen Modulen in `core` (Ordner unter `app/packages/core/lib/src/`) bzw. zwischen Features der App (Ordner unter `app/lib/features/`); Kante ist jedes `import`, `export` oder `part` einer Datei des anderen Moduls. Die Zahl der Module in Zyklen darf nur sinken (Grundlinie `CORE_CYCLE_MODULES`, `APP_CYCLE_FEATURES` im Skript). | `tool/check_architecture.py` mit Selbsttest `tool/check_architecture_test.py`, beide in `tool/gate.sh` (auch `--fast`). |
+| Features importieren keine anderen Features außer über Routen bzw. Callbacks aus `app/lib/app_dependencies.dart` oder dem Aufrufer; Gemeinsames liegt in `app/lib/ui/` (Formatierer in `app/lib/ui/format/`, Zeichner in `app/lib/ui/charts/`). Bestehende Ausnahmen führt die Ratsche `APP_CYCLE_FEATURES`. `app/lib/ui/` importiert nichts aus `app/lib/features/`, auch nicht über Dateien unter `app/lib/` außerhalb von `features/` und `ui/` (z. B. `app_dependencies.dart`, `debug/`). | `tool/check_architecture.py` (Ratsche `APP_CYCLE_FEATURES`, Prüfung `check_ui`: verfolgt diese Dateien transitiv; ein fehlendes, unlesbares oder verlinktes Ziel ist rot, übersprungen wird nur ein fehlendes Ziel unter `app/lib/l10n/` (generierte Lokalisierung)) mit Selbsttest `tool/check_architecture_test.py`. |
+| Blattmodule in `core` importieren kein anderes Modul unter `app/packages/core/lib/src/` (auch nicht über Dateien direkt in `src/`): `calendar/` (Tageszuordnung). | `tool/check_architecture.py` (Liste `CORE_LEAF_MODULES`) mit Selbsttest `tool/check_architecture_test.py`. |
 | Zeit nur über den Port `Clock` (`app/packages/core/lib/ports/clock.dart`); kein `DateTime.now()` in Fachlogik. | Keine maschinelle Prüfung; Tests setzen `FakeClock` bzw. `LocalFakeClock` (`app/test/helpers/local_clock.dart`). |
-| Jede Planänderung (Fassung, Zuordnung, Verschieben) aus der App läuft über die eine Schreibreihe der Sitzung (`PlanWriteQueue.of`), gemeinsam für alle Plan-Controller, den Erholungs-Auslöser und das Warnsignal aus der Zusammenfassung (`warningEntry`); die Zuordnung beim Öffnen von „Heute“ und der Plan-Seite läuft zudem hinter der Sperre der Wertberechnung. Wer zusätzlich die Wertberechnung sperrt (`exclusive`), nimmt diese Sperre zuerst. `assignRun` schreibt nur, wenn die Einheit noch den erwarteten Lauf trägt (sonst „veraltet“). | `app/test/plan_write_queue_test.dart`, `app/test/plan_open_assign_lock_test.dart`; Vertragsfall der Zuordnung im Speicher-Vertrag (`app/packages/core/lib/testing/storage_contract_plan.dart`) gegen Fake und drift. |
+| Jede Planänderung (Fassung, Zuordnung, Verschieben) aus der App läuft über die eine Schreibreihe der Sitzung (`PlanWriteQueue.of`), gemeinsam für alle Plan-Controller, den Erholungs-Auslöser und das Warnsignal aus der Zusammenfassung (`warningEntry`); die Zuordnung beim Öffnen von „Heute“ und der Plan-Seite läuft zudem hinter der Sperre der Wertberechnung. Wer zusätzlich die Wertberechnung sperrt (`exclusive`), nimmt diese Sperre zuerst. `assignRun` schreibt nur, wenn die Einheit noch den erwarteten Lauf trägt (sonst „veraltet“). Die Zuordnung durch den Nutzer erwartet den Stand der Ansicht: Der Aufrufer übergibt den Lauf, den er gesehen hat (offen gesehen: keiner; beim Aufheben der bisher zugeordnete), `assignRunToUnit` erwartet immer eine offene Einheit. | `app/test/plan_write_queue_test.dart`, `app/test/plan_open_assign_lock_test.dart`, `app/test/plan_started_unit_test.dart`; Vertragsfall der Zuordnung im Speicher-Vertrag (`app/packages/core/lib/testing/storage_contract_plan.dart`) gegen Fake und drift. |
 | Debug-Quellen (`app/lib/debug/`) nur aus `app/lib/main_debug.dart`, nie im Release-Build. | `tool/check_release_apk.sh` (Marker der Debug-Quellen fehlen im Release-APK), aus `tool/gate.sh`. |
 
 ## Große Dateien
@@ -127,7 +133,6 @@ Diese Dateien muss man nicht ganz lesen. Die Suchbegriffe markieren, wo ihre Abs
 
 | Datei | Zeilen | Abschnitte (Suchbegriffe) |
 |---|---|---|
-| `app/lib/features/plan/plan_controller.dart` | 1500 | `class PlanViewState`, `class PlanController`, `Future<void> open`, `Future<GoalDraftCheck> checkGoal`, `Future<PlanActionResult> saveGoal`, `Future<PlanActionResult> recalculate`, `Future<PlanActionResult> confirmMove`, `Future<PlanActionResult> replaceUnit`, `Future<PlanActionResult> reportWarning`, `Future<PlanFeedbackOutcome> answerFeedback`, `Future<PlanActionResult> answerPause`, `Future<PlanActionResult> setAdaptation`, `Future<bool> recheckRecovery` |
 | `app/lib/features/run/run_flow_screen.dart` | 1200 | `class RunFlowScreen`, `void initState`, `void _startGps`, `Future<void> _check(`, `Widget build`, `Widget _modeCard`, `Widget _plannedCard` |
 | `app/lib/features/home/home_screen.dart` | 1200 | `class HomeScreen`, `class _HomeScreenState`, `Widget _cards`, `Widget build`, `Widget _content`, `class _LastRun` |
 | `app/lib/features/statistics/load_card.dart` | 1100 | `class LoadCard`, `class LoadCardBody` |

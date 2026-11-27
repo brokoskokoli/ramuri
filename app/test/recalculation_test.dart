@@ -13,6 +13,33 @@ import 'history_summary_test.dart' show openHistory, seedRun;
 final _key = Uint8List.fromList(List.filled(32, 7));
 const _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 
+/// Offload, der inline rechnet und die Läufe jeder Vorverarbeitung
+/// ([replayJob]) zählt.
+class _CountingOffload {
+  final replayed = <int>[];
+
+  /// Wirft bei jeder Vorverarbeitung (Fehler des Isolates).
+  bool fail = false;
+
+  Future<R> call<A, R>(R Function(A) job, A argument) async {
+    if (identical(job, replayJob) && fail) {
+      throw StateError('offload');
+    }
+    if (identical(job, replayJob) &&
+        argument
+            is ({
+              StoredRun run,
+              DateTime end,
+              StoredRawData raw,
+              List<StoredGap> gaps,
+              PreprocessingParameters parameters,
+            })) {
+      replayed.add(argument.run.id);
+    }
+    return job(argument);
+  }
+}
+
 /// Ohne Reihe: führt die Aktion sofort aus.
 Future<void> _direct(Future<void> Function() action) => action();
 
@@ -152,15 +179,25 @@ class _GatedStorage implements Storage {
 
 /// Synthetischer Zustand vor dem App-Start: Profil HFmax 190 / Ruhe 60 und
 /// zwei beendete, berechnete Läufe (30 min, 3 m/s, 150 bpm).
-Future<void> _seed(Device d, {List<DateTime>? starts}) async {
+/// [calculateLast]: ohne, bleibt der letzte Lauf ohne Werte (holt der Start
+/// nach).
+Future<void> _seed(
+  Device d, {
+  List<DateTime>? starts,
+  bool calculateLast = true,
+}) async {
   final s = await d.storage.open(_key);
   await s.profile.save(
     const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
   );
-  final calc = ValueCalculationService(session: s, clock: d.clock);
-  for (final start
-      in starts ??
-          [DateTime.utc(2026, 5, 10, 8), DateTime.utc(2026, 5, 17, 8)]) {
+  final calc = ValueCalculationService(
+    algorithms: AlgorithmRegistry.standard(),
+    session: s,
+    clock: d.clock,
+  );
+  final seedStarts =
+      starts ?? [DateTime.utc(2026, 5, 10, 8), DateTime.utc(2026, 5, 17, 8)];
+  for (final start in seedStarts) {
     final run = await s.runs.create(startedAt: start);
     final positions = <RawPosition>[];
     final hrs = <RawHeartRate>[];
@@ -200,7 +237,9 @@ Future<void> _seed(Device d, {List<DateTime>? starts}) async {
     final end = start.add(const Duration(minutes: 30));
     await s.runs.setState(run.id, RunState.finished, endedAt: end);
     d.clock.set(end.add(const Duration(minutes: 1)));
-    await calc.calculateAfterRun(run.id);
+    if (calculateLast || start != seedStarts.last) {
+      await calc.calculateAfterRun(run.id);
+    }
   }
   d.clock.set(DateTime.utc(2026, 6, 1));
   await s.close();
@@ -268,9 +307,12 @@ Future<Device> _start(
   Locale locale = const Locale('de'),
   _Gate? gate,
   List<DateTime>? starts,
+  Offload? offload,
+  bool calculateLast = true,
 }) async {
   final d = Device();
-  await _seed(d, starts: starts);
+  if (offload != null) d.offload = offload;
+  await _seed(d, starts: starts, calculateLast: calculateLast);
   if (gate != null) d.storageOverride = _GatedStorage(d.storage, gate);
   await d.start(tester, locale);
   await d.skipSetup(tester);
@@ -372,6 +414,104 @@ void main() {
       );
     },
   );
+
+  testWidgets('Annehmen rechnet die Vorverarbeitung jedes Laufs über den '
+      'Offload der App', (tester) async {
+    final offload = _CountingOffload();
+    final d = await _start(tester, offload: offload.call);
+    final ids = [for (final r in await d.session.runs.list()) r.id]..sort();
+    await _changeMaxAndOpenSettings(tester);
+    offload.replayed.clear();
+    await tester.tap(find.byKey(const Key('recalc_confirm')));
+    await tester.pumpAndSettle();
+    _expectDoneSnackBar(2);
+    expect(offload.replayed.toSet().toList()..sort(), ids);
+  });
+
+  testWidgets('Nachholen beim Start rechnet die Vorverarbeitung über den '
+      'Offload der App', (tester) async {
+    final offload = _CountingOffload();
+    final d = await _start(tester, offload: offload.call, calculateLast: false);
+    final runs = await d.session.runs.list();
+    final last = runs.map((r) => r.id).reduce((a, b) => a > b ? a : b);
+    expect(offload.replayed, contains(last));
+    expect(await d.session.values.read(ValueOwner.run(last)), isNotEmpty);
+  });
+
+  group('Löschen über die Oberfläche rechnet über den Offload der App', () {
+    final starts = [
+      DateTime.utc(2026, 5, 10, 8),
+      DateTime.utc(2026, 5, 17, 8),
+      DateTime.utc(2026, 5, 17, 15),
+    ];
+
+    /// Startet mit drei Läufen; liefert die Lauf-IDs aufsteigend.
+    Future<(Device, List<int>)> threeRuns(
+      WidgetTester tester,
+      _CountingOffload offload,
+    ) async {
+      final d = await _start(tester, offload: offload.call, starts: starts);
+      final ids = [for (final r in await d.session.runs.list()) r.id]..sort();
+      return (d, ids);
+    }
+
+    testWidgets('Historie: jeder übrige Lauf im Fenster', (tester) async {
+      final offload = _CountingOffload();
+      final (d, ids) = await threeRuns(tester, offload);
+      final doomed = ids[1];
+      await openHistory(d, tester);
+      offload.replayed.clear();
+      await tester.tap(find.byKey(Key('history_delete_$doomed')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lauf löschen').last);
+      await tester.pumpAndSettle();
+      expect(await d.session.runs.get(doomed), isNull);
+      expect(offload.replayed.toSet().toList()..sort(), [ids[0], ids[2]]);
+      expect(
+        await d.session.settings.get(ValueCalculationService.refreshPendingKey),
+        '',
+      );
+    });
+
+    testWidgets('Laufdetail: jeder übrige Lauf im Fenster', (tester) async {
+      final offload = _CountingOffload();
+      final (d, ids) = await threeRuns(tester, offload);
+      final doomed = ids[0];
+      await openHistory(d, tester);
+      await tester.ensureVisible(find.byKey(Key('history_run_$doomed')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(Key('history_run_$doomed')));
+      await tester.pumpAndSettle();
+      offload.replayed.clear();
+      await tester.tap(find.byKey(const Key('detail_delete')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lauf löschen').last);
+      await tester.pumpAndSettle();
+      expect(await d.session.runs.get(doomed), isNull);
+      expect(offload.replayed.toSet().toList()..sort(), [ids[1], ids[2]]);
+    });
+
+    testWidgets('Offload wirft: Lauf bleibt gelöscht, Merker bleibt stehen', (
+      tester,
+    ) async {
+      final offload = _CountingOffload();
+      final (d, ids) = await threeRuns(tester, offload);
+      final doomed = ids[1];
+      await openHistory(d, tester);
+      offload.fail = true;
+      await tester.tap(find.byKey(Key('history_delete_$doomed')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lauf löschen').last);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(await d.session.runs.get(doomed), isNull);
+      expect(find.text('Gelöscht.'), findsOneWidget);
+      expect(
+        await d.session.settings.get(ValueCalculationService.refreshPendingKey),
+        startsWith('$doomed@'),
+      );
+    });
+  });
 
   testWidgets('Annehmen tauscht current, original bleibt (FR-0058)', (
     tester,
@@ -605,7 +745,13 @@ void main() {
           .length;
       expect(await s.values.read(ValueOwner.day(dayOfRemaining)), isNotEmpty);
 
-      await deleteRunAndRefresh(s, d.clock, doomed, serialize: _direct);
+      await deleteRunAndRefresh(
+        algorithms: AlgorithmRegistry.standard(),
+        s,
+        d.clock,
+        doomed,
+        serialize: _direct,
+      );
 
       expect(await s.runs.get(doomed), isNull);
       expect(
@@ -630,7 +776,13 @@ void main() {
     final s = d.session;
     final id = (await s.runs.list()).first.id;
     gate.fail = true;
-    await deleteRunAndRefresh(s, d.clock, id, serialize: _direct);
+    await deleteRunAndRefresh(
+      algorithms: AlgorithmRegistry.standard(),
+      s,
+      d.clock,
+      id,
+      serialize: _direct,
+    );
     expect(await s.runs.get(id), isNull);
   });
 
@@ -653,7 +805,13 @@ void main() {
       final day = dayOfRun(runs.last);
       gate.deletedNotErased = true;
       await expectLater(
-        deleteRunAndRefresh(s, d.clock, runs[1].id, serialize: _direct),
+        deleteRunAndRefresh(
+          algorithms: AlgorithmRegistry.standard(),
+          s,
+          d.clock,
+          runs[1].id,
+          serialize: _direct,
+        ),
         throwsA(
           isA<StorageException>().having(
             (e) => e.failure,
@@ -689,7 +847,13 @@ void main() {
         ..sort((a, b) => a.id.compareTo(b.id));
       final day = dayOfRun(runs.last);
       gate.fail = true;
-      await deleteRunAndRefresh(s, d.clock, runs[1].id, serialize: _direct);
+      await deleteRunAndRefresh(
+        algorithms: AlgorithmRegistry.standard(),
+        s,
+        d.clock,
+        runs[1].id,
+        serialize: _direct,
+      );
       expect(await s.values.read(ValueOwner.day(day)), isEmpty);
       final mark = await s.settings.get(
         ValueCalculationService.refreshPendingKey,
@@ -714,6 +878,7 @@ void main() {
     final d = await _start(tester);
     final s = d.session;
     await deleteRunAndRefresh(
+      algorithms: AlgorithmRegistry.standard(),
       s,
       d.clock,
       (await s.runs.list()).first.id,
@@ -734,6 +899,7 @@ void main() {
       Future<void> Function()? queued;
       var calls = 0;
       final done = deleteRunAndRefresh(
+        algorithms: AlgorithmRegistry.standard(),
         s,
         d.clock,
         id,
@@ -768,7 +934,13 @@ void main() {
 
       // Vorher leer: der eigene Merker wird wieder entfernt.
       await expectLater(
-        deleteRunAndRefresh(s, d.clock, id, serialize: _direct),
+        deleteRunAndRefresh(
+          algorithms: AlgorithmRegistry.standard(),
+          s,
+          d.clock,
+          id,
+          serialize: _direct,
+        ),
         throwsA(isA<StorageException>()),
       );
       expect(await s.settings.get(key), anyOf(isNull, isEmpty));
@@ -780,7 +952,13 @@ void main() {
         at: d.clock.now(),
       );
       await expectLater(
-        deleteRunAndRefresh(s, d.clock, id, serialize: _direct),
+        deleteRunAndRefresh(
+          algorithms: AlgorithmRegistry.standard(),
+          s,
+          d.clock,
+          id,
+          serialize: _direct,
+        ),
         throwsA(isA<StorageException>()),
       );
       expect(await s.settings.get(key), isNotEmpty);
@@ -795,7 +973,13 @@ void main() {
     final id = (await s.runs.list()).first.id;
     gate.failSettings = true;
     await expectLater(
-      deleteRunAndRefresh(s, d.clock, id, serialize: _direct),
+      deleteRunAndRefresh(
+        algorithms: AlgorithmRegistry.standard(),
+        s,
+        d.clock,
+        id,
+        serialize: _direct,
+      ),
       throwsA(isA<StorageException>()),
     );
     expect(await s.runs.get(id), isNotNull);

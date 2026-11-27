@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../plan/plan_texts.dart' show planKindName;
-import '../settings/unit_format.dart';
+import '../../ui/format/plan_texts.dart' show planKindName;
+import '../../ui/format/unit_format.dart';
 import 'live_map_page.dart' show LiveRoundButton;
-import 'live_run_values.dart' show LiveBanner, splitUnit;
-import 'live_run_view.dart' show formatClock, livePaceText;
+import '../../ui/format/split_unit.dart';
+import 'live_run_values.dart' show LiveBanner;
+import 'live_run_view.dart' show livePaceText;
 import 'run_controller.dart';
-import 'treadmill_units.dart';
+import '../../ui/format/treadmill_units.dart';
+import '../../ui/format/clock_format.dart';
 
 /// Live-Seite der geführten Einheit (FR-0027, FR-0146, FR-0205; Design
 /// `Intervall.dc.html`). Bleibt in beiden Modi dunkel, die Farben kommen aus

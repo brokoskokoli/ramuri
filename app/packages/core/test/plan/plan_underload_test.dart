@@ -203,6 +203,106 @@ void main() {
       expect(planUnderloadCountFrom(PlanUnderloadState(since: b), a), b);
     });
 
+    test('Zählung: späteste Zeit aus Stufe, gespeicherter Änderung und '
+        'Jahresbeginn der genäherten HFmax', () {
+      final since = DateTime.utc(2026, 11, 20);
+      final year = DateTime.utc(2027);
+      final saved = DateTime.utc(2027, 1, 5);
+      // Gespeicherter Zeitpunkt nach dem Jahresbeginn hat Vorrang.
+      expect(
+        planUnderloadCountFrom(
+          PlanUnderloadState(since: since),
+          saved,
+          estimatedChangedAt: year,
+        ),
+        saved,
+      );
+      // Jahresbeginn nach Stufe und gespeichertem Zeitpunkt hat Vorrang.
+      expect(
+        planUnderloadCountFrom(
+          PlanUnderloadState(since: since),
+          DateTime.utc(2026, 11, 1),
+          estimatedChangedAt: year,
+        ),
+        year,
+      );
+      expect(
+        planUnderloadCountFrom(
+          const PlanUnderloadState(),
+          null,
+          estimatedChangedAt: year,
+        ),
+        year,
+      );
+      // Stufe nach dem Jahresbeginn hat Vorrang.
+      final later = DateTime.utc(2027, 1, 9);
+      expect(
+        planUnderloadCountFrom(
+          PlanUnderloadState(since: later),
+          saved,
+          estimatedChangedAt: year,
+        ),
+        later,
+      );
+    });
+
+    group('Jahreswechsel der genäherten HFmax (FR-0004, PAR-236)', () {
+      final now = DateTime(2027, 1, 2, 9);
+      test('Näherung ändert sich → 1. Januar 00:00 des aktuellen Jahres', () {
+        // 1987: 2026 Alter 39 → 181, 2027 Alter 40 → 180 (208 − 0,7 · Alter).
+        expect(approximateMaxHeartRate(39), 181);
+        expect(approximateMaxHeartRate(40), 180);
+        final t = estimatedMaxHeartRateChangedAt(
+          const ProfileRecord(birthYear: 1987),
+          now: now,
+        );
+        expect(t, DateTime(2027).toUtc());
+        expect(t!.isUtc, isTrue);
+        expect(t.toLocal(), DateTime(2027));
+        expect(
+          estimatedMaxHeartRateChangedAt(
+            const ProfileRecord(birthYear: 1987),
+            now: DateTime.utc(2027, 12, 31, 23),
+          ),
+          DateTime.utc(2027),
+        );
+      });
+
+      test('gerundeter Wert in beiden Jahren gleich → null', () {
+        // 1992: 2026 Alter 34 → 184,2 → 184, 2027 Alter 35 → 183,5 → 184.
+        expect(approximateMaxHeartRate(34), 184);
+        expect(approximateMaxHeartRate(35), 184);
+        expect(
+          estimatedMaxHeartRateChangedAt(
+            const ProfileRecord(birthYear: 1992),
+            now: now,
+          ),
+          isNull,
+        );
+      });
+
+      test('eingetragene HFmax → null; kein Geburtsjahr → null', () {
+        expect(
+          estimatedMaxHeartRateChangedAt(
+            const ProfileRecord(birthYear: 1987, maxHeartRateBpm: 190),
+            now: now,
+          ),
+          isNull,
+        );
+        expect(
+          estimatedMaxHeartRateChangedAt(const ProfileRecord(), now: now),
+          isNull,
+        );
+        expect(
+          estimatedMaxHeartRateChangedAt(
+            const ProfileRecord(restingHeartRateBpm: 55),
+            now: now,
+          ),
+          isNull,
+        );
+      });
+    });
+
     test('Zustand aus den Einstellungen und zurück', () {
       final s = PlanUnderloadState(
         stage: PlanUnderloadStage.question,

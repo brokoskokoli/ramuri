@@ -19,7 +19,8 @@ const String minutesUnit = 'min';
 /// bei einem Lauf ohne Dauer; [basis] wird als Schnappschuss am Wert
 /// gespeichert. Reicht die Pulsabdeckung nicht für die volle Bewegungszeit,
 /// ist er vorläufig (eine Untergrenze). [preprocessingVersion] ist die
-/// Kettenversion der Vorverarbeitung am Wert (ADR-0004).
+/// Kettenversion der Vorverarbeitung am Wert (ADR-0004). [model] kommt aus
+/// der Registry (`ValueCalculationService.highHeartRateTime`).
 ComputedValue buildHighHeartRateTimeValue({
   required StoredRun run,
   required RunPreprocessing? pre,
@@ -28,7 +29,7 @@ ComputedValue buildHighHeartRateTimeValue({
   required Set<String> sources,
   required DateTime computedAt,
   required String preprocessingVersion,
-  HighHeartRateTimeModel model = const HighHeartRateTime(),
+  required HighHeartRateTimeModel model,
 }) {
   final FitnessResult<HighHeartRateTimeResult> result = pre == null
       ? FitnessUnavailable(

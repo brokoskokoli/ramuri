@@ -103,3 +103,23 @@ ResolvedHeartRate resolveHeartRate(
     conflictAcrossSources: conflict,
   );
 }
+
+/// Beginn des Kalenderjahrs von [now] (UTC), wenn die wirksame HFmax aus der
+/// Näherung nach FR-0004 stammt und die Näherung in diesem Jahr einen anderen
+/// Wert ergibt als im Vorjahr: Der Jahreswechsel ändert dann die wirksame
+/// HFmax ohne Speichern (PAR-236). Sonst `null`, auch bei eingetragener
+/// HFmax. Das Jahr gilt in der Zone von [now] (wie `currentYear` im
+/// Profil); nichts wird gespeichert.
+DateTime? estimatedMaxHeartRateChangedAt(
+  ProfileRecord profile, {
+  required DateTime now,
+}) {
+  final year = now.year;
+  final current = resolveHeartRate(profile, currentYear: year);
+  if (current.maxSource != MaxHeartRateSource.estimated) return null;
+  final before = approximateMaxHeartRate(
+    ageFromBirthYear(profile.birthYear, year - 1),
+  );
+  if (before == current.basis.maxBpm) return null;
+  return (now.isUtc ? DateTime.utc(year) : DateTime(year)).toUtc();
+}

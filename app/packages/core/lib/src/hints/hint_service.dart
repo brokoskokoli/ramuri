@@ -4,8 +4,9 @@ import '../../ports/storage_derived.dart';
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_warning.dart';
+import '../plan/plan_pause.dart';
 import '../plan/plan_unit.dart';
-import '../recalculation/value_calculation_service.dart' show dayOfRun;
+import '../calendar/run_day.dart' show dayOfRun;
 import '../settings/load_settings.dart';
 import 'hint_selection.dart';
 import 'recovery_card.dart';
@@ -19,7 +20,7 @@ const String hintShownKey = 'hints.shown';
 /// ([selectHint]) und merkt sich ihn für die Sperre. Liest nur Läufe,
 /// Nachträge, Plan, Warnsignal, Pausenantwort und die Zusage „alles erfasst“;
 /// kein Ruhepuls, keine Gesundheitsdaten.
-class HintService {
+class HintService implements PlanPauseSource {
   HintService({required this.session, required this.clock});
 
   final StorageSession session;
@@ -47,6 +48,7 @@ class HintService {
 
   /// Der Neustart, der wegen der Zusage „alles erfasst“ fällig ist
   /// (PAR-202); `null`, wenn keiner fällig ist.
+  @override
   Future<PauseQuestion?> pauseRestartDue() async {
     final now = clock.now();
     final local = now.add(clock.utcOffsetAt(now));
@@ -56,6 +58,7 @@ class HintService {
 
   /// Die lange Pause, für die der Nutzer den Einstieg wählen kann (PAR-181);
   /// `null`, wenn keine ansteht.
+  @override
   Future<PauseQuestion?> newStartDue() async {
     final now = clock.now();
     final local = now.add(clock.utcOffsetAt(now));
@@ -64,6 +67,7 @@ class HintService {
   }
 
   /// Die Pausenfrage von heute (PAR-202); `null`, wenn keine zu stellen ist.
+  @override
   Future<PauseQuestion?> pauseQuestion() async {
     final now = clock.now();
     final local = now.add(clock.utcOffsetAt(now));

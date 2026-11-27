@@ -2,7 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../plan/plan_texts.dart';
+import '../../ui/format/plan_texts.dart';
 import 'plan_origin_note.dart';
 
 /// Beginn eines Laufs in der Ortszeit zum Laufende (Versatz des Laufs), sonst

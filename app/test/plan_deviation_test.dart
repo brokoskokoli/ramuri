@@ -148,7 +148,7 @@ class _Env {
 
   Future<PlanActionResult> assignTuesday(int runId) async {
     final unit = (await plans.unitOn(_day(15)))!;
-    return controller.assignRun(unit.id!, runId);
+    return controller.assignRun(unit.id!, runId, expectedRunId: null);
   }
 
   Future<List<PlanUnit>> week() => plans.unitsBetween(_day(14), _day(20));

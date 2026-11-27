@@ -8,7 +8,7 @@ import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../map/miniature_service.dart';
 import '../map/route_map_section.dart' show routeMapStyle;
-import '../summary/run_charts.dart' show RoutePainter;
+import '../../ui/charts/route_painter.dart';
 
 /// Größe der Miniatur im Verlauf (Seitenverhältnis wie das Bild 360 x 180).
 const double runMiniatureWidth = 120;

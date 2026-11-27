@@ -17,9 +17,10 @@ import 'plan_controller.dart';
 import 'plan_data_reader.dart';
 import 'plan_goal_form.dart';
 import 'plan_page_view_state.dart';
-import 'plan_texts.dart';
+import '../../ui/format/plan_texts.dart';
 import 'plan_underload_card.dart';
 import 'plan_unit_screen.dart';
+import 'plan_done_texts.dart';
 
 part 'plan_screen_goal.dart';
 part 'plan_screen_week.dart';

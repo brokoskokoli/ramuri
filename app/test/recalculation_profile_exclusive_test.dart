@@ -62,7 +62,11 @@ void main() {
     service = _RecordingService(
       session: session,
       clock: clock,
-      calculation: ValueCalculationService(session: session, clock: clock),
+      calculation: ValueCalculationService(
+        algorithms: AlgorithmRegistry.standard(),
+        session: session,
+        clock: clock,
+      ),
       order: order,
     );
     dataChanged = 0;

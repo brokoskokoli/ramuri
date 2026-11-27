@@ -134,6 +134,7 @@ RunController _belt(
   w, {
   double? speed = 2,
 }) => RunController(
+  algorithms: AlgorithmRegistry.standard(),
   clock: w.clock,
   storage: w.session,
   location: w.location,
@@ -205,6 +206,7 @@ void main() {
         final id = (await w.session.runs.unfinished()).single.id;
         a.dispose();
         final b = RunController(
+          algorithms: AlgorithmRegistry.standard(),
           clock: w.clock,
           storage: w.session,
           location: w.location,
@@ -270,6 +272,7 @@ void main() {
       () async {
         final w = await _world();
         final c = RunController(
+          algorithms: AlgorithmRegistry.standard(),
           clock: w.clock,
           storage: w.session,
           location: w.location,
@@ -295,6 +298,7 @@ void main() {
       w.clock.advance(const Duration(seconds: 600));
       final w2 = FakeRecordingServicePort();
       final b = RunController(
+        algorithms: AlgorithmRegistry.standard(),
         clock: w.clock,
         storage: w.session,
         location: w.location,
@@ -319,6 +323,7 @@ void main() {
         final w = await _world();
         final fs = _FaultySession(w.session);
         final c = RunController(
+          algorithms: AlgorithmRegistry.standard(),
           clock: w.clock,
           storage: fs,
           location: w.location,
@@ -347,6 +352,7 @@ void main() {
       final w = await _world();
       final fs = _FaultySession(w.session);
       final c = RunController(
+        algorithms: AlgorithmRegistry.standard(),
         clock: w.clock,
         storage: fs,
         location: w.location,
@@ -378,6 +384,7 @@ void main() {
           ..getError = const StorageException(StorageFailure.failed);
         final w2 = FakeRecordingServicePort();
         final b = RunController(
+          algorithms: AlgorithmRegistry.standard(),
           clock: w.clock,
           storage: fs,
           location: w.location,
@@ -411,6 +418,7 @@ void main() {
       final fs = _FaultySession(w.session);
       arm(fs);
       final b = RunController(
+        algorithms: AlgorithmRegistry.standard(),
         clock: w.clock,
         storage: fs,
         location: w.location,
@@ -452,6 +460,7 @@ void main() {
         final fs = _FaultySession(w.session)
           ..appendError = const StorageException(StorageFailure.failed);
         final c = RunController(
+          algorithms: AlgorithmRegistry.standard(),
           clock: w.clock,
           storage: fs,
           location: w.location,

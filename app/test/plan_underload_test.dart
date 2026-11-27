@@ -17,6 +17,10 @@ final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i + 5));
 final _d0 = DateTime.utc(2026, 11, 16); // Montag
 DateTime _day(int n) => _d0.add(Duration(days: n));
 
+/// Ortszeit [hour]:[minute] am Kalendertag [n] (Tage zählen von [_d0]).
+DateTime _local(int n, int hour, [int minute = 0]) =>
+    DateTime(_day(n).year, _day(n).month, _day(n).day, hour, minute);
+
 String _iso(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-'
     '${d.month.toString().padLeft(2, '0')}-'
@@ -119,7 +123,7 @@ class _Env {
   }) async {
     final unit = (await plans.unitOn(_day(n)))!;
     expect(unit.kind, isIn([PlanUnitKind.easy, PlanUnitKind.long]));
-    final start = DateTime(_day(n).year, _day(n).month, _day(n).day, 7);
+    final start = _local(n, 7);
     final r = sport
         ? await session.runs.create(
             startedAt: start,
@@ -273,7 +277,9 @@ void main() {
       final reader = PlanDataReader(session: e.session, clock: e.clock);
       final runs = await reader.underloadRuns(null);
       expect(runs, hasLength(1));
-      expect(runs.single.endedAt.day, _day(15).day);
+      // Ortszeit: Der Lauf von Tag 15 endet dort um 7:40 Uhr; in UTC kann
+      // das Ende je nach Zone am Vortag liegen.
+      expect(runs.single.endedAt.toLocal(), _local(15, 7, 40));
     });
 
     test('Läufe ohne Puls oder ohne RPE zählen nicht mit', () async {
@@ -331,6 +337,66 @@ void main() {
         (await e.opened()).state.underloadPrompt,
         PlanUnderloadPrompt.question,
       );
+    });
+
+    /// Profil nur mit [birthYear], Stufe `hintDone` seit November, zwei
+    /// passende Läufe im Dezember; Öffnen am 2. Januar 2027.
+    /// Mit [maxBpm] ist die HFmax eingetragen.
+    Future<(_Env, PlanController)> yearChange(
+      int birthYear, {
+      int? maxBpm,
+    }) async {
+      final e = await _Env.open(PlanAdaptationMode.adaptive);
+      await e.session.profile.save(
+        ProfileRecord(birthYear: birthYear, maxHeartRateBpm: maxBpm),
+      );
+      await e.session.settings.set(
+        planUnderloadStageKey,
+        PlanUnderloadStage.hintDone.name,
+        at: e.clock.now(),
+      );
+      await e.session.settings.set(
+        planUnderloadSinceKey,
+        DateTime.utc(2026, 11, 30, 5).toIso8601String(),
+        at: e.clock.now(),
+      );
+      await e.run(29); // Dienstag, 15. Dezember
+      await e.run(32); // Freitag, 18. Dezember
+      e.clock.advance(DateTime(2027, 1, 2, 9).difference(e.clock.now()));
+      return (e, await e.opened());
+    }
+
+    test('genäherte HFmax ändert sich zum neuen Jahr (FR-0004) → Zählung '
+        'beginnt mit den Läufen im Januar neu', () async {
+      // 1987: Näherung 2026 181, 2027 180.
+      final (e, c) = await yearChange(1987);
+      expect(
+        c.state.underloadPrompt,
+        isNull,
+        reason: 'Dezember-Läufe zählen nach dem Jahreswechsel nicht mehr',
+      );
+      expect(await e.stage(), 'hintDone');
+      await e.run(48); // Sonntag, 3. Januar
+      await e.run(50); // Dienstag, 5. Januar
+      final q = await e.opened();
+      expect(q.state.underloadPrompt, PlanUnderloadPrompt.question);
+      // Nichts Neues gespeichert: kein Zeitpunkt der HFmax-Änderung.
+      expect(await e.session.settings.get(profileHrMaxChangedAtKey), isNull);
+    });
+
+    test('genäherte HFmax bleibt zum neuen Jahr gleich → Dezember-Läufe '
+        'zählen weiter', () async {
+      // 1992: Näherung 2026 und 2027 jeweils 184.
+      final (e, c) = await yearChange(1992);
+      expect(c.state.underloadPrompt, PlanUnderloadPrompt.question);
+      expect(await e.stage(), 'question');
+    });
+
+    test('eingetragene HFmax: Jahreswechsel ohne Wirkung, auch wenn die '
+        'Näherung sich ändern würde', () async {
+      final (e, c) = await yearChange(1987, maxBpm: 186);
+      expect(c.state.underloadPrompt, PlanUnderloadPrompt.question);
+      expect(await e.stage(), 'question');
     });
   });
 

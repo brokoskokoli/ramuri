@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../settings/unit_format.dart';
+import '../../ui/format/unit_format.dart';
 import '../history/run_detail_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../summary/run_summary_body.dart';
@@ -15,17 +15,8 @@ import 'live_guided_page.dart';
 import 'live_map_page.dart';
 import 'live_run_values.dart';
 import 'run_controller.dart';
-import 'treadmill_units.dart';
-
-/// Zeit als `h:mm:ss`, unter einer Stunde `m:ss`; `null` ergibt „–“.
-String formatClock(Duration? d) {
-  if (d == null || d.isNegative) return UnitFormatter.noValue;
-  final s = d.inSeconds;
-  final h = s ~/ 3600;
-  final mm = ((s % 3600) ~/ 60).toString().padLeft(2, '0');
-  final ss = (s % 60).toString().padLeft(2, '0');
-  return h > 0 ? '$h:$mm:$ss' : '${s ~/ 60}:$ss';
-}
+import '../../ui/format/treadmill_units.dart';
+import '../../ui/format/clock_format.dart';
 
 /// Durchschnittspace in Sekunden je Kilometer aus Bewegungszeit und Strecke;
 /// `null`, solange eines von beiden fehlt oder die Strecke 0 ist. Zeit in

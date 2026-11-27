@@ -62,25 +62,45 @@ Future<DeletionResult> runDeletion(Future<void> Function() action) async {
 /// gelöscht ist, und nur ohne offene Übergabe (sonst räumt der nächste
 /// Prozessstart). Bleiben sie nicht sicher entfernt, endet das Löschen mit
 /// [StorageFailure.deletedNotErased]; der Lauf bleibt gelöscht.
+///
+/// [offload]: wo die Vorverarbeitung der Läufe beim Neuanlegen rechnet
+/// ([RunAnalyzer.offload]; in der App der eigene Isolate).
 Future<void> deleteRunAndRefresh(
   StorageSession session,
   Clock clock,
   int runId, {
   required Future<void> Function(Future<void> Function() action) serialize,
+  required AlgorithmLookup algorithms,
   Future<void> Function(int runId)? onDeleted,
   FileHandoff? exports,
+  Offload offload = inlineOffload,
 }) => serialize(
-  () => _deleteRunAndRefresh(session, clock, runId, onDeleted, exports),
+  () => _deleteRunAndRefresh(
+    session,
+    clock,
+    runId,
+    algorithms,
+    onDeleted,
+    exports,
+    offload,
+  ),
 );
 
 Future<void> _deleteRunAndRefresh(
   StorageSession session,
   Clock clock,
   int runId,
+  AlgorithmLookup algorithms,
   Future<void> Function(int runId)? onDeleted,
   FileHandoff? exports,
+  Offload offload,
 ) async {
-  final calc = ValueCalculationService(session: session, clock: clock);
+  final calc = ValueCalculationService(
+    session: session,
+    clock: clock,
+    algorithms: algorithms,
+    offload: offload,
+  );
   // Ein Merker eines früheren, unvollendeten Neuanlegens darf nicht verloren
   // gehen, wenn dieses Löschen nichts löscht.
   final previous = await session.settings.get(
@@ -141,12 +161,20 @@ Future<void> _deleteRunAndRefresh(
 /// (beim App-Start, vor einer Neuberechnung; nicht parallel zu ihr), ebenso eine
 /// unterbrochene Berechnung nach einem Lauf; Letzteres auch ohne Merker für jeden
 /// beendeten Lauf ohne Laufwert ([ValueCalculationService.completePendingCalculations]).
-/// Fehler werden weitergegeben; der Merker bleibt.
+/// Fehler werden weitergegeben; der Merker bleibt. [offload]: wo die
+/// Vorverarbeitung der Läufe rechnet ([RunAnalyzer.offload]).
 Future<void> completePendingValueRefresh(
   StorageSession session,
-  Clock clock,
-) async {
-  final calc = ValueCalculationService(session: session, clock: clock);
+  Clock clock, {
+  required AlgorithmLookup algorithms,
+  Offload offload = inlineOffload,
+}) async {
+  final calc = ValueCalculationService(
+    session: session,
+    clock: clock,
+    algorithms: algorithms,
+    offload: offload,
+  );
   // Beide Nachholer laufen, auch wenn der erste scheitert; der erste Fehler
   // wird weitergegeben.
   Object? failure;
@@ -166,15 +194,18 @@ Future<void> completePendingValueRefresh(
 /// Fragt nach und löscht den Lauf [runId]. Für WP10 (Eintrag in der Lauf-Liste).
 /// Erwartet die [clock], weil nach dem Löschen die Tageswerte der übrigen
 /// Lauftage neu angelegt werden ([deleteRunAndRefresh]). Zeigt danach eine
-/// kurze Rückmeldung, soweit der Kontext noch steht.
+/// kurze Rückmeldung, soweit der Kontext noch steht. [offload] wie bei
+/// [deleteRunAndRefresh].
 Future<DeletionResult> confirmAndDeleteRun(
   BuildContext context,
   StorageSession session,
   Clock clock,
   int runId, {
   required Future<void> Function(Future<void> Function() action) serialize,
+  required AlgorithmLookup algorithms,
   Future<void> Function(int runId)? onDeleted,
   FileHandoff? exports,
+  Offload offload = inlineOffload,
 }) => _confirmAndDelete(
   context,
   all: false,
@@ -183,8 +214,10 @@ Future<DeletionResult> confirmAndDeleteRun(
     clock,
     runId,
     serialize: serialize,
+    algorithms: algorithms,
     onDeleted: onDeleted,
     exports: exports,
+    offload: offload,
   ),
 );
 

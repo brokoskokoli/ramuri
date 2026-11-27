@@ -18,7 +18,8 @@ import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/run/live_map_page.dart';
 import 'package:running_app/features/run/live_run_view.dart';
 import 'package:running_app/features/run/run_controller.dart';
-import 'package:running_app/features/settings/unit_format.dart';
+import 'package:running_app/ui/format/clock_format.dart';
+import 'package:running_app/ui/format/unit_format.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
@@ -90,6 +91,7 @@ class _World {
     session = await FakeStorage().open(Uint8List(32));
     _worlds.add(this);
     run = RunController(
+      algorithms: AlgorithmRegistry.standard(),
       clock: clock,
       storage: session,
       location: location,
@@ -108,6 +110,7 @@ class _World {
     clock.advance(outage);
     _i += outage.inSeconds;
     run = RunController(
+      algorithms: AlgorithmRegistry.standard(),
       clock: clock,
       storage: session,
       location: location,

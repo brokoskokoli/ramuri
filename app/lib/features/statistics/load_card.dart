@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../recalculation/recalculation_controller.dart';
-import 'fitness_section.dart' show fitnessNumber;
+import '../../ui/format/fitness_number.dart';
 import 'load_controller.dart';
 import 'load_view_state.dart';
 import 'period_date.dart';
@@ -87,7 +87,7 @@ class _LoadCardState extends State<LoadCard> {
         service: TrainingLoadService(
           session: session,
           clock: clock,
-          calculation: ValueCalculationService(session: session, clock: clock),
+          calculation: recalculation.service.calculation,
           recalculation: recalculation.service,
         ),
         serialize: recalculation.serializedRefreshingOffer,

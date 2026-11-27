@@ -161,17 +161,21 @@ class PlanUnderloadState {
   };
 }
 
-/// Beginn der Zählung: der spätere Zeitpunkt aus der letzten Stufe und der
-/// letzten Änderung der HFmax ([hrMaxChangedAt]); nach einer Änderung der
-/// HFmax beginnt die Zählung neu. `null`: alle Läufe.
+/// Beginn der Zählung: der späteste Zeitpunkt aus der letzten Stufe, der
+/// gespeicherten letzten Änderung der HFmax ([hrMaxChangedAt]) und dem
+/// Jahresbeginn, an dem sich die genäherte HFmax geändert hat
+/// ([estimatedChangedAt], `estimatedMaxHeartRateChangedAt`); nach einer
+/// Änderung der wirksamen HFmax beginnt die Zählung neu. `null`: alle Läufe.
 DateTime? planUnderloadCountFrom(
   PlanUnderloadState state,
-  DateTime? hrMaxChangedAt,
-) {
-  final a = state.since, b = hrMaxChangedAt;
-  if (a == null) return b;
-  if (b == null) return a;
-  return b.isAfter(a) ? b : a;
+  DateTime? hrMaxChangedAt, {
+  DateTime? estimatedChangedAt,
+}) {
+  DateTime? latest;
+  for (final t in [state.since, hrMaxChangedAt, estimatedChangedAt]) {
+    if (t != null && (latest == null || t.isAfter(latest))) latest = t;
+  }
+  return latest;
 }
 
 /// Nächster Zustand am Zeitpunkt [now] (PAR-236), `null`: unverändert.

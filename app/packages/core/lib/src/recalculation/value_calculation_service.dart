@@ -3,25 +3,27 @@ import '../../ports/storage.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
 import '../fitness/aerobic_efficiency.dart';
+import '../fitness/algorithm_lookup.dart';
 import '../fitness/fitness_parameters.dart';
 import '../fitness/heart_rate_basis.dart';
+import '../fitness/high_heart_rate_time.dart';
 import '../fitness/load_profile.dart';
+import '../fitness/vo2max_estimator.dart';
 import '../fitness/vo2max_long_term.dart';
 import '../preprocessing/preprocessing_chain.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../recording/treadmill.dart' show RunMode;
-import '../statistics/run_overview.dart' show overviewOf;
+import 'run_overview_summary.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
 import '../settings/load_settings.dart';
 import '../settings/reserve_zone_settings.dart';
+import '../offload.dart';
 import 'calculation_failures.dart';
 import 'high_heart_rate_value.dart';
 import 'run_analysis.dart';
 import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'run_load_values.dart';
-import '../run_day/run_day.dart';
-
-export '../run_day/run_day.dart';
+import '../calendar/run_day.dart';
 
 /// Die Werte, die nach einem Lauf entstehen.
 class RunCalculationResult {
@@ -121,20 +123,54 @@ class ValueCalculationService {
   ValueCalculationService({
     required this.session,
     required this.clock,
+    required this.algorithms,
     this.fitness = const FitnessParameters.v4(),
     this.preprocessing = const PreprocessingParameters.v4(),
-    this.longTerm = const SmoothedVo2maxLongTerm(),
-    this.efficiency = const MedianAerobicEfficiency(),
+    this.offload = inlineOffload,
     String? preprocessingVersion,
-  }) : preprocessingVersion =
+  }) : vo2maxEstimator = algorithms.active(vo2maxEstimatorFamily),
+       longTerm = algorithms.active(vo2maxLongTermFamily),
+       efficiency = algorithms.active(aerobicEfficiencyFamily),
+       highHeartRateTime = algorithms.active(highHeartRateTimeFamily),
+       preprocessingVersion =
            preprocessingVersion ?? preprocessingChainVersion();
 
   final StorageSession session;
   final Clock clock;
+
+  /// Die Registry der App (ADR-0004, NFR-0005). Die Verfahren unten sind ihre
+  /// aktiven Varianten beim Bau; Laufanalyse ([RunAnalyzer]) und
+  /// Versionsprüfung (`RecalculationService.checkVersions`) nehmen beide
+  /// diese, nie eine eigene Instanz.
+  final AlgorithmLookup algorithms;
   final FitnessParameters fitness;
   final PreprocessingParameters preprocessing;
+
+  /// Wo die Vorverarbeitung jedes Laufs gerechnet wird ([RunAnalyzer.offload]);
+  /// in der App für die Neuberechnung ein eigener Isolate.
+  final Offload offload;
+
+  /// VO₂max-Schätzer des Laufwerts ([vo2maxEstimatorFamily]).
+  final Vo2maxEstimator vo2maxEstimator;
+
+  /// Langzeitwert ([vo2maxLongTermFamily]).
   final Vo2maxLongTerm longTerm;
+
+  /// Aerobe Effizienz ([aerobicEfficiencyFamily]).
   final AerobicEfficiency efficiency;
+
+  /// Zeit bei mindestens 80 % HFmax ([highHeartRateTimeFamily]).
+  final HighHeartRateTimeModel highHeartRateTime;
+
+  /// Methode und Methodenversion, mit denen dieser Dienst jeden Tageswert aus
+  /// [dayValueKeys] rechnet (die Parameterversion ist die der
+  /// Fitnessparameter). Die Versionsprüfung der Neuberechnung vergleicht die
+  /// gespeicherten Tageswerte damit (ADR-0004 Punkt 3); ein neuer
+  /// Tagesschlüssel braucht hier einen Eintrag.
+  Map<String, (String, int)> get dayValueMethods => {
+    vo2maxLongTermValueKey: (longTerm.method, longTerm.methodVersion),
+    aerobicEfficiencyValueKey: (efficiency.method, efficiency.methodVersion),
+  };
 
   /// Kettenversion der Vorverarbeitung, die an jeden neuen Laufwert kommt
   /// und gegen die `RecalculationService.checkVersions` die gespeicherten
@@ -172,8 +208,13 @@ class ValueCalculationService {
   /// Basis des gespeicherten Profils für die Auflösung des Belastungsprofils.
   Future<HeartRateBasis> profileBasis() => _profileBasis();
 
-  RunAnalyzer _analyzer(HeartRateBasis basis) =>
-      RunAnalyzer(fitness: fitness, preprocessing: preprocessing, basis: basis);
+  RunAnalyzer _analyzer(HeartRateBasis basis) => RunAnalyzer(
+    fitness: fitness,
+    preprocessing: preprocessing,
+    basis: basis,
+    estimator: vo2maxEstimator,
+    offload: offload,
+  );
 
   Future<List<StoredRun>> _finishedRuns() async => [
     for (final r in await session.runs.list())
@@ -281,6 +322,7 @@ class ValueCalculationService {
       sources: analysis.sources,
       computedAt: now,
       preprocessingVersion: preprocessingVersion,
+      model: highHeartRateTime,
     );
     // Kurzfassung für Historie und Vergleich (vor den Werten: scheitert sie,
     // ist nichts geschrieben und ein neuer Versuch möglich).
@@ -673,9 +715,17 @@ class ValueCalculationService {
   ///
   /// [coefficients]: die Koeffizienten-Angabe, mit der gerechnet wird (Änderung
   /// nach Bestätigung); ohne Angabe die gespeicherte.
+  ///
+  /// Speicher: Die Vorverarbeitung eines Laufs wird nur für seine eigenen
+  /// Laufwerte gebraucht (Zeit bei hoher Herzfrequenz, TRIMP) und danach
+  /// nicht gehalten; die Tageswerte brauchen nur Auswahl und Quellen
+  /// ([RunAnalysisCache]). [analyses]: wohin die Analysen gelegt werden (ohne
+  /// Angabe ein eigener Zwischenspeicher; Tests prüfen darüber, was gehalten
+  /// wird).
   Future<ValueSnapshot> buildSnapshot({
     LoadProfile? loadProfile,
     CoefficientChange? coefficients,
+    RunAnalysisCache? analyses,
   }) async {
     final now = clock.now();
     final runs = await _finishedRuns();
@@ -686,9 +736,17 @@ class ValueCalculationService {
       coefficients: coefficients,
     );
     final analyzer = _analyzer(profile);
-    final cache = <int, RunAnalysis>{};
+    final cache = analyses ?? RunAnalysisCache();
+    // Volle Analyse (mit Vorverarbeitung) nur für den Aufrufer; gehalten wird
+    // sie ohne.
+    Future<RunAnalysis> analyze(StoredRun r) async {
+      final a = await analyzer.analyze(session, r, calculatedAt: now);
+      cache.keep(a);
+      return a;
+    }
+
     Future<RunAnalysis> analysisOf(StoredRun r, HeartRateBasis _) async =>
-        cache[r.id] ??= await analyzer.analyze(session, r, calculatedAt: now);
+        cache[r.id] ?? await analyze(r);
 
     // Laufwerte aller Läufe in EINER Abfrage (nur die Schlüssel zählen, keine
     // Abschnitte nötig).
@@ -703,7 +761,8 @@ class ValueCalculationService {
       final stored = storedRuns[r.id]?.keys.toSet() ?? const <String>{};
       if (!hasRecalculatedRunKey(stored)) continue;
       final hasTrimp = stored.contains(trimpRunValueKey);
-      final analysis = await analysisOf(r, profile);
+      // Jeder Lauf kommt hier genau einmal vor, die Tageswerte danach.
+      final analysis = await analyze(r);
       final high = buildHighHeartRateTimeValue(
         run: r,
         pre: analysis.preprocessing,
@@ -712,6 +771,7 @@ class ValueCalculationService {
         sources: analysis.sources,
         computedAt: now,
         preprocessingVersion: preprocessingVersion,
+        model: highHeartRateTime,
       );
       // Vorhanden: tauschen (hängt an HFmax wie der TRIMP); fehlt er (Lauf
       // von vor dieser Methode): anlegen.

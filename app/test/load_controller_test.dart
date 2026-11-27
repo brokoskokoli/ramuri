@@ -54,11 +54,19 @@ void main() {
   TrainingLoadService service() => TrainingLoadService(
     session: session,
     clock: clock,
-    calculation: ValueCalculationService(session: session, clock: clock),
+    calculation: ValueCalculationService(
+      algorithms: AlgorithmRegistry.standard(),
+      session: session,
+      clock: clock,
+    ),
     recalculation: RecalculationService(
       session: session,
       clock: clock,
-      calculation: ValueCalculationService(session: session, clock: clock),
+      calculation: ValueCalculationService(
+        algorithms: AlgorithmRegistry.standard(),
+        session: session,
+        clock: clock,
+      ),
     ),
   );
 
@@ -174,11 +182,16 @@ void main() {
         service: TrainingLoadService(
           session: broken,
           clock: clock,
-          calculation: ValueCalculationService(session: session, clock: clock),
+          calculation: ValueCalculationService(
+            algorithms: AlgorithmRegistry.standard(),
+            session: session,
+            clock: clock,
+          ),
           recalculation: RecalculationService(
             session: session,
             clock: clock,
             calculation: ValueCalculationService(
+              algorithms: AlgorithmRegistry.standard(),
               session: session,
               clock: clock,
             ),

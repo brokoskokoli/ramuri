@@ -1,5 +1,4 @@
 import '../../ports/storage_plan.dart';
-import '../hints/explanations.dart';
 import 'plan_unit.dart';
 import 'walk_run_program.dart';
 import 'walk_run_units.dart';
@@ -14,15 +13,16 @@ bool isLargerPlanChange(PlanVersionRecord v) =>
     v.trigger != PlanTrigger.create && v.summary['larger'] == true;
 
 /// Die zu zeigende größere Änderung der Karte „Plan angepasst“ (FR-0170):
-/// Fassung und ihre Erklärung. Der Satz entsteht in der Oberfläche aus dem
-/// Code der [explanation] ([explainPlanChange]).
+/// die Fassung mit Auslöser, Grund-Code und Alt-Neu-Bild. Der Plan liefert nur
+/// diese Daten; die Erklärung baut `hints` daraus (Erweiterung `explanation`
+/// in `hints/explanations.dart` über `explainPlanChange`), der Satz entsteht
+/// in der Oberfläche aus ihrem Code.
 class PlanChangeNotice {
-  const PlanChangeNotice({required this.version, required this.explanation});
+  const PlanChangeNotice({required this.version});
 
   /// Kennung der Fassung: das „gesehen“ der Karte.
   int get planId => version.id;
   final PlanVersionRecord version;
-  final Explanation explanation;
 }
 
 /// Die jüngste größere Änderung in [history] (nach Anlage geordnet), die
@@ -35,7 +35,7 @@ PlanChangeNotice? planChangeNotice(
   for (final v in history.reversed) {
     if (seenPlanId != null && v.id <= seenPlanId) return null;
     if (isLargerPlanChange(v)) {
-      return PlanChangeNotice(version: v, explanation: explainPlanChange(v));
+      return PlanChangeNotice(version: v);
     }
   }
   return null;

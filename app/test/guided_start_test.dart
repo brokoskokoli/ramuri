@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/home/home_screen.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
-import 'package:running_app/features/plan/plan_texts.dart';
+import 'package:running_app/ui/format/plan_texts.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/l10n/app_localizations_de.dart';
 import 'package:running_app/features/run/guided_segments.dart';
@@ -116,6 +116,7 @@ Future<void> _openFlow(
   Navigator.of(tester.element(key('home_screen'))).push<void>(
     MaterialPageRoute(
       builder: (_) => RunFlowScreen(
+        algorithms: AlgorithmRegistry.standard(),
         session: h.session,
         clock: h.clock,
         ports: h.runPorts,
@@ -659,6 +660,7 @@ void main() {
       Navigator.of(tester.element(key('home_screen'))).push<void>(
         MaterialPageRoute(
           builder: (_) => RunFlowScreen(
+            algorithms: AlgorithmRegistry.standard(),
             session: h.session,
             clock: h.clock,
             ports: h.runPorts,

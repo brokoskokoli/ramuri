@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/measure/morning_trend_screen.dart';
-import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/readiness/readiness_today.dart';
 
 import 'app_harness.dart';
@@ -331,7 +330,11 @@ void main() {
       recalculation: RecalculationService(
         session: s,
         clock: d.clock,
-        calculation: ValueCalculationService(session: s, clock: d.clock),
+        calculation: ValueCalculationService(
+          algorithms: AlgorithmRegistry.standard(),
+          session: s,
+          clock: d.clock,
+        ),
       ),
     );
     expect(snap?.today, today);

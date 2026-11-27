@@ -11,6 +11,7 @@ REPO = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.pat
 CHECK = os.path.join(REPO, "tool", "check_architecture.py")
 C = "app/packages/core/lib/src/"
 A = "app/lib/features/"
+U = "app/lib/ui/"
 
 # Grundbaum ohne Zyklus: core a → b → c, App x → y; dazu Fremdimporte, die nicht zählen.
 BASE = {
@@ -18,10 +19,14 @@ BASE = {
     C + "b/b.dart": "import '../c/c.dart';\n// import '../a/a.dart';\nfinal s = \"import '../a/a.dart';\";\nclass B {}\n",
     C + "c/c.dart": "import '../shared.dart';\nclass Cc {}\n",
     C + "shared.dart": "enum Shared { x }\n",
+    C + "calendar/day.dart": "import '../../ports/p.dart';\nclass Day {}\n",
+    C + "algorithms/registry.dart": "import '../a/a.dart';\nimport '../calendar/day.dart';\nclass R {}\n",
     "app/packages/core/lib/ports/p.dart": "import '../src/a/a.dart';\nclass P {}\n",
     A + "x/x_screen.dart": "import 'package:flutter/widgets.dart';\nimport 'package:core/core.dart';\n"
                            "import '../y/y.dart';\nimport '../../ui/ui.dart';\nclass X {}\n",
     A + "y/y.dart": "import '../../app.dart';\nclass Y {}\n",
+    U + "ui.dart": "export 'format/f.dart';\nimport '../l10n/app_localizations.dart';\n// import '../features/x/x_screen.dart';\n",
+    U + "format/f.dart": "import 'package:core/core.dart';\nimport 'package:running_app/ui/ui.dart';\nString f() => '';\n",
 }
 
 CYCLE = {C + "c/c.dart": "import '../a/a.dart';\nclass Cc {}\n"}
@@ -54,6 +59,18 @@ CASES = [
      0, 0, r"app: 2 Module in Zyklen, Grundlinie 0: neuer Zyklus"),
     ("Grundlinie core unterschritten", {}, 3, 0, r"core: 0 Module in Zyklen, weniger als die Grundlinie: Grundlinie auf 0 senken"),
     ("Grundlinie app unterschritten", {}, 0, 2, r"app: 0 Module in Zyklen, weniger als die Grundlinie: Grundlinie auf 0 senken"),
+    ("Blattmodul importiert anderes Modul", {C + "calendar/day.dart": "import '../c/c.dart';\n"}, 0, 0,
+     r"src/calendar/day\.dart:1: Blattmodul calendar importiert Modul c"),
+    ("Blattmodul importiert Modul über Datei direkt in src",
+     {C + "calendar/day.dart": "import '../shared.dart';\n", C + "shared.dart": "import 'c/c.dart';\n"}, 0, 0,
+     r"src/calendar/day\.dart:1: Blattmodul calendar importiert Modul c"),
+    ("Blattmodul fehlt", {C + "calendar/day.dart": None}, 0, 0, r"core: Blattmodul calendar fehlt"),
+    ("Modul importiert oberes Modul", {C + "c/c.dart": "import '../algorithms/registry.dart';\n"}, 0, 0,
+     r"src/c/c\.dart:1: Modul c importiert oberes Modul algorithms"),
+    ("Modul importiert oberes Modul über Datei direkt in src",
+     {C + "c/c.dart": "import '../shared.dart';\n", C + "shared.dart": "import 'algorithms/registry.dart';\n"}, 0, 0,
+     r"src/c/c\.dart:1: Modul c importiert oberes Modul algorithms"),
+    ("oberes Modul fehlt", {C + "algorithms/registry.dart": None}, 0, 0, r"core: Oberes Modul algorithms fehlt"),
     ("unlesbare Datei", {C + "b/bad.dart": b"\xff\xfe import"}, 0, 0, r"src/b/bad\.dart: nicht lesbar \(fail-closed\)"),
     ("Barrel innerhalb von core", {C + "c/c.dart": "import 'package:core/core.dart';\n"}, 0, 0,
      r"src/c/c\.dart:1: Barrel package:core/core\.dart"),
@@ -63,6 +80,61 @@ CASES = [
     ("aneinandergereihte Zeichenketten", {C + "c/c.dart": "import '../a' '/a.dart';\n"}, 0, 0,
      r"src/c/c\.dart:1: import: aneinandergereihte Zeichenketten"),
     ("Kommentar nicht beendet", {C + "c/c.dart": "/* import '../a/a.dart';\n"}, 0, 0, r"src/c/c\.dart:1: Kommentar nicht beendet"),
+    ("lib/ui importiert Feature relativ", {U + "format/f.dart": "import '../../features/x/x_screen.dart';\n"}, 0, 0,
+     r"app/lib/ui/format/f\.dart:1: lib/ui importiert Feature x"),
+    ("lib/ui importiert Feature über package:", {U + "ui.dart": "import 'package:running_app/features/y/y.dart';\n"}, 0, 0,
+     r"app/lib/ui/ui\.dart:1: lib/ui importiert Feature y"),
+    ("lib/ui exportiert Feature", {U + "ui.dart": "export 'format/f.dart';\nexport '../features/x/x_screen.dart';\n"}, 0, 0,
+     r"app/lib/ui/ui\.dart:2: lib/ui importiert Feature x"),
+    ("lib/ui bindet Feature-Teil ein", {U + "charts/c.dart": "part '../../features/x/x_part.dart';\n"}, 0, 0,
+     r"app/lib/ui/charts/c\.dart:1: lib/ui importiert Feature x"),
+    ("lib/ui importiert Datei direkt in features", {U + "ui.dart": "import '../features/root.dart';\n"}, 0, 0,
+     r"app/lib/ui/ui\.dart:1: lib/ui importiert Feature root\.dart"),
+    ("lib/ui importiert Feature über Wurzeldatei",
+     {U + "a.dart": "import 'package:core/core.dart';\nimport '../root.dart';\n",
+      "app/lib/root.dart": "import 'features/x/x_screen.dart';\n"}, 0, 0,
+     r"app/lib/ui/a\.dart:2: lib/ui importiert Feature x über \.\./root\.dart → features/x/x_screen\.dart \(Kanten: root\.dart:1\)"),
+    ("lib/ui importiert Feature über zwei Wurzeldateien",
+     {U + "a.dart": "import '../root_a.dart';\n", "app/lib/root_a.dart": "import 'dart:io';\nimport 'debug/root_b.dart';\n",
+      "app/lib/debug/root_b.dart": "export '../features/y/y.dart';\n"}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui importiert Feature y über \.\./root_a\.dart → debug/root_b\.dart → "
+     r"features/y/y\.dart \(Kanten: root_a\.dart:2, debug/root_b\.dart:1\)"),
+    ("Wurzeldateien importieren sich gegenseitig ohne Feature",
+     {U + "a.dart": "import '../root_a.dart';\n", "app/lib/root_a.dart": "import 'root_b.dart';\nimport 'ui/ui.dart';\n",
+      "app/lib/root_b.dart": "import 'root_a.dart';\nimport 'package:running_app/root_b.dart';\n"}, 0, 0, None),
+    ("lib/ui importiert fehlende generierte Lokalisierung", {U + "a.dart": "import '../l10n/app_localizations.dart';\n"}, 0, 0, None),
+    ("Wurzeldatei importiert fehlende generierte Lokalisierung",
+     {U + "a.dart": "import '../root.dart';\n", "app/lib/root.dart": "import 'l10n/app_localizations.dart';\n"}, 0, 0, None),
+    ("lib/ui importiert fehlende Wurzeldatei", {U + "a.dart": "import '../gone.dart';\n"}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel gone\.dart fehlt oder ist nicht lesbar \(über \.\./gone\.dart, fail-closed\)"),
+    ("Wurzeldatei importiert fehlende Datei",
+     {U + "a.dart": "import '../root.dart';\n", "app/lib/root.dart": "import 'debug/gone.dart';\n"}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel debug/gone\.dart fehlt oder ist nicht lesbar"),
+    ("unlesbare Wurzeldatei", {U + "a.dart": "import '../root.dart';\n", "app/lib/root.dart": b"\xff\xfe import"}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel root\.dart fehlt oder ist nicht lesbar"),
+    ("Wurzeldatei importiert Feature über package:",
+     {U + "a.dart": "import 'package:running_app/root.dart';\n",
+      "app/lib/root.dart": "import 'package:running_app/features/y/y.dart';\n"}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui importiert Feature y über package:running_app/root\.dart → features/y/y\.dart"),
+    ("Wurzeldatei in der Kette ist symbolischer Link",
+     {U + "a.dart": "import '../root.dart';\n", "app/lib/real.dart": "class Real {}\n",
+      "app/lib/root.dart": ("link", "real.dart")}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel root\.dart fehlt oder ist nicht lesbar"),
+    ("Wurzeldatei in der Kette ist keine Dart-Datei",
+     {U + "a.dart": "import '../root.txt';\n", "app/lib/root.txt": "class Root {}\n"}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel root\.txt fehlt oder ist nicht lesbar"),
+    ("vorhandene, aber unlesbare generierte Lokalisierung",
+     {U + "a.dart": "import '../l10n/app_localizations.dart';\n", "app/lib/l10n/app_localizations.dart": b"\xff\xfe import"},
+     0, 0, r"app/lib/ui/a\.dart:1: lib/ui: Ziel l10n/app_localizations\.dart fehlt oder ist nicht lesbar"),
+    ("generierte Lokalisierung ist symbolischer Link",
+     {U + "a.dart": "import '../l10n/app_localizations.dart';\n", "app/lib/l10n/real.dart": "class L {}\n",
+      "app/lib/l10n/app_localizations.dart": ("link", "real.dart")}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel l10n/app_localizations\.dart fehlt oder ist nicht lesbar"),
+    ("generierte Lokalisierung ist toter symbolischer Link",
+     {U + "a.dart": "import '../l10n/app_localizations.dart';\n",
+      "app/lib/l10n/app_localizations.dart": ("link", "gone.dart")}, 0, 0,
+     r"app/lib/ui/a\.dart:1: lib/ui: Ziel l10n/app_localizations\.dart fehlt oder ist nicht lesbar"),
+    ("lib/ui fehlt", {U + "ui.dart": None, U + "format/f.dart": None}, 0, 0, r"app/lib/ui/: Suchpfad fehlt"),
     ("Suchpfad fehlt", {A + "x/x_screen.dart": None, A + "y/y.dart": None}, 0, 0, r"app/lib/features/: Suchpfad fehlt"),
 ]
 
@@ -73,6 +145,9 @@ def build(extra):
             continue
         p = os.path.join(d, rel)
         os.makedirs(os.path.dirname(p), exist_ok=True)
+        if isinstance(content, tuple):  # ("link", Ziel relativ zum Ordner des Links)
+            os.symlink(content[1], p)
+            continue
         open(p, "w" if isinstance(content, str) else "wb").write(content)
     for rel, content in extra.items():  # leere Ordner nach Entfernen aufräumen
         if content is None:

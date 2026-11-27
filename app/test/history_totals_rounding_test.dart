@@ -4,7 +4,7 @@
 // abweichen, höchstens um (Läufe - 1) Sekunden. Beleg zur Abweichung 18:52 / 18:50 bei sieben Läufen (E2E WP16).
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:running_app/features/run/live_run_view.dart' show formatClock;
+import 'package:running_app/ui/format/clock_format.dart' show formatClock;
 
 import 'history_summary_test.dart' show openHistory, started, text;
 

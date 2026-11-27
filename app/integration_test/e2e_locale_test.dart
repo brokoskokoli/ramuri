@@ -63,8 +63,9 @@ void _english(String where, String en, String de) {
 void _noUmlaut(String where, String text) =>
     expect(_umlaut.hasMatch(text), isFalse, reason: '$where ohne Umlaut');
 
-AppLocalizations _l10n(WidgetTester t, String key) =>
-    AppLocalizations.of(t.element(find.byKey(Key(key))));
+/// Texte der App am Widget [key]; wartet ([elementWhen]), bis es im Baum steht.
+Future<AppLocalizations> _l10n(WidgetTester t, String key) async =>
+    AppLocalizations.of(await elementWhen(t, find.byKey(Key(key)), key));
 
 /// Waehlt die Einheit in den Einstellungen ueber das Segment mit [label].
 Future<void> _setUnit(
@@ -85,7 +86,7 @@ Future<void> _setUnit(
     scrollable: _vertical().first,
   );
   await pumpFor(t, const Duration(milliseconds: 300));
-  final l10n = _l10n(t, 'settings_unit');
+  final l10n = await _l10n(t, 'settings_unit');
   bool selected() =>
       maybeWidget<SegmentedButton<DistanceUnit>>(
         find.byKey(const Key('settings_unit')),
@@ -158,9 +159,15 @@ void main() {
       await startApp(t, w);
       await setupIfShown(t);
       final s = await session(t, w);
+      // Sprache an der Seite Heute lesen: "Lauf starten" kann unter einer
+      // hohen Karte ausserhalb des gebauten Bereichs der Liste liegen.
       expect(
         Localizations.localeOf(
-          t.element(find.byKey(const Key('home_start_run'))),
+          await elementWhen(
+            t,
+            find.byKey(const Key('home_screen')),
+            'Heute home_screen',
+          ),
         ).languageCode,
         'en',
         reason: 'App auf Englisch',
@@ -182,7 +189,7 @@ void main() {
         () => has('sum_header') && has('run_avg_pace'),
         'Zusammenfassung geladen',
       );
-      final en = _l10n(t, 'run_distance');
+      final en = await _l10n(t, 'run_distance');
       final de = lookupAppLocalizations(const Locale('de'));
       final distance = _plainKey('run_distance');
       final paceTile = _plain(

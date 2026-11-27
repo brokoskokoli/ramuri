@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../run/live_run_view.dart' show formatClock;
-import '../settings/unit_format.dart';
+import '../../ui/format/clock_format.dart' show formatClock;
+import '../../ui/format/unit_format.dart';
 
 /// Untere Grenze der Balkenbreite (Anteil der Spur) und Mindestspanne der Pace
 /// in s/km, über die die Balken von voll bis zur Grenze laufen (Detail.dc.html).

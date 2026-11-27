@@ -4,7 +4,7 @@ import '../../ports/storage_goals.dart';
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_settings.dart';
 import '../plan/plan_unit.dart';
-import '../prediction/reference_performance.dart' show calendarDay;
+import '../calendar/calendar_day.dart' show calendarDay;
 import '../settings/display_settings.dart';
 
 /// Einstellungen der Erinnerungen (FR-0174, Vorschlag WP22 Teil F): aus, bis

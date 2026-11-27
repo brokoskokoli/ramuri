@@ -1,7 +1,7 @@
 import 'period.dart';
 import 'period_statistics.dart';
 import 'run_figures.dart';
-import 'statistics_parameters.dart';
+import '../recalculation/statistics_parameters.dart';
 
 /// Zeitraum über der Liste des Verlaufs (FR-0212).
 enum HistoryRange { week, month, year, all }

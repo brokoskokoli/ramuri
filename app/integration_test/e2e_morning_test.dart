@@ -193,7 +193,11 @@ Future<void> measureFromTile(
   if (sitting) {
     await tapKey(t, 'morning_posture_sitting');
     final sittingNote = AppLocalizations.of(
-      t.element(find.byKey(const Key('morning_pose_note'))),
+      await elementWhen(
+        t,
+        find.byKey(const Key('morning_pose_note')),
+        'Hinweis morning_pose_note',
+      ),
     ).morningPoseNoteSitting;
     await waitFor(
       t,
@@ -350,7 +354,7 @@ Future<void> reminderTimeViaUi(WidgetTester t, StorageSession s) async {
   expect(saved.minuteOfDay, target, reason: 'S7b Uhrzeit gespeichert');
   expect(saved.enabled, isTrue, reason: 'S7b bleibt eingeschaltet');
   final row = find.byKey(const Key('morning_reminder_time'));
-  final ctx = t.element(row);
+  final ctx = await elementWhen(t, row, 'S7b Zeile morning_reminder_time');
   final shown = MaterialLocalizations.of(ctx).formatTimeOfDay(
     TimeOfDay(hour: target ~/ 60, minute: target % 60),
     alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(ctx),
@@ -539,12 +543,15 @@ Future<void> cameraDiagnostics(
       (await t.runAsync(store.read))!;
   expect(await read(), isEmpty, reason: 'S7d Vorgabe: alle Schalter aus');
   await reveal();
-  SwitchListTile tile() => t.widget<SwitchListTile>(find.byKey(const Key(key)));
+  // `null`, solange der Schalter nicht im Baum steht (Neuaufbau der lazy
+  // Liste): die Bedingung gilt dann als nicht erreicht und wirft nicht.
+  SwitchListTile? tile() =>
+      maybeWidget<SwitchListTile>(find.byKey(const Key(key)));
   // Der Abschnitt entsteht erst beim Hinscrollen; bis die Schalter gelesen
   // sind, ist der Schalter gesperrt und ein Tipp wirkungslos.
-  await waitFor(t, () => tile().onChanged != null, 'S7d Schalter bedienbar');
+  await waitFor(t, () => tile()?.onChanged != null, 'S7d Schalter bedienbar');
   await tapKey(t, key);
-  await waitFor(t, () => tile().value, 'S7d Schalter an');
+  await waitFor(t, () => tile()?.value == true, 'S7d Schalter an');
   expect(await read(), {
     PpgCameraDiagnostic.noiseReductionOff,
   }, reason: 'S7d Schalter gespeichert');
@@ -612,11 +619,11 @@ Future<void> cameraDiagnostics(
   // Neu aufgebaut: erst tippen, wenn der gespeicherte Stand (an) gelesen ist.
   await waitFor(
     t,
-    () => tile().onChanged != null && tile().value,
+    () => tile()?.onChanged != null && (tile()?.value ?? false),
     'S7d Schalter gelesen',
   );
   await tapKey(t, key);
-  await waitFor(t, () => !tile().value, 'S7d Schalter aus');
+  await waitFor(t, () => tile()?.value == false, 'S7d Schalter aus');
   expect(await read(), isEmpty, reason: 'S7d Schalter wieder aus');
   // Fuer S8 wieder nach oben zum Schalter Entwicklermodus.
   await t.scrollUntilVisible(
@@ -723,7 +730,11 @@ Future<void> repeatAndChoose(
 
   // Karte auf Heute nennt die zweite (Zeit und Haltung).
   await entryLoaded(t, MorningCard, 'S3b Heute');
-  final ctx = t.element(find.byKey(const Key('morning_card')));
+  final ctx = await elementWhen(
+    t,
+    find.byKey(const Key('morning_card')),
+    'S3b Karte morning_card',
+  );
   final l10n = AppLocalizations.of(ctx);
   final locale = Localizations.localeOf(ctx).toString();
   await waitFor(
@@ -1182,7 +1193,11 @@ void main() {
     expect(has('morning_gurt_pick'), isTrue, reason: 'S5b Gurt verbinden');
     expect(has('morning_gurt_note'), isTrue, reason: 'S5b Hinweis ohne Gurt');
     final noBelt = AppLocalizations.of(
-      t.element(find.byKey(const Key('morning_gurt_text'))),
+      await elementWhen(
+        t,
+        find.byKey(const Key('morning_gurt_text')),
+        'S5b Text morning_gurt_text',
+      ),
     ).morningGurtNone;
     expect(txt('morning_gurt_text'), noBelt, reason: 'S5b kein Gurt');
     log('S5b geprueft kein_gurt=true');

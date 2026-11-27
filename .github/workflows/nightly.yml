@@ -1,8 +1,8 @@
 name: nightly
 # Jede Nacht (02:17 UTC, bewusst nicht zur vollen Stunde: dort startet GitHub geplante Läufe oft stark verspätet
 # oder gar nicht) und von Hand: APK vom aktuellen main mit dem Release-Schlüssel, als Pre-Release "nightly".
-# Es gibt nur einen Nightly: Tag und Release "nightly" werden ersetzt. Der Tag beginnt nicht mit v und startet
-# release.yml daher nicht. Ein geplanter Lauf ohne neuen Commit auf main baut nicht; ein Lauf von Hand baut immer.
+# Es gibt nur einen Nightly: Tag und Release "nightly" werden bei jedem Build gelöscht und neu angelegt. Der Tag
+# beginnt nicht mit v und startet release.yml daher nicht. Ein geplanter Lauf ohne neuen Commit auf main baut nicht; ein Lauf von Hand baut immer.
 on:
   schedule:
     - cron: '17 2 * * *'
@@ -82,9 +82,12 @@ jobs:
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
         run: tool/build_signed.sh --nightly
-      # Erst nach grünem Gate und Build. Bei einem vorhandenen Release werden zuerst Text und Anhänge ersetzt und
-      # erst zuletzt der Tag verschoben: scheitert ein Schritt, zeigt der Tag noch auf den alten Commit, und der
-      # nächste geplante Lauf baut erneut statt zu überspringen.
+      # Erst nach grünem Gate und Build. Die APK bekommt Baudatum (UTC, Tag des Laufs) und Commit im Namen, die
+      # Prüfsumme wird für den neuen Namen neu geschrieben. Dann werden ein vorhandenes Release "nightly" samt Tag
+      # (und ein verwaister Tag) gelöscht und das Release neu angelegt: so ist published_at der Tag des Laufs, und
+      # kein alter Anhang bleibt zurück. Scheitert das Anlegen, wird ein halb angelegtes Release entfernt, der Lauf
+      # ist rot, und bis zum nächsten Lauf gibt es keinen Nightly; der nächste geplante Lauf baut dann, weil der
+      # Tag fehlt ("Tag nightly: keiner").
       - name: Nightly veröffentlichen
         env:
           GH_TOKEN: ${{ github.token }}
@@ -94,36 +97,36 @@ jobs:
           [ "$(git rev-parse HEAD)" = "$SHA" ] || { echo "FEHLER: Checkout ist nicht $SHA"; exit 1; }
           version=$(tool/build_signed.sh --print-version --nightly | cut -d' ' -f1)
           datum=$(date -u +%Y-%m-%d)
-          titel="ramuri nightly $datum (${SHA:0:7})"
-          printf 'versionName: `%s`\nCommit: %s\n\nAutomatischer Build von main, ungeprüft. Nicht für den Alltag gedacht.\n' \
-            "$version" "$SHA" >"$RUNNER_TEMP/nightly-notes.md"
+          kurz=${SHA:0:7}
+          apk="ramuri-nightly-$datum-$kurz.apk"
+          titel="ramuri nightly $datum ($kurz)"
+          mv dist/ramuri-nightly.apk "dist/$apk"
+          (cd dist && sha256sum "$apk" >SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
+          printf 'versionName: `%s`\nCommit: %s\nAnhang: `%s`\n\nAutomatischer Build von main, ungeprüft. Nicht für den Alltag gedacht.\n' \
+            "$version" "$SHA" "$apk" >"$RUNNER_TEMP/nightly-notes.md"
           if gh release view nightly -R "$REPO" >/dev/null 2>&1; then
-            gh release edit nightly -R "$REPO" --title "$titel" --notes-file "$RUNNER_TEMP/nightly-notes.md" \
-              --draft=false --prerelease --latest=false
-            gh release upload nightly -R "$REPO" dist/ramuri-nightly.apk dist/SHA256SUMS.txt --clobber
-            gh release view nightly -R "$REPO" --json assets -q '.assets[].name' | while IFS= read -r name; do
-              case $name in
-                ramuri-nightly.apk | SHA256SUMS.txt) ;;
-                *) gh release delete-asset nightly "$name" -R "$REPO" -y ;;
-              esac
-            done
-            if gh api "repos/$REPO/git/ref/tags/nightly" >/dev/null 2>&1; then
-              gh api -X PATCH "repos/$REPO/git/refs/tags/nightly" -f sha="$SHA" -F force=true >/dev/null
-            else
-              gh api -X POST "repos/$REPO/git/refs" -f ref=refs/tags/nightly -f sha="$SHA" >/dev/null
+            gh release delete nightly -R "$REPO" --cleanup-tag -y
+          fi
+          if gh api "repos/$REPO/git/ref/tags/nightly" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/$REPO/git/refs/tags/nightly"
+          fi
+          if ! gh release create nightly -R "$REPO" --target "$SHA" --title "$titel" \
+            --notes-file "$RUNNER_TEMP/nightly-notes.md" --prerelease --latest=false \
+            "dist/$apk" dist/SHA256SUMS.txt; then
+            echo "FEHLER: Release nightly ließ sich nicht anlegen; bis zum nächsten Lauf gibt es keinen Nightly."
+            if gh release view nightly -R "$REPO" >/dev/null 2>&1; then
+              gh release delete nightly -R "$REPO" --cleanup-tag -y || true
             fi
-          else
-            # Ohne Release: ein verwaister Tag wird ersetzt. gh legt das Release mit Anhängen erst als Entwurf an und
-            # veröffentlicht es (und legt damit den Tag an) nach dem Hochladen.
-            if gh api "repos/$REPO/git/ref/tags/nightly" >/dev/null 2>&1; then
-              gh api -X DELETE "repos/$REPO/git/refs/tags/nightly"
-            fi
-            gh release create nightly -R "$REPO" --target "$SHA" --title "$titel" \
-              --notes-file "$RUNNER_TEMP/nightly-notes.md" --prerelease --latest=false \
-              dist/ramuri-nightly.apk dist/SHA256SUMS.txt
+            exit 1
           fi
           tag=$(gh api "repos/$REPO/git/ref/tags/nightly" -q .object.sha)
           [ "$tag" = "$SHA" ] || { echo "FEHLER: Tag nightly zeigt auf $tag statt $SHA"; exit 1; }
           anhaenge=$(gh release view nightly -R "$REPO" --json assets -q '[.assets[].name] | sort | join(" ")')
-          [ "$anhaenge" = "SHA256SUMS.txt ramuri-nightly.apk" ] || { echo "FEHLER: Anhänge des Nightly: $anhaenge"; exit 1; }
-          echo "Nightly veröffentlicht: $titel, $version"
+          [ "$anhaenge" = "SHA256SUMS.txt $apk" ] || { echo "FEHLER: Anhänge des Nightly: $anhaenge"; exit 1; }
+          printf '%s\n' "$apk" | grep -Eqx 'ramuri-nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9a-f]{7}\.apk' ||
+            { echo "FEHLER: Anhangname $apk"; exit 1; }
+          pruefung="$RUNNER_TEMP/nightly-pruefung"
+          rm -rf "$pruefung"
+          gh release download nightly -R "$REPO" -D "$pruefung"
+          (cd "$pruefung" && sha256sum -c SHA256SUMS.txt)
+          echo "Nightly veröffentlicht: $titel, $apk, $version"

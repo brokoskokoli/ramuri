@@ -187,7 +187,7 @@ class _Env {
   Future<PlanUnit> unit(int day) async => (await plans.unitOn(_day(day)))!;
 
   Future<PlanActionResult> assign(int day, int runId) async =>
-      controller.assignRun((await unit(day)).id!, runId);
+      controller.assignRun((await unit(day)).id!, runId, expectedRunId: null);
 
   Future<List<PlanUnit>> week() => plans.unitsBetween(_day(14), _day(20));
 }
@@ -268,7 +268,7 @@ void main() {
           reason: u.kind.name,
         );
         expect(
-          await e.controller.assignRun(u.id!, id),
+          await e.controller.assignRun(u.id!, id, expectedRunId: null),
           PlanActionResult.rejected,
         );
         expect((await e.unit(day)).runId, isNull);
@@ -288,7 +288,7 @@ void main() {
         SportReplacementBlock.alreadyReplaced,
       );
       expect(
-        await e.controller.assignRun(fri.id!, second),
+        await e.controller.assignRun(fri.id!, second, expectedRunId: null),
         PlanActionResult.rejected,
       );
       final nextTue = await e.unit(22);

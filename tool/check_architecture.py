@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate-Schritt "Architektur": Zyklen-Ratsche für core-Module und App-Features. Aufruf: check_architecture.py [Repo-Wurzel].
+"""Gate-Schritt "Architektur": Zyklen-Ratsche für core-Module und App-Features, lib/ui ohne Feature-Importe. Aufruf: check_architecture.py [Repo-Wurzel].
 
 Modulbegriff (Regel in docs/architecture/code-map.md):
 - core: Ordner unter app/packages/core/lib/src/<modul>/. ports, fakes, testing und Barrels (core.dart, fakes.dart …)
@@ -13,16 +13,36 @@ Ratsche: Gezählt werden Module in starken Zusammenhangskomponenten mit mehr als
 Grundlinie ist rot (mit Komponente, Modulnamen und je Modul der Kante Datei:Zeile, die seinen Zyklus schließt), weniger
 ebenfalls rot mit "Grundlinie auf <n> senken" - so sinkt sie mit jedem Fix.
 
+Blattmodule (CORE_LEAF_MODULES): importieren kein anderes core-Modul, auch nicht über Dateien direkt in src/. Fehlt
+ein Blattmodul im Baum, ist das rot.
+
+Obere Module (CORE_TOP_MODULES): kein anderes core-Modul importiert sie, auch nicht über Dateien direkt in src/
+(z. B. algorithms: die Registry liegt über fitness, plan und prediction). Fehlt ein oberes Modul im Baum, ist das rot.
+
+Gemeinsame Oberfläche (APP_UI): Dateien unter app/lib/ui/ (auch ui/format/, ui/charts/) importieren, exportieren und
+binden nichts aus app/lib/features/ ein, weder relativ noch über package:running_app/features/…, auch nicht über
+Dateien unter app/lib/ außerhalb von features/ und ui/ (Wurzeldateien wie app_dependencies.dart, Ordner wie debug/):
+Diese werden transitiv verfolgt (jede Datei höchstens einmal). Rot ist die Direktive der ui-Datei, die die Kette
+beginnt, mit Feature und Kette. Ein fehlendes oder unlesbares Ziel in der Kette ist rot, außer unter app/lib/l10n/
+(generierte Lokalisierung, nicht eingecheckt). Fehlt app/lib/ui/, ist das rot.
+
 Fail-closed: fehlende Suchpfade, unlesbare Dateien, symbolische Links, Direktiven ohne lesbare URI, unbekannte
 URI-Schemata und der Barrel-Import package:core/core.dart innerhalb von core/lib/src sind rot."""
 import os, re, sys
 
 # Grundlinie: gemessener Stand. Nur senken (der Hinweis nennt den neuen Wert), nie erhöhen.
-CORE_CYCLE_MODULES = 12
-APP_CYCLE_FEATURES = 16
+CORE_CYCLE_MODULES = 3
+APP_CYCLE_FEATURES = 8
+
+# Blattmodule in core: keine Kante zu einem anderen Modul unter src/ (Regel in docs/architecture/code-map.md).
+CORE_LEAF_MODULES = ("calendar",)
+
+# Obere Module in core: kein anderes Modul unter src/ hat eine Kante zu ihnen (Regel in docs/architecture/code-map.md).
+CORE_TOP_MODULES = ("algorithms",)
 
 CORE_SRC = "app/packages/core/lib/src/"
 APP_FEATURES = "app/lib/features/"
+APP_UI = "app/lib/ui/"
 APP_PACKAGE = "running_app"
 
 errors = []
@@ -298,17 +318,115 @@ def check(name, graph, comps, baseline, const):
         err(name, 0, f"{n} Module in Zyklen, weniger als die Grundlinie: Grundlinie auf {n} senken "
                      f"({const} in tool/check_architecture.py)")
 
+def check_leaves(name, graph, leaves, const):
+    for m in leaves:
+        if m not in graph:
+            err(name, 0, f"Blattmodul {m} fehlt ({const} in tool/check_architecture.py, fail-closed)")
+            continue
+        for t, (f, l) in sorted(graph[m].items()):
+            err(f, l, f"Blattmodul {m} importiert Modul {t} ({const}; Regeln: docs/architecture/code-map.md)")
+
+def check_tops(name, graph, tops, const):
+    for m in tops:
+        if m not in graph:
+            err(name, 0, f"Oberes Modul {m} fehlt ({const} in tool/check_architecture.py, fail-closed)")
+            continue
+        for src in sorted(graph):
+            if src != m and m in graph[src]:
+                f, l = graph[src][m]
+                err(f, l, f"Modul {src} importiert oberes Modul {m} ({const}; Regeln: docs/architecture/code-map.md)")
+
+APP_LIB = "app/lib/"
+APP_L10N = "app/lib/l10n/"  # generierte Lokalisierung: fehlt sie (nicht eingecheckt), wird sie übersprungen
+
+def lib_targets(root, rel, cache):
+    """Ziele unter app/lib/ der Direktiven einer Datei als [(Zeile, Ziel)] oder None (fehlt, Link, nicht lesbar)."""
+    if rel not in cache:
+        p = os.path.join(root, rel)
+        try:
+            if os.path.islink(p) or not rel.endswith(".dart"):
+                raise OSError
+            text = open(p, encoding="utf-8").read()
+        except (OSError, UnicodeDecodeError):
+            cache[rel] = None
+            return None
+        out = []
+        for line, uri in directives(rel, text):
+            target = resolve(rel, line, uri, (APP_PACKAGE, APP_LIB))
+            if target is not None and target.startswith(APP_LIB):
+                out.append((line, target))
+        cache[rel] = out
+    return cache[rel]
+
+def ui_chain(root, first, cache):
+    """Breitensuche ab einer Wurzeldatei (unter app/lib/, nicht in features/ oder ui/) durch weitere solche Dateien.
+    Rückgabe (Art, Kette): ("feature", [(Datei, Zeile), …, Ziel]) bzw. ("missing", [(Datei, Zeile), …, Ziel]) für ein
+    fehlendes oder unlesbares Ziel, oder None. Jede Datei wird höchstens einmal besucht (Zyklen enden)."""
+    seen, queue = {first}, [(first, [])]
+    while queue:
+        cur, hops = queue.pop(0)
+        if cur.startswith(APP_FEATURES):
+            return "feature", hops + [cur]
+        targets = lib_targets(root, cur, cache)
+        if targets is None:
+            if cur.startswith(APP_L10N) and not os.path.lexists(os.path.join(root, cur)):
+                continue
+            return "missing", hops + [cur]
+        for line, target in targets:
+            if target.startswith(APP_UI) or target in seen:
+                continue  # Dateien unter app/lib/ui/ prüft check_ui selbst
+            seen.add(target)
+            queue.append((target, hops + [(cur, line)]))
+    return None
+
+def check_ui(root):
+    """Keine Datei unter APP_UI erreicht eine Datei unter APP_FEATURES, direkt oder über Wurzeldateien unter app/lib/
+    (Regel in docs/architecture/code-map.md)."""
+    files = collect(root, APP_UI)
+    cache = {}
+    short = lambda path: path[len(APP_LIB):] if path.startswith(APP_LIB) else path
+    for rel in files:
+        try:
+            text = open(os.path.join(root, rel), encoding="utf-8").read()
+        except (OSError, UnicodeDecodeError):
+            err(rel, 0, "nicht lesbar (fail-closed)")
+            continue
+        for line, uri in directives(rel, text):
+            target = resolve(rel, line, uri, (APP_PACKAGE, APP_LIB))
+            if target is None or not target.startswith(APP_LIB) or target.startswith(APP_UI):
+                continue
+            found = ui_chain(root, target, cache)
+            if found is None:
+                continue
+            kind, chain = found
+            hops = chain[:-1]  # [(Datei, Zeile der weiterführenden Direktive)], erste Datei ist das Ziel von uri
+            via = " → ".join([uri] + [short(f) for f, _ in hops[1:]] + ([short(chain[-1])] if hops else []))
+            if hops:
+                via += " (Kanten: " + ", ".join(f"{short(f)}:{l}" for f, l in hops) + ")"
+            if kind == "feature":
+                feature = module_of(chain[-1], APP_FEATURES)
+                how = f"über {via}" if len(chain) > 1 else f"({uri})"
+                err(rel, line, f"lib/ui importiert Feature {feature.lstrip('.')} {how}; Gemeinsames gehört nach "
+                               f"app/lib/ui/, Features nur über Routen bzw. app_dependencies (Regeln: "
+                               f"docs/architecture/code-map.md)")
+            else:
+                err(rel, line, f"lib/ui: Ziel {short(chain[-1])} fehlt oder ist nicht lesbar (über {via}, fail-closed)")
+    return len(files)
+
 def main():
     root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else ".")
     core, nc = build_graph(root, CORE_SRC, ("core", "app/packages/core/lib/"), barrel="package:core/core.dart")
     app, na = build_graph(root, APP_FEATURES, (APP_PACKAGE, "app/lib/"))
     check("core", core, sccs(core), CORE_CYCLE_MODULES, "CORE_CYCLE_MODULES")
+    check_leaves("core", core, CORE_LEAF_MODULES, "CORE_LEAF_MODULES")
+    check_tops("core", core, CORE_TOP_MODULES, "CORE_TOP_MODULES")
     check("app", app, sccs(app), APP_CYCLE_FEATURES, "APP_CYCLE_FEATURES")
+    nu = check_ui(root)
     if errors:
         print("Architekturprüfung rot:")
         print("\n".join(list(dict.fromkeys(errors))[:60]))
         sys.exit(1)
-    print(f"{nc + na} Dateien geprüft, keine neuen Zyklen")
+    print(f"{nc + na + nu} Dateien geprüft, keine neuen Zyklen, lib/ui ohne Feature-Importe")
 
 if __name__ == "__main__":
     main()

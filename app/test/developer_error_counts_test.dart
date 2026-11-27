@@ -316,6 +316,7 @@ void main() {
           session: d.session,
           clock: d.clock,
           calculation: ValueCalculationService(
+            algorithms: AlgorithmRegistry.standard(),
             session: d.session,
             clock: d.clock,
           ),

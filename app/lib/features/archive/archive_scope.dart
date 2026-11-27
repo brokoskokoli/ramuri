@@ -1,7 +1,6 @@
 import 'package:core/core.dart';
 import 'package:flutter/widgets.dart';
 
-import '../storage/storage_start.dart';
 import 'archive_wiring.dart';
 
 /// Archivdienste der App (WP12) für die Oberfläche; in Tests die Fakes aus
@@ -24,8 +23,9 @@ class ArchiveScope extends InheritedWidget {
   /// Vorprüfung des Kopfes vor der Passwortabfrage (FR-0198).
   final ArchiveHeaderCheck headerCheck;
 
-  /// Start der Speicherschicht: Der Import übergibt ihm die neue Sitzung.
-  final StorageStartController? start;
+  /// Ziel der neuen Sitzung (in der App der Start der Speicherschicht): Der
+  /// Import übergibt ihm die neue Sitzung.
+  final ArchiveSessionTarget? start;
 
   /// Ohne Scope oder ohne Export `null`: Dann bietet die Oberfläche keinen
   /// Export an.
@@ -43,7 +43,7 @@ class ArchiveScope extends InheritedWidget {
       context.getInheritedWidgetOfExactType<ArchiveScope>()?.headerCheck ??
       precheckArchiveFile;
 
-  static StorageStartController? startOf(BuildContext context) =>
+  static ArchiveSessionTarget? startOf(BuildContext context) =>
       context.getInheritedWidgetOfExactType<ArchiveScope>()?.start;
 
   @override

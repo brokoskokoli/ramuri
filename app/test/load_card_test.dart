@@ -5,14 +5,12 @@ import 'dart:ui' show Tristate;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:running_app/features/statistics/fitness_section.dart'
-    show fitnessNumber;
 import 'package:running_app/features/statistics/load_card.dart';
 import 'package:running_app/features/statistics/load_view_state.dart';
 import 'package:running_app/features/statistics/statistics_screen.dart';
-import 'package:running_app/features/settings/unit_format.dart'
-    show asOfDateText;
+import 'package:running_app/ui/format/unit_format.dart' show asOfDateText;
 import 'package:running_app/l10n/app_localizations.dart';
+import 'package:running_app/ui/format/fitness_number.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'history_summary_test.dart' show seedRun, started;

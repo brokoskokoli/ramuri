@@ -43,6 +43,24 @@ class _SpyChoice implements PpgCameraChoiceStore {
   }
 }
 
+/// Zählt die Abfragen von Recht und Verfügbarkeit; wirft auf Wunsch beim Lesen der Liste.
+class _CountingCamera extends FakePpgCamera {
+  int availabilityCalls = 0;
+  bool camerasThrow = false;
+
+  @override
+  Future<List<PpgCameraInfo>> cameras() async {
+    if (camerasThrow) throw StateError('synthetischer Fehler');
+    return super.cameras();
+  }
+
+  @override
+  Future<PpgCameraAvailability> availability() {
+    availabilityCalls++;
+    return super.availability();
+  }
+}
+
 PpgPreviewFrame _frame(
   PpgCameraRef ref,
   double t, {
@@ -58,7 +76,7 @@ PpgPreviewFrame _frame(
 );
 
 typedef _S = ({
-  FakePpgCamera cam,
+  _CountingCamera cam,
   _SpyChoice choice,
   SettingsDeveloperModeStore dev,
   CameraFinderController c,
@@ -67,7 +85,7 @@ typedef _S = ({
 Future<_S> _setup({List<PpgCameraInfo> cameras = _cameras}) async {
   final session = await FakeStorage().open(Uint8List(32));
   final clock = FakeClock(DateTime.utc(2026, 11, 24));
-  final cam = FakePpgCamera()..cameraList = cameras;
+  final cam = _CountingCamera()..cameraList = cameras;
   final choice = _SpyChoice(
     SettingsPpgCameraChoiceStore(session.settings, clock),
   );
@@ -391,13 +409,74 @@ void main() {
     s.c.dispose();
   });
 
-  test('nur eine nutzbare Kamera: keine Vorschau', () async {
+  /// Keine Vorschau, keine Abfrage von Recht und Verfügbarkeit, kein Schreibzugriff.
+  Future<void> expectNoPreview(_S s) async {
+    await pumpEventQueue();
+    expect(s.cam.previewWith, isEmpty);
+    expect(s.cam.previewOn, isFalse);
+    expect(s.cam.torchOn, isFalse);
+    expect(s.cam.availabilityCalls, 0);
+    expect(s.cam.permissionRequests, 0);
+    expect(s.c.canApply, isFalse);
+    expect(s.c.canApplyDefault, isFalse);
+    expect(await s.c.apply(), isNull);
+    expect(await s.c.apply(manual: true), isNull);
+    expect(await s.c.applyDefault(), isNull);
+    expect(s.choice.writes, isEmpty);
+  }
+
+  test('nur eine nutzbare Kamera: onlyOne, keine Vorschau', () async {
     final s = await _setup(cameras: [_cameras.first, _cameras.last]);
     await s.c.load();
     expect(s.c.phase, CameraFinderPhase.onlyOne);
-    expect(s.cam.previewWith, isEmpty);
+    await expectNoPreview(s);
     s.c.dispose();
   });
+
+  test('keine Kamera: noCamera, keine Vorschau, nichts gespeichert', () async {
+    final s = await _setup(cameras: const []);
+    await s.c.load();
+    expect(s.c.phase, CameraFinderPhase.noCamera);
+    await expectNoPreview(s);
+    s.c.dispose();
+  });
+
+  test(
+    'nur nicht nutzbare Kameras: noCamera, keine Vorschau, nichts gespeichert',
+    () async {
+      final s = await _setup(
+        cameras: const [
+          PpgCameraInfo(
+            ref: _std,
+            isDefault: true,
+            unusable: PpgCameraUnusable.noFlash,
+          ),
+          PpgCameraInfo(
+            ref: PpgCameraRef('2'),
+            unusable: PpgCameraUnusable.frameRate,
+          ),
+        ],
+      );
+      await s.c.load();
+      expect(s.c.phase, CameraFinderPhase.noCamera);
+      expect(s.c.cameras, isEmpty);
+      await expectNoPreview(s);
+      s.c.dispose();
+    },
+  );
+
+  test(
+    'Kameraliste nicht lesbar: listFailed, keine Vorschau, nichts gespeichert',
+    () async {
+      final s = await _setup();
+      s.cam.camerasThrow = true;
+      await s.c.load();
+      expect(s.c.phase, CameraFinderPhase.listFailed);
+      expect(s.c.cameras, isEmpty);
+      await expectNoPreview(s);
+      s.c.dispose();
+    },
+  );
 
   test('ohne Kamera-Recht: Anfrage, dann Hinweis ohne Vorschau', () async {
     final s = await _setup();

@@ -1,5 +1,6 @@
 import '../../ports/storage_plan.dart' show PlanVersionRecord;
 import '../../ports/storage_values.dart' show ComputedValue, ValueQuality;
+import '../plan/plan_change_notice.dart' show PlanChangeNotice;
 import '../plan/plan_unit.dart';
 import '../load/training_load.dart' show LoadDay;
 import 'hint_selection.dart' show Evidence, EvidenceKey;
@@ -130,6 +131,12 @@ Explanation explainPlanChange(PlanVersionRecord version) {
       if (count is int) Evidence(EvidenceKey.changedUnitCount, count),
     ],
   );
+}
+
+/// Erklärung der Karte „Plan angepasst“ (FR-0170) aus dem Grund, den der
+/// Plan liefert ([PlanChangeNotice]): [explainPlanChange] der Fassung.
+extension PlanChangeNoticeExplanation on PlanChangeNotice {
+  Explanation get explanation => explainPlanChange(version);
 }
 
 /// Datenqualität (FR-0180): warum ein Wert fehlt (Code = Grund) oder dass er

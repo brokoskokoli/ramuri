@@ -79,9 +79,10 @@ class _Env {
     fail('keine harte Einheit');
   }
 
-  PlanController controller() => PlanController(
+  PlanController controller({VoidCallback? onChanged}) => PlanController(
     session: session,
     clock: clock,
+    onChanged: onChanged,
     reader: PlanDataReader(
       session: session,
       clock: clock,
@@ -172,6 +173,26 @@ void main() {
       // Derselbe Modus noch einmal: nichts.
       await c.setAdaptation(PlanAdaptationMode.adaptive);
       expect(await e.versions(), before + 1);
+      c.dispose();
+    });
+
+    test('Wechsel auf „adaptiv“ und zurück: jede geschriebene Fassung meldet '
+        'die Änderung und steht als letzte Änderung im Stand', () async {
+      final e = await _Env.open();
+      e.readiness = _low;
+      var changed = 0;
+      final c = e.controller(onChanged: () => changed++);
+      await c.reload();
+      await c.setAdaptation(PlanAdaptationMode.adaptive);
+      expect(changed, 1);
+      expect(c.state.lastChange, isNotNull);
+      expect(c.state.lastChange!.isEmpty, isFalse);
+      await c.setAdaptation(PlanAdaptationMode.fixed);
+      expect(changed, 2);
+      expect(c.state.lastChange!.isEmpty, isFalse);
+      // Ohne Änderung des Modus keine Meldung.
+      await c.setAdaptation(PlanAdaptationMode.fixed);
+      expect(changed, 2);
       c.dispose();
     });
 

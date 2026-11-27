@@ -2,10 +2,10 @@ import '../../ports/storage_runs.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recording/belt_track.dart';
 import '../recalculation/run_load_values.dart';
-import '../recalculation/value_calculation_service.dart' show dayOfRun;
+import '../calendar/run_day.dart' show dayOfRun;
 import '../preprocessing/gap_moving_time.dart';
-import 'best_pace.dart';
-import 'statistics_parameters.dart';
+import '../recalculation/best_pace.dart';
+import '../recalculation/statistics_parameters.dart';
 
 /// Einheit: Meter je Kilometer, Mikrosekunden je Sekunde.
 const double _metersPerKilometer = 1000;

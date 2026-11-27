@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../plan/plan_texts.dart';
+import '../../ui/format/plan_texts.dart';
 import '../summary/subjective_section.dart' show wellbeingWord;
 
 /// Was die Karten auf „Heute“ über Hinweise brauchen (WP23 D2): der

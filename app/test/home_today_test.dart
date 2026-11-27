@@ -10,7 +10,7 @@ import 'package:running_app/features/home/home_screen.dart';
 import 'package:running_app/features/home/home_start_row.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
-import 'package:running_app/features/plan/plan_texts.dart';
+import 'package:running_app/ui/format/plan_texts.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ramuri_card.dart';
 import 'package:running_app/features/run/run_flow_screen.dart';
@@ -776,6 +776,7 @@ void main() {
         Navigator.of(tester.element(key('home_screen'))).push<void>(
           MaterialPageRoute(
             builder: (_) => RunFlowScreen(
+              algorithms: AlgorithmRegistry.standard(),
               session: h.session,
               clock: h.clock,
               ports: h.runPorts,
