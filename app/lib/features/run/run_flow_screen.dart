@@ -496,12 +496,18 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     if (autoStart && _starting) return;
     final gen = ++_generation;
     setState(() => _checking = true);
-    await _modeLoaded;
+    // Ohne gemerkte Laufart ist offen, was zu prüfen ist: nach der Frist
+    // (PAR-249) unbekannt statt für immer „Prüfe …“.
+    final modeKnown = await _modeLoaded
+        .timeout(startCheckTimeout)
+        .then((_) => true, onError: (Object _) => false);
     if (!mounted || gen != _generation) return;
     // Laufband und andere Sportart: kein Standort, weder Recht noch
     // GPS-Schalter (FR-0196, FR-0221). Das Recht für die Aktivität prüft der
     // Start (`startDenied`).
-    final result = _noLocation
+    final result = !modeKnown
+        ? const StartReadiness(StartBlock.unknown)
+        : _noLocation
         ? const StartReadiness(null)
         : await RecordingStartGate(widget.ports.access).check(askUser: askUser);
     if (!mounted || gen != _generation) return;

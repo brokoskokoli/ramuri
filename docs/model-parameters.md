@@ -108,6 +108,12 @@ Belastungsbereich, Median und Fenster sind entschieden (OQ-0036). Hier stehen nu
 |---|---|---|---|---|---|
 | PAR-048 | Mindestdauer für die Drift | 60 min gleichmäßig, ohne die ersten 10 min (Aufwärmen) | abgeleitet | Friel nennt für das Laufen eine Praxisspanne von 1–2 h am aeroben Schwellenbereich [Q17]. Sie beschreibt vor allem Einheiten der Grundlagenphase, keine untere Grenze für eine Messung. Das ist Trainerpraxis und keine Studie. Die 10 min sind eigene Wahl. Die Marathondaten in [Q31] (82.303 Läufer; Beginn der Entkopplung im Mittel bei 25,2 km) gelten für Wettkämpfe und legen keine Mindestdauer fest. | FR-0089, FR-0090 |
 
+## 7. Aufzeichnung (Phase 1)
+
+| ID | Parameter | Startwert | Art | Begründung und Quelle | Anforderung |
+|---|---|---|---|---|---|
+| PAR-249 | Frist der Startprüfung | Jede Antwort beim Lesen des Stands ohne Rückfrage – gemerkte Laufart der Seite, Standortberechtigung, GPS-Schalter – muss innerhalb von 10 s kommen (`startCheckTimeout` in `start_gate.dart`). Sonst gilt der Stand als unbekannt: kein Start, die Seite zeigt den Grund mit „Erneut prüfen“. Der Berechtigungsdialog des Systems hat keine Frist | Heuristik | Ablauf-Sicherung, eigene Wahl: Die Antworten kommen sonst in Millisekunden; bleibt eine aus, hinge die Seite ohne Frist für immer bei „Prüfe …“. 10 s liegen weit über einer langsamen Antwort und unter der Geduld beim Start. Der Dialog wartet auf den Nutzer und endet über die Rückkehr in den Vordergrund (FR-0195). Kein Einfluss auf Berechnungen | FR-0195, FR-0210 |
+
 ## Quellen
 
 Q1 bis Q37 wurden am 2026-11-03 abgerufen, Q38 bis Q52 am 2026-11-04. Bei wissenschaftlichen Artikeln war teils nur der Abstract zugänglich; PubMed-Abstracts wurden über Europe PMC gelesen.

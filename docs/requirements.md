@@ -203,7 +203,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0192 | Gesamtexport der Nutzerdaten | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0192--gesamtexport-der-nutzerdaten) | SEC-0004, CON-0008, ACC-15, OQ-0041, OQ-0032, SEC-0011, OQ-0050 |
 | FR-0193 | Laufende Sicherung und Wiederaufnahme | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0193--laufende-sicherung-und-wiederaufnahme) | FR-0034, FR-0036, OQ-0021, OQ-0061, OQ-0065 |
 | FR-0194 | Verhalten bei GPS-Verlust | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0194--verhalten-bei-gps-verlust) | FR-0049, FR-0057, OQ-0021 |
-| FR-0195 | Start nur mit Standortberechtigung | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0195--start-nur-mit-standortberechtigung) | OQ-0021, OQ-0064 |
+| FR-0195 | Start nur mit Standortberechtigung | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0195--start-nur-mit-standortberechtigung) | OQ-0021, OQ-0064, PAR-249 |
 | FR-0196 | Laufbandmodus | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0196--laufbandmodus) | FR-0195, OQ-0042 |
 | FR-0197 | Belastungsprofil wählen | functional | Approved | 2 | [training-load](specs/training-load.md#fr-0197--belastungsprofil-wählen) | FR-0097, NFR-0005, OQ-0043, OQ-0045, OQ-0053 |
 | FR-0198 | Reimport des Gesamtexports | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0198--reimport-des-gesamtexports) | FR-0192, OQ-0032 |

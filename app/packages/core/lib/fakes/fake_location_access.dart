@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../ports/location_access.dart';
 
 /// Fake: Stand frei setzbar. [onRequest] ist der Stand nach dem Dialog.
@@ -14,6 +16,11 @@ class FakeLocationAccess implements LocationAccessPort {
   LocationAccess? onRequest;
   bool gps;
   bool fail = false;
+
+  /// Antwort von [access] bzw. [gpsEnabled] bleibt aus (verlorene Antwort des
+  /// Plattformkanals).
+  bool accessNeverAnswers = false;
+  bool gpsNeverAnswers = false;
   int requestCount = 0;
 
   /// Aufrufe von [openLocationSettings]; [settingsOpen] ist deren Antwort.
@@ -22,6 +29,7 @@ class FakeLocationAccess implements LocationAccessPort {
 
   @override
   Future<LocationAccess> access() async {
+    if (accessNeverAnswers) return Completer<LocationAccess>().future;
     if (fail) throw StateError('Stand nicht lesbar');
     return current;
   }
@@ -34,7 +42,10 @@ class FakeLocationAccess implements LocationAccessPort {
   }
 
   @override
-  Future<bool> gpsEnabled() async => gps;
+  Future<bool> gpsEnabled() async {
+    if (gpsNeverAnswers) return Completer<bool>().future;
+    return gps;
+  }
 
   @override
   Future<bool> openLocationSettings() async {

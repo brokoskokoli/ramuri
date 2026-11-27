@@ -647,6 +647,7 @@ final Map<String, List<Object>> parCodeValues = {
     readinessScaleZ(1),
   ],
   'PAR-164': [_hours(_health.mainSleepMinDuration)],
+  'PAR-249': [_sec(startCheckTimeout)],
   'PAR-164K/165K': [
     ..._doc([5, 5, 6, 6, 7, 7, 8, 8], 'Grenzen der Schlafstufen; nur Text.'),
     ...morningSleepBandHours,

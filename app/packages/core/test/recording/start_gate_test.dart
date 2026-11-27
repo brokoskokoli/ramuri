@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:test/test.dart';
 
@@ -64,6 +66,51 @@ void main() {
       expect((await RecordingStartGate(a).check()).block, StartBlock.unknown);
     });
 
+    test('Frist PAR-249: 10 s, Standard der Prüfung', () {
+      expect(startCheckTimeout, const Duration(seconds: 10));
+      expect(
+        RecordingStartGate(FakeLocationAccess()).timeout,
+        startCheckTimeout,
+      );
+    });
+
+    test('Stand antwortet nie: nach der Frist unknown, kein Start', () async {
+      final a = FakeLocationAccess()..accessNeverAnswers = true;
+      final r = await _within(
+        RecordingStartGate(a, timeout: const Duration(milliseconds: 1)).check(),
+      );
+      expect(r?.block, StartBlock.unknown);
+      expect(r?.canStart, isFalse);
+      expect(a.requestCount, 0);
+    });
+
+    test('GPS-Schalter antwortet nie: nach der Frist unknown', () async {
+      final a = FakeLocationAccess()..gpsNeverAnswers = true;
+      final r = await _within(
+        RecordingStartGate(a, timeout: const Duration(milliseconds: 1)).check(),
+      );
+      expect(r?.block, StartBlock.unknown);
+      expect(r?.canStart, isFalse);
+    });
+
+    test('Dialog ohne Frist: wartet auf den Nutzer', () async {
+      final answer = Completer<LocationAccess>();
+      final a = _SlowDialog(answer.future);
+      var done = false;
+      final pending =
+          RecordingStartGate(
+            a,
+            timeout: const Duration(milliseconds: 1),
+          ).check(askUser: true).then((r) {
+            done = true;
+            return r;
+          });
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(done, isFalse, reason: 'Dialog offen: kein Ergebnis');
+      answer.complete(LocationAccess.precise);
+      expect((await pending).canStart, isTrue);
+    });
+
     test('nach Erteilung startet er (gleiche Prüfung, neuer Stand)', () async {
       final a = FakeLocationAccess(current: LocationAccess.denied);
       final g = RecordingStartGate(a);
@@ -72,4 +119,24 @@ void main() {
       expect((await g.check()).canStart, isTrue);
     });
   });
+}
+
+/// Ergebnis von [check] oder `null`, wenn es auch weit nach der Frist des
+/// Tests ausbleibt (dann hängt die Prüfung).
+Future<StartReadiness?> _within(Future<StartReadiness> check) =>
+    Future.any<StartReadiness?>([
+      check,
+      Future<StartReadiness?>.delayed(const Duration(seconds: 2), () => null),
+    ]);
+
+/// Dialog, dessen Antwort der Test freigibt.
+class _SlowDialog extends FakeLocationAccess {
+  _SlowDialog(this.answer) : super(current: LocationAccess.denied);
+  final Future<LocationAccess> answer;
+
+  @override
+  Future<LocationAccess> request() {
+    requestCount++;
+    return answer;
+  }
 }
