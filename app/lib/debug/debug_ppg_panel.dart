@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'debug_test_ppg_camera.dart';
 
+/// Marker für den Artefaktbeleg (wie bei den übrigen Debug-Quellen): Dieser Text darf in keinem Release-Artefakt
+/// stehen; `tool/check_debug_code.py` sucht ihn dort.
+const String debugPpgPanelMarker = 'RUNAPP-DEBUG-PPG-PANEL-5b8e2c';
+
 /// Wähler für das Szenario der Fake-Kamera (WP27, nur Debug-Einstiegspunkt
 /// `main_debug.dart`): ein kleiner Knopf am rechten Rand, aufgeklappt eine
 /// Liste der Szenarien plus Zeitraffer. Die Szenarien gelten je Kamera der
@@ -32,6 +36,13 @@ class DebugPpgPanel extends StatefulWidget {
 
 class _DebugPpgPanelState extends State<DebugPpgPanel> {
   bool _open = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Hält den Marker im Code, sobald das Feld erzeugt wird (Positivkontrolle am Artefakt).
+    debugPrint('$debugPpgPanelMarker aktiv: Szenario-Wähler der Fake-Kamera');
+  }
 
   /// Kamera, deren Szenario die Liste zeigt.
   int _camera = 0;

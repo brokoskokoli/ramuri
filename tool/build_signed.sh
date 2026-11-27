@@ -34,11 +34,16 @@ version_aus_tag() {
 
 # version_nightly: setzt VERSION_NAME und VERSION_CODE für einen Nightly aus dem Git-Stand von HEAD im Repo des Skripts.
 # Basis ist der jüngste Tag vX.Y.Z bzw. vX.Y.Z-rcN, der Vorfahre von HEAD ist und den version_aus_tag annimmt (sonst
-# v0.0.0 mit versionCode 1). versionCode = der der Basis: Android nimmt gleiche Codes als Update an, und jedes spätere RC
-# oder Release liegt darüber. versionName = <Basis ohne v>-nightly.<JJJJMMTT>+<7 Zeichen Commit>, Datum in UTC aus der
-# Commit-Zeit von HEAD (nicht der Bauzeit), damit derselbe Commit immer dieselbe Version ergibt.
+# v0.0.0 mit versionCode 1 und einer Warnung auf stderr; ein flacher Klon wird abgelehnt). versionCode = der der Basis:
+# Android nimmt gleiche Codes als Update an, und jedes spätere RC oder Release liegt darüber. versionName =
+# <Basis ohne v>-nightly.<JJJJMMTT>+<7 Zeichen Commit>, Datum in UTC aus der Commit-Zeit von HEAD (nicht der Bauzeit),
+# damit derselbe Commit immer dieselbe Version ergibt.
 version_nightly() {
   git rev-parse --verify --quiet HEAD >/dev/null || fehler "Kein Git-Commit HEAD für den Nightly"
+  # In einem flachen Klon fehlen Vorfahren und Tags; die Basis wäre still falsch (meist 0.0.0).
+  if [[ $(git rev-parse --is-shallow-repository) == true ]]; then
+    fehler "Flacher Git-Klon: der Nightly braucht die volle Historie und die Tags (git fetch --unshallow --tags)"
+  fi
   local tag basis='' ausschluss=()
   while tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*' ${ausschluss[@]+"${ausschluss[@]}"} HEAD 2>/dev/null); do
     if (version_aus_tag "$tag") >/dev/null 2>&1; then basis=$tag; break; fi
@@ -48,6 +53,7 @@ version_nightly() {
     version_aus_tag "$basis"
   else
     VERSION_NAME=0.0.0 VERSION_CODE=1
+    echo "WARNUNG: kein Tag vX.Y.Z oder vX.Y.Z-rcN als Vorfahre von HEAD gefunden (Tags geholt?); Basis 0.0.0, versionCode 1 – dieser Nightly lässt sich nicht über eine installierte offizielle Version installieren" >&2
   fi
   local sha datum
   sha=$(git rev-parse HEAD) || fehler "Commit von HEAD nicht lesbar"
@@ -128,8 +134,11 @@ if ! grep -qi "SHA-256 digest: $RELEASE_CERT_SHA256" <<<"$certs"; then
   fehler "APK ist nicht mit dem Release-Zertifikat $RELEASE_CERT_SHA256 signiert"
 fi
 
-# --- Release-Prüfung des Gates auf genau diese APK ---
+# --- Release-Prüfung des Gates auf genau diese APK und dieses AAB (dieselben Regeln, tool/check_release_aab.sh) ---
 tool/check_release_apk.sh "$apk" || fehler "Release-Prüfung der APK ist rot"
+if [[ $nightly -eq 0 ]]; then
+  tool/check_release_aab.sh "$aab" || fehler "Release-Prüfung des AAB ist rot"
+fi
 
 # --- dist/ ---
 rm -rf dist

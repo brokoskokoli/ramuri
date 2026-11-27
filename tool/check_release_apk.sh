@@ -45,9 +45,17 @@ check_release_apk() {
   # WP08/WP22: keine Hintergrund-Standortberechtigung, keine exakten Wecker; RECEIVE_BOOT_COMPLETED nur mit genau einem
   # Empfänger TrainingReminderReceiver, exported=false, der nur Erinnerungs-Wecker neu plant (ADR-0005 Punkt 6 mit
   # Nachtrag, Maintainer 2026-11-10). Am gemergten Manifest des APK; Selbsttest tool/check_release_manifest_test.py.
+  # Dazu (SEC-0009, SEC-0010): allowBackup=false, data-extraction-rules schließen alle Domänen aus, nur freigegebene
+  # Komponenten exportiert, FileProvider nur cache-path exports/. Die Ressourcen (res/*.xml, im APK umbenannt) löst das
+  # Skript über die Ressourcentabelle auf.
   rdir=$(mktemp -d) || return 1
   echo "$perms" >"$rdir/perms.txt"; echo "$tree" >"$rdir/tree.txt"
-  python3 tool/check_release_manifest.py "$rdir/perms.txt" "$rdir/tree.txt"; rc=$?
+  "$aapt" dump --values resources "$apk" >"$rdir/resources.txt" || { echo "aapt dump resources scheiterte"; rm -rf "$rdir"; return 1; }
+  mkdir "$rdir/xml"
+  for f in $(unzip -Z1 "$apk" | grep -E '^res/[^ ]*\.xml$'); do
+    "$aapt" dump xmltree "$apk" "$f" >"$rdir/xml/$(echo "$f" | tr / %)" 2>/dev/null || rm -f "$rdir/xml/$(echo "$f" | tr / %)"
+  done
+  python3 tool/check_release_manifest.py "$rdir/perms.txt" "$rdir/tree.txt" "$rdir/resources.txt" "$rdir/xml"; rc=$?
   rm -rf "$rdir"
   [ $rc -eq 0 ] || return 1
   # WP27 (ADR-0011 Punkt 5): CAMERA ist erlaubt und Pflicht (Kamera-PPG); Kamera und Blitz sind als uses-feature
@@ -71,17 +79,11 @@ check_release_apk() {
       *) echo "Release-APK: uses-feature $feature fehlt"; return 1 ;;
     esac
   done
-  # WP07, WP27, WP32: Test-Sensor, Fake-Kamera und Health-Connect-Fake gehören nur in den Debug-Einstieg. Ihre Marker dürfen in keiner Datei
-  # des Release-APK stehen.
-  for quelle in "testSensorMarker app/lib/debug/debug_test_sensor.dart" "testPpgCameraMarker app/lib/debug/debug_test_ppg_camera.dart" "testHealthConnectMarker app/lib/debug/debug_test_health_connect.dart"; do
-    pq_name=${quelle%% *}; pq_datei=${quelle#* }
-    marker=$(sed -n "s/^const String $pq_name = '\(.*\)';$/\1/p" "$pq_datei")
-    [ -n "$marker" ] || { echo "$pq_name in $pq_datei nicht gefunden"; return 1; }
-    if unzip -p "$apk" | LC_ALL=C grep -a -q -F "$marker"; then
-      echo "Release-APK enthält die Debug-Quelle $pq_name ($marker)"; return 1
-    fi
-  done
-  echo "Test-Sensor, Fake-Kamera und Health-Connect-Fake nicht im Release-APK; CAMERA und uses-feature required=false vorhanden"
+  # WP07, WP27, WP32: Debug-Quellen (Test-Sensor, Fake-Kamera, Health-Connect-Fake, Debug-Panel) gehören nur in den
+  # Debug-Einstieg. Jede Datei unter app/lib/debug/ trägt einen Marker; keiner darf in einer Datei des APK stehen
+  # (tool/check_debug_code.py, Selbsttest tool/check_debug_code_test.py).
+  python3 tool/check_debug_code.py artifact "$apk" || return 1
+  echo "Keine Debug-Quelle im Release-APK; CAMERA und uses-feature required=false vorhanden"
 }
 
 [ $# -eq 1 ] || { echo "Aufruf: tool/check_release_apk.sh <apk>"; exit 2; }

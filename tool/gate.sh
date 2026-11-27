@@ -32,8 +32,8 @@
 # Alle Listen enthalten tool/gate.sh (die Schrittfunktionen stehen dort) und pubspec.* samt pubspec.lock.
 GATE_DRIFT_PATHS="app/packages/adapters/lib/src/storage app/packages/adapters/drift_schemas tool/gate.sh :(glob)app/**/pubspec.*"
 GATE_KOTLIN_PATHS="app/android tool/gate.sh :(glob)app/**/pubspec.*"
-GATE_RELEASE_PATHS="app/android app/lib app/packages app/assets app/l10n.yaml tool/check_release_manifest.py tool/check_release_apk.sh tool/gate.sh :(glob)app/**/pubspec.*"
-GATE_RELEASE_NAME="release: INTERNET, CAMERA, VIBRATE, uses-feature, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, keine Debug-Quellen"
+GATE_RELEASE_PATHS="app/android app/lib app/packages app/assets app/l10n.yaml tool/check_release_manifest.py tool/check_release_apk.sh tool/check_debug_code.py tool/gate.sh :(glob)app/**/pubspec.*"
+GATE_RELEASE_NAME="release: INTERNET, CAMERA, VIBRATE, uses-feature, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, Backups aus, Exporte freigegeben, FileProvider nur exports/, keine Debug-Quellen"
 
 aufruf="Aufruf: sh tool/gate.sh [--fast | --changed | --stage <stufe> | --list-stages] [--dry-run]"
 mode=full
@@ -158,6 +158,12 @@ step tools "privat" sh tool/check_private.sh
 [ -f app/pubspec.yaml ] && step tools "Wartezeiten in App-Tests" python3 tool/check_test_waits.py
 [ -f app/pubspec.yaml ] && step tools "Wartezeiten-Prüfung Selbsttest" python3 tool/check_test_waits_test.py
 [ -f app/pubspec.yaml ] && step tools "Release-Manifest-Prüfung Selbsttest" python3 tool/check_release_manifest_test.py
+# SEC-0009: Debug-Quellen (app/lib/debug/) nur aus app/lib/main_debug.dart und app/lib/debug/ eingebunden; am
+# Release-APK zusätzlich über die Marker je Datei (release_rechte).
+[ -f app/pubspec.yaml ] && step tools "Debug-Quellen nur im Debug-Einstieg" python3 tool/check_debug_code.py static
+[ -f app/pubspec.yaml ] && step tools "Debug-Prüfung Selbsttest" python3 tool/check_debug_code_test.py
+# Release-AAB mit denselben Regeln (tool/check_release_aab.sh aus tool/build_signed.sh): Umwandlung des Basismoduls.
+step tools "AAB-Umwandlung Selbsttest" python3 tool/aab_to_apk_test.py
 # WP30: Versionsrechnung des Release-Builds und Tag-Regel des Pre-Push-Hooks (bash explizit, läuft auch unter Linux/dash).
 step tools "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh
 step tools "Pre-Push-Regeln Selbsttest" bash tool/hooks/pre-push_test.sh

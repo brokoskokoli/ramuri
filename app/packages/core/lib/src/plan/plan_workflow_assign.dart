@@ -10,8 +10,11 @@ extension PlanAssignWorkflow on PlanWorkflowService {
   /// „locker“, PAR-205, und friert die Einheit ein). Fehlt die Einheit:
   /// `notFound`. [expectedRunId] ist der Lauf, den die Einheit in der Ansicht
   /// des Aufrufers trug (`null`: offen gesehen; beim Aufheben der bisher
-  /// zugeordnete Lauf). Trägt sie beim Schreiben einen anderen (veraltet,
-  /// etwa nach einer automatischen Zuordnung), oder sperrt PAR-233 die
+  /// zugeordnete Lauf). Trägt sie beim Schreiben schon [runId] (beim
+  /// Aufheben: keinen Lauf), etwa nach einer automatischen Zuordnung, gilt
+  /// die Zuordnung als erledigt: nichts geschrieben, nicht gerechnet (die
+  /// schon geschriebene Zuordnung hat selbst neu gerechnet). Trägt sie einen
+  /// anderen (veraltet), fehlt sie dann, oder sperrt PAR-233 die
   /// Sporteinheit: nichts geschrieben, `rejected`.
   Future<void> assignRun(
     int unitId,
@@ -21,14 +24,20 @@ extension PlanAssignWorkflow on PlanWorkflowService {
   }) async {
     final unit = await _unitById(unitId);
     if (unit == null) throw const StorageException(StorageFailure.notFound);
-    if (!await _assignAndRecalculate(
+    if (await _assignAndRecalculate(
       unitId,
       runId,
       expectedRunId: expectedRunId,
       events: events,
     )) {
-      throw const StorageException(StorageFailure.rejected);
+      return;
     }
+    // Veraltet: neu lesen. Trägt die Einheit schon den gewünschten Stand,
+    // ist nichts mehr zu tun.
+    final current = await _unitById(unitId);
+    final alreadyDone = current != null && current.runId == runId;
+    if (alreadyDone) return;
+    throw const StorageException(StorageFailure.rejected);
   }
 
   /// Zuordnung über „Einheit starten“ ([PlanStartedUnit]): wie [assignRun];
