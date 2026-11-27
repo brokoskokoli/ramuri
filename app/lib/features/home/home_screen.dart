@@ -26,7 +26,7 @@ import '../measure/morning_belt.dart';
 import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
 import '../../ui/format/unit_format.dart';
-import 'data_changes.dart';
+import '../../data_changes.dart';
 import '../readiness/readiness_card.dart';
 import '../readiness/readiness_detail_screen.dart' show ReadinessActions;
 import '../measure/resting_measure_launcher.dart' show PpgCameraScope;
