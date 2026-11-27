@@ -67,6 +67,118 @@ Future<void> _openWith(PlanWorkflowService service) async {
   await service.autoAssignQuietly();
 }
 
+/// Plan-Speicher, bei dem ein anderer Schreiber der Einheit [racedUnitId]
+/// zwischen Lesen und Schreiben den Lauf [racedRunId] zuordnet: Vor dem
+/// ersten `assignRun` für diese Einheit schreibt er selbst (erwartet offen).
+class _RacingPlans implements PlanRepository {
+  _RacingPlans(this.inner);
+  final PlanRepository inner;
+  int? racedUnitId;
+  int? racedRunId;
+  var raced = 0;
+
+  @override
+  Future<PlanAssignResult> assignRun(
+    int unitId,
+    int? runId, {
+    required int? expectedRunId,
+  }) async {
+    final run = racedRunId;
+    if (unitId == racedUnitId && run != null && raced == 0) {
+      raced++;
+      await inner.assignRun(unitId, run, expectedRunId: null);
+    }
+    return inner.assignRun(unitId, runId, expectedRunId: expectedRunId);
+  }
+
+  @override
+  Future<TrainingGoal?> currentGoal() => inner.currentGoal();
+  @override
+  Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) =>
+      inner.unitsBetween(from, to);
+  @override
+  Future<PlanUnit?> unitOn(DateTime day) => inner.unitOn(day);
+  @override
+  Future<List<PlanVersionRecord>> history() => inner.history();
+  @override
+  Future<void> confirmMove(
+    int unitId,
+    DateTime newDay, {
+    required DateTime today,
+  }) => inner.confirmMove(unitId, newDay, today: today);
+  @override
+  Future<void> replaceUnit(
+    int unitId,
+    PlanUnit replacement, {
+    required DateTime today,
+  }) => inner.replaceUnit(unitId, replacement, today: today);
+  @override
+  Future<void> setRestDay(
+    PlanUnit rest, {
+    required DateTime today,
+    required int? expectedUnitId,
+    DateTime? moveUnitTo,
+  }) => inner.setRestDay(
+    rest,
+    today: today,
+    expectedUnitId: expectedUnitId,
+    moveUnitTo: moveUnitTo,
+  );
+  @override
+  Future<void> clearRestDay(DateTime day, {required DateTime today}) =>
+      inner.clearRestDay(day, today: today);
+  @override
+  Future<PlanVersionRecord> writeVersion(PlanVersionDraft draft) =>
+      inner.writeVersion(draft);
+}
+
+/// Sitzung mit [_RacingPlans]; alles andere geht an die echte Sitzung.
+class _RacingSession
+    implements StorageSession, PlanStorage, GoalStorage, WarningStorage {
+  _RacingSession(this.s) : plans = _RacingPlans((s as PlanStorage).plans);
+  final StorageSession s;
+
+  @override
+  final _RacingPlans plans;
+  @override
+  GoalStore get goals => (s as GoalStorage).goals;
+  @override
+  WarningStore get warning => (s as WarningStorage).warning;
+  @override
+  RunStore get runs => s.runs;
+  @override
+  RunMarkerStore get markers => s.markers;
+  @override
+  RawDataStore get rawData => s.rawData;
+  @override
+  PreprocessingStore get preprocessing => s.preprocessing;
+  @override
+  RatedSectionStore get sections => s.sections;
+  @override
+  ComputedValueStore get values => s.values;
+  @override
+  ProfileStore get profile => s.profile;
+  @override
+  SettingsStore get settings => s.settings;
+  @override
+  KnownDeviceStore get devices => s.devices;
+  @override
+  ConsentStore get consents => s.consents;
+  @override
+  RunSubjectiveStore get subjective => s.subjective;
+  @override
+  ManualTrainingStore get manualTrainings => s.manualTrainings;
+  @override
+  Future<void> deleteRun(int runId) => s.deleteRun(runId);
+  @override
+  Future<void> deleteAll() => s.deleteAll();
+  @override
+  Future<void> close() => s.close();
+}
+
+Matcher _storageFailure(StorageFailure f) =>
+    throwsA(isA<StorageException>().having((x) => x.failure, 'failure', f));
+
 void main() {
   final today = workflowToday;
   DateTime day(int n) => workflowDay(n);
@@ -383,6 +495,105 @@ void main() {
       expect((await _unitOn(e, today))!.runId, first);
       expect((await _assigned(e)).values, [first]);
       expect((await _assigned(e)).values, isNot(contains(second)));
+      expect((await e.plans.history()).length, versions);
+    });
+  });
+
+  group('Zuordnung trifft denselben Lauf: erledigt statt Fehler '
+      '(PAR-231)', () {
+    /// Plan mit offener Einheit heute; ein anderer Schreiber ordnet ihr
+    /// Lauf A zu (ohne Neuberechnung).
+    Future<(WorkflowEnv, PlanUnit, int)> racedByA() async {
+      final e = await WorkflowEnv.open();
+      await e.service.saveGoal(_goal({1, 3, 5}));
+      final unit = (await _unitOn(e, today))!;
+      expect(unit.runId, isNull);
+      final a = await _runAt(e.session, today, 7, 0);
+      expect(
+        await e.plans.assignRun(unit.id!, a, expectedRunId: null),
+        PlanAssignResult.assigned,
+      );
+      return (e, unit, a);
+    }
+
+    test('„Einheit starten“ mit Lauf A, die Einheit trägt schon A: keine '
+        'Ausnahme, keine neue Fassung', () async {
+      final (e, unit, a) = await racedByA();
+      final versions = (await e.plans.history()).length;
+      await e.service.assignStartedRun(
+        unitId: unit.id!,
+        day: workflowDayText(today),
+        runId: a,
+      );
+      expect((await _unitOn(e, today))!.runId, a);
+      expect((await e.plans.history()).length, versions);
+    });
+
+    test('„Einheit starten“ mit Lauf B, die Einheit trägt schon A: '
+        '`rejected`, A bleibt, keine neue Fassung', () async {
+      final (e, unit, a) = await racedByA();
+      final b = await _runAt(e.session, today, 12, 0);
+      final versions = (await e.plans.history()).length;
+      await expectLater(
+        e.service.assignStartedRun(
+          unitId: unit.id!,
+          day: workflowDayText(today),
+          runId: b,
+        ),
+        _storageFailure(StorageFailure.rejected),
+      );
+      expect((await _unitOn(e, today))!.runId, a);
+      expect((await e.plans.history()).length, versions);
+    });
+
+    test('Aufheben (A erwartet), die Einheit ist beim Schreiben schon '
+        'offen: keine Ausnahme, keine neue Fassung', () async {
+      final (e, unit, a) = await racedByA();
+      // Ein anderer Schreiber hebt die Zuordnung schon auf.
+      expect(
+        await e.plans.assignRun(unit.id!, null, expectedRunId: a),
+        PlanAssignResult.assigned,
+      );
+      final versions = (await e.plans.history()).length;
+      await e.service.assignRun(unit.id!, null, expectedRunId: a);
+      expect((await _unitOn(e, today))!.runId, isNull);
+      expect((await e.plans.history()).length, versions);
+    });
+
+    test('Aufheben, die Einheit trägt beim Schreiben einen anderen Lauf: '
+        '`rejected`, der Lauf bleibt', () async {
+      final (e, unit, a) = await racedByA();
+      final b = await _runAt(e.session, today, 12, 0);
+      final versions = (await e.plans.history()).length;
+      await expectLater(
+        e.service.assignRun(unit.id!, null, expectedRunId: b),
+        _storageFailure(StorageFailure.rejected),
+      );
+      expect((await _unitOn(e, today))!.runId, a);
+      expect((await e.plans.history()).length, versions);
+    });
+
+    test('„Einheit starten“, gemerkte Einheit ersetzt (`notFound`): ein '
+        'anderer Schreiber ordnet der Einheit des Tags zwischen Lesen und '
+        'Schreiben denselben Lauf zu → keine Ausnahme, keine neue '
+        'Fassung', () async {
+      final racing = _RacingSession(await FakeStorage().open(workflowKey));
+      final e = WorkflowEnv(racing);
+      await e.service.saveGoal(_goal({1, 3, 5}));
+      final unit = (await _unitOn(e, today))!;
+      expect(unit.runId, isNull);
+      final run = await _runAt(e.session, today, 7, 0);
+      racing.plans
+        ..racedUnitId = unit.id
+        ..racedRunId = run;
+      final versions = (await e.plans.history()).length;
+      await e.service.assignStartedRun(
+        unitId: unit.id! + 1000,
+        day: workflowDayText(today),
+        runId: run,
+      );
+      expect(racing.plans.raced, 1);
+      expect((await _unitOn(e, today))!.runId, run);
       expect((await e.plans.history()).length, versions);
     });
   });
