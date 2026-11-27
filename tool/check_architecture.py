@@ -20,8 +20,11 @@ Obere Module (CORE_TOP_MODULES): kein anderes core-Modul importiert sie, auch ni
 (z. B. algorithms: die Registry liegt über fitness, plan und prediction). Fehlt ein oberes Modul im Baum, ist das rot.
 
 Gemeinsame Oberfläche (APP_UI): Dateien unter app/lib/ui/ (auch ui/format/, ui/charts/) importieren, exportieren und
-binden nichts aus app/lib/features/ ein, weder relativ noch über package:running_app/features/…; jede solche Direktive
-ist rot mit Datei:Zeile. Fehlt app/lib/ui/, ist das rot.
+binden nichts aus app/lib/features/ ein, weder relativ noch über package:running_app/features/…, auch nicht über
+Dateien unter app/lib/ außerhalb von features/ und ui/ (Wurzeldateien wie app_dependencies.dart, Ordner wie debug/):
+Diese werden transitiv verfolgt (jede Datei höchstens einmal). Rot ist die Direktive der ui-Datei, die die Kette
+beginnt, mit Feature und Kette. Ein fehlendes oder unlesbares Ziel in der Kette ist rot, außer unter app/lib/l10n/
+(generierte Lokalisierung, nicht eingecheckt). Fehlt app/lib/ui/, ist das rot.
 
 Fail-closed: fehlende Suchpfade, unlesbare Dateien, symbolische Links, Direktiven ohne lesbare URI, unbekannte
 URI-Schemata und der Barrel-Import package:core/core.dart innerhalb von core/lib/src sind rot."""
