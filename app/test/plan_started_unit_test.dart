@@ -87,6 +87,19 @@ void main() {
     expect(await store.read(), isNull);
   });
 
+  test('gemerkte Einheit durch eine Neuberechnung ersetzt: die offene '
+      'Einheit desselben Tags trägt den Lauf', () async {
+    final (s, clock, unitId) = await _withPlan();
+    final store = PlanStartedUnitStore(session: s, clock: clock);
+    // Kennung einer Einheit, die es nach der Neuberechnung nicht mehr gibt.
+    await store.remember(unitId + 1000, _day);
+    final run = await _finishedRun(s, _now.add(const Duration(minutes: 1)));
+
+    expect(await store.settle(serialize: _serial), PlanActionResult.done);
+    expect((await (s as PlanStorage).plans.unitOn(_today))!.runId, run);
+    expect(await store.read(), isNull);
+  });
+
   test(
     'planRunAssignedOn: nur der zugeordnete Lauf (runId), null = irgendeiner, '
     'anderer Tag nein',

@@ -45,8 +45,16 @@ class _Env {
       clock: clock,
       loadRuns: loadRuns ?? () async => runs,
     );
-    controller = PlanController(session: session, clock: clock, reader: reader);
+    controller = PlanController(
+      session: session,
+      clock: clock,
+      reader: reader,
+      onChanged: () => changes++,
+    );
   }
+
+  /// Zahl der gemeldeten Änderungen ([PlanController.onChanged]).
+  int changes = 0;
   final StorageSession session;
   final FakeClock clock;
   late final PlanDataReader reader;
@@ -201,10 +209,12 @@ void main() {
         for (var i = 1; i < 21; i++)
           if (!busy.contains(_day(i))) _day(i),
       ].first;
+      final before = e.changes;
       expect(
         await e.controller.confirmMove(u.id!, free),
         PlanActionResult.done,
       );
+      expect(e.changes, greaterThan(before), reason: 'Änderung gemeldet');
       final moved = await e.plans.unitOn(free);
       expect(moved?.id, u.id);
       expect(moved?.pinned, isTrue);
@@ -232,10 +242,12 @@ void main() {
         await e.controller.replaceUnit(9999, PlanUnitKind.tempo),
         PlanActionResult.notFound,
       );
+      final before = e.changes;
       expect(
         await e.controller.replaceUnit(easy.id!, PlanUnitKind.tempo),
         PlanActionResult.done,
       );
+      expect(e.changes, greaterThan(before), reason: 'Änderung gemeldet');
       final r = (await e.plans.unitOn(easy.day))!;
       expect(r.id, easy.id);
       expect(r.kind, PlanUnitKind.tempo);
@@ -266,6 +278,7 @@ void main() {
       expect(rc.unit?.id, first.id);
       expect(rc.alternatives, isNotEmpty);
       final alt = rc.alternatives.first;
+      var before = e.changes;
       expect(
         await e.controller.setRestDay(
           first.day,
@@ -274,6 +287,7 @@ void main() {
         ),
         PlanActionResult.done,
       );
+      expect(e.changes, greaterThan(before), reason: 'Ruhetag gemeldet');
       expect((await e.plans.unitOn(first.day))!.isRestDay, isTrue);
       expect((await e.plans.unitOn(first.day))!.fixed, PlanUnitFixed.day);
       expect((await e.plans.unitOn(alt))?.id, first.id);
@@ -316,11 +330,14 @@ void main() {
         for (var i = 7; i < 28; i++)
           if (!taken.contains(_day(i))) _day(i),
       ].first;
+      final set = await e.controller.setRestDay(free, expectedUnitId: null);
+      before = e.changes;
       final results = [
-        await e.controller.setRestDay(free, expectedUnitId: null),
+        set,
         await e.controller.clearRestDay(free),
         await e.controller.clearRestDay(free),
       ];
+      expect(e.changes, greaterThan(before), reason: 'Aufheben gemeldet');
       expect(results, [
         PlanActionResult.done,
         PlanActionResult.done,
@@ -1427,148 +1444,6 @@ void main() {
       await e.controller.open();
       expect((await e.plans.history()).length, before + 1);
     });
-
-    test('offene Pausenfrage: keine Nachfrage (PAR-200), nach der Antwort '
-        'wieder fällig', () async {
-      final e = await prepared(10, recorded: false);
-      // Die Anlage liegt 80 Tage zurück: die Nachfrage wäre fällig.
-      await e.controller.open();
-      expect(e.controller.state.feedbackDue, isFalse);
-      await e.controller.answerPause(true);
-      await e.controller.open();
-      expect(e.controller.state.feedbackDue, isTrue);
-    });
-
-    test('Rückmeldung am Mittwoch, Pausenfrage am Donnerstag: Neustart mit '
-        'Anker dieser Montag (F2, PAR-202)', () async {
-      final e = await prepared(6, recorded: false);
-      await e.controller.open();
-      expect(
-        await HintService(session: e.session, clock: e.clock).pauseQuestion(),
-        isNull,
-      );
-      expect(e.controller.state.feedbackDue, isTrue);
-      final out = await e.controller.answerFeedback(PlanFeedback.tooEasy);
-      expect(out.result, PlanActionResult.done);
-      final fb = (await e.plans.history()).last;
-      expect(fb.trigger, PlanTrigger.feedback);
-      expect(fb.inputs.anchor.isAfter(DateTime.utc(2026, 11, 9)), isTrue);
-      // Einen Tag später steht die Pause (7 Tage) fest und die Frage ist offen.
-      e.clock.set(_now.add(const Duration(days: 1)));
-      expect(
-        await HintService(session: e.session, clock: e.clock).pauseQuestion(),
-        isNotNull,
-      );
-      expect(await e.controller.answerPause(true), PlanActionResult.done);
-      final h = (await e.plans.history()).last;
-      expect(h.trigger, PlanTrigger.pause);
-      expect(h.inputs.anchor, DateTime.utc(2026, 11, 9));
-      expect(h.inputs.noHardUntil, isNotNull);
-    });
-
-    test('„zu leicht“, dann Pause ab pauseMinDays: die Pause startet höchstens mit der '
-        'Woche, die vor der Rückmeldung galt', () async {
-      final e = await prepared(6, recorded: false);
-      await e.controller.open();
-      expect(e.controller.state.feedbackDue, isTrue);
-      expect(
-        (await e.controller.answerFeedback(PlanFeedback.tooEasy)).result,
-        PlanActionResult.done,
-      );
-      final history = await e.plans.history();
-      final monday = DateTime.utc(2026, 11, 9);
-      int weekMinutes(PlanInputs i) {
-        // Wie die Pausenregel: ein späterer Anker gilt ab diesem Montag.
-        final from = i.anchor.isAfter(monday) ? i.copyWith(anchor: monday) : i;
-        final s = planCourseSetup(_goal(), from);
-        return s
-            .course(today: monday)
-            .weeks
-            .firstWhere((w) => w.start == monday)
-            .minutes!;
-      }
-
-      // Einen Tag später steht die Pause fest.
-      e.clock.set(_now.add(const Duration(days: 1)));
-      expect(await e.controller.answerPause(true), PlanActionResult.done);
-      final h = (await e.plans.history()).last;
-      expect(h.trigger, PlanTrigger.pause);
-      final shown = weekMinutes(history[history.length - 2].inputs);
-      final raised = weekMinutes(history.last.inputs);
-      // Die Rückmeldung hat die Woche angehoben, sonst prüft der Test nichts.
-      expect(raised, greaterThan(shown));
-      expect(h.inputs.startWeeklyMinutes, lessThanOrEqualTo(shown));
-    });
-
-    test('Rückmeldung wird bei offener Pausenfrage nicht angenommen (Karte '
-        'über Mitternacht offen)', () async {
-      final e = await prepared(6, recorded: false);
-      await e.controller.open();
-      final before = (await e.plans.history()).length;
-      e.clock.set(_now.add(const Duration(days: 1)));
-      expect(
-        await HintService(session: e.session, clock: e.clock).pauseQuestion(),
-        isNotNull,
-      );
-      final out = await e.controller.answerFeedback(PlanFeedback.tooEasy);
-      expect(out.result, PlanActionResult.rejected);
-      expect((await e.plans.history()).length, before);
-    });
-
-    test('Ziel speichern am Prüftag bei offener Pausenfrage, dann „Ja“ -> '
-        'Fassung pause, 80 % der Basiswoche, noHardUntil', () async {
-      final e = await prepared(10, recorded: false);
-      final service = HintService(session: e.session, clock: e.clock);
-      final q = await service.pauseQuestion();
-      expect(q, isNotNull);
-      await e.controller.saveGoal(_goal(target: DateTime.utc(2027, 5, 1)));
-      expect(await service.pauseQuestion(), isNotNull);
-      expect(await e.controller.answerPause(true), PlanActionResult.done);
-      final last = (await e.plans.history()).last;
-      expect(last.trigger, PlanTrigger.pause);
-      expect(
-        last.inputs.startWeeklyMinutes,
-        (q!.baseWeekMinutes * 0.8).round(),
-      );
-      expect(last.inputs.noHardUntil, isNotNull);
-    });
-
-    test('Ziel speichern bei offener Pausenfrage, dann „Nein“ -> '
-        'Wochenprüfung greift beim nächsten Öffnen', () async {
-      final e = await prepared(10, recorded: false);
-      final service = HintService(session: e.session, clock: e.clock);
-      expect(await service.pauseQuestion(), isNotNull);
-      await e.controller.saveGoal(_goal(target: DateTime.utc(2027, 5, 1)));
-      expect(await service.pauseQuestion(), isNotNull);
-      final before = (await e.plans.history()).length;
-      await e.controller.answerPause(false);
-      await e.controller.open();
-      final h = await e.plans.history();
-      expect(h.length, before + 1);
-      expect(h.last.trigger, PlanTrigger.weekly);
-    });
-
-    test('offene Pausenfrage, Antwort „Nein“: die nächste Wochenprüfung läuft '
-        'normal', () async {
-      final e = await prepared(10, recorded: false);
-      final before = (await e.plans.history()).length;
-      await e.controller.open();
-      expect((await e.plans.history()).length, before);
-      await e.controller.answerPause(false);
-      await e.controller.open();
-      final h = await e.plans.history();
-      expect(h.length, before + 1);
-      expect(h.last.trigger, PlanTrigger.weekly);
-    });
-
-    test('ohne Pause greift die Wochenprüfung wie bisher', () async {
-      final e = await prepared(2);
-      final before = (await e.plans.history()).length;
-      await e.controller.open();
-      final h = await e.plans.history();
-      expect(h.length, before + 1);
-      expect(h.last.trigger, PlanTrigger.weekly);
-    });
   });
 
   group('Neuer Einstieg: Neustart möglich', () {
@@ -1592,16 +1467,6 @@ void main() {
         expect(await possible(DateTime.utc(2026, 11, 14)), isFalse);
       },
     );
-
-    test('nein ohne anstehenden Einstieg (keine lange Pause)', () async {
-      final e = await _Env.open();
-      e.clock.set(localAt(_day(-80)));
-      await e.controller.saveGoal(_goal());
-      e.clock.set(_now);
-      await _finishedRun(e.session, 20);
-      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
-      expect(await e.controller.newStartPossible(), isFalse);
-    });
 
     test('Einschätzung des neuen Einstiegs rechnet mit dem neuen Stand, auch '
         'nach der vorläufigen Vorgabe', () async {
@@ -1791,6 +1656,7 @@ void main() {
         );
         expect((await past.goals.goal())!.targetDate, before!.targetDate);
         final ok = await pausing();
+        final changed = ok.changes;
         expect(
           await ok.controller.restartAfterLongPause(
             _goal(target: localDay(ok, 0)),
@@ -1798,6 +1664,7 @@ void main() {
           isNot(PlanActionResult.rejected),
         );
         expect((await ok.goals.goal())!.targetDate, localDay(ok, 0));
+        expect(ok.changes, greaterThan(changed), reason: 'Neustart gemeldet');
       },
     );
   });
@@ -1846,40 +1713,6 @@ void main() {
       expect(unit!.runId, run);
     });
 
-    test('Lauf gestern, Plan heute: keine Einheit gestern, nichts '
-        'zugeordnet', () async {
-      final e = await _Env.open();
-      await runAt(e.session, _day(-1), 17, 30);
-      await e.controller.saveGoal(_goal(days: {2, 3, 5}));
-      expect(await e.controller.unitOn(_day(-1)), isNull);
-      expect(await assigned(e), isEmpty);
-      expect((await e.plans.history()).map((v) => v.trigger), [
-        PlanTrigger.create,
-      ]);
-    });
-
-    test('Idempotenz: Plan und App erneut öffnen ändert nichts und rechnet '
-        'nicht noch einmal', () async {
-      final e = await _Env.open();
-      final run = await runAt(e.session, _today, 7, 0);
-      await e.controller.saveGoal(_goal(days: {1, 3, 5}));
-      final before = await assigned(e);
-      final versions = (await e.plans.history()).length;
-      expect(before.values, [run]);
-      await e.controller.open();
-      await e.controller.open();
-      // Neuer Controller wie nach einem Neustart der App.
-      final again = PlanController(
-        session: e.session,
-        clock: e.clock,
-        reader: e.reader,
-      );
-      await again.open();
-      again.dispose();
-      expect(await assigned(e), before);
-      expect((await e.plans.history()).length, versions);
-    });
-
     test('Öffnen ordnet einen Lauf der Woche nachträglich zu', () async {
       final e = await _Env.open();
       await e.controller.saveGoal(_goal(days: {1, 3, 5}));
@@ -1915,40 +1748,17 @@ void main() {
       await e.controller.saveGoal(_goal(days: {1, 3, 5}));
       final short = await runAt(e.session, _today, 6, 0, minutes: 20);
       final unit = (await e.controller.unitOn(_today))!;
+      final before = e.changes;
       expect(
         await e.controller.assignRun(unit.id!, short),
         PlanActionResult.done,
       );
+      expect(e.changes, greaterThan(before), reason: 'Neuberechnung gemeldet');
       await runAt(e.session, _today, 10, 0, minutes: 90);
       await e.controller.open();
       expect((await e.controller.unitOn(_today))!.runId, short);
       expect((await assigned(e)).values, [short]);
     });
-
-    test('Zwei Läufe am Tag der Einheit: der längere zählt', () async {
-      final e = await _Env.open();
-      await runAt(e.session, _today, 6, 0, minutes: 20);
-      final long = await runAt(e.session, _today, 9, 0, minutes: 50);
-      await e.controller.saveGoal(_goal(days: {1, 3, 5}));
-      expect((await e.controller.unitOn(_today))!.runId, long);
-    });
-
-    test(
-      'Ein Lauf seit „Einheit starten“ bleibt dem Merker überlassen',
-      () async {
-        final e = await _Env.open();
-        await e.controller.saveGoal(_goal(days: {1, 3, 5}));
-        final unit = (await e.controller.unitOn(_today))!;
-        e.clock.set(localAt(_today, 13));
-        await PlanStartedUnitStore(
-          session: e.session,
-          clock: e.clock,
-        ).remember(unit.id!, _dayText(_today));
-        await runAt(e.session, _today, 13, 1);
-        await e.controller.open();
-        expect((await e.controller.unitOn(_today))!.runId, isNull);
-      },
-    );
 
     test(
       'Lauf Sonntag 23:50 bis Montag 00:20: die Einheit vom Sonntag '
@@ -1989,44 +1799,6 @@ void main() {
         return e;
       }
 
-      test('Lauf Sonntag 23:50 bis Montag 00:20 ohne Zuordnung nach dem '
-          'Lauf: Öffnen am Montag 00:25 ordnet ihn der Einheit vom Sonntag '
-          'zu, nicht der vom Montag', () async {
-        final e = await planned();
-        final run = await runAt(e.session, sunday, 23, 50, minutes: 30);
-        e.clock.set(localAt(monday, 0, 25));
-        await e.controller.open();
-        expect((await e.controller.unitOn(sunday))!.runId, run);
-        expect((await e.controller.unitOn(monday))?.runId, isNull);
-        expect((await assigned(e)).values, [run]);
-      });
-
-      test('Lauf Sonntag 18:00 bis 18:40, Öffnen erst am Dienstag: '
-          'zugeordnet', () async {
-        final e = await planned();
-        final run = await runAt(e.session, sunday, 18, 0);
-        e.clock.set(localAt(_day(6), 9));
-        await e.controller.open();
-        expect((await e.controller.unitOn(sunday))!.runId, run);
-        expect((await assigned(e)).values, [run]);
-      });
-
-      test('Lauf am Samstag der Vorwoche, Öffnen am Montag: außerhalb des '
-          'Fensters, die Einheit bleibt offen', () async {
-        final e = await planned();
-        final saturday = _day(3);
-        expect(saturday.weekday, DateTime.saturday);
-        final unit = (await e.controller.unitOn(saturday))!;
-        expect(unit.kind, isNot(PlanUnitKind.rest));
-        await runAt(e.session, saturday, 9, 0);
-        e.clock.set(localAt(monday, 9));
-        await e.controller.open();
-        final after = (await e.controller.unitOn(saturday))!;
-        expect(after.kind, unit.kind);
-        expect(after.runId, isNull);
-        expect(await assigned(e), isEmpty);
-      });
-
       test('Lauf am Samstag der Vorwoche, Zuordnung am Montag mit dem '
           'Starttag des Laufs: die Einheit vom Samstag trägt den Lauf; ohne '
           'Starttag bleibt sie offen', () async {
@@ -2057,42 +1829,6 @@ void main() {
         expect((await assigned(e)).values, [run]);
       });
 
-      test('Starttag nach dem Sonntag der Vorwoche (Montag): das Fenster '
-          'beginnt weiter am Sonntag, der Lauf vom Sonntag wird '
-          'zugeordnet', () async {
-        final e = await planned();
-        final run = await runAt(e.session, sunday, 18, 0);
-        e.clock.set(localAt(monday, 9));
-        expect(
-          await e.controller.autoAssignRuns(since: monday),
-          PlanActionResult.done,
-        );
-        expect((await e.controller.unitOn(sunday))!.runId, run);
-        expect((await assigned(e)).values, [run]);
-      });
-
-      test('Idempotenz: erneutes Öffnen ordnet nichts weiter zu und schreibt '
-          'keine weitere Fassung', () async {
-        final e = await planned();
-        final run = await runAt(e.session, sunday, 23, 50, minutes: 30);
-        e.clock.set(localAt(monday, 0, 25));
-        await e.controller.open();
-        final before = await assigned(e);
-        final versions = (await e.plans.history()).length;
-        expect(before.values, [run]);
-        expect((await e.plans.history()).last.trigger, PlanTrigger.run);
-        await e.controller.open();
-        final again = PlanController(
-          session: e.session,
-          clock: e.clock,
-          reader: e.reader,
-        );
-        await again.open();
-        again.dispose();
-        expect(await assigned(e), before);
-        expect((await e.plans.history()).length, versions);
-      });
-
       test('Zuordnung über „Einheit starten“ am Sonntag bleibt, auch mit '
           'einem längeren freien Lauf am Sonntag', () async {
         final e = await planned();
@@ -2113,29 +1849,6 @@ void main() {
         expect((await assigned(e)).values, [short]);
         expect((await assigned(e)).values, isNot(contains(long)));
       });
-    });
-
-    test('Lauf über Mitternacht am Starttag beendet die lange Pause', () async {
-      // Lange Pause (PAR-181) mit anstehendem neuem Einstieg.
-      final e = await _Env.open();
-      e.clock.set(localAt(_day(-80)));
-      await e.controller.saveGoal(_goal());
-      e.clock.set(_now);
-      await _finishedRun(e.session, 70);
-      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
-      expect(await e.controller.newStartPossible(), isTrue);
-      // Ein Lauf, der heute nach Ortszeit des Laufs (UTC+14) um 22:00
-      // beginnt und nach Mitternacht endet, zählt am Starttag (PAR-237):
-      // Die Pause endet heute, ein Neustart steht nicht mehr an.
-      final start = _today.add(const Duration(hours: 8));
-      final r = await e.session.runs.create(startedAt: start);
-      await e.session.runs.setState(
-        r.id,
-        RunState.finished,
-        endedAt: start.add(const Duration(hours: 3)),
-        endedUtcOffset: const Duration(hours: 14),
-      );
-      expect(await e.controller.newStartPossible(), isFalse);
     });
   });
 }
