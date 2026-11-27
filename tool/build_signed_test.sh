@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Test der Versionsrechnung von tool/build_signed.sh (WP30, Tags und Nightly), ohne Build. Aufruf: bash tool/build_signed_test.sh
+# Test der Versionsrechnung von tool/build_signed.sh (WP30, Tags und Nightly), ohne Build, und der Release-Prüfung
+# von APK und AAB im Build (mit Attrappen). Aufruf: bash tool/build_signed_test.sh
 set -u
 cd "$(dirname "$0")/.." || exit 1
 fail=0
@@ -107,5 +108,57 @@ expect_nightly "Tag v5.0.0 auf Nebenzweig" "$exp"
 g tag v1.2.3
 commit "2026-11-20T00:00:00+00:00"
 expect_nightly "nach v1.2.3" "1.2.3-nightly.20261120+$(sha7) 1020399"
+
+# --- Release-Prüfung von APK und AAB: Build mit Attrappen (flutter, apksigner, Prüfskripte), ohne Schlüssel ---
+# Die Attrappen der Prüfskripte schreiben ihren Aufruf in $tmp/b/pruef.log und enden mit FAKE_APK_RC bzw. FAKE_AAB_RC.
+b=$tmp/b
+mkdir -p "$b/tool" "$b/app" "$b/bin" "$b/sdk/build-tools/99.0.0" || exit 1
+cp tool/build_signed.sh "$b/tool/" || exit 1
+for pruef in apk aab; do
+  rc_var=FAKE_$(echo "$pruef" | tr a-z A-Z)_RC
+  printf '#!/bin/sh\necho "%s $1" >>"%s/pruef.log"\nexit ${%s:-0}\n' "$pruef" "$b" "$rc_var" >"$b/tool/check_release_$pruef.sh"
+  chmod +x "$b/tool/check_release_$pruef.sh"
+done
+cat >"$b/bin/flutter" <<'FAKE'
+#!/bin/sh
+case "$2" in
+  apk) mkdir -p build/app/outputs/flutter-apk && echo apk >build/app/outputs/flutter-apk/app-release.apk ;;
+  appbundle) mkdir -p build/app/outputs/bundle/release && echo aab >build/app/outputs/bundle/release/app-release.aab ;;
+  *) exit 1 ;;
+esac
+FAKE
+cert=$(sed -n 's/^RELEASE_CERT_SHA256=//p' tool/build_signed.sh)
+printf '#!/bin/sh\necho "Signer #1 certificate SHA-256 digest: %s"\n' "$cert" >"$b/sdk/build-tools/99.0.0/apksigner"
+chmod +x "$b/bin/flutter" "$b/sdk/build-tools/99.0.0/apksigner"
+build() { # <FAKE_APK_RC> <FAKE_AAB_RC>: Exit-Code des Builds; Log in $b/pruef.log, stderr in $b/err
+  rm -f "$b/pruef.log"; rm -rf "$b/dist" "$b/app/build"
+  (cd "$b" && PATH="$b/bin:$PATH" ANDROID_HOME="$b/sdk" ANDROID_SDK_ROOT='' FAKE_APK_RC=$1 FAKE_AAB_RC=$2 \
+    SIGNING_STORE_PASSWORD=attrappe SIGNING_KEYSTORE_BASE64=$(printf attrappe | base64) \
+    ./tool/build_signed.sh v1.2.3 >/dev/null 2>"$b/err")
+}
+apk_pfad=app/build/app/outputs/flutter-apk/app-release.apk
+aab_pfad=app/build/app/outputs/bundle/release/app-release.aab
+if build 0 0 && grep -qx "apk $apk_pfad" "$b/pruef.log" && grep -qx "aab $aab_pfad" "$b/pruef.log" \
+  && [ -f "$b/dist/ramuri-1.2.3.aab" ]; then
+  ok "Release-Build prüft APK und AAB"
+else
+  nok "Release-Build: erwartet Prüfung von APK und AAB, Log '$(cat "$b/pruef.log" 2>/dev/null)', stderr '$(cat "$b/err")'"
+fi
+if build 0 1; then
+  nok "Release-Build mit roter AAB-Prüfung nicht abgebrochen"
+elif ! grep -q 'Release-Prüfung des AAB ist rot' "$b/err"; then
+  nok "Release-Build mit roter AAB-Prüfung: stderr ohne Meldung: '$(cat "$b/err")'"
+elif [ -e "$b/dist" ]; then
+  nok "Release-Build mit roter AAB-Prüfung: dist/ angelegt"
+else
+  ok "Release-Build mit roter AAB-Prüfung abgebrochen, kein dist/"
+fi
+if build 1 0; then
+  nok "Release-Build mit roter APK-Prüfung nicht abgebrochen"
+elif grep -q 'Release-Prüfung der APK ist rot' "$b/err" && [ ! -e "$b/dist" ]; then
+  ok "Release-Build mit roter APK-Prüfung abgebrochen, kein dist/"
+else
+  nok "Release-Build mit roter APK-Prüfung: stderr '$(cat "$b/err")'"
+fi
 
 [ $fail -eq 0 ] && echo "ALLE GRÜN" || { echo "ROT"; exit 1; }
