@@ -70,12 +70,17 @@ Future<void> _openWith(PlanWorkflowService service) async {
 /// Plan-Speicher, bei dem ein anderer Schreiber der Einheit [racedUnitId]
 /// zwischen Lesen und Schreiben den Lauf [racedRunId] zuordnet: Vor dem
 /// ersten `assignRun` für diese Einheit schreibt er selbst (erwartet offen).
+/// Ist [vanishUnitId] gesetzt, meldet das erste `assignRun` für diese Einheit
+/// „veraltet“ und die Einheit fehlt danach beim Lesen (ein anderer Schreiber
+/// hat sie zwischen Lesen und Schreiben ersetzt).
 class _RacingPlans implements PlanRepository {
   _RacingPlans(this.inner);
   final PlanRepository inner;
   int? racedUnitId;
   int? racedRunId;
   var raced = 0;
+  int? vanishUnitId;
+  var vanished = false;
 
   @override
   Future<PlanAssignResult> assignRun(
@@ -83,6 +88,10 @@ class _RacingPlans implements PlanRepository {
     int? runId, {
     required int? expectedRunId,
   }) async {
+    if (unitId == vanishUnitId && !vanished) {
+      vanished = true;
+      return PlanAssignResult.stale;
+    }
     final run = racedRunId;
     if (unitId == racedUnitId && run != null && raced == 0) {
       raced++;
@@ -94,10 +103,16 @@ class _RacingPlans implements PlanRepository {
   @override
   Future<TrainingGoal?> currentGoal() => inner.currentGoal();
   @override
-  Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) =>
-      inner.unitsBetween(from, to);
+  Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) async => [
+    for (final u in await inner.unitsBetween(from, to))
+      if (!(vanished && u.id == vanishUnitId)) u,
+  ];
   @override
-  Future<PlanUnit?> unitOn(DateTime day) => inner.unitOn(day);
+  Future<PlanUnit?> unitOn(DateTime day) async {
+    final u = await inner.unitOn(day);
+    return vanished && u?.id == vanishUnitId ? null : u;
+  }
+
   @override
   Future<List<PlanVersionRecord>> history() => inner.history();
   @override
@@ -570,6 +585,27 @@ void main() {
         _storageFailure(StorageFailure.rejected),
       );
       expect((await _unitOn(e, today))!.runId, a);
+      expect((await e.plans.history()).length, versions);
+    });
+
+    test('Aufheben, der Speicher meldet „veraltet“ und die Einheit fehlt '
+        'danach: `rejected`, keine neue Fassung', () async {
+      final racing = _RacingSession(await FakeStorage().open(workflowKey));
+      final e = WorkflowEnv(racing);
+      await e.service.saveGoal(_goal({1, 3, 5}));
+      final unit = (await _unitOn(e, today))!;
+      final a = await _runAt(e.session, today, 7, 0);
+      expect(
+        await e.plans.assignRun(unit.id!, a, expectedRunId: null),
+        PlanAssignResult.assigned,
+      );
+      racing.plans.vanishUnitId = unit.id;
+      final versions = (await e.plans.history()).length;
+      await expectLater(
+        e.service.assignRun(unit.id!, null, expectedRunId: a),
+        _storageFailure(StorageFailure.rejected),
+      );
+      expect(racing.plans.vanished, isTrue);
       expect((await e.plans.history()).length, versions);
     });
 
