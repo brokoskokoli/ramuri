@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
-import '../home/data_changes.dart';
+import '../../data_changes.dart';
 import '../settings/app_settings.dart';
 import '../../ui/format/unit_format.dart';
 import 'prediction_controller.dart';

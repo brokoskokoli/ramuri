@@ -5,7 +5,7 @@ import '../../ports/storage_goals.dart';
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_warning.dart';
 import '../goals/training_goal.dart';
-import '../prediction/reference_performance.dart' show calendarDay;
+import '../calendar/calendar_day.dart' show calendarDay;
 import '../profile/heart_rate_resolution.dart';
 import '../recalculation/high_heart_rate_value.dart'
     show highHeartRateTimeValueKey;

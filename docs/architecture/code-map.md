@@ -23,6 +23,7 @@ Abhängigkeiten zeigen nur in diese Richtung: `app` nutzt `adapters` und `core`,
 | `app/lib/app_dependencies.dart` | Manueller Zusammenbau (ohne DI-Bibliothek): bindet die Adapter aus `adapters` an die Ports aus `core`; Tests setzen stattdessen Fakes ein. |
 | `app/lib/app.dart` | Wurzel-Widget mit Theme, Lokalisierung und Navigation. |
 | `app/lib/system_clock.dart` | Echte Uhr (`SystemClock`) als Umsetzung des Ports `Clock`. |
+| `app/lib/data_changes.dart` | Gemeinsame Benachrichtigung über Datenänderungen (`DataChanges`), eine Instanz je Sitzung in `ReadyRoot`; die Bereiche hören darauf und laden neu. |
 | `app/lib/features/<bereich>/` | Je Bereich die Screens und ihr `ChangeNotifier`-Controller (z. B. `app/lib/features/plan/`, `app/lib/features/run/`); nur Darstellung, Ablauf und Verdrahtung, keine Fachregel. |
 | `app/lib/ui/` | Gemeinsame Bausteine der Oberfläche: Theme, Farben, Schrift, Karten, Chips, Zeichner (z. B. `app/lib/ui/sparkline.dart`), Barrel `app/lib/ui/ui.dart`. |
 | `app/lib/ui/format/` | Gemeinsame Formatierer und Texte mehrerer Bereiche (z. B. `app/lib/ui/format/clock_format.dart`, `app/lib/ui/format/unit_format.dart`); einzeln importiert, nicht über das Barrel. |
@@ -64,7 +65,7 @@ Fachlogik ohne Flutter; Barrel `app/packages/core/lib/core.dart`.
 | `app/packages/core/lib/testing/` | Speicher-Vertrag (`app/packages/core/lib/testing/storage_contract.dart`): dieselben Tests laufen gegen den Fake und gegen die drift-Umsetzung. |
 | `app/packages/core/lib/src/algorithms/` | Algorithmen-Registry (`app/packages/core/lib/src/algorithms/algorithm_registry.dart`, ADR-0004, NFR-0005): Familien, Varianten und Standardbestückung `AlgorithmRegistry.standard()`. Oberes Modul: darf `fitness`, `plan` und `prediction` importieren, kein anderes Modul unter `src/` importiert es (`CORE_TOP_MODULES` in `tool/check_architecture.py`). Die App baut die Registry einmal (`AppDependencies.algorithms`); die Wertberechnung bekommt sie als `AlgorithmLookup` (`app/packages/core/lib/src/fitness/algorithm_lookup.dart`), Laufanalyse und Versionsprüfung nehmen ihre Verfahren daraus. |
 | `app/packages/core/lib/src/archive/` | Format, Export und Import des Gesamtarchivs. |
-| `app/packages/core/lib/src/calendar/` | Tageszuordnung (Blattmodul, importiert kein anderes Modul unter `src/`): ISO-Tag `isoDay` und Tag eines Laufs `dayOfRun` (Ortstag seines Starts, PAR-237) mit den zugehörigen Tagesfunktionen in `app/packages/core/lib/src/calendar/run_day.dart`. |
+| `app/packages/core/lib/src/calendar/` | Tageszuordnung (Blattmodul, importiert kein anderes Modul unter `src/`): ISO-Tag `isoDay` und Tag eines Laufs `dayOfRun` (Ortstag seines Starts, PAR-237) mit den zugehörigen Tagesfunktionen in `app/packages/core/lib/src/calendar/run_day.dart`. Kalendertag `calendarDay` (Ortstag als UTC-Mitternacht) und ganze Kalendertage `daysBetween` für Prognose, Plan, Ziele und Erinnerungen in `app/packages/core/lib/src/calendar/calendar_day.dart`. |
 | `app/packages/core/lib/src/consent/` | Einwilligungen, Widerruf und eingewilligte Quellen. |
 | `app/packages/core/lib/src/export/` | Dateiexporte GPX, TCX, FIT und CSV. |
 | `app/packages/core/lib/src/fitness/` | Zonen, VO₂max, aerobe Effizienz, TRIMP und die Lesesicht `AlgorithmLookup` auf die Registry (die Registry selbst liegt in `algorithms/`). |

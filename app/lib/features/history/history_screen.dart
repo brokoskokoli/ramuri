@@ -146,6 +146,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
           session: widget.session,
           clock: widget.clock,
           today: _today,
+          onAdopt: (context, exercise) => adoptImportedExercise(
+            context,
+            exercise,
+            service: _subjective,
+            clock: widget.clock,
+            today: _today,
+          ),
         ),
       ),
     );
@@ -222,6 +229,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       algorithms: widget.recalculation.service.algorithms,
       onDeleted: _consent?.deleteRunThumbnails,
       exports: FileHandoffScope.of(context),
+      offload: OffloadScope.of(context),
     );
     if (!mounted) return;
     if (result == DeletionResult.deleted ||

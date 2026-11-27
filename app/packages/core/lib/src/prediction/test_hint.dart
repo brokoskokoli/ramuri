@@ -1,8 +1,8 @@
+import '../calendar/calendar_day.dart';
 import 'performance_prediction.dart';
 import 'prediction_level.dart';
 import 'prediction_parameters.dart';
 import 'prediction_run.dart';
-import 'reference_performance.dart';
 
 /// Ob bei „nicht bestimmbar“ ein Hinweis auf einen 5-km-Test erscheint
 /// (PAR-117, PAR-143, FR-0129). Nur wenn der Plan ihn enthalten dürfte:

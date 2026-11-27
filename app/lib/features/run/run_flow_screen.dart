@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../offload_scope.dart';
 import '../../ui/ui.dart';
 import '../plan/plan_started_unit.dart';
 import '../../ui/format/plan_texts.dart';
@@ -610,6 +611,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       voiceTexts: VoiceTexts(AppLocalizations.of(context)),
       guidedSegments: _segmentsForRun,
       guidedKind: _guided && _preparing ? widget.plannedUnit?.kind : null,
+      offload: OffloadScope.of(context),
     );
     final onFinished = widget.onFinished;
     if (onFinished != null) {

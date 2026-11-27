@@ -62,6 +62,9 @@ Future<DeletionResult> runDeletion(Future<void> Function() action) async {
 /// gelöscht ist, und nur ohne offene Übergabe (sonst räumt der nächste
 /// Prozessstart). Bleiben sie nicht sicher entfernt, endet das Löschen mit
 /// [StorageFailure.deletedNotErased]; der Lauf bleibt gelöscht.
+///
+/// [offload]: wo die Vorverarbeitung der Läufe beim Neuanlegen rechnet
+/// ([RunAnalyzer.offload]; in der App der eigene Isolate).
 Future<void> deleteRunAndRefresh(
   StorageSession session,
   Clock clock,
@@ -70,6 +73,7 @@ Future<void> deleteRunAndRefresh(
   required AlgorithmLookup algorithms,
   Future<void> Function(int runId)? onDeleted,
   FileHandoff? exports,
+  Offload offload = inlineOffload,
 }) => serialize(
   () => _deleteRunAndRefresh(
     session,
@@ -78,6 +82,7 @@ Future<void> deleteRunAndRefresh(
     algorithms,
     onDeleted,
     exports,
+    offload,
   ),
 );
 
@@ -88,11 +93,13 @@ Future<void> _deleteRunAndRefresh(
   AlgorithmLookup algorithms,
   Future<void> Function(int runId)? onDeleted,
   FileHandoff? exports,
+  Offload offload,
 ) async {
   final calc = ValueCalculationService(
     session: session,
     clock: clock,
     algorithms: algorithms,
+    offload: offload,
   );
   // Ein Merker eines früheren, unvollendeten Neuanlegens darf nicht verloren
   // gehen, wenn dieses Löschen nichts löscht.
@@ -187,7 +194,8 @@ Future<void> completePendingValueRefresh(
 /// Fragt nach und löscht den Lauf [runId]. Für WP10 (Eintrag in der Lauf-Liste).
 /// Erwartet die [clock], weil nach dem Löschen die Tageswerte der übrigen
 /// Lauftage neu angelegt werden ([deleteRunAndRefresh]). Zeigt danach eine
-/// kurze Rückmeldung, soweit der Kontext noch steht.
+/// kurze Rückmeldung, soweit der Kontext noch steht. [offload] wie bei
+/// [deleteRunAndRefresh].
 Future<DeletionResult> confirmAndDeleteRun(
   BuildContext context,
   StorageSession session,
@@ -197,6 +205,7 @@ Future<DeletionResult> confirmAndDeleteRun(
   required AlgorithmLookup algorithms,
   Future<void> Function(int runId)? onDeleted,
   FileHandoff? exports,
+  Offload offload = inlineOffload,
 }) => _confirmAndDelete(
   context,
   all: false,
@@ -208,6 +217,7 @@ Future<DeletionResult> confirmAndDeleteRun(
     algorithms: algorithms,
     onDeleted: onDeleted,
     exports: exports,
+    offload: offload,
   ),
 );
 

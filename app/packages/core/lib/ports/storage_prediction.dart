@@ -1,3 +1,4 @@
+import '../src/calendar/calendar_day.dart';
 import '../src/prediction/reference_performance.dart';
 import 'storage.dart' show StorageException, StorageFailure;
 
