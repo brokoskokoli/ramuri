@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_buttons.dart';
 import '../export/file_handoff_scope.dart';
-import '../storage/storage_start.dart';
 import 'archive_import_flow.dart';
 import 'archive_scope.dart';
 import 'archive_wiring.dart';
@@ -43,7 +42,7 @@ class ArchiveImportAction extends StatelessWidget {
     BuildContext context,
     ArchiveRestoreFactory factory,
     FileHandoff handoff,
-    StorageStartController start,
+    ArchiveSessionTarget start,
     ArchiveHeaderCheck headerCheck,
   ) async {
     final l10n = AppLocalizations.of(context);

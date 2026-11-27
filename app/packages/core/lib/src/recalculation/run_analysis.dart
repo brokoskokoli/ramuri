@@ -12,6 +12,7 @@ import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recording/belt_track.dart';
 import '../recording/sport_moving_time.dart';
+import '../offload.dart';
 
 /// Schlüssel der gespeicherten Werte (`ComputedValue.key`).
 const String vo2maxRunValueKey = 'vo2max_run';
@@ -62,6 +63,19 @@ class RunAnalysis {
   final BeltTrack? belt;
 
   DateTime get endedAt => run.endedAt!;
+
+  /// Dieselbe Analyse ohne [preprocessing]: was Tageswerte und Laufwerte
+  /// nach der Rechnung noch brauchen (Auswahl, Schätzung, Quellen, Basis,
+  /// Band). Eine Rechnung über viele Läufe hält nur diese Form
+  /// ([RunAnalysisCache]), nie alle Vorverarbeitungen zugleich.
+  RunAnalysis withoutPreprocessing() => RunAnalysis(
+    run: run,
+    selection: selection,
+    estimate: estimate,
+    basis: basis,
+    sources: sources,
+    belt: belt,
+  );
 
   /// Der VO₂max-Laufwert mit den Angaben aus FR-0053 und allen bewerteten
   /// Abschnitten (FR-0073), auch den abgelehnten, in Zeitreihenfolge, und der
@@ -193,18 +207,27 @@ AdvancedFitnessValue<double>? toAdvancedValue(ComputedValue v) {
 /// Schätzer; es gibt nur diese eine Quelle je Rechnung. [estimator] ist der
 /// aktive VO₂max-Schätzer der Registry
 /// (`ValueCalculationService.vo2maxEstimator`).
+///
+/// Die Vorverarbeitung ([replayJob]) läuft über [offload], wie bei
+/// Zusammenfassung, Übersicht und Prognose; in der App ein eigener Isolate
+/// ([isolateOffload]), damit die Oberfläche bei einer Neuberechnung über
+/// viele Läufe nicht ruckelt. Lesen bleibt im aufrufenden Isolate.
 class RunAnalyzer {
   RunAnalyzer({
     required this.fitness,
     required this.preprocessing,
     required this.basis,
     required this.estimator,
+    this.offload = inlineOffload,
   });
 
   final FitnessParameters fitness;
   final PreprocessingParameters preprocessing;
   final HeartRateBasis basis;
   final Vo2maxEstimator estimator;
+
+  /// Wo die Vorverarbeitung gerechnet wird.
+  final Offload offload;
 
   /// Wirft [ArgumentError] bei abweichender Parameterversion zwischen
   /// Vorverarbeitung und Fitness; das wird nicht abgefangen.
@@ -237,13 +260,13 @@ class RunAnalyzer {
         excluded: const [],
       );
     } else {
-      final pre = replayRunPreprocessing(
+      final pre = await offload(replayJob, (
         run: run,
         end: end,
         raw: raw,
         gaps: gaps,
         parameters: preprocessing,
-      );
+      ));
       // Bandlauf: Bewegungszeit aus den Einstellungen; Belastung (Zonen,
       // TRIMP) und alles Weitere folgen dieser Zeit wie beim GPS-Lauf.
       replayed = belt == null
@@ -299,6 +322,28 @@ class RunAnalyzer {
       belt: belt,
     );
   }
+}
+
+/// Die Laufanalysen einer Rechnung über viele Läufe (Zwischenstand der
+/// Neuberechnung), je Lauf nur ohne Vorverarbeitung
+/// ([RunAnalysis.withoutPreprocessing]): Der Speicher wächst nicht mit den
+/// Vorverarbeitungen aller Läufe der Historie.
+class RunAnalysisCache {
+  final Map<int, RunAnalysis> _byRun = {};
+
+  /// Die gehaltene Analyse des Laufs [runId], sonst `null`.
+  RunAnalysis? operator [](int runId) => _byRun[runId];
+
+  /// Hält [analysis] ohne Vorverarbeitung.
+  void keep(RunAnalysis analysis) =>
+      _byRun[analysis.run.id] = analysis.withoutPreprocessing();
+
+  /// Anzahl gehaltener Analysen.
+  int get length => _byRun.length;
+
+  /// Anzahl gehaltener Vorverarbeitungen (0, solange nur [keep] schreibt).
+  int get heldPreprocessings =>
+      _byRun.values.where((a) => a.preprocessing != null).length;
 }
 
 /// [replayRunPreprocessing] als Auftrag für einen anderen Isolate (alles

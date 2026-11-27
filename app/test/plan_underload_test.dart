@@ -17,6 +17,10 @@ final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i + 5));
 final _d0 = DateTime.utc(2026, 11, 16); // Montag
 DateTime _day(int n) => _d0.add(Duration(days: n));
 
+/// Ortszeit [hour]:[minute] am Kalendertag [n] (Tage zählen von [_d0]).
+DateTime _local(int n, int hour, [int minute = 0]) =>
+    DateTime(_day(n).year, _day(n).month, _day(n).day, hour, minute);
+
 String _iso(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-'
     '${d.month.toString().padLeft(2, '0')}-'
@@ -119,7 +123,7 @@ class _Env {
   }) async {
     final unit = (await plans.unitOn(_day(n)))!;
     expect(unit.kind, isIn([PlanUnitKind.easy, PlanUnitKind.long]));
-    final start = DateTime(_day(n).year, _day(n).month, _day(n).day, 7);
+    final start = _local(n, 7);
     final r = sport
         ? await session.runs.create(
             startedAt: start,
@@ -273,7 +277,9 @@ void main() {
       final reader = PlanDataReader(session: e.session, clock: e.clock);
       final runs = await reader.underloadRuns(null);
       expect(runs, hasLength(1));
-      expect(runs.single.endedAt.day, _day(15).day);
+      // Ortszeit: Der Lauf von Tag 15 endet dort um 7:40 Uhr; in UTC kann
+      // das Ende je nach Zone am Vortag liegen.
+      expect(runs.single.endedAt.toLocal(), _local(15, 7, 40));
     });
 
     test('Läufe ohne Puls oder ohne RPE zählen nicht mit', () async {

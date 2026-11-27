@@ -1,6 +1,8 @@
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
+import '../archive/archive_wiring.dart';
+
 /// Ports, die erst nach dem Auflösen des Datenbankpfads zur Verfügung stehen.
 class StorageWiring {
   const StorageWiring({required this.storage, required this.files});
@@ -161,7 +163,8 @@ final class StorageEncryptionInactive extends StorageStartState {
 
 /// Zustandsautomat des App-Starts: laden, dann bereit, nicht zu öffnen oder
 /// Verschlüsselung nicht aktiv. Rein testbar mit Fakes.
-class StorageStartController extends ChangeNotifier {
+class StorageStartController extends ChangeNotifier
+    implements ArchiveSessionTarget {
   StorageStartController({
     required this.keyStore,
     required this.wire,
@@ -197,6 +200,7 @@ class StorageStartController extends ChangeNotifier {
   /// Übernimmt eine neue Sitzung, nachdem die Datenbank getauscht wurde (Import
   /// aus dem Archiv, WP12): Die bisherige ist geschlossen. Die Oberfläche baut
   /// sich mit der neuen Sitzung neu auf.
+  @override
   void adoptSession(StorageSession session) {
     _dataLoss = StorageDataLoss.none;
     _set(StorageReady(session));
@@ -205,6 +209,7 @@ class StorageStartController extends ChangeNotifier {
   /// Startet den normalen Ablauf neu, auch aus [StorageReady]: nach einem
   /// Tausch, dessen Öffnen scheiterte (`ArchiveRestoreFailure.reopenFailed`).
   /// Die bisherige Sitzung ist dann geschlossen.
+  @override
   Future<void> restart() async {
     if (_running) return;
     _running = true;

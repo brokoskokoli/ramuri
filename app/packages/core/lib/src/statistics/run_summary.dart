@@ -10,7 +10,7 @@ import '../recalculation/run_analysis.dart';
 import '../recalculation/run_load_values.dart';
 import '../recalculation/best_pace.dart';
 import 'classification.dart';
-import 'offload.dart';
+import '../offload.dart';
 import 'run_figures.dart';
 import 'run_overview.dart';
 import '../recalculation/statistics_parameters.dart';
