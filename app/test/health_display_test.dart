@@ -136,6 +136,34 @@ void main() {
     );
 
     testWidgets(
+      'Nachtrag abbrechen: Knopf bleibt, nichts gespeichert, auch nach Eingabe',
+      (tester) async {
+        final d = await _start(tester);
+        await _health(d).upsertExercises([_exercise('ex-1')]);
+        await _openHistoryAll(tester);
+        await tapKey(tester, 'health_exercise_ex-1');
+        expect(key('health_take'), findsOneWidget);
+        await tapKey(tester, 'health_take');
+
+        // Nachtrag offen, Eingaben ausgefüllt, dann ohne Speichern zurück.
+        expect(key('manual_form'), findsOneWidget);
+        expect(key('manual_minutes'), findsOneWidget);
+        await tapKey(tester, 'manual_rpe_5');
+        await tester.enterText(key('manual_minutes'), '50');
+        await tester.pumpAndSettle();
+        // Deutsch: pageBack sucht den englischen Tooltip.
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+
+        // Wieder im Detail, weiter übernehmbar, nichts eingetragen.
+        expect(key('health_detail_origin'), findsOneWidget);
+        expect(key('health_take'), findsOneWidget);
+        expect(key('health_taken'), findsNothing);
+        expect(await d.session.manualTrainings.list(), isEmpty);
+      },
+    );
+
+    testWidgets(
       'schon übernommene Einheit: „übernommen“ im Verlauf, kein Knopf',
       (tester) async {
         final d = await _start(tester);
